@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.merforge/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.pnpm-store/

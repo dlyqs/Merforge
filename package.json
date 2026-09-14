@@ -1,0 +1,28 @@
+{
+  "name": "merforge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm build:packages && concurrently -k -n api,web \"pnpm --filter @merforge/api dev\" \"pnpm --filter @merforge/web dev\"",
+    "build:packages": "pnpm --filter @merforge/contracts --filter @merforge/runtime build",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
+    "test": "pnpm build:packages && vitest run",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "cli": "pnpm --filter @merforge/cli start",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "prettier": "^3.0.0"
+  }
+}
