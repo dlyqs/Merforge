@@ -2,13 +2,21 @@
 
 ## 当前项目
 
-Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。已完成 M1 Phase 1–5：本机单任务、异步 Mock、Human 提交、独立确定性验证、显式重试、重启核对及 CLI/Web 操作闭环。React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite；不调用模型或执行实际业务任务。
+Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。已完成 M1 Phase 1–5：本机单任务、异步 Mock、Human 提交、独立确定性验证、显式重试、重启核对及 CLI/Web 操作闭环。React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite；Mock/Human 保留示例语义；M3 Codex 已支持受控本地代码任务。
 
 关键技术：TypeScript strict、Node.js LTS、pnpm workspace、Zod、Drizzle/SQLite、React/Vite/TanStack Query。推荐 Node.js 24；启动与环境变量以 [README](../README.md) 为准。本轮检查实际使用 Node.js 25.8.2、pnpm 10.27.0，未另做 Node.js 24 运行验证。
 
-当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)，Phase 1–4 已完成，`pnpm check` 50 项测试、类型检查与构建通过；本任务获准自动完成 Phase 1–4，之后创建新任务自动完成 Phase 5–7。M1 全部五阶段已完成；[M1 验收记录](next-milestone.md) 记载 29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他（本次文档更新未重跑）。M2 的 Contracts 0.3 和第 5 条追加迁移已实现；版本化定义、独立审批、manual/auto/auto_until 和控制 API 已实现。跨重启计划恢复留 Phase 5，CLI/Web 专用入口留 Phase 6。宏观目标见 [开发计划总表](roadmap.md)。
+[M2 可控串行计划](m2-serial-plan.md) 保留为前置里程碑完成记录。后继任务已接入并核验前序补丁，按原授权连续执行 Phase 5–7，止于 M2。恢复屏障、安全待办扫描和 CLI/Web 专用控制已实现，最终 pnpm check 已通过（16 文件 / 63 测试、类型检查和构建），格式与 diff 检查通过。M2 已完成；M3 当前进展见下段。Contracts 0.3 和第 5 条追加迁移保留 M1 兼容路径。宏观范围见 [开发计划总表](roadmap.md)。
 
-下一里程碑规划入口为 [M3 首个真实 Executor](m3-codex-plan.md)，当前为待审阅文档，开发模式 manual，尚未实施。实施前必须完成 M2 Phase 5–7 的原计划验收；M2 历史接力授权不延伸到 M3。2026-09-14 编制 M3 计划时核对源码与 M2 阶段表，未因提交标题含 phase1-7 就认定 M2 完成。本机 Codex CLI 0.120.0 的 version/help 可用，但尚未验证真实调用、登录或会话恢复；未来七阶段覆盖 Package、工作区、执行、独立命令验收及中断核对，不能当作现有能力。
+最近完成记录为 [M3 首个真实 Executor](m3-codex-plan.md)。Phase 1–7 全部完成，开发模式回 manual，止于 M3，relay off。Contracts 0.4、追加迁移 6–7、代码计划与冻结 Package、受管 Git worktree、独立命令验收、显式核对及新 Attempt 重试已接入 Runtime/API/CLI。Web 提供真实执行详情、证据与取消。真实 A/B/C 演示均已通过；全量检查 21 个文件 / 92 项测试、类型检查和构建通过，格式及 diff 检查通过。能力、指标及限制见 [M3 验收报告](m3-acceptance.md)。
+
+## 下一阶段入口（尚未实现）
+
+下一实施入口为 [M3.1 完整人工操作流程](m3.1-interaction-plan.md)，本轮仅完成文档准备，Phase 均 pending，待实施前审阅。它补菜单式 CLI、GUI 表单建计划与完整恢复操作，消除正常操作中的手填 JSON/ID/hash；不承担 LLM Planner。
+
+[M4 交付合同](m4-planning-scope.md) 将 CLI 问答、GUI AI Chat、真实 LLM 澄清及模块/任务规划、有界修复和独立验收列为必需出口。[企业转型 Pack 合同](ai-transformation-pack-scope.md) 明确 M5 交付领域访谈/评估/实施计划，M6 完成真实改造，M7 评估，M8 扩展 SDK。
+
+当前首页“新建目标”只支持 Mock/Human，代码计划仍需“新建串行计划（JSON）”；菜单和聊天均不存在。首页“仅模拟、不调用 AI”的文案已落后于 Codex Runtime，修复纳入 M3.1 Phase 3。当前能力以 M3 验收与代码为准，不能将未来合同写成现状。
 
 ## 文件组织与修改入口
 
@@ -39,7 +47,7 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 
 **读取与持久化：** GoalDetail 包含 attempts、artifacts、verifications 和旧 runs/evidence/events。历史按尝试顺序返回。旧 Mock Run/Evidence 原样保留，不补造验证；新 Mock Evidence 明确标记模拟。PASS 只证明示例 JSON 结构合格，不代表业务判断正确。
 
-**当前边界：** 同库 Runtime 使用独立 SQLite 事务锁排他，进程退出由系统释放，支持符号链接路径归一化、拒绝硬链接。启动时 running 转 interrupted，ready 不派发，waiting_human 保留，verifying 从产物重放，缺产物 failed。旧实例关闭后的结果拒绝落盘。仅限本机磁盘，不恢复任意执行位置或外部 Agent 会话。CLI/API/Web 均提供 Human/重试入口。视觉检查未执行；浏览器自动验收未运行。
+**当前边界：** 同库 Runtime 使用独立 SQLite 事务锁排他，进程退出由系统释放，支持符号链接路径归一化、拒绝硬链接。启动时 Mock running 转 interrupted，无计划或无授权的 ready 不派发，waiting_human 保留，verifying 从产物重放，缺产物 failed。旧实例关闭后的结果拒绝落盘。仅限本机磁盘，不恢复任意执行位置或外部 Agent 会话。全部 verifying 重放结束后才核对计划授权、范围并派发安全待办。CLI/API/Web 均提供计划控制及 Human/重试入口。视觉检查未执行；浏览器自动验收未运行。
 
 ## 维护约定
 
@@ -49,6 +57,10 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 - 每完成当前执行计划的一个 Phase，更新对应实际完成记录与状态，并按真实代码同步本概览；Milestone 状态变化再更新 roadmap。
 - `pnpm check` 包含类型检查、测试和构建；格式检查另运行 `pnpm format:check`。修改共享包后需构建，并按 README 重启开发服务。
 - 不自行启动页面或使用 Playwright，不使用本计划未授权的 GitNexus。可选用户视觉检查保持未验证标记。
-- 不把 M2 未完成阶段或 M3 规划能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务；M3 的进入门禁和阶段状态统一维护于 m3-codex-plan.md。
+- 不把 M2 计划中的能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务。
 
-M2 代码入口：`packages/contracts/src/plan.ts` 定义计划契约；Runtime `plans.ts` 管理版本与审批，`scheduler.ts` 管理串行派发/范围/聚合，`plan-migration.ts` 是第 5 条追加迁移；`plans.test.ts`、`scheduler.test.ts`、`modes.test.ts` 和 API plans 测试覆盖同进程操作。审批与模式均不会授予初次执行权；新计划须显式 continue。历史 Task 通过 phaseId 区分修订，旧无 Phase 的 Task 仍使用 M1 入口。
+M2 代码入口：`packages/contracts/src/plan.ts` 定义计划契约；Runtime `plans.ts` 管理版本与审批，`scheduler.ts` 管理串行派发/范围/聚合，`plan-migration.ts` 是第 5 条追加迁移；`plans.test.ts`、`scheduler.test.ts`、`modes.test.ts` 和 API plans 测试覆盖同进程操作；plan-recovery、plan-process 和 API plan-cli-process 覆盖重启及 M2 A–D。审批与模式均不会授予初次执行权；新计划须显式 continue。历史 Task 通过 phaseId 区分修订，旧无 Phase 的 Task 仍使用 M1 入口。
+
+CLI 的 plan 子命令提供定义、修订、审阅、阶段审批和模式控制；Web PlanControls.tsx 提供同等操作及固定版本审阅视图。
+
+M3 代码入口：Contracts task-package.ts/plan.v2；Runtime code-store.ts 校验 Package 与身份，workspace.ts/artifact-store.ts/code-workspace.ts 管理文件和证据，executors/codex.ts/process.ts 管理协议及进程，code-verifier.ts 独立验收，code-recovery.ts 核对和授权重试。code-execution.ts 与 index.ts 连接调度、条件写入及三端接口。API 由 MERFORGE_CODE_CONFIG 启用本地配置；命令和示例见 README。未知进程或缺证据仍保持隔离，不自动重跑，Runtime 不开放同会话 resume。

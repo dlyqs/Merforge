@@ -1,3 +1,5 @@
+import { hashObject, stableJson } from './code-hash.js';
+import { taskPackageSchema } from '@merforge/contracts';
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import {
@@ -115,6 +117,20 @@ export function createPlans(sqlite: Database.Database, atomic: Atomic) {
     sqlite
       .prepare('INSERT INTO plan_revisions VALUES (?,?,?,?)')
       .run(p.id, p.revision, JSON.stringify(definition), now());
+    const workspaceId =
+      definition.schemaVersion === 'plan.v2' ? randomUUID() : null;
+    if (definition.schemaVersion === 'plan.v2')
+      sqlite
+        .prepare(
+          'INSERT INTO code_workspaces(id,plan_id,revision,repository_key,base_commit) VALUES (?,?,?,?,?)',
+        )
+        .run(
+          workspaceId,
+          p.id,
+          p.revision,
+          definition.workspace.repositoryKey,
+          definition.workspace.baseCommit,
+        );
     definition.phases.forEach((phase, i) => {
       const phaseId = randomUUID();
       sqlite
@@ -129,12 +145,13 @@ export function createPlans(sqlite: Database.Database, atomic: Atomic) {
           'pending',
         );
       phase.tasks.forEach((task, j) => {
+        const taskId = randomUUID();
         sqlite
           .prepare(
             `INSERT INTO tasks(id,goal_id,title,status,executor_id,acceptance_version,created_at,phase_id,position) VALUES (?,?,?,'ready',?,?,?,?,?)`,
           )
           .run(
-            randomUUID(),
+            taskId,
             p.goalId,
             task.title,
             task.executorId,
@@ -143,6 +160,35 @@ export function createPlans(sqlite: Database.Database, atomic: Atomic) {
             phaseId,
             j + 1,
           );
+        if (task.executorId === 'codex') {
+          const goal = sqlite
+            .prepare('SELECT objective FROM goals WHERE id=?')
+            .get(p.goalId) as { objective: string };
+          const pkg = taskPackageSchema.parse({
+            ...task,
+            schemaVersion: 'task-package.v1',
+            goalId: p.goalId,
+            planId: p.id,
+            revision: p.revision,
+            phaseId,
+            taskId,
+            workspaceId,
+            objective: goal.objective,
+            acceptanceHash: hashObject(task.acceptance),
+          });
+          sqlite
+            .prepare('INSERT INTO task_packages VALUES (?,?,?,?,?,?,?)')
+            .run(
+              taskId,
+              p.id,
+              p.revision,
+              workspaceId,
+              stableJson(pkg),
+              hashObject(pkg),
+              pkg.acceptanceHash,
+            );
+          event(emit, p, 'package_bound', { taskId, phaseId });
+        }
       });
     });
     event(emit, p, 'revision_created');

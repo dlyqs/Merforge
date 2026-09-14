@@ -5,6 +5,8 @@
 **项目性质：** 开源 Agent Framework + Flagship Vertical Agent  
 **核心方向：** Existing-Agent-first / Durable Workflow / Vertical Agent Packs / AI Transformation
 
+**实施导航补充（2026-09-15）：** 本文保留产品纲领及原始 Phase 编号；实际 Milestone 状态以 [开发计划总表](docs/roadmap.md) 为准。新增 [M3.1](docs/m3.1-interaction-plan.md) 补齐菜单式 CLI 与完整人工 GUI 操作；[M4](docs/m4-planning-scope.md) 明确双端对话入口、LLM 澄清/模块任务拆分、审阅与执行验证；[AI Transformation Pack 合同](docs/ai-transformation-pack-scope.md) 明确 M5 领域规划、M6 真实实施、M7 评估、M8 SDK。聊天是用户入口，持久计划、受控执行和证据仍是系统核心。以上是后续规划，不代表当前原型已经具备这些能力。
+
 ---
 
 # 1. 项目一句话定义

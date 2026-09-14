@@ -18,6 +18,7 @@ describe('state and persistence contracts', () => {
       'waiting_human:verifying',
       'verifying:completed',
       'verifying:failed',
+      'verifying:interrupted',
       'failed:running',
       'failed:waiting_human',
       'interrupted:running',

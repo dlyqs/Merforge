@@ -10,12 +10,20 @@
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- plan review: pending
-- execution authorization: none（2026-09-14 仅编制阶段执行文档）
+- boundary reached: 2026-09-14 Phase 1–7 completed；剩余 Phase 5–7 自动执行完成，止于 M3，回 manual，不进入 M4。
+- plan review: accepted for execution（2026-09-14 用户明确授权）
+- execution authorization: 2026-09-14 用户“请自动完成剩余 phase”；自动执行剩余 Phase 5–7，止于 M3，不接力。
+- environment repair authorization: 2026-09-14 用户明确授权“修复这项 CLI 配置兼容问题，并允许 CLI 保存样例目录的信任状态”。该授权覆盖必要配置备份、移除不兼容的 service_tier=default、CLI 保存专用样例目录信任状态；其余全局配置修改仍不在范围内。
 
 本计划的开发模式与 Merforge 产品中用户计划的执行模式分开管理。M2 的自动执行和新任务接力授权止于 M2，不能继承到本计划。暂不创建专用执行 Skill；后续明确“执行 M3 Phase X”或在本计划语境下“继续”时，先读本文和 overview，并核对进入门禁。
 
+## 后续交接（2026-09-15）
+
+M3 按原范围完成，操作入口的完成仅指命令式 CLI 和最小 Web，不包含菜单 CLI、聊天规划或完整 GUI 恢复。新增 [M3.1 计划](m3.1-interaction-plan.md) 承接人工交互补齐；[M4 合同](m4-planning-scope.md) 承接 LLM 规划与双端对话闭环。M5–M8 的企业领域能力见 [Pack 合同](ai-transformation-pack-scope.md)。本次只补文档，M3 已完成状态与历史验收不变，旧自动执行授权不扩展到新阶段。
+
 ## 实际基线、进入门禁与可行性
+
+以下基线段落保留编制时事实。本轮已集成并重验 M2 Phase 5–7，进入门禁已满足；配置启动阻塞已获用户授权修复，Phase 1–7 已完成；最新事实见各阶段实际完成记录。
 
 2026-09-14 只读检查基线为 `e383485`，初始工作区干净。提交标题虽含 `phase1-7`，但 [M2 阶段表](m2-serial-plan.md) 及源码仅证明 Phase 1–4 已交付：Contracts 0.3、plan.v1、迁移 5、版本审批、串行调度及同进程模式控制。M2 Phase 5–7 仍 pending；不能从提交标题推断 M2 完成。
 
@@ -60,15 +68,15 @@
 
 状态仅使用 pending / in_progress / completed / blocked；这是唯一阶段进度表。M2 未完成是 M3 实施进入条件，不在本文重复维护 M2 阶段。
 
-| 阶段    | 主题                 | 主要目标                         | 状态    | 实际产物 | 备注                  |
-| ------- | -------------------- | -------------------------------- | ------- | -------- | --------------------- |
-| Phase 1 | 基线与真实接口验证   | 确认 M2 出口、CLI 协议及运行环境 | pending | —        | 先满足 M2 门禁        |
-| Phase 2 | Package 与持久化契约 | 冻结输入/验收并关联工作区和尝试  | pending | —        | 依赖 Phase 1          |
-| Phase 3 | 受管工作区与证据     | 文件互斥、快照和产物完整性       | pending | —        | 依赖 Phase 2          |
-| Phase 4 | Codex 执行生命周期   | 派发、事件、结束、超时和取消     | pending | —        | 依赖 Phase 3          |
-| Phase 5 | 独立代码验收         | 真实测试结果决定 Task 完成       | pending | —        | 依赖 Phase 4          |
-| Phase 6 | 中断核对与恢复       | 处理遗留进程/漂移后显式续跑      | pending | —        | 依赖 Phase 5          |
-| Phase 7 | 操作入口与 M3 验收   | 三阶段真实演示及证据交付         | pending | —        | 依赖 Phase 6；止于 M3 |
+| 阶段    | 主题                 | 主要目标                         | 状态      | 实际产物                                  | 备注                  |
+| ------- | -------------------- | -------------------------------- | --------- | ----------------------------------------- | --------------------- |
+| Phase 1 | 基线与真实接口验证   | 确认 M2 出口、CLI 协议及运行环境 | completed | M2 集成、真实 start/resume/cancel 证据    | 原生进程组取消不足    |
+| Phase 2 | Package 与持久化契约 | 冻结输入/验收并关联工作区和尝试  | completed | Contracts 0.4、迁移 6、绑定与校验         | 24 项相关回归通过     |
+| Phase 3 | 受管工作区与证据     | 文件互斥、快照和产物完整性       | completed | workspace、artifact-store、code-workspace | 3 项组合回归通过      |
+| Phase 4 | Codex 执行生命周期   | 派发、事件、结束、超时和取消     | completed | Codex Adapter、进程树控制、真实 smoke     | 产物停在 verifying    |
+| Phase 5 | 独立代码验收         | 真实测试结果决定 Task 完成       | completed | code-verifier、真实产物 PASS              | 20 项专项通过         |
+| Phase 6 | 中断核对与恢复       | 处理遗留进程/漂移后显式续跑      | completed | 迁移 7、code-recovery、真实中断重试       | Runtime resume 未开放 |
+| Phase 7 | 操作入口与 M3 验收   | 三阶段真实演示及证据交付         | completed | API/CLI/Web、A/B/C 真实验收与持久证据     | 92 项测试；止于 M3    |
 
 ## Phase 1：基线与真实接口验证
 
@@ -76,10 +84,10 @@
 
 **验收清单：**
 
-- [ ] M2 Phase 5–7 完成记录与代码一致，既有恢复/边界回归通过；未满足则标本阶段 blocked。
-- [ ] 在专用样例中真实运行一个最小代码任务，确认非交互认证、sandbox、JSONL、退出语义、会话标识和产物；不复制凭证到仓库。
-- [ ] 核实 session resume 的正确参数及限制、取消的进程树行为，记录 start/events/cancel/resume 的 supported/unsupported；不以 help 代替实测。
-- [ ] 固定推荐实现路径及验收命令。接口若需变化，先修订后续受影响阶段；不开展多通道集成。
+- [x] M2 Phase 5–7 完成记录与代码一致，既有恢复/边界回归通过；未满足则标本阶段 blocked。
+- [x] 在专用样例中真实运行一个最小代码任务，确认非交互认证、sandbox、JSONL、退出语义、会话标识和产物；不复制凭证到仓库。
+- [x] 核实 session resume 的正确参数及限制、取消的进程树行为，记录 start/events/cancel/resume 的 supported/unsupported；不以 help 代替实测。
+- [x] 固定推荐实现路径及验收命令。接口若需变化，先修订后续受影响阶段；不开展多通道集成。
 
 **助手验证：** M2 相关回归及 `pnpm check` 基线；专用样例进程 smoke、JSONL 样本脱敏检查。真实调用缺登录/权限/网络时记录准确错误和解除条件，不尝试重建凭证。
 
@@ -87,7 +95,9 @@
 
 **依赖/过渡：** M2 出口。该阶段探针不能被描述为 Runtime 已支持 Codex。日志要求见通用规则，重点是版本、事件类型和终态。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 2026-09-14 已核对并集成独立 worktree 的 M2 Phase 5–7 成果，原 worktree 未修改，代码未提交。当前基线为 `a4e18cf`，环境 Node 25.8.2 / pnpm 10.27.0。`pnpm check` 初次因回环监听 EPERM 导致 2 项进程测试失败，其余 61 项通过；经工具权限提升重跑全部通过（16 文件 / 63 测试、类型检查和全量构建）。M2 门禁已满足。新增 `docs/m3-codex-interface.md` 与 `examples/codex-task/`。真实 CLI 0.120.0 在专用临时 Git 样例中三次启动均退出 1，stdout 为空、文件未改动：原配置 service_tier=default 不兼容，临时参数覆盖后因写入全局 config.toml 失败而停止。没有更改全局配置、复制凭证或启用绕过 sandbox。Phase 1 标 blocked，start/events/cancel/resume 未通过实测，Phase 2–4 仍 pending。解除条件：本地提供可运行且不修改全局配置的 CLI 环境，或明确调整该约束及必要权限后重新探测。保留 auto_until Phase 1–4 授权；下一步先补齐真实接口实测，不能跳到 Phase 2。
+
+**复测完成：** 用户已授权最小全局配置修复及样例信任保存。移除 service_tier=default 后真实 start 退出 0、独立本地测试通过；resume 返回同一会话并退出 0。真实 cancel 证明仅终止 Codex 进程组不足：Node 子进程脱离到独立进程组，已核实启动时间、命令及样例 cwd 后安全停止。原生组取消标 unsupported；Phase 4 必须追踪并验证子进程身份，无法确认时隔离工作区，不能释放占用。支持范围限 macOS 本地受信任、禁止自行守护化的样例；Phase 6 的重启核对仍未交付。详细事件见接口记录。Phase 1 完成，进入 Phase 2。
 
 ## Phase 2：Task Package 与持久化契约
 
@@ -95,10 +105,10 @@
 
 **验收清单：**
 
-- [ ] 新计划 schema 能表达 Codex 工作，保留 plan.v1；Package/验收 hash 与审批 revision 绑定，执行后冻结。
-- [ ] Attempt 保存执行元数据和前驱；工作区/证据/验证不可跨 task、attempt、revision 错连。
-- [ ] 新契约覆盖取消请求、待核对、明确错误码和能力限制；未配置真实执行器时拒绝派发，不退回 Mock 冒充成功。
-- [ ] 旧库迁移后 Mock/Human、历史 PASS 和审批原样可读，不补造真实证据。
+- [x] 新计划 schema 能表达 Codex 工作，保留 plan.v1；Package/验收 hash 与审批 revision 绑定，执行后冻结。
+- [x] Attempt 保存执行元数据和前驱；工作区/证据/验证不可跨 task、attempt、revision 错连。
+- [x] 新契约覆盖取消请求、待核对、明确错误码和能力限制；未配置真实执行器时拒绝派发，不退回 Mock 冒充成功。
+- [x] 旧库迁移后 Mock/Human、历史 PASS 和审批原样可读，不补造真实证据。
 
 **助手验证：** Zod 正反例、旧库 fixture、事务回滚、外键及唯一约束、审批/Package 篡改拒绝；相关测试和类型检查。
 
@@ -106,7 +116,7 @@
 
 **依赖/过渡：** Phase 1；新 schema 可读写但 Codex 运行入口暂时明确不可用。记录 package_bound/dispatch_rejected。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** Contracts 0.4 新增 plan.v2（当前限定全代码任务）、task-package.v1、commands.v1、执行元数据契约，保留 plan.v1 与 M1。追加迁移 6 重建执行器 CHECK 并保留旧数据/索引/触发器；新增工作区、不可变 Package、code_runs 和文件证据关联，复合外键阻止跨 Attempt 关联。创建/修订同事务绑定包与验收 hash，readPackage 检查内容和 Task 身份，执行后仍冻结。未配置 Codex 时明确拒绝派发。类型检查、旧库/事务/验证回归 21 项及新契约/绑定/外键测试 3 项通过。下一步实现受管工作区与证据文件。
 
 ## Phase 3：受管工作区与产物快照
 
@@ -114,10 +124,10 @@
 
 **验收清单：**
 
-- [ ] 明确源 commit、创建专用 worktree；不同数据库/Plan 指向同一工作区也无法同时取得写所有权。
-- [ ] 输入、输出快照涵盖 tracked/untracked/删除/重命名，定义忽略目录与有界二进制处理；后继输入可追溯到前序 PASS 输出。
-- [ ] 拒绝越界路径、symlink 逃逸、脏源自动接管和外部漂移；不自动删除/覆盖已有数据。
-- [ ] 证据写入崩溃窗口、缺失文件/hash 错误明确可诊断；孤儿文件不构成完成证据，未授权不清理历史工作区。
+- [x] 明确源 commit、创建专用 worktree；不同数据库/Plan 指向同一工作区也无法同时取得写所有权。
+- [x] 输入、输出快照涵盖 tracked/untracked/删除/重命名，定义忽略目录与有界二进制处理；后继输入可追溯到前序 PASS 输出。
+- [x] 拒绝越界路径、symlink 逃逸、脏源自动接管和外部漂移；不自动删除/覆盖已有数据。
+- [x] 证据写入崩溃窗口、缺失文件/hash 错误明确可诊断；孤儿文件不构成完成证据，未授权不清理历史工作区。
 
 **助手验证：** 临时 Git 仓库+临时证据目录，测试双连接争用、快照完整性、漂移及原子发布中断；相关测试/类型检查。
 
@@ -125,7 +135,7 @@
 
 **依赖/过渡：** Phase 2；不启动真实 Agent。记录 workspace_prepared/conflict、snapshot_recorded、artifact_published/rejected。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 新增 workspace.ts、artifact-store.ts、code-workspace.ts。从干净 Git 源解析明确 commit 并创建独占 detached worktree，持久目录 lease 跨数据库争用且崩溃不自动抢占。快照保存除 .git 外完整文件、hash/mode/base64 及 tracked binary diff，单文件 8MiB/总量 32MiB/10000 文件上限，symlink/hardlink 拒绝。原子独占发布并 fsync 后才写 evidence 引用；孤儿文件不构成完成证据。Attempt 输入输出绑定，后继必须核对前序 PASS 产物，未知文件/外部漂移/缺失或损坏证据明确拒绝。类型检查和 3 项临时 Git/证据组合回归通过，包括双实例占用、删除/重命名/新文件/二进制、越界、脏源、symlink、证据 hash/归属、孤儿引用及漂移。下一步接 Codex 生命周期。
 
 ## Phase 4：Codex Adapter 与受控进程生命周期
 
@@ -133,11 +143,11 @@
 
 **验收清单：**
 
-- [ ] Mock/Human 保持原行为，Codex 经统一审批/顺序门禁领取；提交事务后派发，外部 I/O 不占长事务。
-- [ ] Task Package 经固定序列化送入 stdin；记录 adapter 版本和会话标识，stdout 事件与 stderr 诊断分流、有界保存。
-- [ ] 区分正常终止、非零退出、认证失败、畸形/截断事件、超时及用户取消；未知事件可保留类型且不丢失已知终态，未知终态不能算成功。
-- [ ] 取消持久化且幂等；确认进程树退出后释放占用；拒绝旧实例/旧 Attempt 结果，关闭过程不留下可并发写工作区的进程。
-- [ ] 正常产物落盘后进入 verifying；没有代码 Verifier 时不得回退 summary.v1 完成。
+- [x] Mock/Human 保持原行为，Codex 经统一审批/顺序门禁领取；提交事务后派发，外部 I/O 不占长事务。
+- [x] Task Package 经固定序列化送入 stdin；记录 adapter 版本和会话标识，stdout 事件与 stderr 诊断分流、有界保存。
+- [x] 区分正常终止、非零退出、认证失败、畸形/截断事件、超时及用户取消；未知事件可保留类型且不丢失已知终态，未知终态不能算成功。
+- [x] 取消持久化且幂等；确认进程树退出后释放占用；拒绝旧实例/旧 Attempt 结果，关闭过程不留下可并发写工作区的进程。
+- [x] 正常产物落盘后进入 verifying；没有代码 Verifier 时不得回退 summary.v1 完成。
 
 **助手验证：** 可控替身子进程覆盖协议与信号竞态；一次真实 Codex 产物 smoke，明确区分替身与真实证据；相关测试/类型检查。
 
@@ -145,7 +155,9 @@
 
 **依赖/过渡：** Phase 3；完整重启遗留进程核对留 Phase 6。记录派发/首次事件/退出/取消确认和固定错误码，不逐 token 写业务事件。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 新增 executors/codex.ts、executors/process.ts、code-execution.ts，接入统一审批/串行领取，事务后准备工作区及启动进程，stdin 固定序列化 Package。持久记录 dispatch token、根及后代启动身份/进程组、session、输入输出与有界脱敏事件证据。处理异常退出、认证、畸形/截断/未知终态、输出上限、超时、取消，支持独立进程组后代的身份核实与终止。取消幂等，关闭等待受管任务，未知进程/漂移保持隔离；重启不自动执行 Codex 或调用 summary 验证器。正常产物仅进入 verifying。13 项 Adapter/Runtime 专项通过（含领取后包漂移、派发前取消、运行中关闭）；全量检查见下方最终检查记录。真实 Runtime smoke 使用 CLI 0.120.0 于 2026-09-14 完成，耗时 84513ms，sessionId、包 hash、输入输出及原子发布证据见 examples/codex-task/evidence/runtime.result.json；进程停止已确认，独立 node --test 通过，Runtime verificationCount=0、状态 verifying。后续 metadata 安全修复由专项回归覆盖，未重复消耗真实模型调用。未运行浏览器，未提交推送。Phase 1–4 已到界；Phase 5–7 未实施。
+
+**最终检查（2026-09-14）：** `pnpm check` 全部通过：20 个测试文件 / 82 项测试、类型检查和全量构建；`pnpm format:check`、`git diff --check` 通过。最后针对包漂移与取消的安全修复已纳入全量回归。真实 smoke 与替身证据分别记录，不互相替代。Vite 仅有第三方 Zod 注释注解警告。全局配置备份权限 0600、不兼容项已移除、专用样例信任已保存。未打开页面、未调用子代理、未提交推送或部署。
 
 ## Phase 5：独立命令验收与完成闭环
 
@@ -153,11 +165,11 @@
 
 **验收清单：**
 
-- [ ] Verifier 独立执行命令/测试，记录 cwd 引用、argv、开始/结束、退出码、输出引用、规则 hash 和快照 hash。
-- [ ] 所有必需检查 PASS 才完成；测试失败、超时、缺工具、证据缺失和工作区漂移有明确 FAIL/阻塞原因，不能接收 Agent 自报 PASS。
-- [ ] Agent 篡改测试脚本/验收配置不能获得 PASS；独立断言检查真实行为，空 diff 是否允许由 Package 明示。
-- [ ] 验证与聚合仍受当前 Attempt 条件写入保护；失败阻止后继任务，显式 retry 保留原验收规则及旧证据。
-- [ ] 不修改 M1 summary.v1 语义；每次验证可追溯到唯一 Attempt 的实际产物。
+- [x] Verifier 独立执行命令/测试，记录 cwd 引用、argv、开始/结束、退出码、输出引用、规则 hash 和快照 hash。
+- [x] 所有必需检查 PASS 才完成；测试失败、超时、缺工具、证据缺失和工作区漂移有明确 FAIL/阻塞原因，不能接收 Agent 自报 PASS。
+- [x] Agent 篡改测试脚本/验收配置不能获得 PASS；独立断言检查真实行为，空 diff 是否允许由 Package 明示。
+- [x] 验证与聚合仍受当前 Attempt 条件写入保护；失败阻止后继任务，显式 retry 保留原验收规则及旧证据。
+- [x] 不修改 M1 summary.v1 语义；每次验证可追溯到唯一 Attempt 的实际产物。
 
 **助手验证：** 实际本地命令正反例、篡改测试、验证中取消/旧结果、PASS 后重复唤醒；真实 Codex 样例经独立检查完成，相关测试及类型检查。
 
@@ -165,7 +177,7 @@
 
 **依赖/过渡：** Phase 4；支持正常进程的真实完成，不提前声明重启续跑通过。记录 verification_started/check_finished/verification_passed/failed 与产物关联。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 2026-09-14 新增 code-verifier.ts，真实子进程独立验收并记录 argv/cwd/时间/退出码/输出摘要及规则、快照 hash。篡改、超时、缺工具、取消及重复验证回归通过；显式核对后重试保留旧 FAIL 与新 PASS。Phase 4 真实产物已由 Runtime 验收完成，证据 examples/codex-task/evidence/verification.result.json。20 项执行/验收/恢复专项通过（提升工具权限以访问进程表），共享包构建通过。下一步完成 Phase 6 真实中断演示与剩余窗口核对。
 
 ## Phase 6：中断后的工作区核对与显式恢复
 
@@ -173,11 +185,11 @@
 
 **验收清单：**
 
-- [ ] 覆盖领取后未 spawn、spawn 后元数据未提交、Agent 改文件中、产物已发布未入库、verifying 中及 PASS 后未派发后继的中断窗口。
-- [ ] 数据库、受管派发记录、进程启动身份与文件快照共同决定可恢复性；无法排除遗留进程时保持隔离，不盲杀/盲重试。
-- [ ] 核对不自动执行 Agent；显式恢复后新 Attempt 记录前驱与决策。只有已验证可恢复 session 才续会话；否则明确提示新尝试并要求对应显式命令，不静默降级。
-- [ ] 缺文件/外部漂移/取消未确认/权限不足保留阻塞和解除条件；原有变更可检查，不 reset 丢弃。
-- [ ] 恢复重新核对 review、revision、manual/auto_until 边界；completed 不重复执行，取消/失败不自动重试，验证重放满足可重复执行限制。
+- [x] 覆盖领取后未 spawn、spawn 后元数据未提交、Agent 改文件中、产物已发布未入库、verifying 中及 PASS 后未派发后继的中断窗口。
+- [x] 数据库、受管派发记录、进程启动身份与文件快照共同决定可恢复性；无法排除遗留进程时保持隔离，不盲杀/盲重试。
+- [x] 核对不自动执行 Agent；显式恢复后新 Attempt 记录前驱与决策。只有已验证可恢复 session 才续会话；否则明确提示新尝试并要求对应显式命令，不静默降级。
+- [x] 缺文件/外部漂移/取消未确认/权限不足保留阻塞和解除条件；原有变更可检查，不 reset 丢弃。
+- [x] 恢复重新核对 review、revision、manual/auto_until 边界；completed 不重复执行，取消/失败不自动重试，验证重放满足可重复执行限制。
 
 **助手验证：** 临时仓库+daemon/替身 Agent 的 SIGKILL 与同步点测试，不靠固定 sleep 猜状态；至少一次真实 Codex 中断后核对并续跑/显式重试成功的记录。若 session resume 宣称 supported，额外证明真实同会话恢复。
 
@@ -185,7 +197,7 @@
 
 **依赖/过渡：** Phase 5；记录 recovery_started、process_reconciled、workspace_drift、resume_selected/rejected、recovery_finished。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 2026-09-14 追加迁移 7 保存核对快照及显式接受记录；code-recovery.ts 核对 Package/证据/工作区归属、启动身份和 macOS cwd 占用，未知派发身份保持隔离。显式 stop 只终止核实身份的进程；retryCode 必须提供原 Attempt、revision、核对 hash，重新走审批/模式/顺序门禁并保存前驱。产物不 reset、不自动重跑。领取前取消、缺失派发身份、改文件时 SIGKILL、孤儿证据、验证取消及完成后重启由组合回归覆盖；进程检查不可用不放行。24 项执行/恢复/持久化专项通过。真实场景 B 已完成两次真实调用（旧 interrupted、新 completed/PASS），见 evidence/recovery.result.json。Runtime 同会话 resume 明确 unsupported，只开放显式新 Attempt 重试；CLI 单独探针能力不等同 Runtime。后续 Phase 7 补三阶段边界演示及全量检查。
 
 ## Phase 7：操作入口、真实演示与 M3 出口
 
@@ -193,13 +205,13 @@
 
 **验收清单：**
 
-- [ ] API/CLI 能创建/审阅代码计划、指定受管仓库、运行、观察 Attempt/验收、取消、核对及显式恢复/重试；过期 revision/非法范围不可绕过门禁。
-- [ ] Web 最小展示真实/模拟标识、工作区、Attempt、脱敏日志摘要、diff/证据引用和核对原因；只有后端支持时开放对应操作，避免读取任意本机路径。
-- [ ] 场景 A：至少三阶段、后一阶段依赖前一阶段真实文件；auto_until 到第 2 阶段后第 3 阶段零 Attempt，重启仍停在边界，显式继续后全部独立验收通过。
-- [ ] 场景 B：真实任务修改文件后中断 daemon，核对遗留进程与 diff，再显式续跑/重试完成；旧 Attempt/日志/失败原因留存。
-- [ ] 场景 C：故意未满足行为的代码被独立测试判 FAIL，后继零 Attempt；显式重试成功。取消和外部漂移至少由确定性进程回归证明，真实调用失败样本如实留存。
-- [ ] 报告记录环境、CLI/模型版本（可得时）、基线/快照 hash、任务与尝试、运行耗时、验证耗时、重试/人工介入、结果及证据路径。token/cost 缺失为 unavailable，不伪造零成本或宣称优于直接 Codex。
-- [ ] 全部必需场景有真实证据才标 M3 completed；接口替身通过不能替代真实验收，缺凭证或真实场景失败时保持未完成。止于 M3，不启动 M4。
+- [x] API/CLI 能创建/审阅代码计划、指定受管仓库、运行、观察 Attempt/验收、取消、核对及显式恢复/重试；过期 revision/非法范围不可绕过门禁。
+- [x] Web 最小展示真实/模拟标识、工作区、Attempt、脱敏日志摘要、diff/证据引用和核对原因；只有后端支持时开放对应操作，避免读取任意本机路径。
+- [x] 场景 A：至少三阶段、后一阶段依赖前一阶段真实文件；auto_until 到第 2 阶段后第 3 阶段零 Attempt，重启仍停在边界，显式继续后全部独立验收通过。
+- [x] 场景 B：真实任务修改文件后中断 daemon，核对遗留进程与 diff，再显式续跑/重试完成；旧 Attempt/日志/失败原因留存。
+- [x] 场景 C：故意未满足行为的代码被独立测试判 FAIL，后继零 Attempt；显式重试成功。取消和外部漂移至少由确定性进程回归证明，真实调用失败样本如实留存。
+- [x] 报告记录环境、CLI/模型版本（可得时）、基线/快照 hash、任务与尝试、运行耗时、验证耗时、重试/人工介入、结果及证据路径。token/cost 缺失为 unavailable，不伪造零成本或宣称优于直接 Codex。
+- [x] 全部必需场景有真实证据才标 M3 completed；接口替身通过不能替代真实验收，缺凭证或真实场景失败时保持未完成。止于 M3，不启动 M4。
 
 **助手验证：** CLI→HTTP→Runtime 临时仓库回归、真实演示；`pnpm check`、`pnpm format:check`、`git diff --check`。区分无关基线失败，记录跳过项和原因。禁止页面/浏览器验收，不为可逆样式改动加镜像式测试。
 
@@ -207,7 +219,9 @@
 
 **依赖/终点：** Phase 6；只有真实能力和必需回归都通过才同步 roadmap 的 M3 完成状态。M4 仅列下一节点建议。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** 2026-09-14 API/CLI 接入代码详情、按归属读取证据、取消、核对及显式 retry-code；API 通过本地 MERFORGE_CODE_CONFIG 启用，HTTP 不能改变本机运行配置。Web 显示真实执行标识、工作区、Attempt/会话、证据及取消；核对/重试使用 CLI。新增 CLI→HTTP→Runtime 回归覆盖审批、FAIL、证据归属、过期 revision 和显式重试 PASS。真实 A 三阶段 PASS、Phase 2 到界及重启零后继后显式继续；B 修改后 SIGKILL、核对并新 Attempt PASS；C 独立断言 FAIL、后继零 Attempt、显式重试及后继 PASS。8 次真实调用的证据已校验 hash 后复制入仓库，逐 Attempt token 可得时原样保存，缺失和成本记 unavailable。完整记录见 docs/m3-acceptance.md；初次演示脚本缺少 controlVersion 的参数失败如实保留，失败时未派发 Codex。
+
+**最终检查（2026-09-14，Phase 5–7）：** `pnpm check` 通过：21 个测试文件 / 92 项测试、类型检查和全量构建；`pnpm format:check`、`git diff --check` 通过。包含 verifying 中 SIGKILL、取消 interrupted/CANCELLED、领取占用竞态及证据缺失回归。SIGKILL 测试同步点已改为等待 checker 身份落盘；修正前出现另一安全拒绝分支，遗留专用 checker 已按命令、启动时间与 cwd 核实后停止。Vite 只有第三方 Zod 注释警告。真实演示后的登记占用、取消语义和事件修复由回归验证，未重复真实模型调用。视觉检查未做；未调用浏览器、GitNexus、子代理或新任务，未提交推送部署。M3 完成，停止于本里程碑。
 
 ## 关键链路可观测性
 

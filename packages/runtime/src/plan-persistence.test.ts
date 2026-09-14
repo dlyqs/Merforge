@@ -88,7 +88,7 @@ describe('plan persistence', () => {
         sqlite.prepare("SELECT * FROM goals WHERE id='bad'").get(),
       ).toBeUndefined();
       expect(sqlite.pragma('foreign_key_check')).toEqual([]);
-      expect(sqlite.pragma('user_version', { simple: true })).toBe(5);
+      expect(sqlite.pragma('user_version', { simple: true })).toBe(7);
     } finally {
       close();
     }

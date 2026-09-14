@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { TaskActions } from './TaskActions';
+import { PlanCreate, PlanControls } from './PlanControls';
 
 export function App() {
   const [objective, setObjective] = useState('');
@@ -72,6 +73,7 @@ export function App() {
             </button>
           </div>
         </form>
+        <PlanCreate onCreated={setSelectedId} />
         {error && (
           <p role="alert" className="error">
             {error.message}
@@ -128,7 +130,13 @@ export function App() {
                 <p className="eyebrow">GOAL</p>
                 <h2 className="objective">{detail.data.objective}</h2>
                 <p className="identifier">{detail.data.id}</p>
-                <h3>任务</h3>
+                {detail.data.plan && (
+                  <PlanControls
+                    key={detail.data.plan.id}
+                    plan={detail.data.plan}
+                  />
+                )}
+                <h3>任务（包含历史修订；阶段 ID 见任务记录）</h3>
                 {detail.data.tasks.map((task) => (
                   <TaskActions
                     key={task.id}
@@ -148,7 +156,9 @@ export function App() {
                       #{attempt.sequence} ·{' '}
                       {attempt.executorId === 'mock'
                         ? 'MOCK 模拟'
-                        : 'HUMAN 人工'}{' '}
+                        : attempt.executorId === 'codex'
+                          ? 'CODEX 真实执行'
+                          : 'HUMAN 人工'}{' '}
                       · {attempt.status}
                     </strong>
                     <p className="identifier">

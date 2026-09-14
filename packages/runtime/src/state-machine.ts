@@ -6,7 +6,7 @@ const transitions: Record<TaskStatus, readonly TaskStatus[]> = {
   ready: ['running', 'waiting_human'],
   running: ['verifying', 'failed', 'interrupted'],
   waiting_human: ['verifying'],
-  verifying: ['completed', 'failed'],
+  verifying: ['completed', 'failed', 'interrupted'],
   failed: ['running', 'waiting_human'],
   interrupted: ['running', 'waiting_human'],
   completed: [],

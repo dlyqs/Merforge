@@ -1,8 +1,9 @@
 import { planDetailSchema } from './plan.js';
 export * from './plan.js';
+export * from './task-package.js';
 import { z } from 'zod';
 
-export const CONTRACT_VERSION = '0.3' as const;
+export const CONTRACT_VERSION = '0.4' as const;
 export const createGoalSchema = z
   .object({
     objective: z.string().trim().min(1).max(2000),
@@ -18,7 +19,7 @@ export const taskStatusSchema = z.enum([
   'failed',
   'interrupted',
 ]);
-export const executorIdSchema = z.enum(['mock', 'human']);
+export const executorIdSchema = z.enum(['mock', 'human', 'codex']);
 export const attemptStatusSchema = taskStatusSchema.exclude(['ready']);
 export const goalSchema = z.object({
   id: z.string().uuid(),

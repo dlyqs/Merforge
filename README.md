@@ -2,7 +2,19 @@
 
 Merge your workflow. Forge your AI future.
 
-开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Attempt → Artifact → Verification**（Mock/Human），并已实现 M2 的版本化人工计划、审批和同进程串行控制。真实 Executor 与 AI Transformation Pack 尚未接入。
+开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Attempt → Artifact → Verification**（Mock/Human），并已实现 M2 的版本化人工计划、审批和跨重启串行控制及 CLI/Web 入口。Runtime 已接入首个 Codex 执行器，代码产物由独立命令验收，支持中断核对与显式新 Attempt 重试。AI Transformation Pack 尚未实现。
+
+## 当前体验与后续阶段
+
+当前 CLI 使用逐条子命令；GUI 的普通目标入口支持 Mock/Human，真实 Codex 使用 JSON 计划入口。计划由人工定义，尚无菜单式 CLI 或 LLM 聊天规划；代码任务的核对/重试仍需要 CLI。页面中“仅模拟执行”的旧介绍待 M3.1 修正，不代表 Runtime 没有真实 Codex 能力。
+
+后续交付已明确，尚未实现：
+
+- [M3.1 完整人工操作流程](docs/m3.1-interaction-plan.md)：CLI 菜单与 GUI 表单，双端完整审阅、执行、取消、核对及重试；正常操作不手填 JSON/内部 ID/hash。
+- [M4 对话规划与执行闭环](docs/m4-planning-scope.md)：CLI 问答和 GUI AI Chat，由 LLM 澄清、拆模块/任务、生成可审阅计划，再执行和独立验证。
+- [企业转型 Pack](docs/ai-transformation-pack-scope.md)：M5 访谈/评估/方案及实施规划，M6 真实改造与业务验收，M7 对比评估，M8 Pack SDK 扩展。
+
+[路线图](docs/roadmap.md) 管里程碑状态；当前下一入口为 M3.1，规划准备不代表已授权开发或已交付功能。
 
 ## 快速开始
 
@@ -53,9 +65,9 @@ ID 从 `create` 或 `inspect` 输出获取。`mock-run` 返回 202 受理数据 
 
 数据库启动时执行追加迁移。旧模拟记录保持可读，不补造 Attempt 或验证判定；所有 Mock 产物仍标记模拟。
 
-## M2 计划 API（Phase 1–4）
+## M2 计划 API
 
-当前计划功能通过 API 使用；CLI/Web 专用控制界面留 Phase 6。可用以下命令创建示例，响应返回 PlanDetail（含 goalId、revision、phases、approvals 和控制状态）：
+计划可通过 API、CLI 和 Web 操作。可用以下命令创建示例，响应返回 PlanDetail（含 goalId、revision、phases、approvals 和控制状态）：
 
 ```bash
 curl -sS http://127.0.0.1:4317/api/plans -H 'Content-Type: application/json' --data-binary @examples/serial-plan.json
@@ -74,7 +86,7 @@ auto 模式在显式启动后持续推进；auto_until 必须提供包含在范�
 
 阶段入口审批请求会在已授权执行到达该阶段时产生。批准或 Human 合格提交只恢复已有授权。失败/中断需显式 retry；所有计划 Task 的 run/mock-run/retry 均受审阅、顺序、授权与范围门禁约束。非法输入返回 400，缺失对象返回 404，版本/状态冲突返回 409，响应含 error 与 code。Human 产物仍仅接受 summary.v1 结构验证，不代表业务验收。
 
-计划控制和审批已经持久化；完整跨重启调度恢复及崩溃窗口保证尚待 Phase 5，不把 M1 单任务恢复结果视为 M2 出口验收。
+重启先完成全部 M1 核对和 verifying 重放，再核对计划聚合、控制及授权事件，最后派发安全待办。恢复中执行、控制和提交返回 409 recovery_in_progress；不一致控制以 recovery_blocked 持久阻塞，普通 continue/mode 无法解除。
 
 ## 三个可复现演示
 
@@ -118,9 +130,9 @@ pnpm exec vitest run apps/api/src/cli-process.test.ts packages/runtime/src/proce
 ## 恢复与实例边界
 
 - 同一数据库仅一个 Runtime/daemon，即使端口不同也拒绝第二实例。使用 canonical 路径旁的 `.owner.sqlite` 独立事务锁；进程退出由系统释放，遗留文件无需删除。运行中不要删除或替换数据库及 owner 文件。符号链接归一化，硬链接拒绝；仅支持本机磁盘，不支持网络文件系统。
-- 启动先获取所有权，再迁移和核对：ready 保持，running → interrupted，waiting_human 保持，verifying 从已保存产物重放纯验证，completed 不再执行。缺失产物会 failed/MISSING_ARTIFACT。
+- 启动先获取所有权，再迁移和核对：ready 保持，Mock running → interrupted，waiting_human 保持，verifying 从已保存产物重放纯验证，completed 不再执行。缺失产物会 failed/MISSING_ARTIFACT。
 - 失败或中断需显式 retry；旧 Attempt 保留且不会覆盖新尝试。关闭取消 Mock 等待，旧回调拒绝保存。
-- 不恢复任意代码位置、外部 Agent 会话或未持久化产物，不承诺外部操作恰好一次。当前没有真实 Agent 或自动重试；M2 计划的跨重启自动推进待 Phase 5 完成专项验证。
+- 不恢复任意代码位置、外部 Agent 会话或未持久化产物，不承诺外部操作恰好一次。当前没有真实 Agent 或自动重试；M2 仅恢复已有持久授权的安全待办，保留审批、Human 等待和停止边界。
 
 ## 工程结构
 
@@ -170,7 +182,77 @@ Web 产物在 `apps/web/dist`。当前 API 不托管静态页面；生产部署�
 ## 开发文档
 
 - [项目概览](docs/overview.md)：当前代码结构与核心链路。
-- [M2 执行计划](docs/m2-serial-plan.md)：当前阶段执行入口，Phase 1–4 已实现，后续恢复及操作闭环继续按计划推进。
+- [M2 执行计划](docs/m2-serial-plan.md)：当前阶段执行入口，唯一阶段状态真源，完整出口证据见对应阶段记录。
 - [M1 执行计划](docs/next-milestone.md)：已完成的阶段合同和 M1 验收记录。
 - [开发计划总表](docs/roadmap.md)：终极目标、主要 Milestone 与验收出口。
 - [架构说明](docs/architecture.md)：技术选型与扩展边界。
+
+## M2 CLI 与 Web 操作
+
+`pnpm cli plan --help` 查看命令。先启动 API，按响应复制 `plan-id`、`phase-id`、`approval-id` 和当前 `controlVersion`；以下尖括号内容须替换为对应值。CLI 不会自动读取新版本代替你已审阅的版本。
+
+```bash
+pnpm cli plan create ../../examples/serial-plan.json
+pnpm cli plan inspect <plan-id>
+pnpm cli plan review <plan-id> <review-approval-id> --revision 1 --decision approved --actor local
+pnpm cli plan continue <plan-id> --revision 1 --phase <first-phase-id>
+# 第一阶段两个 Mock 完成后停止；设置范围本身不启动。
+pnpm cli plan mode <plan-id> auto_until --revision 1 --control-version <current-version> --stop <second-phase-id>
+pnpm cli plan continue <plan-id> --revision 1
+# inspect 返回阶段入口审批；批准后 Human 等待。
+pnpm cli plan review <plan-id> <phase-approval-id> --revision 1 --decision approved --actor local
+pnpm cli inspect <goal-id>
+pnpm cli submit <human-task-id> <attempt-id> --artifact '{"summary":"Reviewed human contribution"}'
+# 第二阶段 Human 及 Mock 完成，mode=manual，第三阶段零 Attempt。
+pnpm cli plan continue <plan-id> --revision 1
+```
+
+文件路径相对于 CLI 的工作目录 `apps/cli`；绝对路径也可用。`plan create` 读取完整 CreatePlan JSON；`plan revise <plan-id> <definition-file> --revision <current-revision>` 读取仅含 schemaVersion/phases 的 PlanDefinition JSON。任何 Attempt 产生后禁止修订。`plan request-approval <plan-id> <phase-id> --revision <revision>` 可在阶段审批拒绝后显式新建请求。`plan mode` 支持 manual/auto/auto_until，auto_until 可加 `--start`；`plan continue --phase` 在任何模式下都只运行一个阶段。失败/中断仍使用 `retry <task-id>`；测试用延迟和失败选项仅用于 Mock。
+
+Web 的“新建串行计划”接受同一 CreatePlan JSON。详情显示服务端阶段状态、历史审阅、模式/范围、停止原因及任务证据，可提交修订、审阅、请求阶段审批、继续或指定阶段。审阅快照固定在所见 revision；轮询发现新版本后需点击“加载当前版本供审阅”，不能静默批准新内容。原单任务及 Human/retry 操作继续可用。未执行浏览器或人工视觉检查。
+
+M2 A–D 自动演示使用同一个 `examples/serial-plan.json`，通过真实 CLI/HTTP 和临时 SQLite 验证 manual 双任务、auto_until 审批/Human 等待 SIGKILL 重启、Mock 失败与执行中断显式重试、旧 revision 审批拒绝。同步点进程测试覆盖边界提交及派发窗口：
+
+```bash
+pnpm build:packages
+pnpm exec vitest run apps/api/src/plan-cli-process.test.ts packages/runtime/src/plan-process.test.ts packages/runtime/src/plan-recovery.test.ts
+pnpm check
+pnpm format:check
+git diff --check
+```
+
+HTTP 测试需要本机回环监听权限；受限沙箱中须获准解除该限制。全部测试仅用临时数据库。
+
+## M3 真实 Codex 入口
+
+已实现 `plan.v2`、冻结的 `task-package.v1`、受管 Git worktree 与 `commands.v1` 独立命令验收。当前支持 macOS / Codex CLI 0.120.0 的受信任本地样例。默认 API 不开启 Codex；只由本地配置映射 repositoryKey 到干净 Git 源，计划使用明确 commit，不携带本机路径。
+
+先准备专用样例（此命令不调用模型）：
+
+```bash
+pnpm build:packages
+node examples/codex-task/prepare-cli.mjs
+```
+
+按输出的绝对路径配置 `MERFORGE_CODE_CONFIG=/.../code-config.json` 和 `MERFORGE_DB=/.../runtime.sqlite`，再启动 `pnpm --filter @merforge/api start`。配置字段为 `executable`、`repositories`、`managedRoot`、`artifactRoot`，可选 `model` 和 `timeoutMs`。不能通过 HTTP 修改本地执行配置。
+
+```bash
+pnpm cli plan create /.../plan.json
+pnpm cli plan inspect PLAN_ID
+pnpm cli plan review PLAN_ID APPROVAL_ID --revision 1 --decision approved --actor local-user
+pnpm cli plan continue PLAN_ID --revision 1
+pnpm cli inspect GOAL_ID
+pnpm cli code-inspect TASK_ID
+pnpm cli code-evidence TASK_ID EVIDENCE_ID
+pnpm cli cancel TASK_ID ATTEMPT_ID
+pnpm cli reconcile TASK_ID ATTEMPT_ID --stop
+pnpm cli retry-code TASK_ID ATTEMPT_ID --revision 1 --snapshot REVIEWED_HASH
+```
+
+`reconcile` 不执行 Agent；`--stop` 明确请求终止核实身份的遗留进程。检查返回的 diff、文件清单与 snapshotHash，再将该 hash 传入 `retry-code`；工作区尚未创建时传 `--snapshot none`。有外部漂移、证据缺失或无法确认进程身份时保持阻塞，不 reset 文件。重试仍须满足原计划审批、revision、模式和阶段范围。当前 Runtime 不支持同会话 resume，显式重试创建新 Attempt 并保留前驱、旧日志和验收。
+
+新增 HTTP 入口：`GET /api/tasks/:id/code`、`GET /api/tasks/:id/code/evidence/:evidenceId`、`POST /api/tasks/:id/attempts/:attemptId/cancel`、`POST /api/tasks/:id/reconcile`（`{attemptId,stop}`）、`POST /api/tasks/:id/retry-code`（`{attemptId,revision,snapshotHash}`）。Web 展示真实执行标识、工作区、会话、验收与证据，支持请求取消；核对和重试使用 CLI。
+
+Runtime `close()` 必须 await。数据库锁释放不等于 Agent 停止，持久目录 lease 会保留未确认的工作区。工作区和轮询进程身份不是任意恶意代码的隔离平台；同会话恢复、守护化子进程、联网验收与任意外部副作用恢复不在支持范围。
+
+真实演示、逐 Attempt 指标与持久证据见 [M3 验收报告](docs/m3-acceptance.md)；历史探针见 [接口记录](docs/m3-codex-interface.md)。演示脚本会调用现有本机 Codex 认证并产生实际模型费用，不属于常规测试。

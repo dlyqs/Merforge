@@ -1,5 +1,8 @@
 import {
   acceptedSchema,
+  codeDetailSchema,
+  planDetailSchema,
+  createPlanSchema,
   type CreateGoal,
   type MockOptions,
   goalDetailSchema,
@@ -22,6 +25,35 @@ async function request(path: string, body?: unknown) {
   return response.json();
 }
 export const api = {
+  codeDetail: async (id: string) =>
+    codeDetailSchema.parse(
+      await request(`/api/tasks/${encodeURIComponent(id)}/code`),
+    ),
+  codeEvidence: async (id: string, evidenceId: string) =>
+    request(
+      `/api/tasks/${encodeURIComponent(id)}/code/evidence/${encodeURIComponent(evidenceId)}`,
+    ),
+  cancelCode: async (id: string, attemptId: string) =>
+    request(
+      `/api/tasks/${encodeURIComponent(id)}/attempts/${encodeURIComponent(attemptId)}/cancel`,
+      {},
+    ),
+  createPlan: async (input: unknown) =>
+    planDetailSchema.parse(
+      await request('/api/plans', createPlanSchema.parse(input)),
+    ),
+  planCommand: async ({
+    id,
+    operation,
+    input,
+  }: {
+    id: string;
+    operation: string;
+    input: unknown;
+  }) =>
+    planDetailSchema.parse(
+      await request(`/api/plans/${encodeURIComponent(id)}/${operation}`, input),
+    ),
   listGoals: async () => goalListSchema.parse(await request('/api/goals')),
   getGoal: async (id: string) =>
     goalDetailSchema.parse(

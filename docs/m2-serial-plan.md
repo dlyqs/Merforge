@@ -6,10 +6,11 @@
 
 依据：[路线图 M2](roadmap.md)、根目录 [v0.1 开发说明](<../Merforge v0.1 — 开源 Agent Orchestration Framework & AI Transformation Agent 开发说明.md>) 第 12.4–12.7、18、19、21、24、25 节。路线图 M2 是原说明 Phase 1 的计划与执行控制子集，不等于开发原说明 Phase 2 的 Codex 集成。
 
-- execution mode: manual
+- execution mode: auto
 - automatic start phase: none
 - automatic stop phase: none
-- conversation relay: authorized; Phase 1–4 boundary reached, creating successor for Phase 5–7
+- conversation relay: received; Phase 1–4 verified and applied; successor authorized for Phase 5–7
+- development outcome: M2 completed; no further relay or M3 execution
 - plan review: accepted for execution (2026-09-14 user instruction)
 - execution authorization: 2026-09-14 用户“请自动完成 phase1-4 然后新开对话自动完成剩余 phase”；接力止于 M2。
 
@@ -52,15 +53,15 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 本表是唯一全局阶段进度表；实现事实与验证证据只写在对应阶段详情。
 
-| 阶段    | 主题               | 主要目标                           | 状态      | 实际产物                 | 备注                  |
-| ------- | ------------------ | ---------------------------------- | --------- | ------------------------ | --------------------- |
-| Phase 1 | 计划契约与持久化   | 版本、阶段、审批和控制状态可持久化 | completed | Contracts 0.3、迁移 5    | 已验证                |
-| Phase 2 | 修订与审阅门禁     | 人工计划可审阅，旧入口不能绕过     | completed | plans.ts、API、JSON 示例 | 已验证                |
-| Phase 3 | manual 串行调度    | 单阶段内逐任务验证并停止           | completed | scheduler.ts、5 项测试   | 已验证                |
-| Phase 4 | 自动模式与阶段审批 | auto/auto_until 及等待后继续       | completed | 模式/审批控制、9 项测试  | 同进程验证通过        |
-| Phase 5 | 跨重启恢复         | 核对后按原授权恢复，绝不越界       | pending   | —                        | 依赖 Phase 4          |
-| Phase 6 | CLI/Web 操作闭环   | 用户可定义、审阅、控制并追踪计划   | pending   | —                        | 依赖 Phase 5          |
-| Phase 7 | M2 出口验收        | 三阶段演示与失败/恢复证据齐备      | pending   | —                        | 依赖 Phase 6；止于 M2 |
+| 阶段    | 主题               | 主要目标                           | 状态      | 实际产物                      | 备注            |
+| ------- | ------------------ | ---------------------------------- | --------- | ----------------------------- | --------------- |
+| Phase 1 | 计划契约与持久化   | 版本、阶段、审批和控制状态可持久化 | completed | Contracts 0.3、迁移 5         | 已验证          |
+| Phase 2 | 修订与审阅门禁     | 人工计划可审阅，旧入口不能绕过     | completed | plans.ts、API、JSON 示例      | 已验证          |
+| Phase 3 | manual 串行调度    | 单阶段内逐任务验证并停止           | completed | scheduler.ts、5 项测试        | 已验证          |
+| Phase 4 | 自动模式与阶段审批 | auto/auto_until 及等待后继续       | completed | 模式/审批控制、9 项测试       | 同进程验证通过  |
+| Phase 5 | 跨重启恢复         | 核对后按原授权恢复，绝不越界       | completed | 就绪屏障、恢复扫描、11 项测试 | 已验证          |
+| Phase 6 | CLI/Web 操作闭环   | 用户可定义、审阅、控制并追踪计划   | completed | CLI plan、Web PlanControls    | 已验证          |
+| Phase 7 | M2 出口验收        | 三阶段演示与失败/恢复证据齐备      | completed | 63 测试、A–D 出口             | 已验证；止于 M2 |
 
 ## Phase 1：计划契约与持久化
 
@@ -157,11 +158,11 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] 启动按“获取所有权→迁移→M1 Attempt 核对/验证重放→计划聚合核对→授权检查→安全派发”顺序执行；恢复未结束时控制命令等待或明确拒绝，不竞态派发。
-- [ ] 审阅待办、阶段审批待办、Human 待办、模式、授权、两端和单阶段限制跨重启保留；没有执行授权的 ready 不派发。
-- [ ] 已授权自动计划在前序 PASS 已提交、后继尚未领取的崩溃窗口恢复；若 Attempt 已领取则识别 interrupted，等待显式 retry，不自动重跑。
-- [ ] manual 完成边界和 auto_until 停止边界前后强制终止，重启均不创建边界外 Attempt；verifying 重放只能推进一次。
-- [ ] M1 同库排他、关闭后迟到回调拒绝、缺产物失败、恢复幂等继续成立；损坏或不一致控制记录安全阻塞并给出原因，不猜测授权。
+- [x] 启动按“获取所有权→迁移→M1 Attempt 核对/验证重放→计划聚合核对→授权检查→安全派发”顺序执行；恢复未结束时控制命令等待或明确拒绝，不竞态派发。
+- [x] 审阅待办、阶段审批待办、Human 待办、模式、授权、两端和单阶段限制跨重启保留；没有执行授权的 ready 不派发。
+- [x] 已授权自动计划在前序 PASS 已提交、后继尚未领取的崩溃窗口恢复；若 Attempt 已领取则识别 interrupted，等待显式 retry，不自动重跑。
+- [x] manual 完成边界和 auto_until 停止边界前后强制终止，重启均不创建边界外 Attempt；verifying 重放只能推进一次。
+- [x] M1 同库排他、关闭后迟到回调拒绝、缺产物失败、恢复幂等继续成立；损坏或不一致控制记录安全阻塞并给出原因，不猜测授权。
 
 **助手验证：** 临时库子进程 SIGKILL/重开，受控同步点覆盖提交/派发窗口；同库不同端口实例争用；重复恢复核对状态、Attempt 数及事件。使用本地回环，不启动 Web 页面。权限限制如实记录为未验证，不替代成通过。
 
@@ -169,7 +170,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖：** Phase 4。真实 Agent 会话/工作区恢复不在范围。记录 plan_recovery_started/finished、recovery_blocked、execution_resumed，关联原授权及版本。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** Runtime 恢复就绪屏障在全部 M1 验证重放结束后统一核对计划并扫描授权待办；重放期间控制/运行/提交返回 recovery_in_progress。scheduler 校验持久控制，不一致记录以 recovery_blocked 撤销授权并保留阻塞原因。新增 plan-recovery 3 项与 plan-process 初始 6 项均通过（出口补齐至 8 项）：多计划重放屏障、无授权/损坏控制、审批及 Human 重开、PASS 提交后未派发、领取后中断、边界前验证重放、auto_until/manual/单阶段边界后 SIGKILL；每个崩溃场景重复重开并核对零越界 Attempt。M1 恢复和模式回归 11 项通过；类型检查通过。全量初跑 HTTP 项受沙箱回环 EPERM 限制，将在出口检查通过提升权限执行。下一阶段：CLI/Web。
 
 ## Phase 6：CLI/Web 计划操作闭环
 
@@ -179,11 +180,11 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] CLI 支持从 JSON 文件创建/修订计划、inspect、review、continue/指定 Phase、模式/范围设置及阶段审批，复用既有 retry/submit。最终命令名写入 README，不提前把示例当已实现命令。
-- [ ] Web 提供最小人工计划输入（可用带校验提示的 JSON 文本区）、版本化审阅内容、阶段/Task 列表、模式/停止边界、审批及 Human/重试操作；不做图编辑器。
-- [ ] 审批操作绑定用户当前查看的 revision；轮询发现版本变化不能静默批准新内容。错误给出具体版本冲突/依赖/停止原因。
-- [ ] 旧单任务操作仍可用；计划内 Task 操作展示门禁原因；Mock 和 summary.v1 PASS 的模拟/结构检查含义明确。
-- [ ] UI/CLI 不自行推算权威完成状态、不直接写库，继续 API + 轮询。
+- [x] CLI 支持从 JSON 文件创建/修订计划、inspect、review、continue/指定 Phase、模式/范围设置及阶段审批，复用既有 retry/submit。最终命令名写入 README，不提前把示例当已实现命令。
+- [x] Web 提供最小人工计划输入（可用带校验提示的 JSON 文本区）、版本化审阅内容、阶段/Task 列表、模式/停止边界、审批及 Human/重试操作；不做图编辑器。
+- [x] 审批操作绑定用户当前查看的 revision；轮询发现版本变化不能静默批准新内容。错误给出具体版本冲突/依赖/停止原因。
+- [x] 旧单任务操作仍可用；计划内 Task 操作展示门禁原因；Mock 和 summary.v1 PASS 的模拟/结构检查含义明确。
+- [x] UI/CLI 不自行推算权威完成状态、不直接写库，继续 API + 轮询。
 
 **助手验证：** CLI→HTTP→临时库集成测试覆盖主要操作和过期审阅；API 错误契约、前端可独立验证的输入/状态映射逻辑；`pnpm typecheck`、相关测试、`pnpm build`。禁止浏览器/Playwright 验证，不为纯样式写无意义测试。
 
@@ -191,7 +192,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖：** Phase 5。日志复用服务端边界事件，不在前端重复上报提交原文。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** CLI 新增 plan create/inspect/revise/review/continue/mode/request-approval，强制显式 revision，mode 另需 controlVersion；Web 新增 PlanControls.tsx，JSON 输入、不可静默更新的审阅快照、阶段/审批/模式/范围及修订操作，保留 TaskActions 的 Human/retry 与服务端错误。README 记录实际命令及文件路径约定。类型检查、全量构建、前端固定版本审阅测试通过；真实 CLI/HTTP M2 A–D 已通过（含修订、旧版本拒绝、审批和 Human 待办重启），M1 CLI 进程回归通过。未打开页面，视觉/键盘/窄屏人工检查未执行。下一阶段：全量出口和文档收尾。
 
 ## Phase 7：M2 验收、演示与文档收尾
 
@@ -201,12 +202,12 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] 场景 A：新建三阶段计划，未审阅执行被拒绝；批准不启动；manual 执行第一阶段（含两个 Task）并停，第二阶段零 Attempt。
-- [ ] 场景 B：新计划批准后 auto_until 到第二阶段；第二阶段设入口审批和 Human Task，分别在审批等待、Human 等待时重启；批准/合格提交后完成第二阶段，模式回 manual，第三阶段零 Attempt；显式 continue 才完成第三阶段。
-- [ ] 场景 C：auto 计划中 Mock 失败，后继不执行；显式 retry 通过后继续；另用延迟 Mock 执行中 SIGKILL，重启标 interrupted、保留边界，显式 retry 后完成。历史错误、验证和审批证据可追踪。
-- [ ] 场景 D：审阅旧 revision 后提交新 revision，旧批准失效；过期审批与直接 Task API 绕过均拒绝；批准新版本并显式启动后才产生 Attempt。
-- [ ] 补齐边界提交崩溃窗口、模式切换、重复控制请求的专项证据，M1 三场景无回归。
-- [ ] README 给出真实可运行命令、模拟性质、兼容策略、恢复限制；architecture/overview 描述实际实现。全部必需项通过才将 M2 标 completed，下一节点 M3 仅建议另行规划。
+- [x] 场景 A：新建三阶段计划，未审阅执行被拒绝；批准不启动；manual 执行第一阶段（含两个 Task）并停，第二阶段零 Attempt。
+- [x] 场景 B：新计划批准后 auto_until 到第二阶段；第二阶段设入口审批和 Human Task，分别在审批等待、Human 等待时重启；批准/合格提交后完成第二阶段，模式回 manual，第三阶段零 Attempt；显式 continue 才完成第三阶段。
+- [x] 场景 C：auto 计划中 Mock 失败，后继不执行；显式 retry 通过后继续；另用延迟 Mock 执行中 SIGKILL，重启标 interrupted、保留边界，显式 retry 后完成。历史错误、验证和审批证据可追踪。
+- [x] 场景 D：审阅旧 revision 后提交新 revision，旧批准失效；过期审批与直接 Task API 绕过均拒绝；批准新版本并显式启动后才产生 Attempt。
+- [x] 补齐边界提交崩溃窗口、模式切换、重复控制请求的专项证据，M1 三场景无回归。
+- [x] README 给出真实可运行命令、模拟性质、兼容策略、恢复限制；architecture/overview 描述实际实现。全部必需项通过才将 M2 标 completed，下一节点 M3 仅建议另行规划。
 
 **助手验证：** `pnpm check`（类型、全量测试、构建）、`pnpm format:check`、`git diff --check`；真实 CLI/HTTP/临时 SQLite 进程测试，检查业务事件和结构化日志能串起场景。记录运行环境、检查结果与未覆盖项；若基线存在无关失败明确区分，不靠构建成功宣布验收完成。
 
@@ -214,7 +215,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖与终点：** Phase 6。未解决必需验收不得标 completed；达到 M2 即停，不启动 M3、不接真实 Agent。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** M2 A–D 以同一 examples/serial-plan.json 通过真实 CLI→HTTP→临时 SQLite 进程完成：A 审批不启动、manual 双任务停止；B auto_until 第二阶段审批与 Human 等待分别 SIGKILL 重启，完成第二阶段切 manual，第三阶段零 Attempt，显式继续才完成；C auto 首个 Mock 失败、延迟 retry 执行中 SIGKILL、重启 interrupted、显式 retry 后完成，保留 7 次尝试和 5 项 PASS；D 新 revision 撤销旧审批效力，过期 review 与三种旧 Task 入口拒绝。恢复专项扩为 3 项状态测试和 8 项 SIGKILL 检查点，新增 manual/单阶段边界前重放，验证恢复日志 execution_resumed。前端固定 revision 审阅保护 1 项通过。最终 pnpm check 通过：16 文件、63 测试、类型及构建；pnpm format:check 与 git diff --check 通过。环境 Node 25.8.2 / pnpm 10.27.0；HTTP 随机回环端口测试经工具权限提升执行，全部数据库为临时文件。Vite 有第三方 Zod 注释注解警告，不影响构建。README、architecture、overview、roadmap 和接力说明已同步。视觉/键盘/窄屏人工检查未执行；未运行浏览器工具。M2 completed，止于此；未启动 M3、真实 Agent、提交推送或部署。
 
 ## 关键链路可观测性
 

@@ -1,3 +1,9 @@
+import {
+  createCodeExecution,
+  type CodeExecutionOptions,
+} from './code-execution.js';
+export { CodexExecutor, CODEX_ADAPTER_VERSION } from './executors/codex.js';
+export type { CodeExecutionOptions } from './code-execution.js';
 import { createScheduler } from './scheduler.js';
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
@@ -51,6 +57,7 @@ export interface RuntimeLog {
   errorCode?: string | null | undefined;
 }
 export interface RuntimeOptions {
+  codex?: CodeExecutionOptions;
   executor?: Executor;
   verifier?: Verifier;
   logger?: (entry: RuntimeLog) => void;
@@ -89,6 +96,20 @@ export function createRuntime(
   const controller = new AbortController();
   const pending = new Set<Promise<void>>();
   let closed = false;
+  let closing = false;
+  let closePromise: Promise<void> | undefined;
+  let recovering = true;
+  function requireReady() {
+    if (closing || closed)
+      throw new RuntimeError('CONFLICT', 'Runtime is closing');
+    if (recovering) throw new RuntimeError('CONFLICT', 'recovery_in_progress');
+  }
+  function readyCommand<A extends unknown[], R>(fn: (...args: A) => R) {
+    return (...args: A): R => {
+      requireReady();
+      return fn(...args);
+    };
+  }
   type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
   function log(entry: Omit<RuntimeLog, 'component'>) {
     // Diagnostic sinks cannot change the outcome of a committed command.
@@ -170,6 +191,57 @@ export function createRuntime(
     plans,
     (fn) => command((_tx, emit) => fn(emit)),
     (taskId) => start(taskId, false),
+    () => !recovering,
+  );
+  const code = createCodeExecution(
+    sqlite,
+    (fn) => command((_tx, emit) => fn(emit)),
+    options.codex,
+    (accepted, status, error, artifact) => {
+      command((tx, emit) => {
+        const task = taskById(tx, accepted.taskId);
+        const attempt = tx
+          .select()
+          .from(attempts)
+          .where(eq(attempts.id, accepted.attemptId))
+          .get();
+        if (
+          !attempt ||
+          task.executorId !== 'codex' ||
+          attempt.status !== 'running'
+        )
+          reject(task, accepted.attemptId);
+        move(
+          tx,
+          emit,
+          task,
+          attempt,
+          status,
+          status === 'verifying'
+            ? 'executor_finished'
+            : status === 'interrupted'
+              ? 'cancel_confirmed'
+              : 'executor_failed',
+          error,
+        );
+        if (status === 'verifying') {
+          tx.insert(artifacts)
+            .values({
+              id: randomUUID(),
+              attemptId: accepted.attemptId,
+              kind: 'codex',
+              payload: JSON.stringify(artifact),
+              createdAt: new Date().toISOString(),
+            })
+            .run();
+          sqlite
+            .prepare(
+              'UPDATE code_workspaces SET last_output_id=(SELECT output_artifact_id FROM code_runs WHERE attempt_id=?) WHERE id=(SELECT workspace_id FROM code_runs WHERE attempt_id=?)',
+            )
+            .run(accepted.attemptId, accepted.attemptId);
+        }
+      });
+    },
   );
   type Emit = (event: typeof events.$inferInsert) => void;
   function move(
@@ -213,7 +285,19 @@ export function createRuntime(
         and(eq(attempts.id, attempt.id), eq(attempts.status, attempt.status)),
       )
       .run();
+    const member = task.phaseId
+      ? (sqlite
+          .prepare(
+            'SELECT f.plan_id AS planId,f.revision,p.control_version AS controlVersion FROM phases f JOIN plans p ON p.id=f.plan_id WHERE f.id=?',
+          )
+          .get(task.phaseId) as {
+          planId: string;
+          revision: number;
+          controlVersion: number;
+        })
+      : undefined;
     emit({
+      ...(member ? { ...member, phaseId: task.phaseId } : {}),
       goalId: task.goalId,
       taskId: task.id,
       attemptId: attempt.id,
@@ -349,7 +433,20 @@ export function createRuntime(
       return { goalId: task.goalId, taskId, attemptId };
     });
   }
-  async function verifyAttempt(attemptId: string) {
+  const verificationJobs = new Map<
+    string,
+    Promise<Awaited<ReturnType<typeof verifyAttemptWork>>>
+  >();
+  function verifyAttempt(attemptId: string) {
+    const existing = verificationJobs.get(attemptId);
+    if (existing) return existing;
+    const job = verifyAttemptWork(attemptId).finally(() =>
+      verificationJobs.delete(attemptId),
+    );
+    verificationJobs.set(attemptId, job);
+    return job;
+  }
+  async function verifyAttemptWork(attemptId: string) {
     const attempt = db
       .select()
       .from(attempts)
@@ -402,21 +499,29 @@ export function createRuntime(
     let result;
     try {
       result = verificationResultSchema.parse(
-        await verifier.verify(
-          JSON.parse(artifact.payload) as unknown,
-          task.acceptanceVersion,
-        ),
+        task.executorId === 'codex'
+          ? await code.verify(task.id, attemptId)
+          : await verifier.verify(
+              JSON.parse(artifact.payload) as unknown,
+              task.acceptanceVersion,
+            ),
       );
       if (result.acceptanceVersion !== task.acceptanceVersion)
         throw new Error('Version mismatch');
-    } catch {
+    } catch (e) {
       result = {
         acceptanceVersion: task.acceptanceVersion,
         verdict: 'FAIL' as const,
-        reasons: ['VERIFIER_ERROR'],
+        reasons: [
+          task.executorId === 'codex' &&
+          e instanceof Error &&
+          /^[A-Z_]+$/.test(e.message)
+            ? e.message
+            : 'VERIFIER_ERROR',
+        ],
       };
     }
-    if (closed) {
+    if (closed || closing) {
       log({
         event: 'stale_result_rejected',
         goalId: task.goalId,
@@ -457,16 +562,28 @@ export function createRuntime(
         createdAt: new Date().toISOString(),
       };
       tx.insert(verifications).values(verification).run();
+      const cancelled =
+        task.executorId === 'codex' && result.reasons.includes('CANCELLED');
       move(
         tx,
         emit,
         currentTask,
         currentAttempt,
-        result.verdict === 'PASS' ? 'completed' : 'failed',
-        result.verdict === 'PASS'
-          ? 'verification_passed'
-          : 'verification_failed',
-        result.verdict === 'PASS' ? null : 'VERIFICATION_FAILED',
+        cancelled
+          ? 'interrupted'
+          : result.verdict === 'PASS'
+            ? 'completed'
+            : 'failed',
+        cancelled
+          ? 'cancel_confirmed'
+          : result.verdict === 'PASS'
+            ? 'verification_passed'
+            : 'verification_failed',
+        cancelled
+          ? 'CANCELLED'
+          : result.verdict === 'PASS'
+            ? null
+            : 'VERIFICATION_FAILED',
       );
       if (result.verdict === 'PASS' && artifact.kind === 'mock') {
         // Preserve the legacy mock evidence reader. Human evidence is its saved
@@ -533,7 +650,7 @@ export function createRuntime(
   }
   function dispatch(task: Task, accepted: Accepted, config: MockOptions) {
     track(async () => {
-      if (closed) return;
+      if (closed || closing) return;
       command((_tx, emit) =>
         emit({
           goalId: task.goalId,
@@ -547,11 +664,11 @@ export function createRuntime(
       try {
         payload = await executor.execute(task, config, controller.signal);
       } catch {
-        if (!closed) fail(task.id, accepted.attemptId);
+        if (!closed && !closing) fail(task.id, accepted.attemptId);
         else log({ event: 'stale_result_rejected', ...accepted });
         return;
       }
-      if (!closed) {
+      if (!closed && !closing) {
         acceptArtifact(task.id, accepted.attemptId, payload, 'mock');
         await verifyAttempt(accepted.attemptId);
       } else log({ event: 'stale_result_rejected', ...accepted });
@@ -563,10 +680,19 @@ export function createRuntime(
     input: MockOptions = {},
     mockOnly = false,
   ): Accepted {
+    requireReady();
     const config = mockOptionsSchema.parse(input);
     const result = command((tx, emit) => {
       const task = taskById(tx, taskId);
       scheduler.gate(emit, task, retry);
+      if (task.executorId === 'codex') {
+        code.gate(task);
+        if (Object.keys(config).length)
+          throw new RuntimeError(
+            'INVALID_INPUT',
+            'Mock options are not valid for code tasks',
+          );
+      }
       const initialStatus =
         task.executorId === 'human' ? human.initialStatus : 'running';
       if (
@@ -606,6 +732,8 @@ export function createRuntime(
           startedAt: now,
         })
         .run();
+      if (task.executorId === 'codex')
+        code.claim(task, attemptId, previous?.id ?? null);
       emit({
         goalId: task.goalId,
         taskId,
@@ -626,12 +754,23 @@ export function createRuntime(
     });
     if (result.task.executorId === 'mock')
       dispatch(result.task, result.accepted, config);
+    if (result.task.executorId === 'codex') {
+      code.register(result.accepted.attemptId);
+      track(async () => {
+        if (!closed) {
+          await code.execute(result.task, result.accepted);
+          if (taskById(db, result.task.id).status === 'verifying')
+            await verifyAttempt(result.accepted.attemptId);
+        }
+      }, result.accepted);
+    }
     return result.accepted;
   }
   // Ownership is acquired before migration/recovery and retained until close.
   try {
     log({ event: 'ownership_acquired' });
     log({ event: 'recovery_started' });
+    command(() => code.recover());
     const replay = command((tx, emit) => {
       const active = tx
         .select()
@@ -639,7 +778,7 @@ export function createRuntime(
         .where(inArray(attempts.status, ['running', 'verifying']))
         .all();
       for (const attempt of active) {
-        if (attempt.status === 'running')
+        if (attempt.status === 'running' && attempt.executorId !== 'codex')
           move(
             tx,
             emit,
@@ -661,14 +800,24 @@ export function createRuntime(
         { goalId: task.goalId, taskId: task.id, attemptId: attempt.id },
       );
     }
-    const recoveryJobs = [...pending];
-    track(
-      async () => {
-        await Promise.all(recoveryJobs);
-        log({ event: 'recovery_finished' });
-      },
-      { goalId: '', taskId: '', attemptId: '' },
-    );
+    const finishRecovery = () => {
+      if (closed) return;
+      scheduler.recover();
+      recovering = false;
+      log({ event: 'recovery_finished' });
+      scheduler.resume();
+    };
+    if (!replay.length) finishRecovery();
+    else {
+      const recoveryJobs = [...pending];
+      track(
+        async () => {
+          await Promise.all(recoveryJobs);
+          finishRecovery();
+        },
+        { goalId: '', taskId: '', attemptId: '' },
+      );
+    }
   } catch (error) {
     closeDatabase();
     ownership.release();
@@ -676,15 +825,35 @@ export function createRuntime(
   }
   return {
     close() {
-      if (!closed) {
+      if (closed) return Promise.resolve();
+      if (closePromise) return closePromise;
+      closing = true;
+      const hasCode = Boolean(
+        sqlite
+          .prepare(
+            "SELECT 1 FROM code_runs r JOIN attempts a ON a.id=r.attempt_id WHERE a.status IN ('running','verifying') LIMIT 1",
+          )
+          .get(),
+      );
+      if (hasCode) code.cancelAll();
+      controller.abort();
+      const finishClose = () => {
         closed = true;
-        controller.abort();
         try {
           closeDatabase();
         } finally {
           ownership.release();
         }
+      };
+      if (hasCode) {
+        closePromise = (async () => {
+          while (pending.size) await Promise.all([...pending]);
+          finishClose();
+        })();
+        return closePromise;
       }
+      finishClose();
+      return Promise.resolve();
     },
     async waitForIdle() {
       while (pending.size) await Promise.all([...pending]);
@@ -696,18 +865,58 @@ export function createRuntime(
         .orderBy(desc(goals.createdAt), desc(goals.id))
         .all(),
     getGoal,
-    continuePlan: scheduler.continuePlan,
+    getTaskPackage: code.getPackage,
+    getCodeRun: code.getRun,
+    getCodeDetail: code.detail,
+    getCodeEvidence: code.readEvidence,
+    cancelTask: readyCommand(code.cancel),
+    reconcileCode: readyCommand(code.reconcile),
+    async retryCode(
+      taskId: string,
+      input: {
+        attemptId: string;
+        snapshotHash: string | null;
+        revision: number;
+      },
+    ) {
+      requireReady();
+      const task = taskById(db, taskId);
+      const pkg = code.getPackage(taskId);
+      if (
+        pkg.revision !== input.revision ||
+        plans.get(pkg.planId).revision !== input.revision
+      )
+        throw new RuntimeError('CONFLICT', 'stale_revision');
+      const latest = db
+        .select()
+        .from(attempts)
+        .where(eq(attempts.taskId, taskId))
+        .orderBy(desc(attempts.sequence))
+        .get();
+      if (
+        !latest ||
+        latest.id !== input.attemptId ||
+        !['failed', 'interrupted'].includes(task.status)
+      )
+        throw new RuntimeError('CONFLICT', 'RETRY_IDENTITY_MISMATCH');
+      command((_tx, emit) => scheduler.gate(emit, task, true));
+      await code.authorizeRetry(taskId, input.attemptId, input.snapshotHash);
+      return start(taskId, true);
+    },
+    continuePlan: readyCommand(scheduler.continuePlan),
     getPlan: plans.detail,
-    createPlan: plans.create,
-    revisePlan: plans.revise,
+    createPlan: readyCommand(plans.create),
+    revisePlan: readyCommand(plans.revise),
     decideApproval(...args: Parameters<typeof plans.decide>) {
+      requireReady();
       plans.decide(...args);
       scheduler.wake(args[0]);
       return plans.detail(args[0]);
     },
-    setPlanMode: scheduler.setMode,
-    requestPhaseApproval: scheduler.requestPhaseApproval,
+    setPlanMode: readyCommand(scheduler.setMode),
+    requestPhaseApproval: readyCommand(scheduler.requestPhaseApproval),
     createGoal(input: CreateGoal) {
+      requireReady();
       const { objective, executorId = 'mock' } = createGoalSchema.parse(input);
       const goal = {
         id: randomUUID(),
@@ -740,6 +949,7 @@ export function createRuntime(
     runTask: (taskId: string, input?: MockOptions) =>
       start(taskId, false, input),
     submitHuman(taskId: string, attemptId: string, payload: unknown) {
+      requireReady();
       const accepted = acceptArtifact(taskId, attemptId, payload, 'human');
       track(async () => {
         if (!closed) await verifyAttempt(attemptId);

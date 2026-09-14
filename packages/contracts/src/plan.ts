@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { codeTaskDefinitionSchema } from './task-package.js';
 
-export const planDefinitionSchema = z
+export const legacyPlanDefinitionSchema = z
   .object({
     schemaVersion: z.literal('plan.v1'),
     phases: z
@@ -28,6 +29,33 @@ export const planDefinitionSchema = z
       .max(100),
   })
   .strict();
+export const codePlanDefinitionSchema = z
+  .object({
+    schemaVersion: z.literal('plan.v2'),
+    workspace: z
+      .object({
+        repositoryKey: z.string().regex(/^[a-zA-Z0-9_-]+$/),
+        baseCommit: z.string().regex(/^[a-f0-9]{40}$/),
+      })
+      .strict(),
+    phases: z
+      .array(
+        z
+          .object({
+            title: z.string().trim().min(1).max(500),
+            requiresApproval: z.boolean(),
+            tasks: z.array(codeTaskDefinitionSchema).min(1).max(100),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
+export const planDefinitionSchema = z.discriminatedUnion('schemaVersion', [
+  legacyPlanDefinitionSchema,
+  codePlanDefinitionSchema,
+]);
 export const createPlanSchema = z
   .object({
     objective: z.string().trim().min(1).max(2000),

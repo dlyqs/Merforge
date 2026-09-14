@@ -1,3 +1,4 @@
+import { codeMigration } from './code-migration.js';
 import { planMigration } from './plan-migration.js';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
@@ -37,6 +38,12 @@ const migrations = [
   `CREATE TABLE artifacts (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(id), kind TEXT NOT NULL CHECK(kind IN ('mock','human')), payload TEXT NOT NULL, created_at TEXT NOT NULL);`,
   `CREATE TABLE verifications (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL REFERENCES attempts(id), artifact_id TEXT NOT NULL REFERENCES artifacts(id), acceptance_version TEXT NOT NULL, verdict TEXT NOT NULL CHECK(verdict IN ('PASS','FAIL')), reasons TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(attempt_id, acceptance_version));`,
   planMigration,
+  codeMigration,
+  `CREATE TABLE code_reconciliations (
+    attempt_id TEXT PRIMARY KEY REFERENCES code_runs(attempt_id),
+    snapshot_hash TEXT NOT NULL, evidence_id TEXT NOT NULL REFERENCES file_artifacts(id),
+    created_at TEXT NOT NULL, accepted INTEGER NOT NULL DEFAULT 0 CHECK(accepted IN (0,1))
+  );`,
 ];
 
 export function openDatabase(path: string): {
@@ -61,7 +68,9 @@ export function openDatabase(path: string): {
             'Database is newer than this runtime. Upgrade Merforge.',
           );
         for (let i = version; i < migrations.length; i++) {
-          sqlite.exec(migrations[i]!);
+          const migration = migrations[i]!;
+          if (typeof migration === 'string') sqlite.exec(migration);
+          else migration(sqlite);
           sqlite.pragma(`user_version = ${i + 1}`);
         }
         if ((sqlite.pragma('foreign_key_check') as unknown[]).length)

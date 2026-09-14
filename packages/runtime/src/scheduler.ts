@@ -16,6 +16,7 @@ export function createScheduler(
   plans: Plans,
   atomic: Atomic,
   launch: (taskId: string) => unknown,
+  isReady: () => boolean,
 ) {
   function taskRows(phaseId: string) {
     return sqlite
@@ -34,6 +35,7 @@ export function createScheduler(
   }
   function reconcile(emit: Emit, id: string) {
     let p = plans.get(id);
+    if (p.stopReason === 'recovery_blocked') return;
     for (const f of plans.phases(p)) {
       const next = phaseStatus(taskRows(f.id).map((t) => t.status));
       if (next !== f.status) {
@@ -105,7 +107,12 @@ export function createScheduler(
   function select(emit: Emit, id: string, retry = false) {
     reconcile(emit, id);
     const p = plans.get(id);
-    if (!p.authorized || p.review !== 'approved' || p.status === 'completed')
+    if (
+      !p.authorized ||
+      p.review !== 'approved' ||
+      p.status === 'completed' ||
+      p.stopReason === 'recovery_blocked'
+    )
       return null;
     const phase = plans.phases(p).find((f) => f.status !== 'completed');
     if (!phase) return null;
@@ -185,10 +192,13 @@ export function createScheduler(
       });
     }
   }
-  function wake(id: string) {
+  function wake(id: string, resumed = false) {
+    if (!isReady()) return;
     atomic((emit) => {
       const taskId = select(emit, id);
       if (taskId) {
+        if (resumed)
+          plans.event(emit, plans.get(id), 'execution_resumed', { taskId });
         plans.event(emit, plans.get(id), 'scheduler_selected', { taskId });
         launch(taskId);
       }
@@ -198,6 +208,8 @@ export function createScheduler(
     const parsed = continuePlanSchema.parse(input);
     atomic((emit) => {
       const p = plans.get(id, parsed.revision);
+      if (p.stopReason === 'recovery_blocked')
+        throw new RuntimeError('CONFLICT', 'recovery_blocked');
       if (p.review !== 'approved')
         throw new RuntimeError('CONFLICT', 'plan_gate_rejected');
       const phase = plans.phases(p).find((f) => f.status !== 'completed');
@@ -221,6 +233,8 @@ export function createScheduler(
     const parsed = modeCommandSchema.parse(input);
     atomic((emit) => {
       const p = plans.get(id, parsed.revision);
+      if (p.stopReason === 'recovery_blocked')
+        throw new RuntimeError('CONFLICT', 'recovery_blocked');
       if (p.controlVersion !== parsed.controlVersion)
         throw new RuntimeError('CONFLICT', 'control_version_conflict');
       const phases = plans.phases(p);
@@ -268,6 +282,8 @@ export function createScheduler(
     const parsed = revisionCommandSchema.parse(input);
     atomic((emit) => {
       const p = plans.get(id, parsed.revision);
+      if (p.stopReason === 'recovery_blocked')
+        throw new RuntimeError('CONFLICT', 'recovery_blocked');
       const phase = plans.phases(p).find((f) => f.id === phaseId);
       const first = plans.phases(p).find((f) => f.status !== 'completed');
       if (
@@ -289,6 +305,7 @@ export function createScheduler(
     return plans.detail(id);
   }
   function taskChanged(emit: Emit, task: Task) {
+    if (!isReady()) return;
     if (!task.phaseId) return;
     const member = sqlite
       .prepare('SELECT plan_id AS id FROM phases WHERE id=?')
@@ -299,7 +316,77 @@ export function createScheduler(
     const p = plans.forGoal(goalId);
     if (p) wake(p.id);
   }
+  function ids() {
+    return sqlite.prepare('SELECT id FROM plans').all() as { id: string }[];
+  }
+  function recover() {
+    atomic((emit) => {
+      for (const { id } of ids()) {
+        const p = plans.get(id);
+        if (p.stopReason === 'recovery_blocked') continue;
+        plans.event(emit, p, 'plan_recovery_started');
+        const phases = plans.phases(p);
+        const first = phases.find((f) =>
+          taskRows(f.id).some((t) => t.status !== 'completed'),
+        );
+        const start = phases.find((f) => f.id === p.startPhaseId);
+        const stop = phases.find((f) => f.id === p.stopPhaseId);
+        const authority = sqlite
+          .prepare(
+            "SELECT type FROM events WHERE plan_id=? AND revision=? AND type IN ('execution_authorized','execution_paused','boundary_reached','plan_completed','recovery_blocked') ORDER BY id DESC LIMIT 1",
+          )
+          .get(id, p.revision) as { type: string } | undefined;
+        const active = phases.find((f) => f.id === p.activePhaseId);
+        const review = plans
+          .approvals(id)
+          .find((a) => a.kind === 'review' && a.revision === p.revision);
+        const invalid =
+          !phases.length ||
+          review?.decision !== p.review ||
+          !['manual', 'auto', 'auto_until'].includes(p.mode) ||
+          ![0, 1].includes(p.authorized) ||
+          (p.authorized &&
+            (p.review !== 'approved' ||
+              authority?.type !== 'execution_authorized')) ||
+          (active &&
+            taskRows(active.id).some((t) => t.status !== 'completed') &&
+            active.id !== first?.id) ||
+          [p.activePhaseId, p.limitPhaseId].some(
+            (ref) => ref && !phases.some((f) => f.id === ref),
+          ) ||
+          (p.authorized && p.mode === 'manual' && !p.activePhaseId) ||
+          (p.limitPhaseId && p.limitPhaseId !== p.activePhaseId) ||
+          (p.mode === 'auto_until'
+            ? !start ||
+              !stop ||
+              start.position > stop.position ||
+              (first && first.position < start.position)
+            : p.startPhaseId !== null || p.stopPhaseId !== null);
+        if (invalid) {
+          sqlite
+            .prepare(
+              "UPDATE plans SET authorized=0,status='blocked',stop_reason='recovery_blocked' WHERE id=?",
+            )
+            .run(id);
+          plans.event(emit, plans.get(id), 'recovery_blocked', {
+            errorCode: 'INVALID_PLAN_CONTROL',
+          });
+          continue;
+        }
+        reconcile(emit, id);
+        plans.event(emit, plans.get(id), 'plan_recovery_finished');
+      }
+    });
+  }
+  function resume() {
+    for (const { id } of ids()) {
+      const p = plans.get(id);
+      if (p.authorized && p.stopReason !== 'recovery_blocked') wake(id, true);
+    }
+  }
   return {
+    recover,
+    resume,
     setMode,
     requestPhaseApproval,
     gate,

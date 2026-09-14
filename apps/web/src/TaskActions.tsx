@@ -1,3 +1,4 @@
+import { CodeDetails } from './CodeDetails';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Accepted, Attempt, Task } from '@merforge/contracts';
@@ -22,7 +23,7 @@ export function TaskActions({
   const canRetry = task.status === 'failed' || task.status === 'interrupted';
   const state = {
     ready: '等待执行',
-    running: '模拟执行中',
+    running: task.executorId === 'codex' ? 'Codex 执行中' : '模拟执行中',
     waiting_human: '等待人工提交',
     verifying: '验证中',
     completed: '已完成',
@@ -38,8 +39,13 @@ export function TaskActions({
             {task.executorId} · {state}
           </p>
           <p className="identifier">Task {task.id}</p>
+          {task.phaseId && (
+            <p className="identifier">
+              Phase {task.phaseId} · 任务顺序 {task.position}
+            </p>
+          )}
         </div>
-        {(canStart || canRetry) && (
+        {(canStart || (canRetry && task.executorId !== 'codex')) && (
           <button
             disabled={run.isPending}
             onClick={() =>
@@ -58,7 +64,9 @@ export function TaskActions({
                 ? '创建新尝试'
                 : task.executorId === 'mock'
                   ? '运行 Mock'
-                  : '开始人工任务'}
+                  : task.executorId === 'codex'
+                    ? '运行 Codex'
+                    : '开始人工任务'}
           </button>
         )}
       </div>
@@ -93,6 +101,9 @@ export function TaskActions({
         <p className="error" role="alert">
           Task {task.id}：{run.error.message}
         </p>
+      )}
+      {task.executorId === 'codex' && (
+        <CodeDetails task={task} attemptId={current?.id} />
       )}
       {task.status === 'waiting_human' && current && (
         <HumanSubmission

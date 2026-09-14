@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import {
   CONTRACT_VERSION,
+  codeRetrySchema,
+  codeReconcileSchema,
+  codeDetailSchema,
   createPlanSchema,
   revisePlanSchema,
   decisionSchema,
@@ -67,6 +70,43 @@ export function buildApp(options: {
     request.log.error(error);
     return reply.code(500).send({ error: 'Internal server error' });
   });
+  app.get<{ Params: { id: string } }>('/api/tasks/:id/code', async (request) =>
+    codeDetailSchema.parse(runtime.getCodeDetail(request.params.id)),
+  );
+  app.get<{ Params: { id: string; evidenceId: string } }>(
+    '/api/tasks/:id/code/evidence/:evidenceId',
+    async (request) =>
+      runtime.getCodeEvidence(request.params.id, request.params.evidenceId),
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/tasks/:id/reconcile',
+    async (request, reply) => {
+      const input = codeReconcileSchema.safeParse(request.body);
+      if (!input.success)
+        return reply.code(400).send({ error: 'Invalid reconciliation' });
+      return runtime.reconcileCode(
+        request.params.id,
+        input.data.attemptId,
+        input.data.stop,
+      );
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/tasks/:id/retry-code',
+    async (request, reply) => {
+      const input = codeRetrySchema.safeParse(request.body);
+      if (!input.success)
+        return reply.code(400).send({ error: 'Invalid code retry' });
+      return reply
+        .code(202)
+        .send(await runtime.retryCode(request.params.id, input.data));
+    },
+  );
+  app.post<{ Params: { id: string; attemptId: string } }>(
+    '/api/tasks/:id/attempts/:attemptId/cancel',
+    async (request) =>
+      runtime.cancelTask(request.params.id, request.params.attemptId),
+  );
   app.post('/api/plans', async (request, reply) => {
     const input = createPlanSchema.safeParse(request.body);
     if (!input.success)

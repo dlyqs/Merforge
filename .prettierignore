@@ -4,3 +4,6 @@ dist
 pnpm-lock.yaml
 *开发说明.md
 .pnpm-store/
+
+# Immutable generated evidence: preserve published SHA-256 bytes.
+examples/codex-task/evidence/
