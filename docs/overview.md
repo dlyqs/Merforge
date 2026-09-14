@@ -2,40 +2,42 @@
 
 ## 当前项目
 
-Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。当前代码是本机单用户工程原型：React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite。现有 Executor 只有同步 Mock，不调用模型或执行实际业务任务。
+Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。目前已完成 M1 Phase 1–5：本机单任务、异步 Mock、Human 提交、独立确定性验证、显式重试、重启核对及 CLI/Web 操作闭环。React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite；不调用模型或执行实际业务任务。
 
-关键技术：TypeScript strict、Node.js LTS、pnpm workspace、Zod、Drizzle/SQLite、React/Vite/TanStack Query。推荐运行 Node.js 24；启动与环境变量以 [README](../README.md) 为准。
+关键技术：TypeScript strict、Node.js LTS、pnpm workspace、Zod、Drizzle/SQLite、React/Vite/TanStack Query。推荐 Node.js 24；启动与环境变量以 [README](../README.md) 为准。本轮检查实际使用 Node.js 25.8.2、pnpm 10.27.0，未另做 Node.js 24 运行验证。
 
-当前详细执行入口是 [M1 可靠单任务计划](next-milestone.md)，尚未实施。宏观目标见 [开发计划总表](roadmap.md)。计划中的待开发文件/行为不能当作已存在实现。
+当前详细执行入口为 [M1 可靠单任务计划](next-milestone.md)。M1 全部五阶段已完成；29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他。M2 尚未启动。宏观目标见 [开发计划总表](roadmap.md)。
 
 ## 文件组织与修改入口
 
-| 文件/目录                              | 当前作用                                                                            |
-| -------------------------------------- | ----------------------------------------------------------------------------------- |
-| `packages/contracts/src/index.ts`      | Goal/Task/Run/Evidence/Event 的 Zod schema 与导出类型；当前 Task 仅 ready/completed |
-| `packages/runtime/src/index.ts`        | createRuntime、createGoal、getGoal、listGoals、runMock；统一数据操作入口            |
-| `packages/runtime/src/database.ts`     | 打开 SQLite、WAL/外键/超时、按 user_version 执行追加迁移                            |
-| `packages/runtime/src/schema.ts`       | Drizzle goals/tasks/runs/evidence/events 表定义                                     |
-| `packages/runtime/src/executor.ts`     | 同步 PrototypeExecutor 与 MockExecutor，输出模拟说明                                |
-| `packages/runtime/src/runtime.test.ts` | 数据库重开、Mock 历史、重复执行及非法输入测试                                       |
-| `apps/api/src/app.ts`                  | Fastify 构建、Runtime 生命周期、同源限制、路由与错误映射                            |
-| `apps/api/src/main.ts`                 | 本机监听、数据库路径/端口配置、SIGINT/SIGTERM 关闭                                  |
-| `apps/api/src/app.test.ts`             | Fastify 注入测试：创建/执行/查询、输入错误、Origin 校验                             |
-| `apps/cli/src/main.ts`                 | create/list/inspect/mock-run 命令，通过 HTTP 调用 API                               |
-| `apps/web/src/App.tsx`                 | 创建目标、目标选择、Mock 操作、任务/执行/证据/事件展示                              |
-| `apps/web/src/api.ts`                  | HTTP 请求及 Zod 响应解析；接口形状变更需同步这里                                    |
-| `apps/web/src/main.tsx`                | React 入口与 QueryClient，目前每 5 秒轮询                                           |
-| `apps/web/vite.config.ts`              | React 插件与开发 `/api` 代理                                                        |
-| `vitest.config.ts`                     | 限定仓库测试路径，避免扫描 pnpm store                                               |
-| `docs/architecture.md`                 | 当前架构边界及后续扩展原则                                                          |
+| 文件/目录                                           | 当前作用                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `packages/contracts/src/index.ts`                   | 七种 Task 状态、Attempt、Artifact、Verification、202 受理响应与版本化提交契约 |
+| `packages/runtime/src/index.ts`                     | 统一短事务命令、条件转换、异步派发、Human 提交、验证落盘与日志注入            |
+| `packages/runtime/src/state-machine.ts`             | 合法状态边及前置条件说明；Runtime 另检查当前 Attempt 身份                     |
+| `packages/runtime/src/database.ts`、`schema.ts`     | 追加迁移、Drizzle 表定义、序号/单活跃 Attempt/最终验证唯一约束                |
+| `packages/runtime/src/executor.ts`                  | 可控延迟/成功/失败的异步 Mock；Human 等待状态适配器                           |
+| `packages/runtime/src/verifier.ts`                  | 独立 `summary.v1` 检查，固定原因码与 PASS/FAIL                                |
+| `packages/runtime/src/*.test.ts`、`fixtures/v1.sql` | 迁移及失败回滚、异步重试、并发保护、Human/Mock 验证和验证重放测试             |
+| `apps/api/src/app.ts`、`app.test.ts`                | API 路由、同源限制、错误映射与受理/重试/人工提交测试                          |
+| `apps/api/src/main.ts`                              | 本机监听、配置与关闭边界；Runtime 启动先排他和恢复，关闭释放锁                |
+| `apps/cli/src/main.ts`                              | create/list/inspect/run/mock-run/retry/submit；执行方式和 Mock 参数选择       |
+| `apps/web/src/App.tsx`、`api.ts`                    | 执行方式选择、尝试/产物/验证明细；TaskActions.tsx 提供运行/重试/人工提交      |
+| `apps/web/src/main.tsx`                             | QueryClient，继续每 5 秒轮询                                                  |
+
+`packages/runtime/src/ownership.ts` 管理进程级独占锁；recovery/process 测试覆盖恢复、迟到结果与 SIGKILL，API cli-process.test.ts 覆盖真实 CLI/HTTP 三场景。
 
 ## 核心行为链路
 
-**创建目标：** App/CLI → `POST /api/goals` → createGoalSchema → Runtime.createGoal → 一个事务写入 Goal、同名 ready Task 与 goal_created 事件 → 返回 GoalDetail。当前没有自动规划或任务拆解。
+**创建目标：** `POST /api/goals` → 同一事务写入 Goal、ready Task、goal_created 事件。默认 executorId 为 mock，可显式设 human。Task 创建时绑定 `summary.v1`，没有运行中修改入口。
 
-**模拟执行：** App/CLI → `POST /api/tasks/:id/mock-run` → Runtime.runMock → 检查 ready → 同步 MockExecutor.execute → 同一事务写 Run、mock Evidence、completed Task、mock_completed 事件。重复执行返回冲突；没有独立验证，不能把 completed 解读成实际业务完成。
+**开始/重试：** `POST /api/tasks/:id/run` 或兼容 mock-run → 短事务创建 Attempt 与 attempt_created 事件 → 返回 202 `{goalId, taskId, attemptId}`。Mock 在事务提交后异步执行，Human 停在 waiting_human。`retry` 只接受 failed/interrupted，保留 Task ID 并递增尝试序号。唯一约束防止并行领取；completed 不可重试。
 
-**读取与持久化：** GET goals/goal detail → Runtime 联查表 → Web 轮询或 CLI 显示。已提交记录在重启后存在；没有执行中断恢复、租约、实例所有权或 Human 待办处理。
+**产物与验证：** Mock 输出或 `POST /api/tasks/:id/attempts/:attemptId/submit` 的 Human JSON 先保存 Artifact、转 verifying；独立 Verifier 在事务外检查，再用新事务保存最终判定、状态和事件。只有当前 Attempt 的 PASS 可以 completed。FAIL 保留原产物、版本和原因。缺字段、空 summary 或错误类型均 FAIL；重复/过期/跨 Task 提交返回 409。判定按 Attempt + 验收版本去重。
+
+**读取与持久化：** GoalDetail 包含 attempts、artifacts、verifications 和旧 runs/evidence/events。历史按尝试顺序返回。旧 Mock Run/Evidence 原样保留，不补造验证；新 Mock Evidence 明确标记模拟。PASS 只证明示例 JSON 结构合格，不代表业务判断正确。
+
+**当前边界：** 同库 Runtime 使用独立 SQLite 事务锁排他，进程退出由系统释放，支持符号链接路径归一化、拒绝硬链接。启动时 running 转 interrupted，ready 不派发，waiting_human 保留，verifying 从产物重放，缺产物 failed。旧实例关闭后的结果拒绝落盘。仅限本机磁盘，不恢复任意执行位置或外部 Agent 会话。CLI/API/Web 均提供 Human/重试入口。视觉检查未执行；浏览器自动验收未运行。
 
 ## 维护约定
 

@@ -1,17 +1,29 @@
-import type { Task } from '@merforge/contracts';
+import { setTimeout } from 'node:timers/promises';
+import type { Task, MockOptions } from '@merforge/contracts';
 
-// This synchronous adapter only exercises wiring. Real agent adapters will need
-// asynchronous lifecycle, capability negotiation and persisted run attempts.
-export interface PrototypeExecutor {
+export interface Executor {
   readonly id: 'mock';
-  execute(task: Task): { kind: 'mock'; summary: string };
+  execute(
+    task: Task,
+    options: MockOptions,
+    signal: AbortSignal,
+  ): Promise<unknown>;
 }
-export class MockExecutor implements PrototypeExecutor {
+export class MockExecutor implements Executor {
   readonly id = 'mock' as const;
-  execute(task: Task) {
+  async execute(task: Task, options: MockOptions, signal: AbortSignal) {
+    await setTimeout(options.delayMs ?? 0, undefined, { signal });
+    if (options.outcome === 'failure')
+      throw new Error('Controlled mock failure');
     return {
-      kind: 'mock' as const,
       summary: `Mock execution recorded for task ${task.id}. No agent was called and no business outcome was verified.`,
     };
   }
+}
+
+// Human work is represented by a durable waiting attempt; it runs no background
+// I/O and consumes a submission only through the runtime's identity checks.
+export class HumanExecutor {
+  readonly id = 'human' as const;
+  readonly initialStatus = 'waiting_human' as const;
 }

@@ -1,13 +1,29 @@
 import Fastify from 'fastify';
-import { CONTRACT_VERSION, createGoalSchema } from '@merforge/contracts';
-import { createRuntime, RuntimeError } from '@merforge/runtime';
+import {
+  CONTRACT_VERSION,
+  createGoalSchema,
+  mockOptionsSchema,
+  humanSubmissionSchema,
+} from '@merforge/contracts';
+import {
+  createRuntime,
+  RuntimeError,
+  type RuntimeOptions,
+} from '@merforge/runtime';
 
-export function buildApp(options: { databasePath: string; logger?: boolean }) {
+export function buildApp(options: {
+  databasePath: string;
+  logger?: boolean;
+  runtimeOptions?: RuntimeOptions;
+}) {
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: 32 * 1024,
   });
-  const runtime = createRuntime(options.databasePath);
+  const runtime = createRuntime(options.databasePath, {
+    ...options.runtimeOptions,
+    logger: (entry) => app.log.info(entry),
+  });
   app.addHook('onClose', async () => runtime.close());
   // Local prototype: browser writes must originate from the same host. No CORS.
   app.addHook('onRequest', async (request, reply) => {
@@ -28,7 +44,13 @@ export function buildApp(options: { databasePath: string; logger?: boolean }) {
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof RuntimeError)
       return reply
-        .code(error.code === 'NOT_FOUND' ? 404 : 409)
+        .code(
+          error.code === 'NOT_FOUND'
+            ? 404
+            : error.code === 'INVALID_INPUT'
+              ? 400
+              : 409,
+        )
         .send({ error: error.message });
     const status =
       typeof error === 'object' && error !== null && 'statusCode' in error
@@ -58,7 +80,53 @@ export function buildApp(options: { databasePath: string; logger?: boolean }) {
   );
   app.post<{ Params: { id: string } }>(
     '/api/tasks/:id/mock-run',
-    async (request) => runtime.runMock(request.params.id),
+    async (request, reply) => {
+      const result = mockOptionsSchema.safeParse(request.body ?? {});
+      if (!result.success)
+        return reply.code(400).send({ error: 'Invalid mock options' });
+      return reply
+        .code(202)
+        .send(runtime.runMock(request.params.id, result.data));
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/tasks/:id/retry',
+    async (request, reply) => {
+      const result = mockOptionsSchema.safeParse(request.body ?? {});
+      if (!result.success)
+        return reply.code(400).send({ error: 'Invalid mock options' });
+      return reply
+        .code(202)
+        .send(runtime.retry(request.params.id, result.data));
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/tasks/:id/run',
+    async (request, reply) => {
+      const result = mockOptionsSchema.safeParse(request.body ?? {});
+      if (!result.success)
+        return reply.code(400).send({ error: 'Invalid execution options' });
+      return reply
+        .code(202)
+        .send(runtime.runTask(request.params.id, result.data));
+    },
+  );
+  app.post<{ Params: { id: string; attemptId: string } }>(
+    '/api/tasks/:id/attempts/:attemptId/submit',
+    async (request, reply) => {
+      const result = humanSubmissionSchema.safeParse(request.body);
+      if (!result.success)
+        return reply.code(400).send({ error: 'A JSON artifact is required' });
+      return reply
+        .code(202)
+        .send(
+          runtime.submitHuman(
+            request.params.id,
+            request.params.attemptId,
+            result.data.artifact,
+          ),
+        );
+    },
   );
   return app;
 }

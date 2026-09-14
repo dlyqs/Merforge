@@ -4,20 +4,20 @@
 
 将当前同步 Mock 原型升级为支持独立运行尝试、失败重试、人工提交、确定性验证和重启核对的单任务运行时。本文件是 M1 的唯一阶段执行合同；后续“继续”“执行 Phase 2”先读取本文件和 [项目概览](overview.md)。项目级目标见 [开发计划总表](roadmap.md)，总表的 Milestone 编号与本文件的 Phase 编号互不替代。
 
-本次需求已归一为：改造已有 M1 计划、创建总路线表与项目概览，不实施功能。范围明确，无需额外澄清。M1 涉及持久化契约、异步执行及恢复链路，按 large goal 管理。
+当前执行授权：用户于 2026-09-14 指示「继续自动完成剩余 phase」。依次执行剩余 Phase 4–5。M1 涉及持久化契约、异步执行及恢复链路，按 large goal 管理。
 
 - execution mode: manual
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- plan review: pending
-- execution authorization: none（本次仅授权文档改造）
+- plan review: accepted（用户明确指定执行范围）
+- execution authorization: 2026-09-14「继续自动完成剩余 phase」（Phase 4–5 已完成，M1 结束）
 
 默认不创建专用执行 Skill；本计划足以作为执行入口。
 
 ## 当前基线、范围与可行性
 
-基线：`packages/runtime/src/index.ts` 将同步 Mock、Run、Evidence、Task 完成与事件写入同一事务；Task 只有 ready/completed；没有真正失败尝试、HumanExecutor 或独立 Verifier。当前成果只是初始开发说明 Phase 0/1 的部分基础，不代表这两个阶段已完成。
+实施前基线：`packages/runtime/src/index.ts` 将同步 Mock、Run、Evidence、Task 完成与事件写入同一事务；Task 只有 ready/completed；没有真正失败尝试、HumanExecutor 或独立 Verifier。该基线只是初始开发说明 Phase 0/1 的部分基础；本轮成果见下方阶段记录。
 
 M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 Attempt 分离；短事务；固定版本的结构化提交检查；人工重试；单机重启核对；现有 React/CLI/API 的最小操作支持。
 
@@ -40,13 +40,13 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 状态仅使用 pending / in_progress / completed / blocked。实际完成细节只写入相应 Phase，表格保持摘要。
 
-| 阶段    | 主题               | 主要目标                                | 状态    | 实际产物 | 备注                  |
-| ------- | ------------------ | --------------------------------------- | ------- | -------- | --------------------- |
-| Phase 1 | 状态与持久化契约   | 分离 Task / Attempt，建立合法转换及迁移 | pending | —        | 无前置阶段            |
-| Phase 2 | 异步执行与重试     | 持久化后派发 Mock，失败可重试           | pending | —        | 依赖 Phase 1          |
-| Phase 3 | 独立验证与人工提交 | 产物经检查后完成，支持 Human            | pending | —        | 依赖 Phase 2          |
-| Phase 4 | 重启核对与实例边界 | 保留待办，识别中断，拒绝旧结果          | pending | —        | 依赖 Phase 3          |
-| Phase 5 | 操作闭环与验收     | 补齐 UI/CLI、进程级回归和演示           | pending | —        | 依赖 Phase 4；M1 终点 |
+| 阶段    | 主题               | 主要目标                                | 状态      | 实际产物                  | 备注                  |
+| ------- | ------------------ | --------------------------------------- | --------- | ------------------------- | --------------------- |
+| Phase 1 | 状态与持久化契约   | 分离 Task / Attempt，建立合法转换及迁移 | completed | 契约、追加迁移、测试      | 无前置阶段            |
+| Phase 2 | 异步执行与重试     | 持久化后派发 Mock，失败可重试           | completed | 异步派发、重试、202 适配  | 依赖 Phase 1          |
+| Phase 3 | 独立验证与人工提交 | 产物经检查后完成，支持 Human            | completed | 独立验证、Human、回归测试 | 依赖 Phase 2          |
+| Phase 4 | 重启核对与实例边界 | 保留待办，识别中断，拒绝旧结果          | completed | 所有权、恢复与进程测试    | 依赖 Phase 3          |
+| Phase 5 | 操作闭环与验收     | 补齐 UI/CLI、进程级回归和演示           | completed | CLI/Web 闭环、三场景验收  | 依赖 Phase 4；M1 终点 |
 
 ## Phase 1：状态与持久化契约
 
@@ -56,11 +56,11 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **实现与验收清单：**
 
-- [ ] Task 覆盖 ready/running/waiting_human/verifying/completed/failed/interrupted；明确每条允许转换及前置条件。
-- [ ] Attempt 保存 taskId、尝试序号、executorId、状态、开始/结束时间、错误；重试不改变 Task ID。
-- [ ] 单一 Runtime 命令入口实施条件更新；数据库保证尝试序号唯一及至多一个活跃 Attempt。
-- [ ] 状态和相应业务事件原子写入，失败事务不留下部分记录。
-- [ ] 从旧 schema 迁移并重开数据库后，旧目标、任务、Mock 记录仍可读取。
+- [x] Task 覆盖 ready/running/waiting_human/verifying/completed/failed/interrupted；明确每条允许转换及前置条件。
+- [x] Attempt 保存 taskId、尝试序号、executorId、状态、开始/结束时间、错误；重试不改变 Task ID。
+- [x] 单一 Runtime 命令入口实施条件更新；数据库保证尝试序号唯一及至多一个活跃 Attempt。
+- [x] 状态和相应业务事件原子写入，失败事务不留下部分记录。
+- [x] 从旧 schema 迁移并重开数据库后，旧目标、任务、Mock 记录仍可读取。
 
 **助手验证：** 状态转换单测、重复领取/约束测试、迁移 fixture 回归；`pnpm typecheck`、`pnpm test`。迁移与回滚测试使用临时数据库，不修改用户实际数据库做破坏性验证。
 
@@ -68,7 +68,7 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **依赖/过渡：** 暂保留现有同步 Mock 兼容路径，明确它仍是模拟；Phase 2 才切换异步。日志遵循下文通用规范，重点记录 transition_rejected 与 attempt_created。
 
-**实际完成：** 未开始；执行后填写改动文件、验证结果、跳过项、偏差和下一阶段。
+**实际完成：** 2026-09-14。更新 contracts、runtime/schema.ts、database.ts、index.ts，新增 state-machine.ts、persistence.test.ts 与 fixtures/v1.sql。Task/Attempt 分离，数据库限制序号和单活跃尝试；旧 Run/Evidence 保留。`pnpm typecheck`、`pnpm test` 通过（8 项）。同步 Mock 兼容路径仍保留，仅作模拟；Phase 2 移除该过渡路径。用户视觉检查未执行（可选）。下一阶段：Phase 2。
 
 ## Phase 2：异步 Mock 与显式重试
 
@@ -78,12 +78,12 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **实现与验收清单：**
 
-- [ ] Mock 支持可控延迟、成功与失败；提供最小异步执行/结果接口，不提前实现完整 Agent 生命周期。
-- [ ] API 受理返回 202 与 taskId/attemptId，查询可观察 running，不等待长执行结束。
-- [ ] 执行前完成事务提交；结果、错误及状态在新的短事务中保存。
-- [ ] 失败后显式 retry 创建新 Attempt，保留旧错误和尝试历史；重复发起不创建并行尝试。
-- [ ] 异步结果保存为产物并进入 verifying，不由 Executor 宣布 completed。
-- [ ] 现有页面/CLI 兼容异步响应，不继续将受理响应解析成旧 GoalDetail。
+- [x] Mock 支持可控延迟、成功与失败；提供最小异步执行/结果接口，不提前实现完整 Agent 生命周期。
+- [x] API 受理返回 202 与 taskId/attemptId，查询可观察 running，不等待长执行结束。
+- [x] 执行前完成事务提交；结果、错误及状态在新的短事务中保存。
+- [x] 失败后显式 retry 创建新 Attempt，保留旧错误和尝试历史；重复发起不创建并行尝试。
+- [x] 异步结果保存为产物并进入 verifying，不由 Executor 宣布 completed。
+- [x] 现有页面/CLI 兼容异步响应，不继续将受理响应解析成旧 GoalDetail。
 
 **助手验证：** 延迟 Mock 请求及时返回、失败→retry、Task ID 不变、两次 Attempt 留存、重复请求保护和数据库重开；类型检查、API/Runtime 测试。使用受控同步点而非脆弱的固定 sleep 判断状态。
 
@@ -91,7 +91,7 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **依赖/过渡：** Phase 1 完成。成功结果在本阶段允许停在 verifying，直至 Phase 3 接通独立验证；阶段报告必须明确这一临时限制。记录 executor_started / executor_finished / executor_failed。
 
-**实际完成：** 未开始；执行后填写改动文件、验证结果、跳过项、偏差和下一阶段。
+**实际完成：** 2026-09-14。重构 runtime/index.ts、executor.ts，新增产物追加迁移；更新 Contracts、API、CLI/Web 的 202 解析与页面状态文案。Runtime 以短事务命令保存关联事件并注入结构化日志；失败错误码保留，retry 使用原 Task 和新 Attempt。`pnpm typecheck`、`pnpm test` 通过（8 项，含受控执行器同步点、重复连接领取、失败重开与重试）。成功此时停在 verifying，Phase 3 接通验证。提前在本阶段增加 artifacts 表以满足产物持久化要求；视觉检查未执行（可选）。下一阶段：Phase 3。
 
 ## Phase 3：独立 Verifier 与 HumanExecutor
 
@@ -101,12 +101,12 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **实现与验收清单：**
 
-- [ ] 内置版本化通用提交契约，例如 `{ summary: 非空字符串 }`；保存验收版本与提交产物，不支持任意可执行检查脚本。
-- [ ] Verifier 独立输出 PASS/FAIL、检查原因及版本。只有当前 Attempt 的 PASS 可令 Task completed。
-- [ ] 验证失败为 failed，保留原提交和验证明细；重试产生新 Attempt。
-- [ ] Human 进入 waiting_human；提交时检查 Attempt 身份/状态，防止重复消费和过期提交。
-- [ ] Mock 成功自动进入相同验证入口，产物/证据保留 mock 标识；Human 不等于审批功能。
-- [ ] 验证重放不会重复写入同一 Attempt 同一验收版本的最终判定。
+- [x] 内置版本化通用提交契约，例如 `{ summary: 非空字符串 }`；保存验收版本与提交产物，不支持任意可执行检查脚本。
+- [x] Verifier 独立输出 PASS/FAIL、检查原因及版本。只有当前 Attempt 的 PASS 可令 Task completed。
+- [x] 验证失败为 failed，保留原提交和验证明细；重试产生新 Attempt。
+- [x] Human 进入 waiting_human；提交时检查 Attempt 身份/状态，防止重复消费和过期提交。
+- [x] Mock 成功自动进入相同验证入口，产物/证据保留 mock 标识；Human 不等于审批功能。
+- [x] 验证重放不会重复写入同一 Attempt 同一验收版本的最终判定。
 
 **助手验证：** 合法/缺字段/错误类型产物、重复提交、过期提交、失败重试、Mock 验证；验证未通过无法完成；API 和 Runtime 测试及类型检查。
 
@@ -114,7 +114,14 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **依赖/说明：** Phase 2 完成。JSON 结构合格只证明示例契约通过，不宣称业务判断正确。记录 human_submission_received、verification_started / passed / failed，不记录原始提交内容。
 
-**实际完成：** 未开始；执行后填写改动文件、验证结果、跳过项、偏差和下一阶段。
+**实际完成：** 2026-09-14。
+
+- 文件：contracts/index.ts；runtime/index.ts、executor.ts、verifier.ts、schema.ts、database.ts；verification.test.ts、persistence.test.ts、runtime.test.ts；API app.ts/app.test.ts；README、overview、architecture 与 roadmap。
+- 行为：创建时绑定 `summary.v1`；Human 经 run 进入 waiting_human，提交携带 Task/Attempt 身份；Mock/Human 统一保存产物后独立验证，只有当前 Attempt PASS 完成。失败保留原始 JSON、原因码、版本和历史；最终判定去重。旧模拟记录不补造验证。所有新 Mock Evidence 保留模拟说明。
+- 验证：`pnpm typecheck` 通过；`pnpm test` 全部 25 项通过（4 文件）；`pnpm format:check`、`pnpm build`、`git diff --check` 通过。测试覆盖旧库迁移及失败回滚、受控异步提交边界、重复领取、失败重开再重试、Human 重开/重复/过期/跨 Task 提交、各类不合格 JSON、Mock 验证、Verifier 错误、事务外验证与并发重放。检查实际使用 Node.js 25.8.2/pnpm 10.27.0，未另行验证推荐的 Node.js 24。
+- 修正：回归发现 JSON null 被 ORM 映射为 SQL NULL，现显式序列化；查询产物/判定显式按 Attempt 排序。构建仅有 Zod 依赖的 Rollup 注释警告，不影响成功产物。
+- 范围/跳过：Human/重试通过 API 可用，CLI inspect 可读取原因；图形提交入口和专用 CLI 操作依计划留给 Phase 5。未启动页面、未做视觉检查（可选），未操作真实用户数据库，未提交推送。没有实现 Phase 4 的实例排他、强制终止恢复或启动核对，因此 M1 整体仍 in_progress。
+- 已到达用户授权的 Phase 3 边界，Phase 1–3 均 completed；模式切回 manual，两端清为 none。下一阶段为 Phase 4，等待后续执行指令。
 
 ## Phase 4：重启核对与实例排他
 
@@ -124,12 +131,12 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **实现与验收清单：**
 
-- [ ] 同一数据库只有一个活跃 daemon；实例保护覆盖不同端口启动，不能只依赖端口冲突。
-- [ ] 核对失效实例后才能获取所有权并恢复；不能只因锁文件存在而永久无法启动，也不能仅按 PID 数值盲删活跃锁。
-- [ ] running 遗留 Attempt 转 interrupted，保留历史，用户显式重试；ready 不自动派发。
-- [ ] waiting_human 保留；verifying 使用已保存产物重跑无副作用验证；completed 不再执行。
-- [ ] 结果提交核对 Attempt 身份、当前状态与实例所有权，旧结果不得覆盖新尝试。
-- [ ] 恢复重复运行结果一致，缺少必要产物时记录明确错误而非判成功。
+- [x] 同一数据库只有一个活跃 daemon；实例保护覆盖不同端口启动，不能只依赖端口冲突。
+- [x] 核对失效实例后才能获取所有权并恢复；不能只因锁文件存在而永久无法启动，也不能仅按 PID 数值盲删活跃锁。
+- [x] running 遗留 Attempt 转 interrupted，保留历史，用户显式重试；ready 不自动派发。
+- [x] waiting_human 保留；verifying 使用已保存产物重跑无副作用验证；completed 不再执行。
+- [x] 结果提交核对 Attempt 身份、当前状态与实例所有权，旧结果不得覆盖新尝试。
+- [x] 恢复重复运行结果一致，缺少必要产物时记录明确错误而非判成功。
 
 **助手验证：** 子进程强制终止/重启、双实例争用、锁持有者失效恢复、verifying 重放、迟到结果与恢复幂等测试。使用临时数据库与本地回环地址；端口权限不足时报告实际限制，不冒充通过。
 
@@ -137,7 +144,9 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **依赖/说明：** Phase 3 完成。不承诺外部 Agent 的恢复。实现前记录所选单机所有权策略；若其范围无法在本阶段内可靠验证，按受控拆分规则细分。记录 ownership_acquired / rejected、recovery_started / finished、attempt_interrupted、stale_result_rejected。
 
-**实际完成：** 未开始；执行后填写改动文件、验证结果、跳过项、偏差和下一阶段。
+**实施策略：** 独立 SQLite owner 文件持有 BEGIN IMMEDIATE，进程退出由 OS 释放锁，不删除锁文件、不按 PID 猜测；路径 realpath 归一化并拒绝硬链接。仅支持本机磁盘，排他先于迁移与恢复。
+
+**实际完成：** 2026-09-14。新增 `runtime/ownership.ts`、`recovery.test.ts`、`process.test.ts`、`fixtures/owner-process.mjs`；更新 Runtime 与事务外执行/验证测试。所有 Runtime 在迁移前获取独占所有权，API 继承此边界，原 onClose 负责释放。启动核对中断、保留待办并重放持久化验证；缺产物明确 failed/MISSING_ARTIFACT，关闭后旧回调拒绝落盘并记录关联日志。`pnpm typecheck` 与 `pnpm test` 通过（28 项，6 文件），覆盖真实 SIGKILL/重启、进程争用、符号链接、幂等与迟到结果。无新增业务表迁移；owner 是独立协调文件。可选人工重启/视觉检查未执行；本地磁盘单实例范围，无 PID 推断。下一阶段 Phase 5（含不同端口 API 争用与 CLI→HTTP 三场景）。
 
 ## Phase 5：操作入口与 M1 验收
 
@@ -147,13 +156,13 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **实现与验收清单：**
 
-- [ ] 页面提供 executor 选择、状态、Attempt 历史、错误、验证详情、显式重试和 Human 提交入口。
-- [ ] CLI/API 提供对应操作；错误反馈可定位到任务与尝试，继续轮询，不引入新图形框架。
-- [ ] 场景 A：Mock 第一次失败，重试通过模拟验证，两次记录均保留。
-- [ ] 场景 B：Human 等待→重启→不合格提交 FAIL→重试→合格提交 PASS。
-- [ ] 场景 C：延迟 Mock 运行中强制退出→重启识别 interrupted→重试；旧结果不能覆盖新状态。
-- [ ] README 写明演示命令、迁移兼容、模拟含义和恢复边界。
-- [ ] 原有创建/查询链路无回归；所有阶段验收缺口关闭，或明确标为未完成，不能仅凭构建通过宣布 M1 完成。
+- [x] 页面提供 executor 选择、状态、Attempt 历史、错误、验证详情、显式重试和 Human 提交入口。
+- [x] CLI/API 提供对应操作；错误反馈可定位到任务与尝试，继续轮询，不引入新图形框架。
+- [x] 场景 A：Mock 第一次失败，重试通过模拟验证，两次记录均保留。
+- [x] 场景 B：Human 等待→重启→不合格提交 FAIL→重试→合格提交 PASS。
+- [x] 场景 C：延迟 Mock 运行中强制退出→重启识别 interrupted→重试；旧结果不能覆盖新状态。
+- [x] README 写明演示命令、迁移兼容、模拟含义和恢复边界。
+- [x] 原有创建/查询链路无回归；所有阶段验收缺口关闭，或明确标为未完成，不能仅凭构建通过宣布 M1 完成。
 
 **助手验证：** `pnpm format:check`、`pnpm typecheck`、`pnpm test`、`pnpm build`；真实 CLI→HTTP→临时 SQLite 演示与进程恢复测试。禁止浏览器自动验收。
 
@@ -161,7 +170,13 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 **依赖/终点：** Phase 4 完成。全部必需检查通过即达 M1，不自动执行 roadmap 的 M2。核对关键日志可由 taskId/attemptId 串起三个场景。
 
-**实际完成：** 未开始；执行后填写改动文件、验证结果、跳过项、偏差和下一步建议。
+**实际完成：** 2026-09-14。
+
+- 文件：Web App.tsx、api.ts、styles.css，新增 TaskActions.tsx；CLI main.ts；新增 API cli-process.test.ts、fixtures/daemon.ts；README、overview、architecture、roadmap 与本计划。
+- 行为：CLI 新增 executor 选择、run/retry/submit 与 Mock 延迟/结果选项，保留 mock-run；Web 提供相同操作和尝试/错误/产物/版本/原因明细，表单绑定当前 Attempt，继续轮询。PASS 与模拟含义保持明确。
+- 验证：`pnpm format:check`、`pnpm typecheck`、`pnpm build`、`git diff --check` 全部通过；`pnpm test` 29 项、7 文件全部通过。真实 CLI→HTTP→临时 SQLite 完成 A/B/C，含 SIGTERM 待办恢复、SIGKILL 中断恢复、不同随机端口同库排他、旧提交拒绝及按 goalId/taskId/attemptId 关联失败/恢复日志。Runtime 受控同步点证明旧回调不覆盖新尝试及 verifying 重放幂等。
+- 环境：Node.js 25.8.2 / pnpm 10.27.0，未另测推荐 Node.js 24。首次 HTTP 测试被沙箱 EPERM 阻止，获得沙箱外执行许可后专项及完整测试均通过。首次测试夹具工作目录错误已修正。构建仅有既有 Zod/Rollup 注释警告。
+- 跳过/范围：未启动页面，布局/窄屏视觉检查未执行（可选、非阻塞）；未操作用户实际数据库，未提交推送或部署。所有必需验收项完成，无剩余阻塞。M1 completed，自动执行在本计划终点结束并切回 manual；下一步是另行规划 M2，本次未启动 M2。
 
 ## 关键链路可观测性
 
@@ -173,7 +188,7 @@ M1 范围：单 Goal 对应单 Task；Mock/Human 两种执行方式；Task 和 A
 
 ## 后续执行规则
 
-1. 本版计划尚待审阅。创建/改造计划或选择 Skill 不等于授权 Phase 1；用户审阅后明确指定开始阶段，记录原始指令，再执行。当前请求只完成文档。
+1. 创建/改造计划或选择 Skill 不等于执行授权；以顶部记录的用户明确指令与范围为准。
 2. 每次执行先读本计划、overview、当前代码和用户约束。先复查相关 blocked 阶段的解除条件：已解除恢复为 in_progress，否则遵守依赖门禁。
 3. 单阶段命令“执行 Phase X”只做该阶段，即使持久化模式为自动也不连带下一阶段，不改变持久化模式、不创建接力任务。前置未完成且无法隔离则报告依赖，不跳过。
 4. manual 下“继续”选首个 in_progress，否则首个 pending；先标记 in_progress，完成验证和记录后停止。不得同时开展多个阶段。

@@ -287,3 +287,41 @@ footer {
     min-height: 300px;
   }
 }
+
+select,
+textarea {
+  font: inherit;
+  max-width: 100%;
+  border: 1px solid #d4dfd6;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfa;
+  color: inherit;
+}
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #579d87;
+  outline-offset: 3px;
+}
+textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  margin: 10px 0;
+}
+.task-controls,
+.evidence,
+.create select {
+  margin-bottom: 14px;
+}
+.task-controls .input-row {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.task-controls label {
+  display: block;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

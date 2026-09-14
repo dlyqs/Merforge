@@ -1,4 +1,10 @@
-import { goalDetailSchema, goalListSchema } from '@merforge/contracts';
+import {
+  acceptedSchema,
+  type CreateGoal,
+  type MockOptions,
+  goalDetailSchema,
+  goalListSchema,
+} from '@merforge/contracts';
 
 async function request(path: string, body?: unknown) {
   const response = await fetch(path, {
@@ -21,10 +27,36 @@ export const api = {
     goalDetailSchema.parse(
       await request(`/api/goals/${encodeURIComponent(id)}`),
     ),
-  createGoal: async (objective: string) =>
-    goalDetailSchema.parse(await request('/api/goals', { objective })),
-  runMock: async (id: string) =>
-    goalDetailSchema.parse(
-      await request(`/api/tasks/${encodeURIComponent(id)}/mock-run`, {}),
+  createGoal: async (input: CreateGoal) =>
+    goalDetailSchema.parse(await request('/api/goals', input)),
+  operate: async ({
+    taskId,
+    operation,
+    options = {},
+  }: {
+    taskId: string;
+    operation: 'run' | 'retry';
+    options?: MockOptions;
+  }) =>
+    acceptedSchema.parse(
+      await request(
+        `/api/tasks/${encodeURIComponent(taskId)}/${operation}`,
+        options,
+      ),
+    ),
+  submitHuman: async ({
+    taskId,
+    attemptId,
+    artifact,
+  }: {
+    taskId: string;
+    attemptId: string;
+    artifact: unknown;
+  }) =>
+    acceptedSchema.parse(
+      await request(
+        `/api/tasks/${encodeURIComponent(taskId)}/attempts/${encodeURIComponent(attemptId)}/submit`,
+        { artifact },
+      ),
     ),
 };

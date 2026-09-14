@@ -11,7 +11,7 @@ TypeScript strict、Node.js LTS、pnpm workspace、Zod、SQLite / Drizzle、Fast
 ```text
 React Web ── HTTP ──┐
                    ├── Fastify API ── Runtime ── SQLite
-Commander CLI ─────┘                    └── Mock Executor
+Commander CLI ─────┘                    └── Mock / Human + Verifier
 
 Contracts ← Web / CLI / API / Runtime
 ```
@@ -24,17 +24,19 @@ Contracts ← Web / CLI / API / Runtime
 
 ## 当前行为
 
-创建 Goal 时在同一事务内创建一个 ready Task 和 goal_created 事件。运行 Mock 时在同一事务内记录 Run、mock Evidence、mock_completed 事件，并将 Task 标记为 completed。
+创建 Goal 时在同一事务内创建一个 ready Task 和 goal_created 事件，绑定 executorId 与验收版本。领取时先在短事务中持久化 Attempt、状态和业务事件，再派发异步 Mock；Human 保留 waiting_human 待办。
 
-这里的 completed 仅表示模拟执行完成。尚无 Planner、真实业务 Verifier、自动任务拆分或外部操作。
+Executor 只返回产物。Runtime 持久化产物并转 verifying，独立 Verifier 在事务外执行 `summary.v1` 结构检查，最终用新事务保存 PASS/FAIL、状态及业务事件。只有当前 Attempt 的 PASS 能完成任务；失败重试保留 Task ID 和旧尝试。验证判定按 Attempt 和验收版本唯一。
 
-Mock 是没有外部 I/O 的同步操作，允许整体放在一个短事务中。真实 Executor 不得沿用这一执行方式：调用 Agent 前应先持久化运行尝试，外部执行在事务之外进行，收到结果后再提交状态和证据。
+这里的 PASS 只表示示例 JSON 契约合格；Mock Evidence 明确标记模拟。旧版本 completed 记录不补造验证结果。尚无 Planner、真实业务 Verifier、自动任务拆分或外部操作。
 
 SQLite 使用 WAL、外键约束和版本化迁移。持久化测试证明已提交记录可在重开数据库后读取；不代表任意位置 crash-resume、恰好一次执行或多机器调度已经实现。
 
+同库 Runtime 在迁移前获取独立 SQLite owner 事务锁，锁覆盖完整实例生命周期，崩溃后 OS 释放，路径归一化并拒绝硬链接。启动将 running 转 interrupted，保留 ready/waiting_human，重放 verifying 的持久化产物，completed 不再执行；缺产物明确失败。每次写命令核对所有权，结果还检查当前 Attempt 和状态，关闭后旧回调拒绝保存。协调文件不删除，仅支持本机磁盘。
+
 ## 后续扩展入口
 
-近期范围与顺序以 [M1 执行计划](next-milestone.md) 为准：状态/Attempt → 异步 Mock → Verifier/Human → 重启核对 → 操作闭环。该计划尚未实施。
+近期范围与顺序以 [M1 执行计划](next-milestone.md) 为准：状态/Attempt → 异步 Mock → Verifier/Human → 重启核对 → 操作闭环。五阶段均已完成；验收包括真实 CLI/HTTP、同库争用和强制终止恢复。
 
 后续大里程碑见 [开发计划总表](roadmap.md)：串行计划与执行边界、真实 Executor、多执行器与规划、业务改造、评估及 Pack SDK。这里只保存架构原则，不重复维护阶段进度。当前代码导航见 [项目概览](overview.md)。
 

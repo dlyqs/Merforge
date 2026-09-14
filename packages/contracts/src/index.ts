@@ -1,10 +1,23 @@
 import { z } from 'zod';
 
-export const CONTRACT_VERSION = '0.1' as const;
+export const CONTRACT_VERSION = '0.2' as const;
 export const createGoalSchema = z
-  .object({ objective: z.string().trim().min(1).max(2000) })
+  .object({
+    objective: z.string().trim().min(1).max(2000),
+    executorId: z.enum(['mock', 'human']).optional(),
+  })
   .strict();
-export const taskStatusSchema = z.enum(['ready', 'completed']);
+export const taskStatusSchema = z.enum([
+  'ready',
+  'running',
+  'waiting_human',
+  'verifying',
+  'completed',
+  'failed',
+  'interrupted',
+]);
+export const executorIdSchema = z.enum(['mock', 'human']);
+export const attemptStatusSchema = taskStatusSchema.exclude(['ready']);
 export const goalSchema = z.object({
   id: z.string().uuid(),
   objective: z.string(),
@@ -15,7 +28,19 @@ export const taskSchema = z.object({
   goalId: z.string().uuid(),
   title: z.string(),
   status: taskStatusSchema,
+  executorId: executorIdSchema,
+  acceptanceVersion: z.string(),
   createdAt: z.string().datetime(),
+});
+export const attemptSchema = z.object({
+  id: z.string().uuid(),
+  taskId: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  executorId: executorIdSchema,
+  status: attemptStatusSchema,
+  startedAt: z.string().datetime(),
+  endedAt: z.string().datetime().nullable(),
+  error: z.string().nullable(),
 });
 export const runSchema = z.object({
   id: z.string().uuid(),
@@ -35,11 +60,59 @@ export const eventSchema = z.object({
   id: z.number().int(),
   goalId: z.string().uuid(),
   taskId: z.string().uuid(),
-  type: z.enum(['goal_created', 'mock_completed']),
+  attemptId: z.string().uuid().nullable(),
+  fromStatus: taskStatusSchema.nullable(),
+  toStatus: taskStatusSchema.nullable(),
+  errorCode: z.string().nullable(),
+  type: z.string(),
   createdAt: z.string().datetime(),
 });
+export const mockOptionsSchema = z
+  .object({
+    delayMs: z.number().int().min(0).max(60000).optional(),
+    outcome: z.enum(['success', 'failure']).optional(),
+  })
+  .strict();
+export const acceptedSchema = z.object({
+  goalId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  attemptId: z.string().uuid(),
+});
+export const artifactSchema = z.object({
+  id: z.string().uuid(),
+  attemptId: z.string().uuid(),
+  kind: executorIdSchema,
+  payload: z.unknown(),
+  createdAt: z.string().datetime(),
+});
+export type MockOptions = z.infer<typeof mockOptionsSchema>;
+export type Accepted = z.infer<typeof acceptedSchema>;
+export const ACCEPTANCE_VERSION = 'summary.v1' as const;
+export const submissionSchema = z.object({ summary: z.string().trim().min(1) });
+export const humanSubmissionSchema = z
+  .object({
+    artifact: z
+      .unknown()
+      .refine((value) => value !== undefined, 'Artifact is required'),
+  })
+  .strict();
+export const verificationResultSchema = z.object({
+  acceptanceVersion: z.string(),
+  verdict: z.enum(['PASS', 'FAIL']),
+  reasons: z.array(z.string()).min(1),
+});
+export const verificationSchema = verificationResultSchema.extend({
+  id: z.string().uuid(),
+  attemptId: z.string().uuid(),
+  artifactId: z.string().uuid(),
+  createdAt: z.string().datetime(),
+});
+export type VerificationResult = z.infer<typeof verificationResultSchema>;
 export const goalDetailSchema = goalSchema.extend({
   tasks: z.array(taskSchema),
+  attempts: z.array(attemptSchema),
+  artifacts: z.array(artifactSchema),
+  verifications: z.array(verificationSchema),
   runs: z.array(runSchema),
   evidence: z.array(evidenceSchema),
   events: z.array(eventSchema),
@@ -51,3 +124,6 @@ export type Run = z.infer<typeof runSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type GoalDetail = z.infer<typeof goalDetailSchema>;
 export type CreateGoal = z.infer<typeof createGoalSchema>;
+
+export type Attempt = z.infer<typeof attemptSchema>;
+export type TaskStatus = z.infer<typeof taskStatusSchema>;

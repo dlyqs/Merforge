@@ -2,7 +2,7 @@
 
 Merge your workflow. Forge your AI future.
 
-开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Mock Run → Evidence**，为后续真实 Executor、调度、审批与 AI Transformation Pack 提供基础。
+开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Attempt → Artifact → Verification**（Mock/Human），为后续真实 Executor、调度、审批与 AI Transformation Pack 提供基础。
 
 ## 快速开始
 
@@ -19,9 +19,9 @@ pnpm dev
 
 `pnpm dev` 会先构建共享包，然后运行 API 与 Vite。修改 `packages/` 后，执行 `pnpm build:packages` 并重启开发服务以加载新的共享代码。前端和 API 自身支持开发时更新。
 
-界面支持创建目标、查看任务、运行 Mock，以及查看执行记录和模拟证据。刷新或重启服务后，已提交的数据仍会保留。
+界面支持 Mock/Human 选择、运行与显式重试、人工 JSON 提交、尝试历史、错误、产物及验证详情；继续每 5 秒轮询。刷新或重启服务后，已提交的数据仍会保留。
 
-**Mock 不调用模型、不执行代码、不证明业务任务已完成。当前尚未实现执行中断恢复。**
+**Mock 不调用模型、不执行代码、不证明业务任务已完成。重启会识别执行中断，需显式重试。**
 
 ## CLI
 
@@ -34,7 +34,70 @@ pnpm cli inspect <goal-id>
 pnpm cli mock-run <task-id>
 ```
 
-ID 从 `create` 或 `inspect` 输出获取。CLI 通过 API 操作，与 Web 使用同一份数据。重复执行已完成的 Mock Task 会返回冲突，不会创建第二条 Run。
+ID 从 `create` 或 `inspect` 输出获取。`mock-run` 返回 202 受理数据 `{goalId, taskId, attemptId}`，随后用 `inspect` 查询状态和验证结果。重复开始返回 409；失败后通过 `retry` 或下面的 API 显式重试。CLI 与 Web 使用同一份数据。
+
+## M1 API
+
+创建目标仍默认使用 Mock，Human 需显式选择。以下路径均相对于 `http://127.0.0.1:4317`：
+
+| 请求                                             | JSON 请求体                                         | 行为                                                                           |
+| ------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /api/goals`                                | `{"objective":"人工提交示例","executorId":"human"}` | 返回 GoalDetail，从 tasks 取得 Task ID                                         |
+| `POST /api/tasks/:id/run`                        | `{}`                                                | 202；Human 进入 waiting_human，返回 attemptId                                  |
+| `POST /api/tasks/:id/attempts/:attemptId/submit` | `{"artifact":{"summary":"已整理提交说明"}}`         | 202；保存产物后独立验证                                                        |
+| `POST /api/tasks/:id/mock-run`                   | `{"delayMs":1000,"outcome":"failure"}`              | 202；仅 Mock，延迟后模拟失败；两个选项均可省略                                 |
+| `POST /api/tasks/:id/retry`                      | `{}`                                                | failed/interrupted 创建新 Attempt，Task ID 不变；Mock 也可指定 delayMs/outcome |
+| `GET /api/goals/:id`                             | —                                                   | 查询状态、尝试历史、原始产物与验证明细                                         |
+
+`summary.v1` 只检查 JSON 对象中 summary 是否为去除空白后非空的字符串。`{"artifact":{}}` 或 `{"artifact":{"summary":42}}` 会被受理并验证为 FAIL，原因码为 `SUMMARY_REQUIRED_NON_EMPTY_STRING`；重试后需使用新的 attemptId 提交。只有当前 Attempt 的 PASS 才能完成 Task。Human 表示人工产物来源，不是审批功能。
+
+数据库启动时执行追加迁移。旧模拟记录保持可读，不补造 Attempt 或验证判定；所有 Mock 产物仍标记模拟。
+
+## 三个可复现演示
+
+先启动 API，各 ID 从前一条命令 JSON 获取。`inspect` 可重复执行，操作受理不等于执行完成。
+
+```bash
+# A：失败后重试，保留两次尝试
+pnpm cli create "Mock 重试示例"
+pnpm cli mock-run <task-id> --outcome failure
+pnpm cli inspect <goal-id>  # 等待 failed
+pnpm cli retry <task-id>
+pnpm cli inspect <goal-id>  # completed；两次尝试，模拟证据
+
+# B：人工待办跨重启，先 FAIL 后 PASS
+pnpm cli create "人工示例" --executor human
+pnpm cli run <task-id>
+# 在 API 终端退出并重新启动，仍 waiting_human
+pnpm cli submit <task-id> <attempt-id> --artifact '{}'
+pnpm cli inspect <goal-id>  # FAIL 与具体原因
+pnpm cli retry <task-id>    # 返回新的 attempt-id
+pnpm cli submit <task-id> <new-attempt-id> --artifact '{"summary":"已整理说明"}'
+pnpm cli inspect <goal-id>  # PASS；旧提交和 FAIL 保留
+
+# C：运行中终止并重启
+pnpm cli create "中断示例"
+pnpm cli run <task-id> --delay-ms 60000
+pnpm cli inspect <goal-id>  # running
+# 退出 API 再重新启动：interrupted，不自动派发
+pnpm cli inspect <goal-id>
+pnpm cli retry <task-id>
+pnpm cli inspect <goal-id>
+```
+
+真实强制终止（SIGKILL）和三个场景可自动复现：
+
+```bash
+pnpm build:packages
+pnpm exec vitest run apps/api/src/cli-process.test.ts packages/runtime/src/process.test.ts packages/runtime/src/recovery.test.ts
+```
+
+## 恢复与实例边界
+
+- 同一数据库仅一个 Runtime/daemon，即使端口不同也拒绝第二实例。使用 canonical 路径旁的 `.owner.sqlite` 独立事务锁；进程退出由系统释放，遗留文件无需删除。运行中不要删除或替换数据库及 owner 文件。符号链接归一化，硬链接拒绝；仅支持本机磁盘，不支持网络文件系统。
+- 启动先获取所有权，再迁移和核对：ready 保持，running → interrupted，waiting_human 保持，verifying 从已保存产物重放纯验证，completed 不再执行。缺失产物会 failed/MISSING_ARTIFACT。
+- 失败或中断需显式 retry；旧 Attempt 保留且不会覆盖新尝试。关闭取消 Mock 等待，旧回调拒绝保存。
+- 不恢复任意代码位置、外部 Agent 会话或未持久化产物，不承诺外部操作恰好一次。当前没有真实 Agent、自动重试或计划调度。
 
 ## 工程结构
 
@@ -61,7 +124,7 @@ pnpm build
 pnpm check
 ```
 
-测试使用独立 SQLite 数据库与 Fastify 注入请求，不需要浏览器。覆盖持久化重开、模拟执行、重复执行保护、输入校验和 HTTP 错误。
+测试使用临时 SQLite、Fastify 注入和真实 CLI/HTTP 子进程，不需要浏览器。进程测试需允许监听 127.0.0.1 随机端口，包含 SIGKILL 与同库争用；端口被沙箱阻止时需在允许本地监听的环境运行，不会跳过并冒充通过。覆盖旧库迁移及回滚、提交后派发、失败重试、人工提交、独立验证、重复/过期保护和 HTTP 错误。
 
 构建后可单独启动 API：
 
@@ -84,6 +147,6 @@ Web 产物在 `apps/web/dist`。当前 API 不托管静态页面；生产部署�
 ## 开发文档
 
 - [项目概览](docs/overview.md)：当前代码结构与核心链路。
-- [M1 执行计划](docs/next-milestone.md)：下一阶段的执行合同，默认 manual，尚待审阅。
+- [M1 执行计划](docs/next-milestone.md)：阶段执行合同和 M1 验收记录。
 - [开发计划总表](docs/roadmap.md)：终极目标、主要 Milestone 与验收出口。
 - [架构说明](docs/architecture.md)：技术选型与扩展边界。

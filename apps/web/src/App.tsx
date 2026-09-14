@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
+import { TaskActions } from './TaskActions';
 
 export function App() {
   const [objective, setObjective] = useState('');
+  const [executorId, setExecutorId] = useState<'mock' | 'human'>('mock');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const client = useQueryClient();
   const goals = useQuery({ queryKey: ['goals'], queryFn: api.listGoals });
@@ -22,25 +24,19 @@ export function App() {
       await client.invalidateQueries({ queryKey: ['goals'] });
     },
   });
-  const run = useMutation({
-    mutationFn: api.runMock,
-    onSuccess: async (goal) => {
-      client.setQueryData(['goal', goal.id], goal);
-      await client.invalidateQueries({ queryKey: ['goals'] });
-    },
-  });
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (objective.trim()) create.mutate(objective.trim());
+    if (objective.trim())
+      create.mutate({ objective: objective.trim(), executorId });
   }
-  const error = create.error ?? run.error ?? goals.error ?? detail.error;
+  const error = create.error ?? goals.error ?? detail.error;
   return (
     <div className="shell">
       <header>
         <a className="brand" href="/">
           Merforge<span>LOCAL PROTOTYPE / 0.1</span>
         </a>
-        <span className="mode">Mock Executor</span>
+        <span className="mode">Mock / Human</span>
       </header>
       <main>
         <section className="intro">
@@ -53,6 +49,15 @@ export function App() {
         </section>
         <form className="create" onSubmit={submit}>
           <label htmlFor="objective">新建目标</label>
+          <label htmlFor="executor">执行方式</label>
+          <select
+            id="executor"
+            value={executorId}
+            onChange={(e) => setExecutorId(e.target.value as 'mock' | 'human')}
+          >
+            <option value="mock">Mock · 模拟执行</option>
+            <option value="human">Human · 人工提交</option>
+          </select>
           <div className="input-row">
             <input
               id="objective"
@@ -74,7 +79,6 @@ export function App() {
               className="secondary"
               onClick={() => {
                 create.reset();
-                run.reset();
                 void client.invalidateQueries();
               }}
             >
@@ -100,7 +104,6 @@ export function App() {
                   aria-current={activeId === goal.id ? 'true' : undefined}
                   onClick={() => {
                     setSelectedId(goal.id);
-                    run.reset();
                   }}
                 >
                   <strong>{goal.objective}</strong>
@@ -113,7 +116,7 @@ export function App() {
             {!activeId && (
               <div className="empty">
                 <h2>工作从这里展开</h2>
-                <p>Goal → Task → Run → Evidence</p>
+                <p>Goal → Task → Attempt → Verification</p>
                 <p className="muted">任务与执行记录保存在本地 SQLite 中。</p>
               </div>
             )}
@@ -127,28 +130,66 @@ export function App() {
                 <p className="identifier">{detail.data.id}</p>
                 <h3>任务</h3>
                 {detail.data.tasks.map((task) => (
-                  <div className="task" key={task.id}>
-                    <div>
-                      <strong>{task.title}</strong>
-                      <p className="muted">
-                        {task.status === 'ready'
-                          ? '等待模拟执行'
-                          : '模拟执行完成'}
-                      </p>
-                    </div>
-                    <button
-                      className="secondary"
-                      disabled={run.isPending || task.status !== 'ready'}
-                      onClick={() => run.mutate(task.id)}
-                    >
-                      {run.isPending
-                        ? '记录中…'
-                        : task.status === 'ready'
-                          ? '运行 Mock'
-                          : '已完成模拟'}
-                    </button>
-                  </div>
+                  <TaskActions
+                    key={task.id}
+                    task={task}
+                    attempts={detail.data.attempts.filter(
+                      (a) => a.taskId === task.id,
+                    )}
+                  />
                 ))}
+                <h3>尝试历史</h3>
+                {detail.data.attempts.length === 0 && (
+                  <p className="muted">尚无尝试。旧版模拟记录见下方。</p>
+                )}
+                {detail.data.attempts.map((attempt) => (
+                  <article className="evidence" key={attempt.id}>
+                    <strong>
+                      #{attempt.sequence} ·{' '}
+                      {attempt.executorId === 'mock'
+                        ? 'MOCK 模拟'
+                        : 'HUMAN 人工'}{' '}
+                      · {attempt.status}
+                    </strong>
+                    <p className="identifier">
+                      Task {attempt.taskId}
+                      <br />
+                      Attempt {attempt.id}
+                    </p>
+                    <p>
+                      开始：{new Date(attempt.startedAt).toLocaleString()} ·
+                      结束：
+                      {attempt.endedAt
+                        ? new Date(attempt.endedAt).toLocaleString()
+                        : '—'}
+                    </p>
+                    {attempt.error && <p className="error">{attempt.error}</p>}
+                    {detail
+                      .data!.artifacts.filter((a) => a.attemptId === attempt.id)
+                      .map((a) => (
+                        <details key={a.id}>
+                          <summary>
+                            提交产物 · {a.kind === 'mock' ? '模拟' : '人工'}
+                          </summary>
+                          <pre>{JSON.stringify(a.payload, null, 2)}</pre>
+                        </details>
+                      ))}
+                    {detail
+                      .data!.verifications.filter(
+                        (v) => v.attemptId === attempt.id,
+                      )
+                      .map((v) => (
+                        <p key={v.id}>
+                          验证：{v.verdict} · {v.acceptanceVersion}
+                          <br />
+                          {v.reasons.join(' · ')}
+                        </p>
+                      ))}
+                  </article>
+                ))}
+                <p className="muted">
+                  PASS 仅表示 summary.v1 提交结构合格，不证明业务结果正确。
+                </p>
                 <h3>
                   执行记录{' '}
                   <span className="count">{detail.data.runs.length}</span>
