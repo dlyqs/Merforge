@@ -2,11 +2,11 @@
 
 ## 当前项目
 
-Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。目前已完成 M1 Phase 1–5：本机单任务、异步 Mock、Human 提交、独立确定性验证、显式重试、重启核对及 CLI/Web 操作闭环。React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite；不调用模型或执行实际业务任务。
+Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Transformation。已完成 M1 Phase 1–5：本机单任务、异步 Mock、Human 提交、独立确定性验证、显式重试、重启核对及 CLI/Web 操作闭环。React 页面和 Commander CLI 调用 Fastify API，由 Runtime 操作 SQLite；不调用模型或执行实际业务任务。
 
 关键技术：TypeScript strict、Node.js LTS、pnpm workspace、Zod、Drizzle/SQLite、React/Vite/TanStack Query。推荐 Node.js 24；启动与环境变量以 [README](../README.md) 为准。本轮检查实际使用 Node.js 25.8.2、pnpm 10.27.0，未另做 Node.js 24 运行验证。
 
-当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)，七阶段均待执行，当前仅完成计划编写，execution mode 为 manual，尚待审阅。M1 全部五阶段已完成；[M1 验收记录](next-milestone.md) 记载 29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他（本次文档更新未重跑）。M2 的 Plan/Phase、审批和执行模式尚未实现。宏观目标见 [开发计划总表](roadmap.md)。
+当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)，Phase 1–4 已完成，`pnpm check` 50 项测试、类型检查与构建通过；本任务获准自动完成 Phase 1–4，之后创建新任务自动完成 Phase 5–7。M1 全部五阶段已完成；[M1 验收记录](next-milestone.md) 记载 29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他（本次文档更新未重跑）。M2 的 Contracts 0.3 和第 5 条追加迁移已实现；版本化定义、独立审批、manual/auto/auto_until 和控制 API 已实现。跨重启计划恢复留 Phase 5，CLI/Web 专用入口留 Phase 6。宏观目标见 [开发计划总表](roadmap.md)。
 
 ## 文件组织与修改入口
 
@@ -48,3 +48,5 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 - `pnpm check` 包含类型检查、测试和构建；格式检查另运行 `pnpm format:check`。修改共享包后需构建，并按 README 重启开发服务。
 - 不自行启动页面或使用 Playwright，不使用本计划未授权的 GitNexus。可选用户视觉检查保持未验证标记。
 - 不把 M2 计划中的能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务。
+
+M2 代码入口：`packages/contracts/src/plan.ts` 定义计划契约；Runtime `plans.ts` 管理版本与审批，`scheduler.ts` 管理串行派发/范围/聚合，`plan-migration.ts` 是第 5 条追加迁移；`plans.test.ts`、`scheduler.test.ts`、`modes.test.ts` 和 API plans 测试覆盖同进程操作。审批与模式均不会授予初次执行权；新计划须显式 continue。历史 Task 通过 phaseId 区分修订，旧无 Phase 的 Task 仍使用 M1 入口。

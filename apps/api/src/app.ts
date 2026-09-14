@@ -1,6 +1,12 @@
 import Fastify from 'fastify';
 import {
   CONTRACT_VERSION,
+  createPlanSchema,
+  revisePlanSchema,
+  decisionSchema,
+  continuePlanSchema,
+  modeCommandSchema,
+  revisionCommandSchema,
   createGoalSchema,
   mockOptionsSchema,
   humanSubmissionSchema,
@@ -51,7 +57,7 @@ export function buildApp(options: {
               ? 400
               : 409,
         )
-        .send({ error: error.message });
+        .send({ error: error.message, code: error.code });
     const status =
       typeof error === 'object' && error !== null && 'statusCode' in error
         ? Number(error.statusCode)
@@ -61,6 +67,80 @@ export function buildApp(options: {
     request.log.error(error);
     return reply.code(500).send({ error: 'Internal server error' });
   });
+  app.post('/api/plans', async (request, reply) => {
+    const input = createPlanSchema.safeParse(request.body);
+    if (!input.success)
+      return reply
+        .code(400)
+        .send({ error: 'Invalid plan', code: 'INVALID_INPUT' });
+    return reply.code(201).send(runtime.createPlan(input.data));
+  });
+  app.get<{ Params: { id: string } }>('/api/plans/:id', async (request) =>
+    runtime.getPlan(request.params.id),
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/plans/:id/revisions',
+    async (request, reply) => {
+      const input = revisePlanSchema.safeParse(request.body);
+      if (!input.success)
+        return reply
+          .code(400)
+          .send({ error: 'Invalid revision', code: 'INVALID_INPUT' });
+      return runtime.revisePlan(request.params.id, input.data);
+    },
+  );
+  app.post<{ Params: { id: string; approvalId: string } }>(
+    '/api/plans/:id/approvals/:approvalId/decision',
+    async (request, reply) => {
+      const input = decisionSchema.safeParse(request.body);
+      if (!input.success)
+        return reply
+          .code(400)
+          .send({ error: 'Invalid decision', code: 'INVALID_INPUT' });
+      return runtime.decideApproval(
+        request.params.id,
+        request.params.approvalId,
+        input.data,
+      );
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/plans/:id/continue',
+    async (request, reply) => {
+      const input = continuePlanSchema.safeParse(request.body);
+      if (!input.success)
+        return reply
+          .code(400)
+          .send({ error: 'Invalid continuation', code: 'INVALID_INPUT' });
+      return runtime.continuePlan(request.params.id, input.data);
+    },
+  );
+  app.post<{ Params: { id: string } }>(
+    '/api/plans/:id/mode',
+    async (request, reply) => {
+      const input = modeCommandSchema.safeParse(request.body);
+      if (!input.success)
+        return reply
+          .code(400)
+          .send({ error: 'Invalid mode', code: 'INVALID_INPUT' });
+      return runtime.setPlanMode(request.params.id, input.data);
+    },
+  );
+  app.post<{ Params: { id: string; phaseId: string } }>(
+    '/api/plans/:id/phases/:phaseId/approval',
+    async (request, reply) => {
+      const input = revisionCommandSchema.safeParse(request.body);
+      if (!input.success)
+        return reply
+          .code(400)
+          .send({ error: 'Invalid revision', code: 'INVALID_INPUT' });
+      return runtime.requestPhaseApproval(
+        request.params.id,
+        request.params.phaseId,
+        input.data,
+      );
+    },
+  );
   app.get('/api/health', async () => ({
     status: 'ok',
     contractVersion: CONTRACT_VERSION,

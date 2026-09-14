@@ -1,6 +1,8 @@
+import { planDetailSchema } from './plan.js';
+export * from './plan.js';
 import { z } from 'zod';
 
-export const CONTRACT_VERSION = '0.2' as const;
+export const CONTRACT_VERSION = '0.3' as const;
 export const createGoalSchema = z
   .object({
     objective: z.string().trim().min(1).max(2000),
@@ -26,6 +28,8 @@ export const goalSchema = z.object({
 export const taskSchema = z.object({
   id: z.string().uuid(),
   goalId: z.string().uuid(),
+  phaseId: z.string().uuid().nullable().optional(),
+  position: z.number().int().positive().nullable().optional(),
   title: z.string(),
   status: taskStatusSchema,
   executorId: executorIdSchema,
@@ -57,9 +61,14 @@ export const evidenceSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export const eventSchema = z.object({
+  planId: z.string().uuid().nullable(),
+  revision: z.number().int().positive().nullable(),
+  phaseId: z.string().uuid().nullable(),
+  approvalId: z.string().uuid().nullable(),
+  controlVersion: z.number().int().nonnegative().nullable(),
   id: z.number().int(),
   goalId: z.string().uuid(),
-  taskId: z.string().uuid(),
+  taskId: z.string().uuid().nullable(),
   attemptId: z.string().uuid().nullable(),
   fromStatus: taskStatusSchema.nullable(),
   toStatus: taskStatusSchema.nullable(),
@@ -109,6 +118,7 @@ export const verificationSchema = verificationResultSchema.extend({
 });
 export type VerificationResult = z.infer<typeof verificationResultSchema>;
 export const goalDetailSchema = goalSchema.extend({
+  plan: planDetailSchema.nullable().optional(),
   tasks: z.array(taskSchema),
   attempts: z.array(attemptSchema),
   artifacts: z.array(artifactSchema),

@@ -9,15 +9,15 @@
 - execution mode: manual
 - automatic start phase: none
 - automatic stop phase: none
-- conversation relay: off
-- plan review: pending
-- execution authorization: none（2026-09-14 仅请求编写阶段执行文档）
+- conversation relay: authorized; Phase 1–4 boundary reached, creating successor for Phase 5–7
+- plan review: accepted for execution (2026-09-14 user instruction)
+- execution authorization: 2026-09-14 用户“请自动完成 phase1-4 然后新开对话自动完成剩余 phase”；接力止于 M2。
 
 这里的执行模式字段管理**开发本计划**；下文产品执行模式是将要实现的数据库契约，二者互不授权。M1 的自动执行授权已在 M1 结束，不能继承到 M2。无需额外创建专用 executor Skill。
 
 ## 基线、范围与可行性
 
-M1 已完成，证据保留在 [M1 验收记录](next-milestone.md)。本次只读核对发现：Contracts 版本为 `0.2`；数据库已有四条追加迁移；`createGoal` 自动创建一个 Task；`start` 只判断 Task/Attempt，没有 Plan 门禁；事件要求非空 taskId；启动恢复将 running 标为 interrupted、重放 verifying、保留 ready 和 waiting_human。M1 记录的 29 项测试为既有验收结果，本次文档编写未重新执行。
+M1 已完成，证据保留在 [M1 验收记录](next-milestone.md)。最初编写计划时的只读核对发现：Contracts 版本为 `0.2`；数据库已有四条追加迁移；`createGoal` 自动创建一个 Task；`start` 只判断 Task/Attempt，没有 Plan 门禁；事件要求非空 taskId；启动恢复将 running 标为 interrupted、重放 verifying、保留 ready 和 waiting_human。M1 记录的 29 项测试为既有验收结果，本次文档编写未重新执行。
 
 M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复链和三端操作。可行性高，现有 SQLite 短事务、单实例所有权、Mock/Human 与独立 Verifier 可复用，无需模型凭证或工作流引擎。主要风险及落点：
 
@@ -35,7 +35,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 ## 产品契约与实现约束
 
-以下是待审阅的实施决策；如执行时发现不能兼容，先记录证据并修订相关阶段，不能默默换语义。
+以下是用户已授权执行的实施决策；如执行时发现不能兼容，先记录证据并修订相关阶段，不能默默换语义。
 
 1. **计划与顺序：** 一个新计划型 Goal 对应一个 Plan 身份及递增 revision；一个 revision 含非空有序 Phase，每个 Phase 含非空有序 Task。顺序由服务端校验并保存，稳定 ID 与显示序号分离。同一 Plan 至多一个活跃 Task Attempt；不同 Goal 沿用既有独立运行能力，不增加跨 Goal 全局队列。
 2. **兼容入口：** 既有 `POST /api/goals` 默认单任务行为保持；新增显式计划型创建入口原子保存 Goal/Plan/Phase/Task，不额外生成孤立默认 Task。旧 Task 没有 phaseId，按 M1 运行；新计划 Task 的 phaseId 不可由调用者去掉。不得给旧数据补造 approval、Phase 或 PASS。GoalDetail 兼容保留旧集合，新增计划信息；需要调整事件契约以支持无 taskId 的 Plan/Approval 事件，不能虚挂到首个任务。
@@ -46,21 +46,21 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 7. **运行中控制：** 模式变更在事务中更新控制版本，每次派发重读；当前 Attempt 不强制取消。切 manual 时当前阶段可完成但不进入下一阶段；没有活跃阶段则停止等待显式启动。新 auto_until 终点不能早于当前已授权的活跃阶段。单阶段执行命令即使在 auto 下也设置持久化的本次阶段限制，结束即停；后续显式 continue 才按保存模式恢复。不能用进程内标志保存限制。M2 不提供取消任意执行器的能力。
 8. **等待、失败与恢复：** auto/auto_until 的 Human 或阶段审批等待保留原授权；合格提交/批准后重新检查门禁再推进。失败或中断只允许用户显式 retry，不自动创建新 Attempt；retry 继续受版本、顺序及范围检查。重启先获取 M1 所有权并完成任务核对，再恢复计划推进。已有持久化授权的安全待办可继续；没有启动授权的计划、manual 已到边界、未批准/被拒绝计划都不启动。running 遗留仍为 interrupted，不重启 Mock 冒充恢复；verifying 重放完成后才决定下一步。
 9. **工程约束：** 保持 TS/Zod/SQLite/Fastify/Commander/React 与轮询；Runtime 不依赖 API/Web，不引入垂类概念。外部执行与验证不占长事务；状态和业务事件原子提交。数据库只追加迁移；不拆包做无关重构。仅操作临时数据库验证，保留 M1 同库排他和迟到结果防护。
-10. **用户要求：** 不自行启动页面，不使用 Playwright 等浏览器工具或 Skill；不使用 GitNexus，不自行调用子代理、新建任务、提交推送或部署。前端靠类型检查、构建、契约和可测试逻辑验证；用户视觉检查为可选且未执行，不能写为通过。
+10. **用户要求：** 不自行启动页面，不使用 Playwright 等浏览器工具或 Skill；不使用 GitNexus，不自行调用子代理、提交推送或部署。2026-09-14 用户已明确授权 Phase 4 后新建一个任务继续 Phase 5–7。前端靠类型检查、构建、契约和可测试逻辑验证；用户视觉检查为可选且未执行，不能写为通过。
 
 ## 阶段状态总表
 
 本表是唯一全局阶段进度表；实现事实与验证证据只写在对应阶段详情。
 
-| 阶段    | 主题               | 主要目标                           | 状态    | 实际产物 | 备注                  |
-| ------- | ------------------ | ---------------------------------- | ------- | -------- | --------------------- |
-| Phase 1 | 计划契约与持久化   | 版本、阶段、审批和控制状态可持久化 | pending | —        | 基于 M1               |
-| Phase 2 | 修订与审阅门禁     | 人工计划可审阅，旧入口不能绕过     | pending | —        | 依赖 Phase 1          |
-| Phase 3 | manual 串行调度    | 单阶段内逐任务验证并停止           | pending | —        | 依赖 Phase 2          |
-| Phase 4 | 自动模式与阶段审批 | auto/auto_until 及等待后继续       | pending | —        | 依赖 Phase 3          |
-| Phase 5 | 跨重启恢复         | 核对后按原授权恢复，绝不越界       | pending | —        | 依赖 Phase 4          |
-| Phase 6 | CLI/Web 操作闭环   | 用户可定义、审阅、控制并追踪计划   | pending | —        | 依赖 Phase 5          |
-| Phase 7 | M2 出口验收        | 三阶段演示与失败/恢复证据齐备      | pending | —        | 依赖 Phase 6；止于 M2 |
+| 阶段    | 主题               | 主要目标                           | 状态      | 实际产物                 | 备注                  |
+| ------- | ------------------ | ---------------------------------- | --------- | ------------------------ | --------------------- |
+| Phase 1 | 计划契约与持久化   | 版本、阶段、审批和控制状态可持久化 | completed | Contracts 0.3、迁移 5    | 已验证                |
+| Phase 2 | 修订与审阅门禁     | 人工计划可审阅，旧入口不能绕过     | completed | plans.ts、API、JSON 示例 | 已验证                |
+| Phase 3 | manual 串行调度    | 单阶段内逐任务验证并停止           | completed | scheduler.ts、5 项测试   | 已验证                |
+| Phase 4 | 自动模式与阶段审批 | auto/auto_until 及等待后继续       | completed | 模式/审批控制、9 项测试  | 同进程验证通过        |
+| Phase 5 | 跨重启恢复         | 核对后按原授权恢复，绝不越界       | pending   | —                        | 依赖 Phase 4          |
+| Phase 6 | CLI/Web 操作闭环   | 用户可定义、审阅、控制并追踪计划   | pending   | —                        | 依赖 Phase 5          |
+| Phase 7 | M2 出口验收        | 三阶段演示与失败/恢复证据齐备      | pending   | —                        | 依赖 Phase 6；止于 M2 |
 
 ## Phase 1：计划契约与持久化
 
@@ -70,10 +70,10 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] 明确 Plan 身份/revision、Phase/Task 顺序、Approval、执行授权和控制版本字段、状态枚举及转换表；schemaVersion 与 revision、DB user_version 分开。
-- [ ] 数据约束拒绝重复顺序、跨版本 Phase/Task/Approval 引用及非法边界；空计划、空阶段在写入前拒绝。
-- [ ] 新增计划事件关联字段，旧 task 事件仍可读，CLI/Web 契约解析不回归。
-- [ ] 追加迁移保留四个已交付迁移；M0/M1 数据、Artifact、Verification 与事件不丢失，迁移失败整体回滚。
+- [x] 明确 Plan 身份/revision、Phase/Task 顺序、Approval、执行授权和控制版本字段、状态枚举及转换表；schemaVersion 与 revision、DB user_version 分开。
+- [x] 数据约束拒绝重复顺序、跨版本 Phase/Task/Approval 引用及非法边界；空计划、空阶段在写入前拒绝。
+- [x] 新增计划事件关联字段，旧 task 事件仍可读，CLI/Web 契约解析不回归。
+- [x] 追加迁移保留四个已交付迁移；M0/M1 数据、Artifact、Verification 与事件不丢失，迁移失败整体回滚。
 
 **助手验证：** Zod 正反例、临时库迁移/重开/外键/回滚测试；`pnpm typecheck`、相关 persistence 测试。执行前先记录当前基线检查结果，不能把既有测试记录当本次通过。
 
@@ -81,7 +81,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖与过渡：** M1 完成。此阶段仅持久化基础，产品计划入口未开放，不宣称可执行；记录迁移结果与拒绝原因，按下文脱敏规则输出。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** Contracts 0.3 新增 plan.v1、修订/审批/控制输入与详情契约，Task 可关联阶段，Event 可不关联 Task。追加 `plan-migration.ts` 为第 5 条迁移，保留前四条；`plan-state.ts` 记录聚合转换表。外键、唯一顺序、不可变快照/成员关系及合法控制边界有数据库约束。基线类型检查及全部 29 项测试通过（HTTP 测试经授权解除回环监听限制）；变更后类型检查通过，persistence/verification 18 项及新 plan-persistence 初始 2 项通过（随后补充 v4 fixture 原样保留产物/验证/事件并重开，现共 3 项），涵盖旧库重开、回滚与非法引用。未启动页面。下一阶段：定义/修订/审阅。
 
 ## Phase 2：人工计划修订与审阅门禁
 
@@ -91,11 +91,11 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] 计划型创建独立于旧单任务创建，事务一次保存完整结构；查询返回当前修订、历史审阅与执行状态。
-- [ ] 创建、修订、review 决策命令显式核对 revision；过期、跨计划/阶段请求拒绝，重复相同决策幂等，冲突决策拒绝。
-- [ ] 未执行计划的新修订使旧批准失效，首个 Attempt 后拒绝修订；并发 revise/approve 不会串版本。
-- [ ] 审批通过不派发任务；未审阅或拒绝时所有计划任务 run/retry/mock-run 都不能绕过门禁。调度尚未接通时，计划内直接启动统一拒绝，旧无 Plan Task 继续可用。
-- [ ] API 区分非法输入、缺失对象和状态冲突，成功/错误响应纳入共享契约。
+- [x] 计划型创建独立于旧单任务创建，事务一次保存完整结构；查询返回当前修订、历史审阅与执行状态。
+- [x] 创建、修订、review 决策命令显式核对 revision；过期、跨计划/阶段请求拒绝，重复相同决策幂等，冲突决策拒绝。
+- [x] 未执行计划的新修订使旧批准失效，首个 Attempt 后拒绝修订；并发 revise/approve 不会串版本。
+- [x] 审批通过不派发任务；未审阅或拒绝时所有计划任务 run/retry/mock-run 都不能绕过门禁。调度尚未接通时，计划内直接启动统一拒绝，旧无 Plan Task 继续可用。
+- [x] API 区分非法输入、缺失对象和状态冲突，成功/错误响应纳入共享契约。
 
 **助手验证：** Runtime 版本/审批竞态及 API inject 测试；直接调用旧端点绕过测试；`pnpm typecheck` 与相关测试。
 
@@ -103,7 +103,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖与过渡：** Phase 1。本阶段只有定义/审阅能力，Phase 3 开启执行。日志覆盖 revision_created、review_requested/decided、revision_conflict、plan_gate_rejected。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** `plans.ts` 原子创建与修订，独立审批记录和版本核对；`errors.ts` 共享运行错误；API 增加 plans、revisions 和 approval decision。`examples/serial-plan.json` 包含三阶段、双任务及 Human/审批示例。Runtime/API 新增 2 项组合测试通过：空计划回滚、批准不启动、旧三种 Task 入口拒绝、过期/跨计划审批、重复/冲突决策、修订历史保留、M1 单任务继续工作；类型检查通过。开始后的冻结条件已实现，随 Phase 3 执行测试验证。下一阶段：manual 调度。
 
 ## Phase 3：manual 串行执行与聚合完成
 
@@ -113,11 +113,11 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] 统一资格检查和 Attempt 领取使用同一短事务；计划审阅、版本、顺序、控制授权均不能被公开任务接口跳过。
-- [ ] 同一 Plan 至多一个 running/waiting_human/verifying Attempt；重复 continue、直接 run、验证回调竞争不并行创建尝试。
-- [ ] manual 持久化本次选择的阶段；至少两个任务的阶段按顺序完成，阶段完成后下一阶段没有 Attempt。
-- [ ] 只有 Verifier PASS 推进任务与阶段；Human 等待、FAIL、interrupted、Verifier 错误都阻挡后续任务。
-- [ ] 显式 retry 保留原 Task/旧 Attempt，成功后继续本次阶段；completed 不重复执行。聚合状态与事件可从持久化事实核对，不依赖内存游标。
+- [x] 统一资格检查和 Attempt 领取使用同一短事务；计划审阅、版本、顺序、控制授权均不能被公开任务接口跳过。
+- [x] 同一 Plan 至多一个 running/waiting_human/verifying Attempt；重复 continue、直接 run、验证回调竞争不并行创建尝试。
+- [x] manual 持久化本次选择的阶段；至少两个任务的阶段按顺序完成，阶段完成后下一阶段没有 Attempt。
+- [x] 只有 Verifier PASS 推进任务与阶段；Human 等待、FAIL、interrupted、Verifier 错误都阻挡后续任务。
+- [x] 显式 retry 保留原 Task/旧 Attempt，成功后继续本次阶段；completed 不重复执行。聚合状态与事件可从持久化事实核对，不依赖内存游标。
 
 **助手验证：** 受控 Mock/Verifier 同步点覆盖先后次序、重复唤醒、失败重试、Human→Mock、跳阶段拒绝；API/Runtime 测试与类型检查。不使用固定 sleep 推断顺序。
 
@@ -125,7 +125,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖与过渡：** Phase 2。只开放 manual；auto 输入明确拒绝直至 Phase 4。记录 scheduler_selected/rejected、phase_started/completed、plan_completed。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** `scheduler.ts` 在同一 SQLite 短事务内核对审批、版本、授权、前序任务并领取 Attempt；数据库另限制同 Plan 单活跃 Attempt。验证/失败收尾同事务重算 Phase/Plan，并保存单阶段授权及边界。新增 continue API；直接 Task run/retry 使用同一门禁。类型检查与 scheduler 5 项测试通过，覆盖同步点控制串行、重复 continue/run/retry、执行后修订冻结、跳阶段拒绝、失败显式重试、Human PASS/FAIL/验证器错误以及 completed 不重跑。auto 控制入口尚未开放，留 Phase 4。下一阶段：模式/审批矩阵。
 
 ## Phase 4：自动模式、停止边界与阶段审批
 
@@ -135,11 +135,11 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **验收清单：**
 
-- [ ] auto 在已审阅且显式启动后连续推进；auto_until 绑定当前 revision 内合法两端，到界切 manual 并清空边界，与阶段完成原子保存。
-- [ ] 覆盖缺省起点、非法/反向/跨版本边界、已完成范围、不完整前置及完成终点前仍有缺口；不为已完成任务创建新 Attempt。
-- [ ] 在 auto 中发起单阶段命令只执行该阶段，持久化本次限制；运行中切 manual 或缩小范围不会多派发后续阶段，也不伪造当前 Attempt 取消。
-- [ ] 阶段入口审批在首个 Task 前等待；请求、批准/拒绝及历史持久化。批准仅恢复已有授权，拒绝不推进；重复批准不会重复执行，旧/跨阶段批准拒绝。
-- [ ] Human 提交完成与 approval 分离；等待期间模式变更后，以最新控制状态决定是否继续。所有旧 Task 端点同样受范围约束。
+- [x] auto 在已审阅且显式启动后连续推进；auto_until 绑定当前 revision 内合法两端，到界切 manual 并清空边界，与阶段完成原子保存。
+- [x] 覆盖缺省起点、非法/反向/跨版本边界、已完成范围、不完整前置及完成终点前仍有缺口；不为已完成任务创建新 Attempt。
+- [x] 在 auto 中发起单阶段命令只执行该阶段，持久化本次限制；运行中切 manual 或缩小范围不会多派发后续阶段，也不伪造当前 Attempt 取消。
+- [x] 阶段入口审批在首个 Task 前等待；请求、批准/拒绝及历史持久化。批准仅恢复已有授权，拒绝不推进；重复批准不会重复执行，旧/跨阶段批准拒绝。
+- [x] Human 提交完成与 approval 分离；等待期间模式变更后，以最新控制状态决定是否继续。所有旧 Task 端点同样受范围约束。
 
 **助手验证：** 三阶段模式矩阵、并发模式更新/完成回调、Human 等待中切模式、审批重复/拒绝后新请求；检查边界外 Attempt 数量为零及事件原因；类型/API/Runtime 测试。
 
@@ -147,7 +147,7 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 
 **依赖：** Phase 3。此时先证明同进程语义，跨进程承诺到 Phase 5 验证后才成立。记录 mode_changed、approval_waiting/decided、boundary_reached、execution_paused。
 
-**实际完成：** 未开始，执行后填写。
+**实际完成：** `scheduler.ts` 实现 auto/auto_until、版本化模式控制、范围合法性检查、单阶段覆盖、运行中切 manual、同事务到界切回 manual/清两端/撤销授权。`plans.ts` 保留阶段审批拒绝历史并支持显式重建；审批与 Human 提交仅恢复已有授权。新增 mode/phase approval API 和共享契约；结构化日志关联计划/版本/阶段/审批/控制版本，拒绝使用固定原因码。模式专项 9 项、manual 调度 6 项（含 M1 中断阻塞）、API 计划 2 项测试通过，覆盖验证进行中控制更新、审批等待/Human 等待切模式、非法/跨修订/已完成范围、重复控制及边界外零 Attempt。最终 `pnpm check` 通过：类型检查、12 个测试文件共 50 项测试、全量构建；真实 HTTP 进程测试获准使用回环随机端口。环境 Node 25.8.2 / pnpm 10.27.0。Vite 仅有依赖 Zod 注释注解警告，不影响构建。README/architecture/overview/roadmap 已同步。未启动页面，视觉检查未执行。Phase 1–4 已到界，开发模式切 manual 并清两端；按用户授权新任务从 Phase 5 自动执行至 M2，完整跨重启恢复保证仍待验证。
 
 ## Phase 5：跨重启计划核对与持久授权恢复
 
@@ -236,4 +236,4 @@ M2 属于 large goal：需要同时改变持久化模型、调度入口、恢复
 8. 自动选阶段前重读授权与依赖并标 in_progress。非阻塞用户手动检查记为未执行并继续；实质产品歧义、确实依赖人工结果/外部状态、新权限或凭证、无法安全修复的验证失败、用户停止才暂停。阶段设 blocked，记录准确解除条件；未撤销则保留自动模式/范围，解除后沿用授权。
 9. 只有执行证据表明某阶段过大、风险过高或难以验证时，才最小拆分为 A/B 等子阶段。先更新主表、该阶段详情、验收与后续依赖，再实现；不为对称拆分，保留无关后续编号和已完成记录。auto_until 原阶段终点映射到最后子阶段，除非用户只授权某个子阶段。
 10. 每阶段实际完成区域写具体改动/文件、验证命令与结果、跳过原因、偏差/风险、下一阶段；同步主表和 overview。修改架构/使用入口时同步 architecture/README，里程碑变化时更新 roadmap，不再复制一份全局 Phase 进度。
-11. 自动执行仅限已审阅 M2 范围，不授权新模型集成、外部发布、部署、提交推送、破坏性操作、新凭证或 M3。conversation relay 保持 off；另获本计划明确接力授权后才加载所选 Skill 的 `references/conversation-relay.md` 并配置持久交接，不自行创建后继任务。
+11. 自动执行仅限已审阅 M2 范围，不授权新模型集成、外部发布、部署、提交推送、破坏性操作、新凭证或 M3。本次已获明确接力授权：Phase 4 完成后使用应用新任务工具创建后继任务，传递已验证未提交代码及本计划；后继任务记录 auto 授权并执行 Phase 5–7，不启动 M3。此次未选用 executor Skill，无需额外引用 Skill 接力文件。

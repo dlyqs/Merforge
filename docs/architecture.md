@@ -34,9 +34,19 @@ SQLite 使用 WAL、外键约束和版本化迁移。持久化测试证明已提
 
 同库 Runtime 在迁移前获取独立 SQLite owner 事务锁，锁覆盖完整实例生命周期，崩溃后 OS 释放，路径归一化并拒绝硬链接。启动将 running 转 interrupted，保留 ready/waiting_human，重放 verifying 的持久化产物，completed 不再执行；缺产物明确失败。每次写命令核对所有权，结果还检查当前 Attempt 和状态，关闭后旧回调拒绝保存。协调文件不删除，仅支持本机磁盘。
 
+## M2 计划与调度
+
+Contracts 0.3 使用独立 plan.v1 定义版本、递增 revision 和数据库迁移 5。一个 Plan 身份保留每次不可变定义、独立有序 Phase/Task 及审批历史；Task 通过 phaseId 唯一关联修订。旧 Goal 仍创建单任务，新 POST /api/plans 原子保存完整结构，不附加默认任务。
+
+plans.ts 管理定义、修订与审批；scheduler.ts 管理资格、授权、聚合和边界。计划数据使用同一 SQLite 连接的参数化 SQL，复用 Runtime 的短事务和事件出口；既有任务继续使用 Drizzle。审批、模式及阶段状态不依赖内存游标。修改计划须尚无 Attempt；review 与 phase_entry 审批均绑定 revision，Human 产物与审批独立。
+
+串行资格检查与 Attempt 领取处于同一个短事务；旧 run/mock-run/retry 也调用该门禁。数据库同时限制同 Plan 一个活跃 Attempt。验证 PASS 提交时重算 Phase/Plan，且到界切 manual、清空范围与撤销授权一起提交。提交后才唤醒下一任务；失败或 interrupted 等待显式 retry。显式单阶段限制与模式两端均持久化，控制命令校验 revision，模式更新额外校验 controlVersion。
+
+计划事件可无 taskId，使用 planId/revision/phaseId/approvalId/controlVersion 关联。业务状态与事件同事务；结构化诊断日志仅输出 ID、事件和固定原因码。当前已验证同进程 manual/auto/auto_until 与审批控制；启动统一恢复屏障和安全待办重派发仍由 Phase 5 完成，不能依据现有 verifying 回调提前宣称完整恢复保证。
+
 ## 后续扩展入口
 
-[M1 执行计划](next-milestone.md) 的五阶段均已完成；验收包括真实 CLI/HTTP、同库争用和强制终止恢复。当前待审阅入口为 [M2 可控串行计划](m2-serial-plan.md)：计划契约 → 审阅门禁 → manual 串行 → 自动模式/阶段审批 → 恢复 → 操作闭环 → 验收。M2 尚未实施，本页当前行为仍描述 M1。
+[M1 执行计划](next-milestone.md) 的五阶段均已完成；验收包括真实 CLI/HTTP、同库争用和强制终止恢复。当前执行入口为 [M2 可控串行计划](m2-serial-plan.md)：计划契约 → 审阅门禁 → manual 串行 → 自动模式/阶段审批 → 恢复 → 操作闭环 → 验收。M2 已实现前四阶段；跨重启计划调度、CLI/Web 闭环和完整出口仍待后续阶段。
 
 后续大里程碑见 [开发计划总表](roadmap.md)：串行计划与执行边界、真实 Executor、多执行器与规划、业务改造、评估及 Pack SDK。这里只保存架构原则，不重复维护阶段进度。当前代码导航见 [项目概览](overview.md)。
 

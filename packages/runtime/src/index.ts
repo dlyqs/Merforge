@@ -1,3 +1,4 @@
+import { createScheduler } from './scheduler.js';
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
@@ -31,18 +32,18 @@ import {
 export { SubmissionVerifier, type Verifier } from './verifier.js';
 export { MockExecutor, HumanExecutor, type Executor } from './executor.js';
 
-export class RuntimeError extends Error {
-  constructor(
-    public readonly code: 'NOT_FOUND' | 'CONFLICT' | 'INVALID_INPUT',
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { RuntimeError } from './errors.js';
+export { RuntimeError } from './errors.js';
+import { createPlans } from './plans.js';
 export interface RuntimeLog {
   component: 'merforge.runtime';
   event: string;
   goalId?: string;
+  planId?: string;
+  revision?: number | undefined;
+  phaseId?: string;
+  approvalId?: string;
+  controlVersion?: number;
   taskId?: string;
   attemptId?: string | undefined;
   fromStatus?: TaskStatus | null | undefined;
@@ -81,7 +82,7 @@ export function createRuntime(
     ownership.release();
     throw error;
   }
-  const { db, close: closeDatabase } = database;
+  const { db, sqlite, close: closeDatabase } = database;
   const executor = options.executor ?? new MockExecutor();
   const human = new HumanExecutor();
   const verifier = options.verifier ?? new SubmissionVerifier();
@@ -122,19 +123,40 @@ export function createRuntime(
     if (closed) throw new RuntimeError('CONFLICT', 'Runtime is closed');
     ownership.assert();
     const committed: (typeof events.$inferInsert)[] = [];
-    const result = db.transaction(
-      (tx) =>
-        fn(tx, (event) => {
-          tx.insert(events).values(event).run();
-          committed.push(event);
-        }),
-      { behavior: 'immediate' },
-    );
+    let result: T;
+    try {
+      result = db.transaction(
+        (tx) =>
+          fn(tx, (event) => {
+            tx.insert(events).values(event).run();
+            committed.push(event);
+          }),
+        { behavior: 'immediate' },
+      );
+    } catch (error) {
+      if (error instanceof RuntimeError)
+        log({
+          event: /^[a-z_]+$/.test(error.message)
+            ? error.message
+            : 'command_rejected',
+          errorCode: error.code,
+          ...error.context,
+        });
+      throw error;
+    }
     for (const event of committed)
       log({
         event: event.type,
         goalId: event.goalId,
-        taskId: event.taskId,
+        ...(event.taskId ? { taskId: event.taskId } : {}),
+        ...(event.planId
+          ? { planId: event.planId, revision: event.revision ?? undefined }
+          : {}),
+        ...(event.phaseId ? { phaseId: event.phaseId } : {}),
+        ...(event.approvalId ? { approvalId: event.approvalId } : {}),
+        ...(event.controlVersion != null
+          ? { controlVersion: event.controlVersion }
+          : {}),
         ...(event.attemptId ? { attemptId: event.attemptId } : {}),
         fromStatus: event.fromStatus,
         toStatus: event.toStatus,
@@ -142,6 +164,13 @@ export function createRuntime(
       });
     return result;
   }
+  const plans = createPlans(sqlite, (fn) => command((_tx, emit) => fn(emit)));
+  const scheduler = createScheduler(
+    sqlite,
+    plans,
+    (fn) => command((_tx, emit) => fn(emit)),
+    (taskId) => start(taskId, false),
+  );
   type Emit = (event: typeof events.$inferInsert) => void;
   function move(
     tx: Tx,
@@ -194,6 +223,7 @@ export function createRuntime(
       errorCode: error,
       createdAt: now,
     });
+    scheduler.taskChanged(emit, task);
   }
   function getGoal(id: string): GoalDetail {
     const goal = db.select().from(goals).where(eq(goals.id, id)).get();
@@ -216,6 +246,7 @@ export function createRuntime(
       sequence.get(a.attemptId)! - sequence.get(b.attemptId)!;
     return {
       ...goal,
+      plan: plans.forGoal(id),
       tasks: goalTasks,
       attempts: goalAttempts,
       runs: goalRuns,
@@ -394,7 +425,7 @@ export function createRuntime(
       });
       return;
     }
-    return command((tx, emit) => {
+    const completed = command((tx, emit) => {
       const replay = tx
         .select()
         .from(verifications)
@@ -462,6 +493,8 @@ export function createRuntime(
       }
       return verification;
     });
+    scheduler.wakeGoal(task.goalId);
+    return completed;
   }
   function track(work: () => Promise<void>, accepted: Accepted) {
     const job = Promise.resolve()
@@ -533,6 +566,7 @@ export function createRuntime(
     const config = mockOptionsSchema.parse(input);
     const result = command((tx, emit) => {
       const task = taskById(tx, taskId);
+      scheduler.gate(emit, task, retry);
       const initialStatus =
         task.executorId === 'human' ? human.initialStatus : 'running';
       if (
@@ -581,6 +615,13 @@ export function createRuntime(
         toStatus: initialStatus,
         createdAt: now,
       });
+      scheduler.taskChanged(emit, task);
+      if (task.phaseId && task.position === 1 && !previous) {
+        const p = plans.forGoal(task.goalId)!;
+        plans.event(emit, plans.get(p.id), 'phase_started', {
+          phaseId: task.phaseId,
+        });
+      }
       return { task, accepted: { goalId: task.goalId, taskId, attemptId } };
     });
     if (result.task.executorId === 'mock')
@@ -655,6 +696,17 @@ export function createRuntime(
         .orderBy(desc(goals.createdAt), desc(goals.id))
         .all(),
     getGoal,
+    continuePlan: scheduler.continuePlan,
+    getPlan: plans.detail,
+    createPlan: plans.create,
+    revisePlan: plans.revise,
+    decideApproval(...args: Parameters<typeof plans.decide>) {
+      plans.decide(...args);
+      scheduler.wake(args[0]);
+      return plans.detail(args[0]);
+    },
+    setPlanMode: scheduler.setMode,
+    requestPhaseApproval: scheduler.requestPhaseApproval,
     createGoal(input: CreateGoal) {
       const { objective, executorId = 'mock' } = createGoalSchema.parse(input);
       const goal = {

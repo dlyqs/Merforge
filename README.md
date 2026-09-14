@@ -2,7 +2,7 @@
 
 Merge your workflow. Forge your AI future.
 
-开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Attempt → Artifact → Verification**（Mock/Human），为后续真实 Executor、调度、审批与 AI Transformation Pack 提供基础。
+开源 Agent 工作编排框架的最小原型。当前打通 **Goal → Task → Attempt → Artifact → Verification**（Mock/Human），并已实现 M2 的版本化人工计划、审批和同进程串行控制。真实 Executor 与 AI Transformation Pack 尚未接入。
 
 ## 快速开始
 
@@ -53,6 +53,29 @@ ID 从 `create` 或 `inspect` 输出获取。`mock-run` 返回 202 受理数据 
 
 数据库启动时执行追加迁移。旧模拟记录保持可读，不补造 Attempt 或验证判定；所有 Mock 产物仍标记模拟。
 
+## M2 计划 API（Phase 1–4）
+
+当前计划功能通过 API 使用；CLI/Web 专用控制界面留 Phase 6。可用以下命令创建示例，响应返回 PlanDetail（含 goalId、revision、phases、approvals 和控制状态）：
+
+```bash
+curl -sS http://127.0.0.1:4317/api/plans -H 'Content-Type: application/json' --data-binary @examples/serial-plan.json
+```
+
+| 请求                                               | JSON 请求体                                                   | 行为                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| GET /api/plans/:id                                 | —                                                             | 当前计划、历史定义和审批                                              |
+| POST /api/plans/:id/revisions                      | {revision, definition}                                        | revision 是所见当前版本；没有任何 Attempt 才能递增修订，旧审批失效    |
+| POST /api/plans/:id/approvals/:approvalId/decision | {revision, decision: "approved" 或 "rejected", actor}         | 绑定版本与审批 ID；actor 仅为本地标签；批准不授予初次执行权           |
+| POST /api/plans/:id/continue                       | {revision, phaseId?}                                          | 显式启动；默认 manual 完成一个阶段后停；指定 phaseId 总是只授权该阶段 |
+| POST /api/plans/:id/mode                           | {revision, controlVersion, mode, startPhaseId?, stopPhaseId?} | manual / auto / auto_until；controlVersion 取最新详情，过期返回 409   |
+| POST /api/plans/:id/phases/:phaseId/approval       | {revision}                                                    | 首个未完成阶段的审批请求；被拒后可显式重建，历史保留                  |
+
+auto 模式在显式启动后持续推进；auto_until 必须提供包含在范围内的 stopPhaseId，省略 startPhaseId 取首个未完成阶段。到界与阶段完成同事务切回 manual、清空两端、撤销本次授权，后续阶段没有 Attempt。已完成范围可显式指定两端确认边界。单阶段覆盖不会修改保存的模式；结束后需显式 continue 恢复该模式。运行中切 manual 允许当前阶段完成。
+
+阶段入口审批请求会在已授权执行到达该阶段时产生。批准或 Human 合格提交只恢复已有授权。失败/中断需显式 retry；所有计划 Task 的 run/mock-run/retry 均受审阅、顺序、授权与范围门禁约束。非法输入返回 400，缺失对象返回 404，版本/状态冲突返回 409，响应含 error 与 code。Human 产物仍仅接受 summary.v1 结构验证，不代表业务验收。
+
+计划控制和审批已经持久化；完整跨重启调度恢复及崩溃窗口保证尚待 Phase 5，不把 M1 单任务恢复结果视为 M2 出口验收。
+
 ## 三个可复现演示
 
 先启动 API，各 ID 从前一条命令 JSON 获取。`inspect` 可重复执行，操作受理不等于执行完成。
@@ -97,7 +120,7 @@ pnpm exec vitest run apps/api/src/cli-process.test.ts packages/runtime/src/proce
 - 同一数据库仅一个 Runtime/daemon，即使端口不同也拒绝第二实例。使用 canonical 路径旁的 `.owner.sqlite` 独立事务锁；进程退出由系统释放，遗留文件无需删除。运行中不要删除或替换数据库及 owner 文件。符号链接归一化，硬链接拒绝；仅支持本机磁盘，不支持网络文件系统。
 - 启动先获取所有权，再迁移和核对：ready 保持，running → interrupted，waiting_human 保持，verifying 从已保存产物重放纯验证，completed 不再执行。缺失产物会 failed/MISSING_ARTIFACT。
 - 失败或中断需显式 retry；旧 Attempt 保留且不会覆盖新尝试。关闭取消 Mock 等待，旧回调拒绝保存。
-- 不恢复任意代码位置、外部 Agent 会话或未持久化产物，不承诺外部操作恰好一次。当前没有真实 Agent、自动重试或计划调度。
+- 不恢复任意代码位置、外部 Agent 会话或未持久化产物，不承诺外部操作恰好一次。当前没有真实 Agent 或自动重试；M2 计划的跨重启自动推进待 Phase 5 完成专项验证。
 
 ## 工程结构
 
@@ -147,7 +170,7 @@ Web 产物在 `apps/web/dist`。当前 API 不托管静态页面；生产部署�
 ## 开发文档
 
 - [项目概览](docs/overview.md)：当前代码结构与核心链路。
-- [M2 执行计划](docs/m2-serial-plan.md)：当前阶段执行入口，待审阅、未启动。
+- [M2 执行计划](docs/m2-serial-plan.md)：当前阶段执行入口，Phase 1–4 已实现，后续恢复及操作闭环继续按计划推进。
 - [M1 执行计划](docs/next-milestone.md)：已完成的阶段合同和 M1 验收记录。
 - [开发计划总表](docs/roadmap.md)：终极目标、主要 Milestone 与验收出口。
 - [架构说明](docs/architecture.md)：技术选型与扩展边界。

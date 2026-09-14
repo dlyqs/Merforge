@@ -10,6 +10,8 @@ export const tasks = sqliteTable('tasks', {
   goalId: text('goal_id')
     .notNull()
     .references(() => goals.id),
+  phaseId: text('phase_id'),
+  position: integer('position'),
   title: text('title').notNull(),
   executorId: text('executor_id', { enum: ['mock', 'human'] }).notNull(),
   acceptanceVersion: text('acceptance_version').notNull(),
@@ -70,9 +72,12 @@ export const events = sqliteTable('events', {
   goalId: text('goal_id')
     .notNull()
     .references(() => goals.id),
-  taskId: text('task_id')
-    .notNull()
-    .references(() => tasks.id),
+  taskId: text('task_id').references(() => tasks.id),
+  planId: text('plan_id'),
+  revision: integer('revision'),
+  phaseId: text('phase_id'),
+  approvalId: text('approval_id'),
+  controlVersion: integer('control_version'),
   attemptId: text('attempt_id').references(() => attempts.id),
   fromStatus: text('from_status', {
     enum: [

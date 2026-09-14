@@ -1,0 +1,52 @@
+{
+  "objective": "Demonstrate a reviewed three-phase serial plan",
+  "revision": 1,
+  "definition": {
+    "schemaVersion": "plan.v1",
+    "phases": [
+      {
+        "title": "Prepare",
+        "requiresApproval": false,
+        "tasks": [
+          {
+            "title": "Prepare simulated outline",
+            "executorId": "mock",
+            "acceptanceVersion": "summary.v1"
+          },
+          {
+            "title": "Check simulated outline",
+            "executorId": "mock",
+            "acceptanceVersion": "summary.v1"
+          }
+        ]
+      },
+      {
+        "title": "Human contribution",
+        "requiresApproval": true,
+        "tasks": [
+          {
+            "title": "Submit a summary",
+            "executorId": "human",
+            "acceptanceVersion": "summary.v1"
+          },
+          {
+            "title": "Prepare simulated result",
+            "executorId": "mock",
+            "acceptanceVersion": "summary.v1"
+          }
+        ]
+      },
+      {
+        "title": "Finish",
+        "requiresApproval": false,
+        "tasks": [
+          {
+            "title": "Finalize simulated summary",
+            "executorId": "mock",
+            "acceptanceVersion": "summary.v1"
+          }
+        ]
+      }
+    ]
+  }
+}
