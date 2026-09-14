@@ -32,15 +32,11 @@ Mock 是没有外部 I/O 的同步操作，允许整体放在一个短事务中�
 
 SQLite 使用 WAL、外键约束和版本化迁移。持久化测试证明已提交记录可在重开数据库后读取；不代表任意位置 crash-resume、恰好一次执行或多机器调度已经实现。
 
-## 后续模块顺序
+## 后续扩展入口
 
-1. 完善 Task 状态转换与独立 Run Attempt，增加失败、取消、验证中等实际状态；增加状态版本和租约。
-2. 定义异步 AgentExecutor 的 start / resume / cancel / events、能力声明与 Task Package，并接入真实 Executor。
-3. 引入工作区管理、恢复核对与独立 Verifier；用中断和重复调度测试验证行为。
-4. 增加 Plan / Phase / Dependency 调度与绑定计划版本的 Approval。
-5. 将当前轮询替换为具有持久化游标的 SSE；增加 OpenAPI 和生成客户端。
-6. 接入模型调用与 AI Transformation Pack，补充 React Flow 视图。
-7. 按远程部署需求引入 PostgreSQL、工作流引擎、认证和执行隔离。
+近期范围与顺序以 [M1 执行计划](next-milestone.md) 为准：状态/Attempt → 异步 Mock → Verifier/Human → 重启核对 → 操作闭环。该计划尚未实施。
+
+后续大里程碑见 [开发计划总表](roadmap.md)：串行计划与执行边界、真实 Executor、多执行器与规划、业务改造、评估及 Pack SDK。这里只保存架构原则，不重复维护阶段进度。当前代码导航见 [项目概览](overview.md)。
 
 业务事件、调试日志与遥测各有职责。不要把 OpenTelemetry 当作数据库替代品，也不要将全部执行日志塞进任务状态事务。
 

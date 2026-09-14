@@ -57,7 +57,7 @@ pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build
-# 或一次完成上述检查
+# 或合并执行类型检查、测试和构建（格式检查另行运行）
 pnpm check
 ```
 
@@ -81,4 +81,9 @@ Web 产物在 `apps/web/dist`。当前 API 不托管静态页面；生产部署�
 
 修改 API 端口时，需要同步修改 `apps/web/vite.config.ts` 中的代理目标。服务固定绑定本机回环地址。当前为单用户本地原型，没有账户、远程认证或多租户功能。
 
-后续扩展约定见 [架构说明](docs/architecture.md)。
+## 开发文档
+
+- [项目概览](docs/overview.md)：当前代码结构与核心链路。
+- [M1 执行计划](docs/next-milestone.md)：下一阶段的执行合同，默认 manual，尚待审阅。
+- [开发计划总表](docs/roadmap.md)：终极目标、主要 Milestone 与验收出口。
+- [架构说明](docs/architecture.md)：技术选型与扩展边界。
