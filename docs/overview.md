@@ -8,6 +8,8 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 
 当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)，Phase 1–4 已完成，`pnpm check` 50 项测试、类型检查与构建通过；本任务获准自动完成 Phase 1–4，之后创建新任务自动完成 Phase 5–7。M1 全部五阶段已完成；[M1 验收记录](next-milestone.md) 记载 29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他（本次文档更新未重跑）。M2 的 Contracts 0.3 和第 5 条追加迁移已实现；版本化定义、独立审批、manual/auto/auto_until 和控制 API 已实现。跨重启计划恢复留 Phase 5，CLI/Web 专用入口留 Phase 6。宏观目标见 [开发计划总表](roadmap.md)。
 
+下一里程碑规划入口为 [M3 首个真实 Executor](m3-codex-plan.md)，当前为待审阅文档，开发模式 manual，尚未实施。实施前必须完成 M2 Phase 5–7 的原计划验收；M2 历史接力授权不延伸到 M3。2026-09-14 编制 M3 计划时核对源码与 M2 阶段表，未因提交标题含 phase1-7 就认定 M2 完成。本机 Codex CLI 0.120.0 的 version/help 可用，但尚未验证真实调用、登录或会话恢复；未来七阶段覆盖 Package、工作区、执行、独立命令验收及中断核对，不能当作现有能力。
+
 ## 文件组织与修改入口
 
 | 文件/目录                                           | 当前作用                                                                      |
@@ -47,6 +49,6 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 - 每完成当前执行计划的一个 Phase，更新对应实际完成记录与状态，并按真实代码同步本概览；Milestone 状态变化再更新 roadmap。
 - `pnpm check` 包含类型检查、测试和构建；格式检查另运行 `pnpm format:check`。修改共享包后需构建，并按 README 重启开发服务。
 - 不自行启动页面或使用 Playwright，不使用本计划未授权的 GitNexus。可选用户视觉检查保持未验证标记。
-- 不把 M2 计划中的能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务。
+- 不把 M2 未完成阶段或 M3 规划能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务；M3 的进入门禁和阶段状态统一维护于 m3-codex-plan.md。
 
 M2 代码入口：`packages/contracts/src/plan.ts` 定义计划契约；Runtime `plans.ts` 管理版本与审批，`scheduler.ts` 管理串行派发/范围/聚合，`plan-migration.ts` 是第 5 条追加迁移；`plans.test.ts`、`scheduler.test.ts`、`modes.test.ts` 和 API plans 测试覆盖同进程操作。审批与模式均不会授予初次执行权；新计划须显式 continue。历史 Task 通过 phaseId 区分修订，旧无 Phase 的 Task 仍使用 M1 入口。

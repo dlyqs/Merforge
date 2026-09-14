@@ -2,6 +2,8 @@
 
 本表管理产品终极目标、主要 Milestone 和进入条件，不是所有里程碑的实施授权。当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)（已获执行授权，进行中）；[M1 计划](next-milestone.md) 保留为已完成验收记录。本表不重复维护其 Phase 状态；代码导航见 [项目概览](overview.md)。
 
+下一节点的 [M3 阶段执行计划](m3-codex-plan.md) 已于 2026-09-14 编制，待审阅，默认 manual。当前仓库仅有 M2 Phase 1–4 的完成证据；M3 实施须等待 M2 Phase 5–7 完成原计划验收。M2 的自动执行/接力授权止于 M2。
+
 依据：仓库根《Merforge v0.1 — 开源 Agent Orchestration Framework & AI Transformation Agent 开发说明》，重点为第 6、8、21、25、27、28、35 节。以下 M 编号是重新组织后的交付里程碑，不等同于原文 Phase 编号。
 
 ## 产品终极目标
@@ -28,7 +30,7 @@
 | M0 工程原型                   | 可运行的本地工程骨架                 | React/CLI/API/SQLite 与同步 Mock 链路；基础类型、构建及测试通过                                                                          | 无                   | Phase 0/1 的部分基础                    | completed；README / overview                      |
 | M1 可靠单任务运行时           | 单任务失败、重试、人工参与与重启核对 | Mock 失败重试、Human 跨重启提交、执行中断识别三个场景通过；独立验证决定完成                                                              | M0                   | Phase 1 子集，提前引入 Phase 4 最小验证 | completed；[验收记录](next-milestone.md)          |
 | M2 可控串行计划               | 人工定义的多阶段执行                 | Goal→Plan→Phase→Task；三阶段串行；manual/auto/auto_until；绑定计划版本的审阅门禁，跨重启保留边界/审批                                    | M1                   | Phase 1 的计划与执行控制                | in_progress；[阶段计划](m2-serial-plan.md)        |
-| M3 首个真实 Executor          | 在受控仓库完成真实代码任务           | Codex Adapter、Task Package、工作区、产物/日志、命令或测试验收；核对中断后的实际工作区                                                   | M2                   | Phase 2 + Phase 4 验证子集              | pending；需真实执行环境及接口能力核实             |
+| M3 首个真实 Executor          | 在受控仓库完成真实代码任务           | Codex Adapter、Task Package、工作区、产物/日志、独立命令或测试验收；三阶段真实演示、到界停止、中断后的进程与工作区核对                   | M2 完整验收          | Phase 2 + Phase 4 验证子集              | pending；[阶段计划](m3-codex-plan.md) 待审阅      |
 | M4 多执行器与规划闭环         | 证明框架不绑定 Codex                 | Claude Code 与 Human；能力声明/匹配；目标归一与歧义处理、风险分类、可审阅 Planner；依赖调度、受控修复重验；长目标边界停止演示            | M3                   | Phase 1 剩余能力、Phase 3/4             | pending；并行执行仅在隔离与调度已验证时加入       |
 | M5 AI Transformation 规划 MVP | 从一个业务流程生成可实施计划         | 访谈/SOP→EnterpriseGraph→Process→TransformationUnit→评估→Target State/Delta→ImplementationTask；附输入输出及验收契约、ROI 假设与数据来源 | M4                   | Phase 0 业务契约 + Phase 5              | pending；限一个软件密集型数字流程                 |
 | M6 改造实施闭环               | 首个真实业务流程完成改造验收         | M5 产物进入任务运行时，Codex/Claude/Human 执行，独立验证和集成评估；保留完整证据                                                         | M5                   | Phase 6、第 35 节核心场景               | pending；不以建议文档代替实施成果                 |
