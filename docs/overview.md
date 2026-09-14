@@ -6,7 +6,7 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 
 关键技术：TypeScript strict、Node.js LTS、pnpm workspace、Zod、Drizzle/SQLite、React/Vite/TanStack Query。推荐 Node.js 24；启动与环境变量以 [README](../README.md) 为准。本轮检查实际使用 Node.js 25.8.2、pnpm 10.27.0，未另做 Node.js 24 运行验证。
 
-当前详细执行入口为 [M1 可靠单任务计划](next-milestone.md)。M1 全部五阶段已完成；29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他。M2 尚未启动。宏观目标见 [开发计划总表](roadmap.md)。
+当前详细执行入口为 [M2 可控串行计划](m2-serial-plan.md)，七阶段均待执行，当前仅完成计划编写，execution mode 为 manual，尚待审阅。M1 全部五阶段已完成；[M1 验收记录](next-milestone.md) 记载 29 项测试通过，包含真实 CLI/HTTP、SIGKILL 重启恢复与同库排他（本次文档更新未重跑）。M2 的 Plan/Phase、审批和执行模式尚未实现。宏观目标见 [开发计划总表](roadmap.md)。
 
 ## 文件组织与修改入口
 
@@ -44,7 +44,7 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 - 改数据/API 契约时同步 Contracts、Runtime、API、CLI、Web 解析和对应测试。
 - 修改数据库必须追加迁移，不能修改已经交付的迁移历史。使用临时数据库验证旧数据兼容。
 - Core 不引入退款等业务概念；未来领域模型放在 Pack。Runtime 不依赖 React/Fastify；CLI/Web 不直接写 SQLite。
-- 每完成一个 M1 Phase，更新其实际完成记录与状态，并按真实代码同步本概览；Milestone 状态变化再更新 roadmap。
+- 每完成当前执行计划的一个 Phase，更新对应实际完成记录与状态，并按真实代码同步本概览；Milestone 状态变化再更新 roadmap。
 - `pnpm check` 包含类型检查、测试和构建；格式检查另运行 `pnpm format:check`。修改共享包后需构建，并按 README 重启开发服务。
 - 不自行启动页面或使用 Playwright，不使用本计划未授权的 GitNexus。可选用户视觉检查保持未验证标记。
-- 不把待实施的 M1 能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务。
+- 不把 M2 计划中的能力提前写入当前行为。后续真实 Executor 的外部 I/O 必须离开数据库长事务。

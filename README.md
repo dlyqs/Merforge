@@ -147,6 +147,7 @@ Web 产物在 `apps/web/dist`。当前 API 不托管静态页面；生产部署�
 ## 开发文档
 
 - [项目概览](docs/overview.md)：当前代码结构与核心链路。
-- [M1 执行计划](docs/next-milestone.md)：阶段执行合同和 M1 验收记录。
+- [M2 执行计划](docs/m2-serial-plan.md)：当前阶段执行入口，待审阅、未启动。
+- [M1 执行计划](docs/next-milestone.md)：已完成的阶段合同和 M1 验收记录。
 - [开发计划总表](docs/roadmap.md)：终极目标、主要 Milestone 与验收出口。
 - [架构说明](docs/architecture.md)：技术选型与扩展边界。
