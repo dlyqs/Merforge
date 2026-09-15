@@ -10,13 +10,13 @@ Merforge 面向可追踪、可恢复、可验证的 Agent 工作编排及 AI Tra
 
 最近完成记录为 [M3 首个真实 Executor](m3-codex-plan.md)。Phase 1–7 全部完成，开发模式回 manual，止于 M3，relay off。Contracts 0.4、追加迁移 6–7、代码计划与冻结 Package、受管 Git worktree、独立命令验收、显式核对及新 Attempt 重试已接入 Runtime/API/CLI。Web 提供真实执行详情、证据与取消。真实 A/B/C 演示均已通过；全量检查 21 个文件 / 92 项测试、类型检查和构建通过，格式及 diff 检查通过。能力、指标及限制见 [M3 验收报告](m3-acceptance.md)。
 
-## 下一阶段入口（尚未实现）
+## 当前交互阶段
 
-下一实施入口为 [M3.1 完整人工操作流程](m3.1-interaction-plan.md)，本轮仅完成文档准备，Phase 均 pending，待实施前审阅。它补菜单式 CLI、GUI 表单建计划与完整恢复操作，消除正常操作中的手填 JSON/ID/hash；不承担 LLM Planner。
+[M3.1 完整人工操作流程](m3.1-interaction-plan.md) Phase 1–5 已完成：菜单式 CLI、GUI 表单、环境诊断、固定版本审阅和双端恢复。停止、核对、接受固定快照和创建新尝试分开操作；漂移拒绝。止于 M3.1，不承担 LLM Planner，不启动 M4。
 
 [M4 交付合同](m4-planning-scope.md) 将 CLI 问答、GUI AI Chat、真实 LLM 澄清及模块/任务规划、有界修复和独立验收列为必需出口。[企业转型 Pack 合同](ai-transformation-pack-scope.md) 明确 M5 交付领域访谈/评估/实施计划，M6 完成真实改造，M7 评估，M8 扩展 SDK。
 
-当前首页“新建目标”只支持 Mock/Human，代码计划仍需“新建串行计划（JSON）”；菜单和聊天均不存在。首页“仅模拟、不调用 AI”的文案已落后于 Codex Runtime，修复纳入 M3.1 Phase 3。当前能力以 M3 验收与代码为准，不能将未来合同写成现状。
+首页保留 Mock/Human 单目标入口，并新增支持 Mock/Human 或全 Codex 的结构化多阶段计划表单；JSON 为高级入口。CLI 提供 menu 及无参数 TTY 菜单。首页已区分三种执行方式，无聊天式 LLM 规划。最终检查 23 文件 / 102 项常规测试、类型与构建通过；2 项真实 Codex 双端交互测试单独 PASS。PTY Human/取消恢复/三阶段边界、GUI 组件事件/API 回归通过。详见 [M3.1 验收](m3.1-acceptance.md)；浏览器视觉检查未执行。
 
 ## 文件组织与修改入口
 

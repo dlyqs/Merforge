@@ -116,14 +116,15 @@ export function TaskActions({
   );
 }
 
-function HumanSubmission({
+export function HumanSubmission({
   taskId,
   attemptId,
 }: {
   taskId: string;
   attemptId: string;
 }) {
-  const [text, setText] = useState('{"summary":""}');
+  const [text, setText] = useState('');
+  const [advanced, setAdvanced] = useState(false);
   const [parseError, setParseError] = useState('');
   const client = useQueryClient();
   const submit = useMutation({
@@ -138,7 +139,11 @@ function HumanSubmission({
         e.preventDefault();
         let artifact: unknown;
         try {
-          artifact = JSON.parse(text);
+          artifact = advanced ? JSON.parse(text) : { summary: text.trim() };
+          if (!advanced && !text.trim()) {
+            setParseError('请填写非空 summary。');
+            return;
+          }
           setParseError('');
         } catch {
           setParseError('请输入有效 JSON。');
@@ -148,8 +153,19 @@ function HumanSubmission({
       }}
     >
       <p className="identifier">Attempt {attemptId}</p>
+      <label>
+        <input
+          type="checkbox"
+          checked={advanced}
+          onChange={(e) => {
+            setAdvanced(e.target.checked);
+            setParseError('');
+          }}
+        />
+        使用高级 JSON 输入（切换后请核对内容格式）
+      </label>
       <label htmlFor={`artifact-${attemptId}`}>
-        人工产物（JSON；summary 需为非空字符串）
+        {advanced ? '高级人工产物 JSON' : '人工产物 summary（非空文字）'}
       </label>
       <textarea
         id={`artifact-${attemptId}`}

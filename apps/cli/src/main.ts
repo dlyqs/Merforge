@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { interactiveMenu } from './menu.js';
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
 import {
@@ -308,8 +309,16 @@ plan
       ),
     );
   });
+program
+  .command('menu')
+  .description('Interactive manual workflow')
+  .action(() => interactiveMenu(request));
 try {
-  await program.parseAsync();
+  if (process.argv.length === 2) {
+    if (process.stdin.isTTY && process.stdout.isTTY)
+      await interactiveMenu(request);
+    else program.outputHelp();
+  } else await program.parseAsync();
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

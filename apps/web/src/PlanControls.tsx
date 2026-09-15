@@ -1,3 +1,4 @@
+import { PlanSummary } from './PlanSummary';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,7 +47,7 @@ export function PlanCreate({ onCreated }: { onCreated: (id: string) => void }) {
   });
   return (
     <details className="panel">
-      <summary>新建串行计划（JSON）</summary>
+      <summary>高级入口：新建串行计划（JSON）</summary>
       <label htmlFor="plan-create">目标、阶段、任务及验收版本</label>
       <textarea
         id="plan-create"
@@ -90,7 +91,9 @@ export function PlanControls({ plan }: { plan: PlanDetail }) {
     },
   });
   const revision = snapshot.revision;
-  const stale = revision !== plan.revision;
+  const stale =
+    revision !== plan.revision ||
+    snapshot.controlVersion !== plan.controlVersion;
   const disabled = mutation.isPending || stale;
   const send = (operation: string, input: unknown) =>
     mutation.mutate({ operation, input });
@@ -126,6 +129,9 @@ export function PlanControls({ plan }: { plan: PlanDetail }) {
         className="secondary"
         onClick={() => {
           setSnapshot(plan);
+          setMode(plan.mode);
+          setStart(plan.startPhaseId ?? '');
+          setStop(plan.stopPhaseId ?? '');
           setDefinition(
             JSON.stringify(plan.revisions.at(-1)!.definition, null, 2),
           );
@@ -135,13 +141,11 @@ export function PlanControls({ plan }: { plan: PlanDetail }) {
       </button>
       <details open>
         <summary>正在审阅 revision {revision}</summary>
-        <pre>
-          {JSON.stringify(
-            snapshot.revisions.find((r) => r.revision === revision)!.definition,
-            null,
-            2,
-          )}
-        </pre>
+        <PlanSummary
+          definition={
+            snapshot.revisions.find((r) => r.revision === revision)!.definition
+          }
+        />
       </details>
       <label>
         本地操作者标签（非认证身份）
@@ -267,7 +271,7 @@ export function PlanControls({ plan }: { plan: PlanDetail }) {
               'mode',
               modeCommandSchema.parse({
                 revision,
-                controlVersion: plan.controlVersion,
+                controlVersion: snapshot.controlVersion,
                 mode,
                 ...(mode === 'auto_until'
                   ? {

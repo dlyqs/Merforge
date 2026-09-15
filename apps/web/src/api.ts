@@ -1,5 +1,8 @@
 import {
   acceptedSchema,
+  codeReconciliationSchema,
+  type CodeReconciliation,
+  environmentSchema,
   codeDetailSchema,
   planDetailSchema,
   createPlanSchema,
@@ -25,6 +28,8 @@ async function request(path: string, body?: unknown) {
   return response.json();
 }
 export const api = {
+  environment: async () =>
+    environmentSchema.parse(await request('/api/environment')),
   codeDetail: async (id: string) =>
     codeDetailSchema.parse(
       await request(`/api/tasks/${encodeURIComponent(id)}/code`),
@@ -37,6 +42,24 @@ export const api = {
     request(
       `/api/tasks/${encodeURIComponent(id)}/attempts/${encodeURIComponent(attemptId)}/cancel`,
       {},
+    ),
+  reconcileCode: async (
+    id: string,
+    attemptId: string,
+    stop: boolean,
+  ): Promise<CodeReconciliation> =>
+    codeReconciliationSchema.parse(
+      await request(`/api/tasks/${encodeURIComponent(id)}/reconcile`, {
+        attemptId,
+        stop,
+      }),
+    ),
+  retryCode: async (
+    id: string,
+    input: { attemptId: string; revision: number; snapshotHash: string | null },
+  ) =>
+    acceptedSchema.parse(
+      await request(`/api/tasks/${encodeURIComponent(id)}/retry-code`, input),
     ),
   createPlan: async (input: unknown) =>
     planDetailSchema.parse(

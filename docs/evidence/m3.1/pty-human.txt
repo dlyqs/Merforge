@@ -1,0 +1,1102 @@
+Merforge 菜单 · Mock/Human 示例 / Codex 真实执行；超时不表示服务端已撤销。
+主菜单 1 目标与计划 / 2 新建手工计划 / 3 环境诊断 / 0 退出（/back 返回）: 3
+{
+  "codex": {
+    "configured": false,
+    "available": false,
+    "message": "请配置 MERFORGE_CODE_CONFIG 并检查 Codex 安装"
+  },
+  "repositories": [],
+  "guidance": "在项目目录运行 pnpm dev 启动本地服务。代码执行需由本机操作者配置 MERFORGE_CODE_CONFIG（见 README）；配置后重启服务。本界面不写配置、不传递凭证。"
+}
+主菜单 1 目标与计划 / 2 新建手工计划 / 3 环境诊断 / 0 退出（/back 返回）: 2
+目标（/back 返回）: PTY human goal
+计划类型
+1. Mock / Human 示例
+2. Codex 真实代码
+选择编号，0 返回（/back 返回）: 1
+阶段名称（/back 返回）: First phase
+进入此阶段前需要审批？ [y/N]（/back 返回）: n
+任务名称（/back 返回）: Human task
+执行方式（验收固定 summary.v1）
+1. mock
+2. human
+选择编号，0 返回（/back 返回）: 2
+继续添加任务？ [y/N]（/back 返回）: n
+继续添加阶段？ [y/N]（/back 返回）: n
+{
+  "objective": "PTY human goal",
+  "revision": 1,
+  "definition": {
+    "schemaVersion": "plan.v1",
+    "phases": [
+      {
+        "title": "First phase",
+        "requiresApproval": false,
+        "tasks": [
+          {
+            "title": "Human task",
+            "executorId": "human",
+            "acceptanceVersion": "summary.v1"
+          }
+        ]
+      }
+    ]
+  }
+}
+确认创建待审阅计划（不会启动）？ [y/N]（/back 返回）: y
+{
+  "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+  "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "revision": 1,
+  "review": "pending",
+  "status": "idle",
+  "stopReason": null,
+  "mode": "manual",
+  "controlVersion": 0,
+  "authorized": false,
+  "startPhaseId": null,
+  "stopPhaseId": null,
+  "activePhaseId": null,
+  "limitPhaseId": null,
+  "phases": [
+    {
+      "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "position": 1,
+      "title": "First phase",
+      "requiresApproval": false,
+      "status": "pending"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "kind": "review",
+      "decision": "pending",
+      "actor": null,
+      "createdAt": "2026-09-14T18:16:45.209Z",
+      "decidedAt": null
+    }
+  ],
+  "revisions": [
+    {
+      "revision": 1,
+      "definition": {
+        "schemaVersion": "plan.v1",
+        "phases": [
+          {
+            "title": "First phase",
+            "requiresApproval": false,
+            "tasks": [
+              {
+                "title": "Human task",
+                "executorId": "human",
+                "acceptanceVersion": "summary.v1"
+              }
+            ]
+          }
+        ]
+      },
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ]
+}
+主菜单 1 目标与计划 / 2 新建手工计划 / 3 环境诊断 / 0 退出（/back 返回）: 1
+目标与计划
+1. PTY human goal
+选择编号，0 返回（/back 返回）: 1
+{
+  "id": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "objective": "PTY human goal",
+  "createdAt": "2026-09-14T18:16:45.209Z",
+  "plan": {
+    "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+    "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+    "revision": 1,
+    "review": "pending",
+    "status": "idle",
+    "stopReason": null,
+    "mode": "manual",
+    "controlVersion": 0,
+    "authorized": false,
+    "startPhaseId": null,
+    "stopPhaseId": null,
+    "activePhaseId": null,
+    "limitPhaseId": null,
+    "revisions": [
+      {
+        "revision": 1,
+        "definition": {
+          "schemaVersion": "plan.v1",
+          "phases": [
+            {
+              "title": "First phase",
+              "requiresApproval": false,
+              "tasks": [
+                {
+                  "title": "Human task",
+                  "executorId": "human",
+                  "acceptanceVersion": "summary.v1"
+                }
+              ]
+            }
+          ]
+        },
+        "createdAt": "2026-09-14T18:16:45.209Z"
+      }
+    ],
+    "phases": [
+      {
+        "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "position": 1,
+        "title": "First phase",
+        "requiresApproval": false,
+        "status": "pending"
+      }
+    ],
+    "approvals": [
+      {
+        "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "phaseId": null,
+        "kind": "review",
+        "decision": "pending",
+        "actor": null,
+        "createdAt": "2026-09-14T18:16:45.209Z",
+        "decidedAt": null
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "position": 1,
+      "title": "Human task",
+      "status": "ready",
+      "executorId": "human",
+      "acceptanceVersion": "summary.v1",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ],
+  "attempts": [],
+  "artifacts": [],
+  "verifications": [],
+  "runs": [],
+  "evidence": [],
+  "events": [
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 0,
+      "id": 1,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "revision_created",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 2,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_requested",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ]
+}
+目标操作
+1. 刷新
+2. 审阅决定
+3. 执行模式
+4. 继续
+5. 仅运行阶段
+6. 请求阶段审批
+7. 任务操作
+选择编号，0 返回（/back 返回）: 2
+{
+  "revision": 1,
+  "definition": {
+    "schemaVersion": "plan.v1",
+    "phases": [
+      {
+        "title": "First phase",
+        "requiresApproval": false,
+        "tasks": [
+          {
+            "title": "Human task",
+            "executorId": "human",
+            "acceptanceVersion": "summary.v1"
+          }
+        ]
+      }
+    ]
+  },
+  "createdAt": "2026-09-14T18:16:45.209Z"
+}
+待审批项
+1. review · 整个计划
+选择编号，0 返回（/back 返回）: 1
+审阅决定（批准不会启动）
+1. approved
+2. rejected
+选择编号，0 返回（/back 返回）: 1
+本地操作者标签（/back 返回）: local
+{
+  "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+  "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "revision": 1,
+  "review": "approved",
+  "status": "idle",
+  "stopReason": null,
+  "mode": "manual",
+  "controlVersion": 0,
+  "authorized": false,
+  "startPhaseId": null,
+  "stopPhaseId": null,
+  "activePhaseId": null,
+  "limitPhaseId": null,
+  "phases": [
+    {
+      "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "position": 1,
+      "title": "First phase",
+      "requiresApproval": false,
+      "status": "pending"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "kind": "review",
+      "decision": "approved",
+      "actor": "local",
+      "createdAt": "2026-09-14T18:16:45.209Z",
+      "decidedAt": "2026-09-14T18:16:45.490Z"
+    }
+  ],
+  "revisions": [
+    {
+      "revision": 1,
+      "definition": {
+        "schemaVersion": "plan.v1",
+        "phases": [
+          {
+            "title": "First phase",
+            "requiresApproval": false,
+            "tasks": [
+              {
+                "title": "Human task",
+                "executorId": "human",
+                "acceptanceVersion": "summary.v1"
+              }
+            ]
+          }
+        ]
+      },
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ]
+}
+{
+  "id": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "objective": "PTY human goal",
+  "createdAt": "2026-09-14T18:16:45.209Z",
+  "plan": {
+    "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+    "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+    "revision": 1,
+    "review": "approved",
+    "status": "idle",
+    "stopReason": null,
+    "mode": "manual",
+    "controlVersion": 0,
+    "authorized": false,
+    "startPhaseId": null,
+    "stopPhaseId": null,
+    "activePhaseId": null,
+    "limitPhaseId": null,
+    "revisions": [
+      {
+        "revision": 1,
+        "definition": {
+          "schemaVersion": "plan.v1",
+          "phases": [
+            {
+              "title": "First phase",
+              "requiresApproval": false,
+              "tasks": [
+                {
+                  "title": "Human task",
+                  "executorId": "human",
+                  "acceptanceVersion": "summary.v1"
+                }
+              ]
+            }
+          ]
+        },
+        "createdAt": "2026-09-14T18:16:45.209Z"
+      }
+    ],
+    "phases": [
+      {
+        "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "position": 1,
+        "title": "First phase",
+        "requiresApproval": false,
+        "status": "pending"
+      }
+    ],
+    "approvals": [
+      {
+        "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "phaseId": null,
+        "kind": "review",
+        "decision": "approved",
+        "actor": "local",
+        "createdAt": "2026-09-14T18:16:45.209Z",
+        "decidedAt": "2026-09-14T18:16:45.490Z"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "position": 1,
+      "title": "Human task",
+      "status": "ready",
+      "executorId": "human",
+      "acceptanceVersion": "summary.v1",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ],
+  "attempts": [],
+  "artifacts": [],
+  "verifications": [],
+  "runs": [],
+  "evidence": [],
+  "events": [
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 0,
+      "id": 1,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "revision_created",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 2,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_requested",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 3,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_decided",
+      "createdAt": "2026-09-14T18:16:45.490Z"
+    }
+  ]
+}
+目标操作
+1. 刷新
+2. 审阅决定
+3. 执行模式
+4. 继续
+5. 仅运行阶段
+6. 请求阶段审批
+7. 任务操作
+选择编号，0 返回（/back 返回）: 4
+按保存的模式显式启动/继续？ [y/N]（/back 返回）: y
+{
+  "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+  "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "revision": 1,
+  "review": "approved",
+  "status": "waiting",
+  "stopReason": "human_waiting",
+  "mode": "manual",
+  "controlVersion": 1,
+  "authorized": true,
+  "startPhaseId": null,
+  "stopPhaseId": null,
+  "activePhaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+  "limitPhaseId": null,
+  "phases": [
+    {
+      "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "position": 1,
+      "title": "First phase",
+      "requiresApproval": false,
+      "status": "in_progress"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "kind": "review",
+      "decision": "approved",
+      "actor": "local",
+      "createdAt": "2026-09-14T18:16:45.209Z",
+      "decidedAt": "2026-09-14T18:16:45.490Z"
+    }
+  ],
+  "revisions": [
+    {
+      "revision": 1,
+      "definition": {
+        "schemaVersion": "plan.v1",
+        "phases": [
+          {
+            "title": "First phase",
+            "requiresApproval": false,
+            "tasks": [
+              {
+                "title": "Human task",
+                "executorId": "human",
+                "acceptanceVersion": "summary.v1"
+              }
+            ]
+          }
+        ]
+      },
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ]
+}
+{
+  "id": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "objective": "PTY human goal",
+  "createdAt": "2026-09-14T18:16:45.209Z",
+  "plan": {
+    "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+    "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+    "revision": 1,
+    "review": "approved",
+    "status": "waiting",
+    "stopReason": "human_waiting",
+    "mode": "manual",
+    "controlVersion": 1,
+    "authorized": true,
+    "startPhaseId": null,
+    "stopPhaseId": null,
+    "activePhaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+    "limitPhaseId": null,
+    "revisions": [
+      {
+        "revision": 1,
+        "definition": {
+          "schemaVersion": "plan.v1",
+          "phases": [
+            {
+              "title": "First phase",
+              "requiresApproval": false,
+              "tasks": [
+                {
+                  "title": "Human task",
+                  "executorId": "human",
+                  "acceptanceVersion": "summary.v1"
+                }
+              ]
+            }
+          ]
+        },
+        "createdAt": "2026-09-14T18:16:45.209Z"
+      }
+    ],
+    "phases": [
+      {
+        "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "position": 1,
+        "title": "First phase",
+        "requiresApproval": false,
+        "status": "in_progress"
+      }
+    ],
+    "approvals": [
+      {
+        "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "phaseId": null,
+        "kind": "review",
+        "decision": "approved",
+        "actor": "local",
+        "createdAt": "2026-09-14T18:16:45.209Z",
+        "decidedAt": "2026-09-14T18:16:45.490Z"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "position": 1,
+      "title": "Human task",
+      "status": "waiting_human",
+      "executorId": "human",
+      "acceptanceVersion": "summary.v1",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ],
+  "attempts": [
+    {
+      "id": "8c478934-4c00-41ea-8029-536953417dfb",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "sequence": 1,
+      "executorId": "human",
+      "status": "waiting_human",
+      "startedAt": "2026-09-14T18:16:45.587Z",
+      "endedAt": null,
+      "error": null
+    }
+  ],
+  "artifacts": [],
+  "verifications": [],
+  "runs": [],
+  "evidence": [],
+  "events": [
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 0,
+      "id": 1,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "revision_created",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 2,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_requested",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 3,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_decided",
+      "createdAt": "2026-09-14T18:16:45.490Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 4,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "execution_authorized",
+      "createdAt": "2026-09-14T18:16:45.586Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 5,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "scheduler_selected",
+      "createdAt": "2026-09-14T18:16:45.586Z"
+    },
+    {
+      "planId": null,
+      "revision": null,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": null,
+      "id": 6,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "fromStatus": "ready",
+      "toStatus": "waiting_human",
+      "errorCode": null,
+      "type": "attempt_created",
+      "createdAt": "2026-09-14T18:16:45.587Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 7,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "phase_started",
+      "createdAt": "2026-09-14T18:16:45.587Z"
+    }
+  ]
+}
+目标操作
+1. 刷新
+2. 审阅决定
+3. 执行模式
+4. 继续
+5. 仅运行阶段
+6. 请求阶段审批
+7. 任务操作
+选择编号，0 返回（/back 返回）: 7
+选择任务
+1. Human task · waiting_human
+选择编号，0 返回（/back 返回）: 1
+任务操作
+1. 运行
+2. 创建新尝试
+3. 提交 Human 产物
+选择编号，0 返回（/back 返回）: 3
+人工产物 summary（/back 返回）: done
+{
+  "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+  "attemptId": "8c478934-4c00-41ea-8029-536953417dfb"
+}
+{
+  "id": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+  "objective": "PTY human goal",
+  "createdAt": "2026-09-14T18:16:45.209Z",
+  "plan": {
+    "id": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+    "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+    "revision": 1,
+    "review": "approved",
+    "status": "completed",
+    "stopReason": "phase_boundary",
+    "mode": "manual",
+    "controlVersion": 2,
+    "authorized": false,
+    "startPhaseId": null,
+    "stopPhaseId": null,
+    "activePhaseId": null,
+    "limitPhaseId": null,
+    "revisions": [
+      {
+        "revision": 1,
+        "definition": {
+          "schemaVersion": "plan.v1",
+          "phases": [
+            {
+              "title": "First phase",
+              "requiresApproval": false,
+              "tasks": [
+                {
+                  "title": "Human task",
+                  "executorId": "human",
+                  "acceptanceVersion": "summary.v1"
+                }
+              ]
+            }
+          ]
+        },
+        "createdAt": "2026-09-14T18:16:45.209Z"
+      }
+    ],
+    "phases": [
+      {
+        "id": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "position": 1,
+        "title": "First phase",
+        "requiresApproval": false,
+        "status": "completed"
+      }
+    ],
+    "approvals": [
+      {
+        "id": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+        "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+        "revision": 1,
+        "phaseId": null,
+        "kind": "review",
+        "decision": "approved",
+        "actor": "local",
+        "createdAt": "2026-09-14T18:16:45.209Z",
+        "decidedAt": "2026-09-14T18:16:45.490Z"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "position": 1,
+      "title": "Human task",
+      "status": "completed",
+      "executorId": "human",
+      "acceptanceVersion": "summary.v1",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    }
+  ],
+  "attempts": [
+    {
+      "id": "8c478934-4c00-41ea-8029-536953417dfb",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "sequence": 1,
+      "executorId": "human",
+      "status": "completed",
+      "startedAt": "2026-09-14T18:16:45.587Z",
+      "endedAt": "2026-09-14T18:16:45.760Z",
+      "error": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "99a33536-5872-4607-b347-f4a1b62a22c7",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "kind": "human",
+      "payload": {
+        "summary": "done"
+      },
+      "createdAt": "2026-09-14T18:16:45.759Z"
+    }
+  ],
+  "verifications": [
+    {
+      "acceptanceVersion": "summary.v1",
+      "verdict": "PASS",
+      "reasons": [
+        "SUMMARY_NON_EMPTY"
+      ],
+      "id": "f7d74acc-5abd-4f28-b55e-305f110ee7d7",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "artifactId": "99a33536-5872-4607-b347-f4a1b62a22c7",
+      "createdAt": "2026-09-14T18:16:45.760Z"
+    }
+  ],
+  "runs": [],
+  "evidence": [],
+  "events": [
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 0,
+      "id": 1,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "revision_created",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 2,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_requested",
+      "createdAt": "2026-09-14T18:16:45.209Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": "30c378b5-d68b-4ac8-b1f0-cb3e496d323f",
+      "controlVersion": 0,
+      "id": 3,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "review_decided",
+      "createdAt": "2026-09-14T18:16:45.490Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 4,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "execution_authorized",
+      "createdAt": "2026-09-14T18:16:45.586Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 5,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "scheduler_selected",
+      "createdAt": "2026-09-14T18:16:45.586Z"
+    },
+    {
+      "planId": null,
+      "revision": null,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": null,
+      "id": 6,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "fromStatus": "ready",
+      "toStatus": "waiting_human",
+      "errorCode": null,
+      "type": "attempt_created",
+      "createdAt": "2026-09-14T18:16:45.587Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 7,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "phase_started",
+      "createdAt": "2026-09-14T18:16:45.587Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 8,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "fromStatus": "waiting_human",
+      "toStatus": "verifying",
+      "errorCode": null,
+      "type": "human_submission_received",
+      "createdAt": "2026-09-14T18:16:45.758Z"
+    },
+    {
+      "planId": null,
+      "revision": null,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": null,
+      "id": 9,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "verification_started",
+      "createdAt": "2026-09-14T18:16:45.759Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 10,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": "00a2a260-346c-4f03-a21d-00a68af840f6",
+      "attemptId": "8c478934-4c00-41ea-8029-536953417dfb",
+      "fromStatus": "verifying",
+      "toStatus": "completed",
+      "errorCode": null,
+      "type": "verification_passed",
+      "createdAt": "2026-09-14T18:16:45.760Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": "01b460f8-7a78-4ce1-80b5-e3a2312d73a8",
+      "approvalId": null,
+      "controlVersion": 1,
+      "id": 11,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "phase_completed",
+      "createdAt": "2026-09-14T18:16:45.760Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 2,
+      "id": 12,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": "phase_boundary",
+      "type": "execution_paused",
+      "createdAt": "2026-09-14T18:16:45.760Z"
+    },
+    {
+      "planId": "e7da60a1-0d00-4c67-90c5-fab668d2d1ac",
+      "revision": 1,
+      "phaseId": null,
+      "approvalId": null,
+      "controlVersion": 2,
+      "id": 13,
+      "goalId": "46536a46-35c5-4218-b6cc-85604cb37bc5",
+      "taskId": null,
+      "attemptId": null,
+      "fromStatus": null,
+      "toStatus": null,
+      "errorCode": null,
+      "type": "plan_completed",
+      "createdAt": "2026-09-14T18:16:45.760Z"
+    }
+  ]
+}
+目标操作
+1. 刷新
+2. 审阅决定
+3. 执行模式
+4. 继续
+5. 仅运行阶段
+6. 请求阶段审批
+7. 任务操作
+选择编号，0 返回（/back 返回）: 0
+主菜单 1 目标与计划 / 2 新建手工计划 / 3 环境诊断 / 0 退出（/back 返回）: 0

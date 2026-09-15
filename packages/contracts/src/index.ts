@@ -138,3 +138,4 @@ export type CreateGoal = z.infer<typeof createGoalSchema>;
 
 export type Attempt = z.infer<typeof attemptSchema>;
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
+export * from './interaction.js';

@@ -146,3 +146,18 @@ export const codeConfigSchema = z
     timeoutMs: z.number().int().min(1).max(600000).optional(),
   })
   .strict();
+
+export const codeReconciliationSchema = z.object({
+  taskId: z.string().uuid(),
+  attemptId: z.string().uuid(),
+  snapshotHash: digestSchema.nullable(),
+  changedFromOutput: z.boolean().nullable(),
+  processStopped: z.literal(true),
+  resumeSupported: z.literal(false),
+  nextAction: z.string(),
+  files: z.array(
+    z.object({ path: z.string(), sha256: digestSchema, size: z.number() }),
+  ),
+  diff: z.string(),
+});
+export type CodeReconciliation = z.infer<typeof codeReconciliationSchema>;

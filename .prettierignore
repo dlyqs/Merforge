@@ -7,3 +7,4 @@ pnpm-lock.yaml
 
 # Immutable generated evidence: preserve published SHA-256 bytes.
 examples/codex-task/evidence/
+docs/evidence/m3.1/

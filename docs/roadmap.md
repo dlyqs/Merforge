@@ -1,6 +1,6 @@
 # Merforge 开发计划总表
 
-本表管理产品终极目标、主要 Milestone 和进入条件，不是所有里程碑的实施授权。下一实施入口为 [M3.1 完整人工操作流程](m3.1-interaction-plan.md)（规划已建立，待实施前审阅，尚未开始）。[M3](m3-codex-plan.md)、[M2](m2-serial-plan.md)、[M1](next-milestone.md) 保留为完成记录；M3 的完成不等于完整交互体验已完成。代码导航见 [项目概览](overview.md)。
+本表管理产品终极目标、主要 Milestone 和进入条件，不是所有里程碑的实施授权。最近完成 [M3.1 完整人工操作流程](m3.1-interaction-plan.md)（Phase 1–5 已完成，止于 M3.1；M4 尚未启动）。[M3](m3-codex-plan.md)、[M2](m2-serial-plan.md)、[M1](next-milestone.md) 保留为完成记录；M3 的完成不等于完整交互体验已完成。代码导航见 [项目概览](overview.md)。
 
 2026-09-15 本次修订授权只覆盖规划文档。M4 产品合同见 [对话规划与执行闭环](m4-planning-scope.md)，内置企业能力见 [AI Transformation Pack](ai-transformation-pack-scope.md)；两者尚未实施。M3 的旧自动执行授权不延续到新里程碑。
 
@@ -33,7 +33,7 @@
 | M1 可靠单任务运行时           | 单任务失败、重试、人工参与与重启核对 | Mock 失败重试、Human 跨重启提交、执行中断识别三个场景通过；独立验证决定完成                                                          | M0                   | Phase 1 子集，提前引入 Phase 4 最小验证 | completed；[验收记录](next-milestone.md)                                      |
 | M2 可控串行计划               | 人工定义的多阶段执行                 | Goal→Plan→Phase→Task；三阶段串行；manual/auto/auto_until；绑定计划版本的审阅门禁，跨重启保留边界/审批                                | M1                   | Phase 1 的计划与执行控制                | completed；[阶段计划](m2-serial-plan.md)                                      |
 | M3 首个真实 Executor          | 在受控仓库完成真实代码任务           | Codex Adapter、Task Package、工作区、产物/日志、命令或测试验收；核对中断后的实际工作区                                               | M2                   | Phase 2 + Phase 4 验证子集              | completed；[真实 A/B/C 验收与证据](m3-acceptance.md)                          |
-| M3.1 完整人工操作流程         | 现有能力能被双端完整操作             | CLI 菜单/引导、GUI 结构化建计划与执行控制、两端核对重试；保留脚本化命令，不要求手写 JSON 或内部 ID/hash                              | M3                   | 新增交互补齐，不重编号原 Phase          | pending；[详细阶段计划](m3.1-interaction-plan.md)                             |
+| M3.1 完整人工操作流程         | 现有能力能被双端完整操作             | CLI 菜单/引导、GUI 结构化建计划与执行控制、两端核对重试；保留脚本化命令，不要求手写 JSON 或内部 ID/hash                              | M3                   | 新增交互补齐，不重编号原 Phase          | completed；[详细阶段计划](m3.1-interaction-plan.md)                           |
 | M4 对话规划与多执行器闭环     | 聊目标到计划、执行和验证             | CLI 菜单问答、GUI AI Chat + 结构化计划；真实 LLM 澄清、模块/任务/依赖拆分；Codex/Claude/Human 能力匹配；审阅、边界控制、有界修复重验 | M3.1                 | Phase 1 剩余能力、Phase 3/4 + 对话交互  | pending；[交付合同](m4-planning-scope.md)；详细 Phase 待拆分                  |
 | M5 AI Transformation 规划 MVP | 首个内置领域 Agent 可用              | CLI/GUI 选择 Pack，真实访谈/SOP → 企业现状/流程 → 改造评估 → 目标状态/Delta → 可实施任务；保留事实来源、缺口和 ROI 假设              | M4                   | Phase 0 业务契约 + Phase 5              | pending；[Pack 能力合同](ai-transformation-pack-scope.md)；限一个数字业务流程 |
 | M6 改造实施闭环               | 内置 Pack 推动真实改造落地           | M5 计划接入执行器/人工协作；实际产物、工程验收、集成及业务评估；双端跟踪和处理异常                                                   | M5                   | Phase 6、第 35 节核心场景               | pending；[Pack 能力合同](ai-transformation-pack-scope.md)；不能只交付方案     |
@@ -66,7 +66,7 @@ M3.1 已拆分可验收 Phase，状态只在其详细计划维护。M4–M8 是�
 
 ## 推进与维护约定
 
-1. M1–M3 已完成各自既定范围，历史授权及验收留在原计划。下一实施入口为 M3.1，本轮仅准备文档；后续明确授权实施时再记录执行模式和范围。
+1. M1–M3 已完成各自既定范围，历史授权及验收留在原计划。M3.1 已按用户授权完成，实际状态与验收见详细计划；M4 仍需独立详细计划、审阅和授权。
 2. 每个新 Milestone 开始前，用实际成果重新评估范围、依赖和可行性，创建详细执行计划并审阅。后续计划指定为当前入口后，更新本表和 overview 的导航。
 3. 详细计划是 Phase 状态真源，本表仅记录里程碑状态和出口证据链接，不复制每次实现日志。
 4. 模型集成前可用 Mock/Human 验证运行规则；M3 以后必须增加真实产物与失败样本，不能拿 Mock 通过率当业务成功率。

@@ -6,7 +6,7 @@ Merge your workflow. Forge your AI future.
 
 ## 当前体验与后续阶段
 
-当前 CLI 使用逐条子命令；GUI 的普通目标入口支持 Mock/Human，真实 Codex 使用 JSON 计划入口。计划由人工定义，尚无菜单式 CLI 或 LLM 聊天规划；代码任务的核对/重试仍需要 CLI。页面中“仅模拟执行”的旧介绍待 M3.1 修正，不代表 Runtime 没有真实 Codex 能力。
+CLI 提供菜单及原子子命令，GUI 提供结构化计划表单；双端支持 Mock/Human/Codex、审阅、执行、取消、核对及显式创建新尝试。计划仍由人工定义，尚无 LLM 聊天规划。
 
 后续交付已明确，尚未实现：
 
@@ -14,7 +14,7 @@ Merge your workflow. Forge your AI future.
 - [M4 对话规划与执行闭环](docs/m4-planning-scope.md)：CLI 问答和 GUI AI Chat，由 LLM 澄清、拆模块/任务、生成可审阅计划，再执行和独立验证。
 - [企业转型 Pack](docs/ai-transformation-pack-scope.md)：M5 访谈/评估/方案及实施规划，M6 真实改造与业务验收，M7 对比评估，M8 Pack SDK 扩展。
 
-[路线图](docs/roadmap.md) 管里程碑状态；当前下一入口为 M3.1，规划准备不代表已授权开发或已交付功能。
+[路线图](docs/roadmap.md) 管里程碑状态；M3.1 已完成；M4 尚未启动，需独立规划和授权。
 
 ## 快速开始
 
@@ -251,8 +251,26 @@ pnpm cli retry-code TASK_ID ATTEMPT_ID --revision 1 --snapshot REVIEWED_HASH
 
 `reconcile` 不执行 Agent；`--stop` 明确请求终止核实身份的遗留进程。检查返回的 diff、文件清单与 snapshotHash，再将该 hash 传入 `retry-code`；工作区尚未创建时传 `--snapshot none`。有外部漂移、证据缺失或无法确认进程身份时保持阻塞，不 reset 文件。重试仍须满足原计划审批、revision、模式和阶段范围。当前 Runtime 不支持同会话 resume，显式重试创建新 Attempt 并保留前驱、旧日志和验收。
 
-新增 HTTP 入口：`GET /api/tasks/:id/code`、`GET /api/tasks/:id/code/evidence/:evidenceId`、`POST /api/tasks/:id/attempts/:attemptId/cancel`、`POST /api/tasks/:id/reconcile`（`{attemptId,stop}`）、`POST /api/tasks/:id/retry-code`（`{attemptId,revision,snapshotHash}`）。Web 展示真实执行标识、工作区、会话、验收与证据，支持请求取消；核对和重试使用 CLI。
+新增 HTTP 入口：`GET /api/tasks/:id/code`、`GET /api/tasks/:id/code/evidence/:evidenceId`、`POST /api/tasks/:id/attempts/:attemptId/cancel`、`POST /api/tasks/:id/reconcile`（`{attemptId,stop}`）、`POST /api/tasks/:id/retry-code`（`{attemptId,revision,snapshotHash}`）。Web 展示真实执行标识、工作区、会话、验收与证据，支持请求取消、核对、停止已确认进程、接受固定快照及创建新尝试。
 
 Runtime `close()` 必须 await。数据库锁释放不等于 Agent 停止，持久目录 lease 会保留未确认的工作区。工作区和轮询进程身份不是任意恶意代码的隔离平台；同会话恢复、守护化子进程、联网验收与任意外部副作用恢复不在支持范围。
 
 真实演示、逐 Attempt 指标与持久证据见 [M3 验收报告](docs/m3-acceptance.md)；历史探针见 [接口记录](docs/m3-codex-interface.md)。演示脚本会调用现有本机 Codex 认证并产生实际模型费用，不属于常规测试。
+
+### M3.1 手工交互入口
+
+先在项目目录运行 `pnpm dev` 启动本地 API/Web，再在另一终端运行 `pnpm cli menu`。无参数 `pnpm cli` 在交互式 TTY 自动进入菜单；非 TTY 输出帮助，原有子命令和 JSON 输出保持兼容。菜单用数字选择，`0` 或 `/back` 返回，Ctrl-C/EOF 退出；请求超时不等于服务端撤销。
+
+菜单的“环境诊断”和 GUI 的“刷新环境诊断”展示连接、Codex 可执行状态、受控仓库及当前干净 HEAD。代码任务需本机操作者按上文设置 `MERFORGE_CODE_CONFIG` 并重启服务；界面不写配置，也不接收凭证。可执行探测不代表认证验证成功。仓库有未提交文件时先自行处理再刷新。
+
+选择“新建手工计划”，填写目标、阶段、任务及执行方式。Mock/Human 使用固定的 summary.v1 示例验收；Codex 需选择仓库/基线，填写明确指令、预期文件、允许/禁止修改路径及独立验收程序/参数。GUI 路径每行一个；验收参数每行一个，不经 shell 解析。普通表单使用单项检查、60 秒超时和 1 MiB 输出上限；多检查、输入摘要、受保护文件等可用高级 JSON。支持增删阶段/任务；不调用 LLM 生成计划。
+
+创建后审阅目标、阶段、任务、文件范围和检查内容，再批准；批准不会自动启动。保存 manual/auto/auto_until 模式与范围后，显式继续或只运行选定阶段。计划版本或控制版本变化后，GUI 需点“加载当前版本供审阅”；菜单需重新选择目标。目标详情展示尝试、产物、验证和事件；菜单任务操作支持 Human summary 提交及代码证据读取/取消请求。
+
+代码任务失败或中断后，CLI 进入“任务操作 → 核对与创建新尝试”，GUI 使用任务下方恢复区域。先查看旧尝试、进程状态与旧快照证据，再执行“核对进程与文件”；存在已核实的遗留进程时，单独确认“停止已确认进程并核对”。未知进程身份、证据缺失等会显示具体阻塞原因。
+
+核对成功后审阅文件清单、diff、revision 和 snapshotHash，明确接受该固定快照，再操作“创建新尝试”。界面自动携带对应标识，不需手填 hash；文件漂移或旧 revision 会被拒绝，须重新核对审阅。取消受理或请求超时不代表进程已停止；Runtime 同会话 resume 不支持。
+
+auto_until 到达终点后切回 manual、撤销执行授权；重启仍不会派发后继任务。显式继续或仅运行下一阶段后才创建后续 Attempt。
+
+[M3.1 验收记录](docs/m3.1-acceptance.md) 包含双端真实 Codex PASS、组件事件/API 恢复及三阶段边界、PTY 按键证据。复跑 `python3 scripts/interaction/menu-pty.py` 和 `python3 scripts/interaction/recovery-pty.py`；后者使用协议替身。真实 Codex 测试为显式选择项，命令见验收记录；常规测试不调用模型。浏览器视觉验收未执行。

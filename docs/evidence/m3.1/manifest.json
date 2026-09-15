@@ -1,0 +1,33 @@
+[
+  {
+    "surface": "gui",
+    "source": "/var/folders/sz/2d2ct16d7nqcy74pff2k2z480000gn/T/merforge-m31-real-xVtAVY/result.json",
+    "file": "gui.json",
+    "sha256": "c10dab80c57b8f01fb130a1762b5121630bad5178eba21b0ed07debda7a59ca7",
+    "status": "completed",
+    "verdict": "PASS"
+  },
+  {
+    "surface": "cli",
+    "source": "/var/folders/sz/2d2ct16d7nqcy74pff2k2z480000gn/T/merforge-m31-real-g9ccQl/result.json",
+    "file": "cli.json",
+    "sha256": "2fc780f0415123ba90ea5fbd360f13b13a36d7eba5444810f637d766fefedc30",
+    "status": "completed",
+    "verdict": "PASS"
+  },
+  {
+    "file": "pty-recovery.json",
+    "sha256": "231f96c5294336d44159f8d8b8b9cbbe970b25fb0fe17b37cec3313b0c97d9d8",
+    "source": "/var/folders/sz/2d2ct16d7nqcy74pff2k2z480000gn/T/merforge-m31-pty-02qk4td9/result.json"
+  },
+  {
+    "file": "pty-recovery.txt",
+    "sha256": "1046cc409c12896381503bfd64b8ab149a921454cd30d6a18392bbb49fb92392",
+    "source": "/var/folders/sz/2d2ct16d7nqcy74pff2k2z480000gn/T/merforge-m31-pty-02qk4td9/transcript.txt"
+  },
+  {
+    "file": "pty-human.txt",
+    "sha256": "b6ca31b7a6c00ec9bf0da9846c3564312960ff29766ef1177ac984104c53eead",
+    "source": "/tmp/merforge-pty-transcript.txt"
+  }
+]

@@ -1,3 +1,4 @@
+import { ManualPlanCreate } from './ManualPlanCreate';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
@@ -37,15 +38,15 @@ export function App() {
         <a className="brand" href="/">
           Merforge<span>LOCAL PROTOTYPE / 0.1</span>
         </a>
-        <span className="mode">Mock / Human</span>
+        <span className="mode">Mock / Human / Codex</span>
       </header>
       <main>
         <section className="intro">
           <p className="eyebrow">BRING YOUR AGENT. KEEP YOUR WORKFLOW.</p>
           <h1>让目标成为可追踪的工作。</h1>
           <p>
-            从一个目标开始，查看任务、执行记录与证据。当前原型仅模拟执行，不调用
-            AI，也不修改业务代码。
+            手工定义计划、审阅后执行并查看证据。Mock 模拟执行，Human
+            人工提交，Codex 在受管工作区真实修改代码；计划编辑器不调用 LLM。
           </p>
         </section>
         <form className="create" onSubmit={submit}>
@@ -73,6 +74,7 @@ export function App() {
             </button>
           </div>
         </form>
+        <ManualPlanCreate onCreated={setSelectedId} />
         <PlanCreate onCreated={setSelectedId} />
         {error && (
           <p role="alert" className="error">
@@ -198,7 +200,8 @@ export function App() {
                   </article>
                 ))}
                 <p className="muted">
-                  PASS 仅表示 summary.v1 提交结构合格，不证明业务结果正确。
+                  Mock/Human 的 PASS 仅表示 summary.v1 结构合格；Codex 的 PASS
+                  来自 commands.v1 独立检查。
                 </p>
                 <h3>
                   执行记录{' '}

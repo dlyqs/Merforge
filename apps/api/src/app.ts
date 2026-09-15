@@ -1,3 +1,4 @@
+import { inspectEnvironment } from './environment.js';
 import Fastify from 'fastify';
 import {
   CONTRACT_VERSION,
@@ -180,6 +181,9 @@ export function buildApp(options: {
         input.data,
       );
     },
+  );
+  app.get('/api/environment', async () =>
+    inspectEnvironment(options.runtimeOptions?.codex),
   );
   app.get('/api/health', async () => ({
     status: 'ok',
