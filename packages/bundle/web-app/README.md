@@ -163,4 +163,4 @@ None.
 
 </details>
 
-The Web composition includes the account Remote controller and Account settings section.
+The Web composition owns transport and settings; the official services bundle adds the account Remote controller and Account settings section for public profiles.

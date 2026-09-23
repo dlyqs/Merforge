@@ -29,8 +29,6 @@ interface PackageManifest {
 export interface DevelopmentProjectOptions {
   /** Directory replaced with the generated development project. */
   readonly projectDir: string
-  /** Current workspace's `apps/cli` package directory. */
-  readonly cliDir: string
   /** Current workspace's private Desktop Host application directory. */
   readonly hostDir: string
   /** pnpm's workspace-wide virtual-hoist directory. */
@@ -119,17 +117,10 @@ function mirrorWorkspaceDependencies(roots: readonly string[], destinationRoot: 
 
 /**
  * Replace one disposable project with links to the current built workspace.
- * @param options - Project destination, CLI package, release identity, and build target.
+ * @param options - Project destination, Desktop Host package, release identity, and build target.
  * @returns the absolute project directory supplied by the caller.
  */
 export function prepareDevelopmentProject(options: DevelopmentProjectOptions): string {
-  const cliManifest = readManifest(join(options.cliDir, 'package.json'))
-  if (cliManifest.name !== '@deepseek-ai/dsh' || cliManifest.version !== options.release.version) {
-    throw new Error(
-      `desktop development: apps/cli must be @deepseek-ai/dsh@${options.release.version}, found `
-      + `${String(cliManifest.name)}@${String(cliManifest.version)}`,
-    )
-  }
   if (!existsSync(options.dependencyDir)) {
     throw new Error('desktop development: workspace dependency links are missing; run pnpm install')
   }
@@ -150,15 +141,12 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   mkdirSync(destinationModules, { recursive: true })
   const names = [
     ...mirrorDependencyLinks(options.dependencyDir, destinationModules),
-    ...mirrorWorkspaceDependencies([options.cliDir, options.hostDir], destinationModules),
+    ...mirrorWorkspaceDependencies([options.hostDir], destinationModules),
   ]
-  const dshLink = join(destinationModules, '@deepseek-ai', 'dsh')
-  removeOwnedPath(dshLink)
-  linkDirectory(options.cliDir, dshLink)
   const hostLink = join(destinationModules, '@deepseek-ai', 'dsh-desktop-host')
   removeOwnedPath(hostLink)
   linkDirectory(options.hostDir, hostLink)
-  const sharedPackages = [...new Set([...names, '@deepseek-ai/dsh', '@deepseek-ai/dsh-desktop-host'])].flatMap((name) => {
+  const sharedPackages = [...new Set([...names, '@deepseek-ai/dsh-desktop-host'])].flatMap((name) => {
     const manifest = readManifest(join(destinationModules, name, 'package.json'))
     return typeof manifest.version === 'string' ? [{ name, version: manifest.version, path: `node_modules/${name}` }] : []
   })

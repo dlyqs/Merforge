@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveDesktopPaths } from '../src/paths.ts'
+import { resolveDesktopPaths, resolveMerforgeHome } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
 import { readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
 import { runtimeFixture } from './runtime-fixture.ts'
@@ -43,6 +43,12 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('resolves its own data root without consulting the legacy Harness home', () => {
+    const root = temporaryRoot()
+    expect(resolveMerforgeHome({ DSH_HOME: join(root, 'old') })).not.toBe(join(root, 'old'))
+    expect(resolveMerforgeHome({ MERFORGE_HOME: join(root, 'new'), DSH_HOME: join(root, 'old') }))
+      .toBe(join(root, 'new'))
+  })
   it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()

@@ -2,19 +2,19 @@
 
 [English](overview.md) | 中文
 
-本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，尚未执行的源码清理见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。当前工程仍是 DeepSeek Harness；计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
+本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，尚未执行的源码清理见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。Desktop 产品现名为 Merforge；仓库仍保留旧版 DeepSeek Harness 发行入口。计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
 
 ## 运行与目录
 
-当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的 Web 前端；Host 仍依赖 dsh profile 启动器、Web bundle、本机 Webserver 和认证连接。现有仓库也发行 Web、headless、SDK、ACP 等独立入口；这些是裁剪计划的目标，不能与 Desktop 内部传输混淆。
+当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的 Web 前端；Host 通过 app-boot 独立启动自身 profile，仍使用内部 Web bundle、本机 Webserver 和认证连接。现有仓库也发行 Web、headless、SDK、ACP 等独立入口；这些是裁剪计划的目标，不能与 Desktop 内部传输混淆。
 
 | 目录 | 当前职责 |
 | --- | --- |
 | apps/desktop | Electron 主进程、窗口、原生交互、恢复、更新与跨平台打包。 |
 | apps/desktop-host | Desktop 的私有 Node 进程，启动 profile 并向 Electron 提供认证 URL 与启动注入。 |
 | apps/web | Desktop 与独立 Web 共用的前端构建入口和前端测试。 |
-| apps/cli | 公开 dsh 命令与 profile 启动实现；Desktop Host 当前调用其内部 profile-boot。 |
-| packages/bundle | base、web-app 及其他运行组合；Desktop 当前复用 Web profile 的 bundles。 |
+| apps/cli | 公开 dsh 命令和旧版 profile 启动器；Desktop Host 使用自身的 profile boot。 |
+| packages/bundle | base、web-app、official-services 及其他运行组合；Desktop 选择 base 和 web-app，不加载 official-services。 |
 | packages/core、packages/session、packages/llm、packages/fs、packages/shell | Agent loop、工具、事件日志、持久化、模型与本机执行。 |
 | packages/client、packages/api、packages/host | 客户端插件、Remote/API、Web Host 和资源传输。 |
 | packages/subagent、packages/skill、packages/interaction | 基础委托、Skill 与用户提问/审批。 |
@@ -25,7 +25,7 @@
 
 ### Desktop 启动和连接
 
-apps/desktop/src/project-manager.ts 从 Web 模板建立 Desktop profile；apps/desktop-host/src/index.ts 调用 profile-boot 并启动 Host；Electron 加载前端资源后使用 Host 返回的认证地址和注入数据。apps/desktop/scripts/prepare-package-set.ts 以 dsh 与 Desktop Host 为根收集发行依赖。修改 profile、CLI 内核或 Web bundle 前，应沿这条链路查消费者和打包闭包。
+apps/desktop/src/project-manager.ts 持有 Desktop bundle 清单；apps/desktop-host/src/profile-boot.ts 不依赖公开 CLI，独立启动 profile。Electron 加载前端资源后使用 Host 返回的认证地址和注入数据。apps/desktop/scripts/prepare-package-set.ts 以 Desktop Host 为根收集发行依赖。修改 profile、CLI 内核或 Web bundle 前，应沿这条链路查消费者和打包闭包。
 
 ### Agent 执行和恢复
 
@@ -37,4 +37,4 @@ packages/bundle/web-app/cordis.patch.yml 装载 Host 控制器、Client 模块�
 
 ## 维护规则
 
-本文描述当前代码，不把裁剪计划写成已实现状态。后续每完成一个阶段，按实际文件、入口和验证结果更新本页及计划的唯一状态表。新产品使用独立数据目录，旧 DSH_HOME 数据不在本计划中迁移或删除；Session 格式与已提交历史仍按 [格式状态](session-format-status.zh.md)和仓库规则处理。用户要求不启动页面，也不使用 Playwright、浏览器自动化或 GitNexus；相关 GUI 行为由用户在实际桌面客户端人工核验。
+本文描述当前代码，不把裁剪计划写成已实现状态。后续每完成一个阶段，按实际文件、入口和验证结果更新本页及计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧 DSH_HOME 数据；Session 格式与已提交历史仍按 [格式状态](session-format-status.zh.md)和仓库规则处理。用户要求不启动页面，也不使用 Playwright、浏览器自动化或 GitNexus；相关 GUI 行为由用户在实际桌面客户端人工核验。

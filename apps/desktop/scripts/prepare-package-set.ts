@@ -1,4 +1,4 @@
-/** Select and copy the local npm tarball closures that supply Desktop dsh and its private Host. */
+/** Select and copy the local npm tarball closure that supplies Desktop Host. */
 
 import { createHash } from 'node:crypto'
 import {
@@ -27,8 +27,20 @@ import { capture } from '../../../scripts/release/process.ts'
 import { tarballFiles } from '../../../scripts/release/tarball.ts'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
-const DSH_PACKAGE = '@deepseek-ai/dsh'
-const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
+const ROOT_PACKAGES = [DESKTOP_HOST_PACKAGE] as const
+const OFFICIAL_SERVICE_PACKAGES = new Set([
+  '@deepseek-ai/dsh-api-account-controller',
+  '@deepseek-ai/dsh-client-ui-brand-official',
+  '@deepseek-ai/dsh-client-ui-message-feedback',
+  '@deepseek-ai/dsh-client-ui-settings-account',
+  '@deepseek-ai/dsh-command-feedback',
+  '@deepseek-ai/dsh-deepseek-account',
+  '@deepseek-ai/dsh-deepseek-account-platform',
+  '@deepseek-ai/dsh-message-feedback',
+  '@deepseek-ai/dsh-session-log-deepseek',
+  '@deepseek-ai/dsh-session-telemetry',
+  '@deepseek-ai/dsh-session-telemetry-otel',
+])
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 
@@ -51,7 +63,7 @@ function dependencyNames(manifest: Readonly<Record<string, unknown>>, section: s
 }
 
 /**
- * Select workspace dependencies rooted at dsh and its private Host; npm resolves external packages.
+ * Select workspace dependencies rooted at Desktop Host; npm resolves external packages.
  * Reads the repository workspace manifest and package manifests to distinguish required local packages from npm-resolved externals.
  * @param available - Packed packages indexed by package name.
  * @returns Selected packages sorted by name.
@@ -83,6 +95,11 @@ export function selectDesktopPackageClosure(
   for (const name of ROOT_PACKAGES) {
     if (!available.has(name)) throw new Error(`desktop package set: packed inputs omit ${name}`)
     visit(name)
+  }
+  for (const name of selected.keys()) {
+    if (OFFICIAL_SERVICE_PACKAGES.has(name)) {
+      throw new Error(`desktop package set: official service ${name} is forbidden in the Desktop runtime`)
+    }
   }
   return [...selected.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, packed]) => packed)
 }

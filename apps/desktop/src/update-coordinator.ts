@@ -1,7 +1,5 @@
 /** User-authorized downloads and separate installation of one version-bound Desktop release. */
 
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { app } from 'electron'
 import electronUpdater, { type AppUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater'
 import { gt, valid } from 'semver'
@@ -50,7 +48,7 @@ export class DesktopUpdateCoordinator {
     private readonly publish: (state: DesktopUpdateState) => DesktopUpdateState,
     private readonly beforeRestart: () => Promise<boolean>,
     private readonly updater: AppUpdater = autoUpdater,
-    private readonly enabled: () => boolean = () => app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')),
+    private readonly enabled: () => boolean = () => false,
     private readonly currentVersion: () => string = () => app.getVersion(),
   ) {
     if (updater === autoUpdater) {

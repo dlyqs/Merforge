@@ -1,0 +1,18 @@
+# Product-owned restrictions apply after profile and home customization.
+- id: web-startup
+  disabled: true
+- id: webserver
+  inject: []
+  config:
+    host: 127.0.0.1
+    port: 19387
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
+- id: web-runtime
+  inject: []
+  config:
+    openBrowser: false
+    printUrl: false
+    surfaceContext: false
+    trustedHosts: []

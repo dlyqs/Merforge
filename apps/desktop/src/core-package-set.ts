@@ -1,4 +1,4 @@
-/** Signed local npm package set that supplies the Desktop-owned dsh runtime and private Host. */
+/** Signed local npm package set that supplies the Desktop Host and its runtime. */
 
 import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
@@ -10,12 +10,13 @@ export const DESKTOP_PACKAGE_SET_FILE = 'desktop-packages.json'
 /** Profile-relative directory containing immutable core npm tarballs. */
 export const DESKTOP_PACKAGES_DIR = 'desktop-packages'
 
-/** Private package installed beside dsh to boot the Desktop Host process. */
+/** Private package that boots the Desktop Host process. */
 export const DESKTOP_HOST_PACKAGE = '@deepseek-ai/dsh-desktop-host'
 
 /** Package-relative Desktop Host files required before a profile can boot. */
 export const DESKTOP_HOST_RUNTIME_FILES = [
   'lib/index.js',
+  'desktop.patch.yml',
 ] as const
 
 /** One immutable npm tarball in the Desktop core package set. */
@@ -27,7 +28,7 @@ export interface DesktopCorePackageRecord {
   readonly integrity: string
 }
 
-/** Complete union of the first-party package closures rooted at dsh and its private Desktop Host. */
+/** Complete first-party package closure rooted at the Desktop Host. */
 export interface DesktopCorePackageSet {
   readonly schemaVersion: 1
   readonly packages: readonly DesktopCorePackageRecord[]
@@ -37,8 +38,7 @@ const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._~-]*\/[a-z0-9][a-z0-9._~-]*|
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/u
 const FILE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\.tgz$/u
 const INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/u
-const DSH_PACKAGE = '@deepseek-ai/dsh'
-const RELEASE_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
+const RELEASE_PACKAGES = [DESKTOP_HOST_PACKAGE] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -47,7 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Validate package-set data read from a release artifact or active profile.
  * @param value - Parsed descriptor JSON.
- * @param expectedReleaseVersion - Required dsh and Desktop Host version when validating one release.
+ * @param expectedReleaseVersion - Required Desktop Host version when validating one release.
  * @returns The normalized package set in deterministic name order.
  */
 export function parseDesktopCorePackageSet(
@@ -114,17 +114,10 @@ export function desktopCorePackageOverrides(packageSet: DesktopCorePackageSet): 
   return Object.fromEntries(packageSet.packages.map(record => [record.name, desktopCorePackageSpec(record)]))
 }
 
-/** Return the local direct dependency spec for the dsh package. */
-export function desktopDshPackageSpec(packageSet: DesktopCorePackageSet): string {
-  const record = packageSet.packages.find(entry => entry.name === DSH_PACKAGE)
-  if (record === undefined) throw new Error(`desktop package set: missing ${DSH_PACKAGE}`)
-  return desktopCorePackageSpec(record)
-}
-
 /**
  * Verify every local tarball and reject extra package files before pnpm executes them.
  * @param projectDir - Build directory containing the package set.
- * @param expectedReleaseVersion - Exact dsh and Desktop Host version bound to Electron.
+ * @param expectedReleaseVersion - Exact Desktop Host version bound to Electron.
  * @returns The verified package set.
  */
 export function verifyDesktopCorePackageSet(

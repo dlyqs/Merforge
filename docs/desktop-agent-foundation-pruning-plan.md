@@ -8,16 +8,16 @@ This plan cleans the development foundation before the [product roadmap](../ai-n
 
 The goal is to prune non-target source, build paths, and distribution entries directly in the current repository, leaving a macOS/Windows Electron Agent foundation for further development. Users operate only through the desktop GUI; the desktop may retain internal HTTP, frontend rendering, processes, and profile boot. The foundation must complete a real coding task through an API key and retain Session recovery, constrained tools, Skill loading, project conversations, and extension points for future organization authorization. The Linux client and organization features are outside this plan.
 
-This is feasible, but code with Web or CLI in its name cannot all be deleted. Desktop currently composes base and web-app through the Web profile, Desktop Host calls dsh/profile-boot, and the window loads Web frontend assets through an authenticated local Host connection. Extract the internal boot and transport needed by Desktop before deleting standalone browser, command-line, and other product entries. Disabling plugin rows alone does not reduce the packaged dependency set; manifest dependencies and the package closure must also change.
+This is feasible, but code with Web or CLI in its name cannot all be deleted. Desktop currently composes base and web-app through the Web profile, Desktop Host calls dsh/profile-boot, and the window loads Web frontend assets through an authenticated local Host connection. Extract the internal boot and transport needed by Desktop before deleting standalone Web app, command-line, and other product entries. Disabling plugin rows alone does not reduce the packaged dependency set; manifest dependencies and the package closure must also change.
 
 ## Scope, confirmed decisions, and constraints
 
 - The user confirmed physical removal of non-target source from the current repository. Standalone Web, CLI, SDK, ACP, and Python SDK are not retained as product or development distribution surfaces; code actually used inside Desktop may remain as internal modules.
 - The user confirmed that this plan only cleans the foundation; roadmap capabilities get a separate plan. The first release supports macOS and Windows. Existing DeepSeek Harness Sessions, workspaces, and plugin configuration need no migration. The new product uses a separate data directory and leaves old data untouched on disk.
-- Retain Cordis composition, Agent loop, model and tool interfaces, Session log and JSONL persistence, projections and recovery, Bash/PowerShell, sandbox and approval, credentials, file and project views, basic subagents, Skills, necessary Web search, and Electron Host/Client transport. Do not target the two LLM adapters or the persistence interface for deletion without consumer evidence.
+- Retain Cordis composition, Agent loop, model and tool interfaces, Session log and JSONL persistence, projections and recovery, Bash/PowerShell, sandbox and approval, credentials, file and project views, basic subagents, Skills, Web search, browser operation, computer use and their Desktop UI/Host/IPC, and Electron Host/Client transport. Do not target the two LLM adapters or the persistence interface for deletion without consumer evidence.
 - Retain authorization execution points and authenticated local transport for future organization mode. Do not implement organization identity, LAN service, Bot memory, WorkGraph, Capability Capsule, or a Codex CLI adapter early.
 - Do not modify or delete old data on user disks or committed Session generations in the repository. No old-data import is offered, but that does not permit breaking codecs and migration packages still used by the current read/write path.
-- Do not launch pages or use Playwright, browser automation, or GitNexus. Verify frontend changes through static checks, builds, pure-logic tests, and user-side manual desktop checks; never report an unperformed GUI check as passing.
+- The assistant must not launch pages or use Playwright, browser automation, or GitNexus; this verification restriction does not remove the Agent's browser-operation capability from the product. Verify frontend changes through static checks, builds, pure-logic tests, and user-side manual desktop checks; never report an unperformed GUI check as passing.
 - Do not rewrite the product roadmap, publish installers, or connect production accounts during pruning. Delete source together with consumers, manifests, docs, tests, and generated catalogs; measure reduction using the actual Desktop package closure.
 
 ## Feature pruning map
@@ -27,7 +27,8 @@ This is feasible, but code with Web or CLI in its name cannot all be deleted. De
 | Official DeepSeek account, Platform login, Session-log upload, and official telemetry | Remove from the Desktop default composition first, then delete implementations and config with no consumers. | session-log-deepseek currently uploads a canonical Session suffix on official API requests; default telemetry targets a DeepSeek service. The new product must not inherit this behavior for private or organization data. Keep ordinary DeepSeek API-key models and local diagnostics. |
 | Official brand, feedback UI, and official update source | Replace branding and the default update source; disable network update checks until an owned source exists, while keeping recovery and generic update mechanics. | These features are tied to the current product service; assistant-message ratings are not future task acceptance. |
 | Plugin marketplace, online install, Cordis inspection, and Creator preset | Remove from the product UI and composition; delete unconsumed code after verification. | Keep internal static plugin composition and Skill registration so Agent extension remains possible. |
-| Embedded browser, computer use, voice, and Office creation/conversion | Remove paired UI, Host, native dependencies, and assets from the first release; keep ordinary code, Markdown, image, and deliverable preview. | These are not on the first coding-foundation critical path, and Office native assets are costly in the package. |
+| Embedded browser, Agent browser operation, and computer use | Keep browser guests, Desktop UI, Host/IPC, permission controls, services, and at least one usable browser and computer-use provider each; verify the model-tool-to-operation call chains. | The user explicitly requires both Agent capabilities; retaining only service registration does not preserve operation, while the standalone Web product entry may still be removed. |
+| Voice and Office creation/conversion | Remove paired UI, Host, native dependencies, and assets from the first release; retain ordinary code, Markdown, image, and deliverable preview. | These are not required for the current foundation, and Office native assets are costly in the package. |
 | Open in App and opening local applications on the Host | Remove both sides from the desktop product unless a distinct personal coding workspace use remains. | A future organization server should not open its own applications on behalf of an employee. |
 | User terminal and Agent Shell | Keep a constrained personal terminal and Agent Bash/PowerShell execution; authorize organization mode separately later. | A GUI application can contain a terminal, and deleting it would weaken coding tasks. |
 | PTC workflow, Ralph, experimental Agent Teams, Schedule/Webhook | Remove dedicated entry points from the first model tool catalog and distribution closure; delete source only when consumers reach zero. | Keep basic subagents. Ralph and the Schedule UI are already disabled, which does not prove package reduction. |
@@ -39,15 +40,17 @@ This is feasible, but code with Web or CLI in its name cannot all be deleted. De
 
 | Phase | Theme | Main goal | Status | Actual outputs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | Baseline and data isolation | Record Desktop evidence, use a new product data directory, and stop default outbound uploads | pending | — | Protect private data and establish a comparison baseline first |
-| Phase 2 | Independent Desktop boot | Separate internal Desktop profile/boot from public Web/CLI product entries | pending | — | Retain internal Web rendering and authenticated transport |
-| Phase 3 | Official service separation | Remove official DeepSeek account, upload, brand, and update-source coupling | pending | — | Ordinary API-key models continue working |
-| Phase 4 | Optional desktop features | Remove non-target browser, voice, Office, marketplace, and inspection features | pending | — | Remove UI, Host, assets, and dependencies together |
+| Phase 1 | Baseline and data isolation | Record Desktop evidence, use a new product data directory, and stop default outbound uploads | assistant complete | Separate Merforge home; baseline closure and outbound tests | User data-directory check remains manual |
+| Phase 2 | Independent Desktop boot | Separate internal Desktop profile/boot from public Web/CLI product entries | assistant complete | Private Host boot, Desktop profile, Host-rooted package closure | GUI coding check remains manual; full-repository build still packs unused CLI before filtering |
+| Phase 3 | Official service separation | Remove official DeepSeek account, upload, brand, and update-source coupling | assistant complete | Official-services bundle, Merforge brand and API-key entry, update network disabled | GUI brand check remains manual; public profiles retain official services |
+| Phase 4 | Optional desktop features | Remove non-target voice, Office, marketplace, and inspection features | pending | — | Retain the complete browser-operation and computer-use paths |
 | Phase 5 | Agent tool pruning | Remove non-target PTC/Ralph/experimental-team execution entries | pending | — | Retain coding, subagents, and personal aids |
 | Phase 6 | Non-Desktop distributions | Delete standalone Web/CLI/headless/SDK/ACP/Python entries and release paths | pending | — | Check every internal Desktop consumer first |
 | Phase 7 | Closure and two-platform acceptance | Remove orphan packages, build paths, and docs; verify the formal foundation | pending | — | Manual macOS/Windows GUI checks are completion conditions |
 
 ## Phase details
+
+The Phase 1 trace starts at the Desktop shell, which launches `desktop-host` with a dedicated profile. The base bundle supplies the Agent loop, model and tool services, permission presets, and JSONL Session persistence; web-app supplies authenticated Session APIs and the Client modules. `apps/desktop/src/browser-guests.ts` connects the Client browser sidebar to Electron guests. Browser-use and computer-use model tools are supplied by separately configured providers under `packages/experimental/`; neither provider is in the current default Desktop bundle, so Phase 4 must select and verify one of each before claiming those Agent operations work. The [closure record](desktop-agent-foundation-pruning-closure.json) lists the baseline and current package sets; current compressed tarballs total 13,435,070 bytes. Dynamic plugins remain supported in the Desktop profile, Session snapshots remain under the existing persistence path, and Windows installer/update consumers are retained for Phase 7 qualification.
 
 ### Phase 1: Baseline and data isolation
 
@@ -55,12 +58,12 @@ Goal: Before large deletions, record Desktop behavior, package dependencies, sto
 
 Expected areas: apps/desktop, apps/desktop-host, packages/bundle/base, packages/session/session-log-deepseek, packages/session/session-telemetry-otel, packages/boot/app-boot, and related configuration and docs.
 
-- [ ] Record the Desktop boot chain, the model-to-tool-to-Session-persistence baseline, and the package list and size rooted at dsh plus Desktop Host.
-- [ ] Use a separate new-product data directory; do not scan, migrate, rename, or delete old DSH_HOME contents.
-- [ ] Default configuration does not attach dsh_session_log or send feedback or logs to the official DeepSeek telemetry address; negative tests verify no hidden upload.
-- [ ] Record keep, replace, delete, and defer decisions by feature and package, including dynamic plugins, snapshots, and Windows consumers.
+- [x] Record the Desktop boot chain and model-to-tool-to-Session-persistence baseline, including browser-operation and computer-use services, optional providers, tools, permissions, and Client connections, plus the package list and size rooted at dsh and Desktop Host.
+- [x] Use a separate new-product data directory; do not scan, migrate, rename, or delete old DSH_HOME contents.
+- [x] Default configuration does not attach dsh_session_log or send feedback or logs to the official DeepSeek telemetry address; negative tests verify no hidden upload.
+- [x] Record keep, replace, delete, and defer decisions by feature and package, including dynamic plugins, snapshots, and Windows consumers.
 
-Assistant checks: configuration parsing, outbound-negative tests, relevant unit and non-browser real-composition tests, Desktop package closure generation, and git diff --check. User check: confirm separation of the new and old product data directories; do not count visual inspection as automated evidence. Dependency: none. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
+Assistant checks: configuration parsing, outbound-negative tests, relevant unit and non-browser real-composition tests, Desktop package closure generation, and git diff --check. User check: confirm separation of the new and old product data directories; do not count visual inspection as automated evidence. Dependency: none. Actual completion: Merforge resolves `~/.merforge` or `MERFORGE_HOME`, then sets the Host home before profile boot; legacy `DSH_HOME` is not read for Desktop path selection. The [closure record](desktop-agent-foundation-pruning-closure.json) captures the original dsh plus Desktop Host roots and the current Host root. Base and web-app omit Session upload, feedback, and telemetry; default composition tests reject those rows. The user data-directory check remains manual. Next: independent boot.
 
 ### Phase 2: Independent Desktop boot
 
@@ -68,12 +71,12 @@ Goal: Run Desktop through a dedicated profile and internal boot API so public We
 
 Expected areas: apps/desktop/src/project-manager.ts, apps/desktop-host/src/index.ts, packages/boot/app-boot, profile-boot in apps/cli, packages/bundle/base, packages/bundle/web-app, apps/web, and packaging scripts.
 
-- [ ] Establish a Desktop-specific bundle/preset list for new installs, recovery of existing new-product profiles, and plugin-configuration failure recovery.
-- [ ] Separate Desktop-required profile boot from the public CLI executable; if application launch rules change, update root AGENTS.md and docs/architecture.md together.
-- [ ] Retain Host/RPC/Client modules/static assets and loopback authentication; the standalone browser entry ceases to be a Desktop prerequisite.
-- [ ] Verify startup, connection, Session creation, messages, tool results, shutdown, and restart before deleting the old launcher.
+- [x] Establish a Desktop-specific bundle/preset list for new installs, recovery of existing new-product profiles, and plugin-configuration failure recovery.
+- [x] Separate Desktop-required profile boot from the public CLI executable; if application launch rules change, update root AGENTS.md and docs/architecture.md together.
+- [x] Retain Host/RPC/Client modules/static assets, loopback authentication, and guests required for Agent browser operation; the standalone Web app entry ceases to be a Desktop prerequisite.
+- [x] Verify startup, connection, Session creation, messages, tool results, shutdown, and restart before deleting the old launcher.
 
-Assistant checks: profile and boot unit tests, Desktop Host built smoke, authenticated connection and shutdown tests, package closure check, and typecheck. User check: open the macOS desktop and complete one constrained coding task; Windows is a hard condition in Phase 7. Dependency: Phase 1. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
+Assistant checks: profile and boot unit tests, Desktop Host built smoke, authenticated connection and shutdown tests, package closure check, and typecheck. User check: open the macOS desktop and complete one constrained coding task; Windows is a hard condition in Phase 7. Dependency: Phase 1. Actual completion: `apps/desktop-host/src/profile-boot.ts` owns boot; the Desktop profile and overlay resolve base plus web-app, and the packaged closure roots only at Desktop Host. Built Host welcome flow covers authenticated connection, API-key persistence, stop, and restart; Session creation, message, and tool-result behavior has separate session-controller tests, not a full real-model Desktop task. The packaging command still builds and packs the complete repository before filtering to the Desktop closure; Phase 6 owns removal of non-Desktop build work. The user macOS coding check remains manual. Next: official service separation.
 
 ### Phase 3: Official service separation
 
@@ -81,25 +84,28 @@ Goal: Remove DeepSeek Platform identity, brand, feedback upload, and official up
 
 Expected areas: packages/credentials/deepseek-account*, packages/api/account-controller, packages/client/ui-settings-account, packages/client/ui-brand-official, packages/feedback, packages/host/product-telemetry-otel, desktop login/update components and locale, and release configuration.
 
-- [ ] Desktop exposes no DeepSeek Platform login, balance, or official feedback submission; personal API-key access still works.
-- [ ] Update checks do not contact the old official endpoint; if no new source is chosen, explicitly disable network checks without deleting error recovery, signature checks, or installation-integrity checks.
-- [ ] Branding and product copy do not misname the new product DeepSeek Harness; retain upstream copyright and license notices.
-- [ ] Remove official-service-only packages together with manifests, config, tests, and docs; retain local audit and security diagnostics.
+- [x] Desktop exposes no DeepSeek Platform login, balance, or official feedback submission; personal API-key access still works.
+- [x] Update checks do not contact the old official endpoint; if no new source is chosen, explicitly disable network checks without deleting error recovery, signature checks, or installation-integrity checks.
+- [x] Branding and product copy do not misname the new product DeepSeek Harness; retain upstream copyright and license notices.
+- [x] Remove official-service-only packages together with manifests, config, tests, and docs; retain local audit and security diagnostics.
 
-Assistant checks: reachability search for official endpoints and account code, negative network-configuration tests, unit tests, build, lint, and package closure delta. User check: confirm the application has no old brand or account entry; this visual item awaits the user and is not replaced by assistant page automation. Dependency: Phase 2. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
+Assistant checks: reachability search for official endpoints and account code, negative network-configuration tests, unit tests, build, lint, and package closure delta. User check: confirm the application has no old brand or account entry; this visual item awaits the user and is not replaced by assistant page automation. Dependency: Phase 2. Actual completion: The Desktop account IPC, preload, View, and backend are removed. Official account, upload, feedback, telemetry, and brand composition lives in `official-services` for public profiles and is absent from Desktop. API-key onboarding and Merforge shell artwork remain; ordinary update checks have no default feed. The current tarball comparison reduces the package closure from 276 to 235 packages and by an estimated 1,052,357 compressed bytes; the baseline byte count uses current tarballs, not an archived old build. The user brand check remains manual. Next: Phase 4 optional features.
+
+Verification record: `pnpm run build:official`, `pnpm run typecheck`, `pnpm run lint:contracts-ready`, and `pnpm run doc-sync` passed. `verify-cordis-config` passed 199 configurations. Focused non-browser tests passed 88 unit cases and three built Host E2E cases. Package-set preparation produced 235 Desktop packages with no public CLI package or known official-service package. No GUI, real-model coding task, signed installer, or Windows qualification was run.
 
 ### Phase 4: Optional desktop features
 
 Goal: Remove paired Client entries, Host services, and native assets not needed by the first coding foundation, reducing the actual distribution closure.
 
-Expected areas: packages/client/ui-sidebar-browser, ui-open-in-app, ui-plugin-manager, ui-cordis, related settings, packages/host/open-in-app, packages/document/office-to-pdf, packages/experimental/*, apps/desktop/src/browser-guests.ts, apps/desktop-host/src/office*, desktop scripts, and manifests.
+Expected areas: packages/client/ui-open-in-app, ui-plugin-manager, ui-cordis, related settings, packages/host/open-in-app, packages/document/office-to-pdf, voice components, apps/desktop-host/src/office*, desktop scripts, and manifests; also confirm packages/client/ui-sidebar-browser, apps/desktop/src/browser-guests.ts, and computer-use components are not removed by mistake.
 
-- [ ] Browser guests/computer use, voice, Office creation and conversion, marketplace, and Cordis inspection are absent from the formal Desktop composition and package closure.
-- [ ] Remove each feature's UI, Host, IPC, assets, manifest, tests, and documentation consumers while retaining code/Markdown/image preview and file download.
+- [ ] Voice, Office creation and conversion, marketplace, and Cordis inspection are absent from the formal Desktop composition and package closure; browser guests and at least one verified browser-operation and computer-use provider each can still be enabled from Desktop configuration and enter its package closure.
+- [ ] Record browser, model, driver, and OS-permission prerequisites for the selected providers on macOS and Windows; do not delete selected implementations merely because they reside in packages/experimental.
+- [ ] Remove UI, Host, IPC, assets, manifests, tests, and documentation consumers for pruned features while retaining components needed for browser/computer operation, code/Markdown/image preview, and file download.
 - [ ] Retain the terminal, file tree, changes, and deliverable views needed for personal coding; do not claim organization authorization that does not exist yet.
 - [ ] For each feature, record removed maintenance cost, lost capability, and actual package-size delta; do not force a deletion that produces no net reduction.
 
-Assistant checks: dependency reachability, pure-logic Client/Host tests, build, package list and size, and static checks other than screenshots. User check: manually confirm the desktop sidebar still supports coding file, terminal, and deliverable operations; no page automation. Dependency: Phase 3. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
+Assistant checks: dependency reachability, pure-logic Client/Host tests, build, package list and size, with particular attention to the reachability of browser and computer-use tools, Host, IPC, permissions, and assets. User check: manually confirm desktop file, terminal, deliverable, and browser operation; no page automation. Dependency: Phase 3. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
 
 ### Phase 5: Agent tool pruning
 
@@ -108,7 +114,7 @@ Goal: Reduce the default model tool catalog and execution runtime without introd
 Expected areas: packages/bundle/base and Desktop presets, packages/ptc-runtime, packages/workflow, packages/experimental/agent-team*, packages/schedule, packages/webhook, related tools, model catalogs, and snapshots.
 
 - [ ] Remove PTC workflow, Ralph, experimental Agent Teams, Schedule, and Webhook dedicated entries from Desktop default model tools; physically delete packages only when consumer count reaches zero.
-- [ ] Retain native tools, files and Shell, Web search, Skills, basic subagents, compaction, constrained background jobs, and user questions/approval.
+- [ ] Retain native tools, files and Shell, Web search, browser-operation and computer-use services and selected providers, Skills, basic subagents, compaction, constrained background jobs, and user questions/approval.
 - [ ] Keep Goal, Plan Mode, and Todo as personal Agent aids for now; document that they are not authoritative organization tasks, and reassess after roadmap replacement.
 - [ ] Model requests, Session logs, tool results, and resumed user-visible output remain consistent; do not hide behavior changes by deleting events or snapshots.
 
@@ -134,11 +140,11 @@ Goal: Deliver a formal desktop Agent foundation ready for roadmap Phase 2 work, 
 Expected areas: remaining orphan packages, apps/desktop, apps/desktop-host, root scripts, docs/architecture.md, package READMEs, docs/overview.md, this plan, and snapshots/tests.
 
 - [ ] Package closure, default tool catalog, outbound network targets, and standalone entries match this plan; old DSH_HOME data remains unchanged.
-- [ ] Installed macOS and Windows desktop GUIs complete a real API-key coding task, resume a Session after restart, and reject an action outside the allowed directory.
+- [ ] Installed macOS and Windows desktop GUIs complete a real API-key coding task; verify usable browser operation and computer use under the recorded provider prerequisites, Session recovery after restart, and rejection of an action outside the allowed directory.
 - [ ] Startup, authenticated connection, shutdown, crash recovery, and installation integrity pass on both platforms; unsupported platforms and features are described honestly.
 - [ ] Relevant unit, type, lint, docs, package-closure, and non-browser snapshot checks pass; list unperformed manual visual checks instead of claiming success.
 
-Assistant checks: focused tests, built smoke, build, hygiene, doc-sync, lint, git diff --check, and package-closure comparison; real-API tests only when an environment is available. User check: real macOS/Windows startup, visible UI, file and terminal operations, and user-confirmed task results; this is a hard Phase 7 completion condition. Dependency: Phase 6. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
+Assistant checks: focused tests, built smoke, build, hygiene, doc-sync, lint, git diff --check, and package-closure comparison; real-API tests only when an environment is available. User check: real macOS/Windows startup, visible UI, file and terminal operations, browser operation, computer use, and user-confirmed task results; this is a hard Phase 7 completion condition. Dependency: Phase 6. Actual completion: Not started; fill in files, commands, deviations, and next phase after execution.
 
 ## Later execution rules
 

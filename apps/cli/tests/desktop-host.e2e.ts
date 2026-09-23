@@ -13,7 +13,8 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
   const modules = join(root, 'node_modules', '@deepseek-ai')
   const hostDirectory = fileURLToPath(new URL('../../desktop-host/', import.meta.url))
   const manifest = JSON.parse(readFileSync(join(hostDirectory, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
-  const stubbed = new Set(['@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh', '@deepseek-ai/dsh-home-paths'])
+  const stubbed = new Set(['@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh-home-paths',
+    '@deepseek-ai/dsh-cmdline', '@deepseek-ai/dsh-http-proxy', '@deepseek-ai/dsh-launch-environment'])
   for (const name of Object.keys(manifest.dependencies)) {
     const destination = join(root, 'node_modules', name)
     mkdirSync(dirname(destination), { recursive: true })
@@ -27,21 +28,40 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
     writeFileSync(join(modules, name, 'index.js'), source)
   }
   writeFileSync(join(root, 'package.json'), '{"type":"module"}')
+  mkdirSync(join(modules, 'dsh-desktop-host'), { recursive: true })
+  writeFileSync(join(modules, 'dsh-desktop-host', 'package.json'), '{"type":"module"}')
   writeFileSync(join(modules, 'dsh-app-boot', 'package.json'), '{"type":"module","exports":"./index.js"}')
-  writeFileSync(join(modules, 'dsh-app-boot', 'index.js'), 'export const loadProfileDirectory = () => ({}); export const loadLayeredEnv = () => ({})')
-  writeFileSync(join(modules, 'dsh', 'package.json'), '{"type":"module","exports":{"./profile-boot":"./profile-boot.js"}}')
-  writeFileSync(join(modules, 'dsh', 'profile-boot.js'), `
+  writeFileSync(join(modules, 'dsh-app-boot', 'index.js'), `
     import { writeFileSync } from 'node:fs';
-    export function runProfile(options) {
-      process.send({ type: 'booting', packageManager: options.packageManager });
+    export const loadProfileDirectory = () => ({ dir: ${JSON.stringify(root)}, patchPath: ${JSON.stringify(join(root, 'cordis.patch.yml'))}, layers: [] });
+    export const loadLayeredEnv = () => ({});
+    export const loadOverlayPatches = () => [];
+    export const createRuntimeResolution = async () => ({});
+    export const readProfilePatches = () => [];
+    export const installFailLoud = () => {};
+    export const PluginPackages = () => {};
+    export async function boot(_name, _config, _patches, prepare) {
+      const ctx = {
+        fiber: { state: 'active', dispose: async () => writeFileSync(${JSON.stringify(join(root, 'stopped'))}, 'stopped') },
+        plugin: async () => {}, effect: () => {}, on: () => {}, inject: () => {}, get: () => ({}),
+        provide(name, value) { if (name === 'profileContext') process.send({ type: 'booting', packageManager: value.packageManager }); },
+        connection: { authenticatedUrl: value => value }, webServer: { port: 19387 },
+      };
+      await prepare(ctx);
       return new Promise((resolve, reject) => process.once('disconnect', () => {
-        if (${String(fail)}) { reject(new Error('fixture boot failure')); return; }
-        resolve({ ctx: { plugin: async () => {}, effect: () => {}, on: () => {}, inject: () => {},
-          connection: { authenticatedUrl: value => value }, webServer: { port: 19387 } },
-          shutdown: { shutdown: async () => writeFileSync(${JSON.stringify(join(root, 'stopped'))}, 'stopped') } });
+        if (${String(fail)}) reject(new Error('fixture boot failure'));
+        else resolve(ctx);
       }));
     }
   `)
+  for (const [name, body] of [
+    ['dsh-cmdline', 'export const provideCmdline = () => {}'],
+    ['dsh-http-proxy', 'export const installProxyFromEnvironment = async () => async () => {}'],
+    ['dsh-launch-environment', 'export const DSH_LAUNCH_ENVIRONMENT_KEY = "launchEnvironment"'],
+  ] as const) {
+    writeFileSync(join(modules, name, 'package.json'), '{"type":"module","exports":"./index.js"}')
+    writeFileSync(join(modules, name, 'index.js'), body)
+  }
   const entry = join(root, 'index.js')
   copyFileSync(join(hostDirectory, 'lib', 'index.js'), entry)
   const pnpm = join(root, 'bundled-pnpm.mjs')

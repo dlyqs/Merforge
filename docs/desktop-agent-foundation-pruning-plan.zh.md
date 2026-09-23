@@ -8,16 +8,16 @@
 
 目标是在当前仓库直接裁剪非目标源码、构建和发行入口，形成可继续开发的 macOS/Windows Electron Agent 基座。最终用户只通过桌面 GUI 操作；桌面内部允许保留 HTTP、前端渲染、进程和 profile 启动机制。基座需能用 API key 完成真实编码任务，保留会话恢复、受限工具执行、Skill 加载、项目对话与以后增加组织授权的接口。Linux 客户端与组织能力均不属于本计划交付。
 
-此目标可行，但不能把所有含有 Web 或 CLI 名称的代码删掉。当前 Desktop 从 Web profile 组合 base 与 web-app，Desktop Host 调用 dsh/profile-boot，窗口加载 Web 前端资源，并经本机认证连接到 Host。先拆出 Desktop 所需的内部启动与传输，再删独立浏览器、命令行和其他发行入口。只禁用插件行不会缩小打包体积；要继续删除 manifest 依赖并检查打包闭包。
+此目标可行，但不能把所有含有 Web 或 CLI 名称的代码删掉。当前 Desktop 从 Web profile 组合 base 与 web-app，Desktop Host 调用 dsh/profile-boot，窗口加载 Web 前端资源，并经本机认证连接到 Host。先拆出 Desktop 所需的内部启动与传输，再删独立 Web 应用、命令行和其他发行入口。只禁用插件行不会缩小打包体积；要继续删除 manifest 依赖并检查打包闭包。
 
 ## 范围、已确认决定与约束
 
 - 用户已确认在当前仓库物理删除非目标源码；不保留独立 Web、CLI、SDK、ACP 或 Python SDK 作为产品或开发发行面，只有实际被 Desktop 内部使用的代码可以留在内部模块。
 - 用户已确认本计划只清理基座；路线图能力另立计划。首版支持 macOS 和 Windows；不迁移已有 DeepSeek Harness 用户会话、工作区与插件配置。新产品使用独立数据目录，旧数据原样留在用户磁盘。
-- 保留 Cordis 运行组合、Agent loop、模型和工具接口、Session 日志与 JSONL 持久化、投影与恢复、Bash/PowerShell、沙箱与审批、凭据、文件与项目视图、基本子 Agent、Skill、必要的 Web 搜索和 Electron Host/Client 传输。两套 LLM 适配器和持久化接口在消费者核验前不作为删除目标。
+- 保留 Cordis 运行组合、Agent loop、模型和工具接口、Session 日志与 JSONL 持久化、投影与恢复、Bash/PowerShell、沙箱与审批、凭据、文件与项目视图、基本子 Agent、Skill、Web 搜索、浏览器操作、computer use 及其桌面 UI/Host/IPC、Electron Host/Client 传输。两套 LLM 适配器和持久化接口在消费者核验前不作为删除目标。
 - 保留供未来组织模式复用的授权执行点和本机认证传输；不提前开发组织身份、内网服务、Bot 长期记忆、WorkGraph、Capability Capsule 或 Codex CLI 适配器。
 - 不改动或删除用户磁盘中的旧数据及仓库已提交的 Session 历史代际。新产品不提供旧数据导入，不等于可以破坏仍被当前读写链依赖的格式编解码和迁移包。
-- 不启动页面，不使用 Playwright、浏览器自动化或 GitNexus。前端改动通过静态检查、构建、纯逻辑测试和用户侧桌面人工核验确认；不能把未执行的 GUI 验收写成通过。
+- 助手不启动页面，不使用 Playwright、浏览器自动化或 GitNexus；这项验收限制不意味着从产品中删除 Agent 的浏览器操作能力。前端改动通过静态检查、构建、纯逻辑测试和用户侧桌面人工核验确认；不能把未执行的 GUI 验收写成通过。
 - 不在清理过程中顺手改写产品路线图、发布新安装包或接入生产账号。源码删除要同步消费者、manifest、文档、测试和 generated catalog；用实际 Desktop 打包闭包判断减量。
 
 ## 功能裁剪地图
@@ -27,7 +27,8 @@
 | DeepSeek 官方账号、Platform 登录、Session 日志上送与官方遥测 | 最先从 Desktop 默认组合移除，再删无消费者的实现与配置。 | 默认 session-log-deepseek 会随官方 API 请求上送 canonical Session 后缀；遥测默认指向 DeepSeek 服务。新应用的私人/组织数据不能沿用该默认行为。保留普通 DeepSeek API key 模型适配与本地诊断。 |
 | 官方品牌、反馈 UI、官方更新源 | 替换品牌与默认更新源；没有自有更新源时关闭网络更新检查，保留启动恢复和通用更新机制。 | 深度绑定当前产品服务，不能把反馈评分当作未来任务验收。 |
 | 插件商店、在线安装、Cordis 调试与 Creator preset | 从产品 UI 和运行组合移除；验证后删除无消费者代码。 | 保留内部静态插件组合和 Skill 注册，以免损坏 Agent 扩展。 |
-| 内嵌浏览器、电脑操作、语音和 Office 创作/转换 | 从首版发行物移除配套 UI、Host、原生依赖与资源；普通代码、Markdown、图片及成果预览保留。 | 这些能力不在首版编码基座的关键链路，Office 原生资源对包体影响大。 |
+| 内嵌浏览器、Agent 浏览器操作与 computer use | 保留浏览器 guest、桌面 UI、Host/IPC、权限控制、服务及至少一套可用的浏览器和电脑操作 provider；裁剪时验证模型工具到实际操作的调用链。 | 用户明确要求保留这两项 Agent 能力；仅保留服务注册接口不等于保留操作能力，独立 Web 产品入口仍可移除。 |
+| 语音与 Office 创作/转换 | 从首版发行物移除配套 UI、Host、原生依赖与资源；保留普通代码、Markdown、图片及成果预览。 | 这些能力不是当前基座的必要组成，Office 原生资源对包体影响大。 |
 | Open in App 与 Host 机器本地打开 | 从桌面产品移除双侧入口，除非个人编码工作区仍有明确独立用例。 | 后续组织服务器不应替员工打开服务器本机应用。 |
 | 用户交互终端与 Agent Shell | 保留受控个人终端和 Agent 的 Bash/PowerShell 执行，后续组织模式再单独授权。 | GUI 应用可以包含终端；删除它会削弱编码任务能力。 |
 | PTC 工作流、Ralph、实验性 Agent Teams、Schedule/Webhook | 从首版模型工具目录与发行闭包移除；按实际消费者依序删源码。 | 保留基础子 Agent。Ralph 与 Schedule UI 已默认关闭，不能把关闭当作包体缩减。 |
@@ -39,15 +40,17 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 基线与数据隔离 | 固定 Desktop 能力证据、新产品数据目录及默认外传关闭 | pending | — | 先保住私有数据和可比较基线 |
-| Phase 2 | Desktop 独立启动 | 将桌面内部 profile/boot 从公开 Web/CLI 产品入口拆出 | pending | — | 保留内部 Web 渲染和认证传输 |
-| Phase 3 | 官方服务解耦 | 清除 DeepSeek 官方账号、上送、品牌和更新源耦合 | pending | — | 普通 API key 模型继续可用 |
-| Phase 4 | 可选桌面功能 | 移除浏览器、语音、Office、插件商店与调试等非目标功能 | pending | — | UI、Host、资源和依赖一起处理 |
+| Phase 1 | 基线与数据隔离 | 固定 Desktop 能力证据、新产品数据目录及默认外传关闭 | 助手已完成 | Merforge 独立主目录、基线闭包与外传测试 | 用户侧数据目录核验仍待手动完成 |
+| Phase 2 | Desktop 独立启动 | 将桌面内部 profile/boot 从公开 Web/CLI 产品入口拆出 | 助手已完成 | 私有 Host boot、桌面 profile、Host 为根的打包闭包 | GUI 编码核验待用户手动完成；全仓构建仍会先打包不用的 CLI |
+| Phase 3 | 官方服务解耦 | 清除 DeepSeek 官方账号、上送、品牌和更新源耦合 | 助手已完成 | official-services bundle、Merforge 品牌与 API key 入口、禁用网络更新 | 品牌 GUI 核验待用户手动完成；公开 profile 继续保留官方服务 |
+| Phase 4 | 可选桌面功能 | 移除语音、Office、插件商店与调试等非目标功能 | pending | — | 保留浏览器操作与 computer use 的完整链路 |
 | Phase 5 | Agent 工具瘦身 | 裁掉 PTC/Ralph/实验团队等非目标执行入口 | pending | — | 保留编码、子 Agent 与个人辅助工具 |
 | Phase 6 | 非 Desktop 发行 | 删除独立 Web/CLI/headless/SDK/ACP/Python 入口与发布链 | pending | — | 先核对所有 Desktop 内部消费者 |
 | Phase 7 | 闭包与双平台验收 | 清理孤立包、构建和文档，验证正式基座 | pending | — | macOS/Windows 人工 GUI 核验是完成条件 |
 
 ## 分阶段执行内容
+
+Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。base bundle 提供 Agent loop、模型和工具服务、权限预设及 JSONL Session 持久化；web-app 提供经认证的 Session API 和客户端模块。`apps/desktop/src/browser-guests.ts` 将客户端浏览器侧栏连接到 Electron guest。浏览器操作和 computer use 的模型工具由 `packages/experimental/` 下单独配置的 provider 提供；当前默认桌面 bundle 没有加载它们，因此 Phase 4 必须各选择并验证一个 provider，才能声称两类 Agent 操作可用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出原始和当前包集合；当前压缩 tarball 合计 13,435,070 字节。桌面 profile 仍支持动态插件，Session 快照沿用现有持久化链路，Windows 安装器与更新消费者留待 Phase 7 验证。
 
 ### Phase 1：基线与数据隔离
 
@@ -55,12 +58,12 @@
 
 预计区域：apps/desktop、apps/desktop-host、packages/bundle/base、packages/session/session-log-deepseek、packages/session/session-telemetry-otel、packages/boot/app-boot、相关配置与文档。
 
-- [ ] 记录 Desktop 运行链、模型到工具再到 Session 持久化的基线测试，以及 dsh + Desktop Host 打包闭包清单与大小。
-- [ ] 新产品使用独立数据目录；不扫描、迁移、重命名或删除旧 DSH_HOME 内容。
-- [ ] 默认配置不附带 dsh_session_log，也不向 DeepSeek 官方遥测地址发送反馈或日志；负向测试验证无隐含外传。
-- [ ] 记录保留、替换、删除和暂缓的包/功能清单，注明动态插件、快照及 Windows 消费者。
+- [x] 记录 Desktop 运行链、模型到工具再到 Session 持久化的基线测试，包括浏览器操作与 computer use 的服务、可选 provider、工具、权限和客户端连接，并记录 dsh + Desktop Host 打包闭包清单与大小。
+- [x] 新产品使用独立数据目录；不扫描、迁移、重命名或删除旧 DSH_HOME 内容。
+- [x] 默认配置不附带 dsh_session_log，也不向 DeepSeek 官方遥测地址发送反馈或日志；负向测试验证无隐含外传。
+- [x] 记录保留、替换、删除和暂缓的包/功能清单，注明动态插件、快照及 Windows 消费者。
 
-助手侧检查：运行配置解析、外传负向测试、相关单元和无浏览器的真实组合测试、Desktop 打包闭包生成与 git diff --check。用户侧核验：确认新产品数据目录与旧产品目录隔离；本阶段不把 GUI 目测当作自动测试。依赖：无。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：运行配置解析、外传负向测试、相关单元和无浏览器的真实组合测试、Desktop 打包闭包生成与 git diff --check。用户侧核验：确认新产品数据目录与旧产品目录隔离；本阶段不把 GUI 目测当作自动测试。依赖：无。实际完成记录：Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，并在 profile 启动前设置 Host 主目录；Desktop 选择路径时不读取旧 `DSH_HOME`。[闭包记录](desktop-agent-foundation-pruning-closure.json)包含原 dsh 与 Desktop Host 根，以及当前仅 Host 根。base 与 web-app 不再配置 Session 上送、反馈和遥测；默认组合负向测试拒绝这些配置行。用户侧目录核验仍待手动完成。下一阶段：独立启动。
 
 ### Phase 2：Desktop 独立启动
 
@@ -68,12 +71,12 @@
 
 预计区域：apps/desktop/src/project-manager.ts、apps/desktop-host/src/index.ts、packages/boot/app-boot、apps/cli 的 profile-boot 代码、packages/bundle/base、packages/bundle/web-app、apps/web 及打包脚本。
 
-- [ ] 建立 Desktop 专用 bundle/preset 清单，覆盖新安装、已有新产品 profile 的恢复和插件配置失败恢复。
-- [ ] 将 Desktop 必需的 profile 启动能力从公开 CLI 可执行入口分离；若更改应用启动规则，同步根 AGENTS.md 与 docs/architecture.md。
-- [ ] 保留 Host/RPC/Client modules/静态资源与 loopback 认证；独立浏览器入口停止构成桌面运行前提。
-- [ ] 验证启动、连接、Session 创建、消息、工具结果、关闭与重启；未验证时不删旧启动器。
+- [x] 建立 Desktop 专用 bundle/preset 清单，覆盖新安装、已有新产品 profile 的恢复和插件配置失败恢复。
+- [x] 将 Desktop 必需的 profile 启动能力从公开 CLI 可执行入口分离；若更改应用启动规则，同步根 AGENTS.md 与 docs/architecture.md。
+- [x] 保留 Host/RPC/Client modules/静态资源、loopback 认证及 Agent 浏览器操作所需的 guest；独立 Web 应用入口停止构成桌面运行前提。
+- [x] 验证启动、连接、Session 创建、消息、工具结果、关闭与重启；未验证时不删旧启动器。
 
-助手侧检查：profile 组合与内核单测、Desktop Host built smoke、认证连接与关闭测试、打包闭包检查、typecheck。用户侧核验：在 macOS 桌面打开并完成一次受控编码任务；Windows 在 Phase 7 作为硬条件。依赖：Phase 1。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：profile 组合与内核单测、Desktop Host built smoke、认证连接与关闭测试、打包闭包检查、typecheck。用户侧核验：在 macOS 桌面打开并完成一次受控编码任务；Windows 在 Phase 7 作为硬条件。依赖：Phase 1。实际完成记录：`apps/desktop-host/src/profile-boot.ts` 负责启动；桌面 profile 和 overlay 组合 base 与 web-app，发布闭包仅以 Desktop Host 为根。已构建 Host 的欢迎流程覆盖认证连接、API key 持久化、停止与重启；Session 创建、消息和工具结果由独立 session-controller 测试覆盖，尚未运行真实模型的完整桌面任务。打包命令目前仍构建并打包全仓，再筛选桌面闭包；Phase 6 负责移除非桌面构建工作。用户 macOS 编码核验仍待手动完成。下一阶段：官方服务解耦。
 
 ### Phase 3：官方服务解耦
 
@@ -81,25 +84,28 @@
 
 预计区域：packages/credentials/deepseek-account*、packages/api/account-controller、packages/client/ui-settings-account、packages/client/ui-brand-official、packages/feedback、packages/host/product-telemetry-otel、apps/desktop 的登录/更新组件与 locale、发布配置。
 
-- [ ] Desktop 不提供 DeepSeek Platform 登录、账户余额或官方反馈发送入口；个人 API key 接入仍可工作。
-- [ ] 更新检查不连接旧官方端点；若新端点未定则明确关闭网络检查，不删除错误恢复、签名校验与安装完整性检查。
-- [ ] 品牌和用户文案不误称新产品为 DeepSeek Harness；保留上游版权与许可证声明。
-- [ ] 删除官方服务独占包时同步 manifest、配置、测试与说明，保留本地审计与安全诊断。
+- [x] Desktop 不提供 DeepSeek Platform 登录、账户余额或官方反馈发送入口；个人 API key 接入仍可工作。
+- [x] 更新检查不连接旧官方端点；若新端点未定则明确关闭网络检查，不删除错误恢复、签名校验与安装完整性检查。
+- [x] 品牌和用户文案不误称新产品为 DeepSeek Harness；保留上游版权与许可证声明。
+- [x] 删除官方服务独占包时同步 manifest、配置、测试与说明，保留本地审计与安全诊断。
 
-助手侧检查：官方端点/账号代码目录的可达性搜索、负向网络配置测试、单元测试、build、lint 与打包闭包差异。用户侧核验：确认应用内无旧品牌与旧账号入口；此视觉项待用户查看，不能由助手打开页面代替。依赖：Phase 2。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：官方端点/账号代码目录的可达性搜索、负向网络配置测试、单元测试、build、lint 与打包闭包差异。用户侧核验：确认应用内无旧品牌与旧账号入口；此视觉项待用户查看，不能由助手打开页面代替。依赖：Phase 2。实际完成记录：Desktop 账号 IPC、preload、View 和 backend 已删除。官方账号、上送、反馈、遥测和品牌配置保留在公开 profile 使用的 `official-services` 中，不进入 Desktop。桌面保留 API key 欢迎页与 Merforge 图案；常规更新检查没有默认源。按当前 tarball 比较，闭包从 276 包降至 235 包，压缩大小估计减少 1,052,357 字节；原基线体积使用当前 tarball 估算，不是旧构建归档值。用户侧品牌核验仍待手动完成。下一阶段：Phase 4 可选功能。
+
+验证记录：`pnpm run build:official`、`pnpm run typecheck`、`pnpm run lint:contracts-ready` 和 `pnpm run doc-sync` 均通过。`verify-cordis-config` 检查通过 199 份配置。聚焦的无浏览器测试通过 88 个单测及三个已构建 Host E2E 用例。打包准备得到 235 个桌面包，不包含公开 CLI 包或已知官方服务包。未运行 GUI、真实模型编码任务、签名安装包或 Windows 验证。
 
 ### Phase 4：可选桌面功能
 
 目标：成对移除首版编码基座不需要的客户端入口、Host 服务和原生资源，实际减少发行闭包。
 
-预计区域：packages/client/ui-sidebar-browser、ui-open-in-app、ui-plugin-manager、ui-cordis、相关设置、packages/host/open-in-app、packages/document/office-to-pdf、packages/experimental/*、apps/desktop/src/browser-guests.ts、apps/desktop-host/src/office*、apps/desktop/scripts 与 manifest。
+预计区域：packages/client/ui-open-in-app、ui-plugin-manager、ui-cordis、相关设置、packages/host/open-in-app、packages/document/office-to-pdf、语音相关组件、apps/desktop-host/src/office*、apps/desktop/scripts 与 manifest；同时核对 packages/client/ui-sidebar-browser、apps/desktop/src/browser-guests.ts 和 computer-use 相关组件没有被误删。
 
-- [ ] 浏览器 guest/受控电脑操作、语音、Office 创作及转换、插件市场和 Cordis 调试均不在正式 Desktop 组合与打包闭包中。
-- [ ] 移除每项功能的 UI、Host、IPC、资源、manifest、测试和文档消费者，保留代码/Markdown/图片预览及文件下载。
+- [ ] 语音、Office 创作及转换、插件市场和 Cordis 调试不在正式 Desktop 组合与打包闭包中；浏览器 guest，以及各至少一套经验证的浏览器操作与 computer-use provider，仍能从 Desktop 配置启用并进入打包闭包。
+- [ ] 为 macOS/Windows 记录所选 provider 的模型、浏览器或驱动、系统权限等前置条件；不得因位于 packages/experimental 而一并删除所选实现。
+- [ ] 移除被裁功能的 UI、Host、IPC、资源、manifest、测试和文档消费者，保留浏览器/电脑操作所需组件，以及代码/Markdown/图片预览和文件下载。
 - [ ] 保留个人编码需要的终端、文件树、变更与产物视图；组织授权尚未实现的部分不宣称安全可用。
 - [ ] 对每项记录删掉的维护面、失去的能力与实际包体变化；未降低维护成本的删除不强推。
 
-助手侧检查：依赖可达性、Client/Host 纯逻辑测试、build、打包闭包清单与大小、相关截图以外的静态检查。用户侧核验：桌面侧边栏能完成编码所需的文件、终端和成果操作；用户自行人工确认，无页面自动化。依赖：Phase 3。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：依赖可达性、Client/Host 纯逻辑测试、build、打包闭包清单与大小，重点核对浏览器与 computer-use 的工具、Host、IPC、权限及资源仍可达。用户侧核验：桌面侧边栏能完成文件、终端、成果和浏览器操作；用户自行人工确认，无页面自动化。依赖：Phase 3。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
 
 ### Phase 5：Agent 工具瘦身
 
@@ -108,7 +114,7 @@
 预计区域：packages/bundle/base 与 Desktop preset、packages/ptc-runtime、packages/workflow、packages/experimental/agent-team*、packages/schedule、packages/webhook、相关工具、模型目录和快照。
 
 - [ ] 从 Desktop 默认模型工具中移除 PTC 工作流、Ralph、实验 Agent Teams、Schedule 与 Webhook 的专用入口；只在消费者为零时物理删包。
-- [ ] 保留原生工具执行、文件和 Shell、Web 搜索、Skill、基础子 Agent、compaction、受控后台任务与用户提问/审批。
+- [ ] 保留原生工具执行、文件和 Shell、Web 搜索、浏览器操作与 computer use 的服务及所选 provider、Skill、基础子 Agent、compaction、受控后台任务与用户提问/审批。
 - [ ] Goal、Plan Mode、Todo 暂作为个人 Agent 辅助；明确它们不具备组织任务权威性，等路线图替代能力完成后再评估删除。
 - [ ] 模型请求、Session 日志、工具结果与恢复后的可见输出一致；不通过删事件或快照掩盖行为变化。
 
@@ -134,11 +140,11 @@
 预计区域：剩余 orphan packages、apps/desktop、apps/desktop-host、根脚本、docs/architecture.md、包 README、docs/overview.md、本计划及快照/测试。
 
 - [ ] 打包闭包、默认工具目录、外部网络目标和独立入口均与本计划清单一致；旧 DSH_HOME 数据未变动。
-- [ ] macOS 与 Windows 安装后的桌面 GUI 能用 API key 真实完成代码任务，Session 重启恢复，受限目录外动作被拦截。
+- [ ] macOS 与 Windows 安装后的桌面 GUI 能用 API key 真实完成代码任务；按记录的 provider 前置条件验证浏览器操作和 computer use 可用、Session 重启恢复，且受限目录外动作被拦截。
 - [ ] 两端启动、认证连接、关闭、崩溃恢复和安装完整性通过；不支持的平台与功能如实标注。
 - [ ] 单元、类型、lint、文档、打包闭包及适用的无浏览器快照通过；未做的人工视觉核验列明，不声称完成。
 
-助手侧检查：聚焦测试、built smoke、构建、hygiene、doc-sync、lint、git diff --check 及打包闭包对照；只在有环境时做真实 API 测试。用户侧核验：macOS/Windows 两端真实启动、可见 UI、文件与终端操作，以及用户确认的任务结果；此项是 Phase 7 完成的硬条件。依赖：Phase 6。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：聚焦测试、built smoke、构建、hygiene、doc-sync、lint、git diff --check 及打包闭包对照；只在有环境时做真实 API 测试。用户侧核验：macOS/Windows 两端真实启动、可见 UI、文件与终端操作、浏览器操作、computer use，以及用户确认的任务结果；此项是 Phase 7 完成的硬条件。依赖：Phase 6。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
 
 ## 后续执行规则
 

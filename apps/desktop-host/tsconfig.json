@@ -15,19 +15,28 @@
     { "path": "../../packages/util/home-paths" },
     { "path": "../../packages/skill/tool-workspace-dependencies" },
     {
-      "path": "../cli"
+      "path": "../../packages/boot/app-boot"
     },
     {
-      "path": "../../packages/boot/app-boot"
+      "path": "../../packages/bundle/base"
+    },
+    {
+      "path": "../../packages/bundle/web-app"
+    },
+    {
+      "path": "../../packages/boot/cmdline"
+    },
+    {
+      "path": "../../packages/util/http-proxy"
+    },
+    {
+      "path": "../../packages/util/launch-environment"
     },
     {
       "path": "../../packages/client/connection/tsconfig.host.json"
     },
     {
       "path": "../../packages/host/webserver"
-    },
-    {
-      "path": "../../packages/credentials/deepseek-account"
     }
   ]
 }
