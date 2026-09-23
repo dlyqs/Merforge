@@ -41,6 +41,31 @@ const OFFICIAL_SERVICE_PACKAGES = new Set([
   '@deepseek-ai/dsh-session-telemetry',
   '@deepseek-ai/dsh-session-telemetry-otel',
 ])
+const PRUNED_DESKTOP_PACKAGES = new Set([
+  '@deepseek-ai/dsh-client-ui-cordis',
+  '@deepseek-ai/dsh-client-ui-open-in-app',
+  '@deepseek-ai/dsh-client-ui-plugin-manager',
+  '@deepseek-ai/dsh-client-ui-schedule',
+  '@deepseek-ai/dsh-client-ui-settings-agent-loop',
+  '@deepseek-ai/dsh-client-ui-settings-plugin-inventory',
+  '@deepseek-ai/dsh-client-ui-settings-plugins',
+  '@deepseek-ai/dsh-client-ui-settings-shell',
+  '@deepseek-ai/dsh-client-ui-settings-subagent',
+  '@deepseek-ai/dsh-client-ui-settings-web-search',
+  '@deepseek-ai/dsh-client-ui-workflow-run',
+  '@deepseek-ai/dsh-host-open-in-app',
+  '@deepseek-ai/dsh-host-plugin-inventory',
+  '@deepseek-ai/dsh-office-to-pdf',
+  '@deepseek-ai/dsh-plugin-manager',
+  '@deepseek-ai/dsh-plugin-package-inventory-deepseek',
+  '@deepseek-ai/dsh-ptc-runtime-node',
+  '@deepseek-ai/dsh-skill-office',
+  '@deepseek-ai/dsh-tool-cordis',
+  '@deepseek-ai/dsh-tool-ralph',
+  '@deepseek-ai/dsh-tool-workflow',
+  '@deepseek-ai/dsh-workflow',
+  '@deepseek-ai/dsh-workflow-ptc',
+])
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 
@@ -99,6 +124,9 @@ export function selectDesktopPackageClosure(
   for (const name of selected.keys()) {
     if (OFFICIAL_SERVICE_PACKAGES.has(name)) {
       throw new Error(`desktop package set: official service ${name} is forbidden in the Desktop runtime`)
+    }
+    if (PRUNED_DESKTOP_PACKAGES.has(name)) {
+      throw new Error(`desktop package set: pruned feature ${name} is forbidden in the Desktop runtime`)
     }
   }
   return [...selected.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, packed]) => packed)

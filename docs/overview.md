@@ -2,11 +2,11 @@
 
 English | [中文](overview.zh.md)
 
-This page records the current repository structure for finding code during foundation pruning and later roadmap work. The intended product is in the [product roadmap](../ai-native-work-os-product-roadmap.md); unexecuted source cleanup is in the [Electron Agent foundation pruning plan](desktop-agent-foundation-pruning-plan.md). The Desktop product is Merforge; the repository still contains legacy DeepSeek Harness distribution entries. The planned personal Bot, organization service, and WorkGraph do not yet exist.
+This page records the current repository structure for finding code during foundation pruning and later roadmap work. The intended product is in the [product roadmap](../ai-native-work-os-product-roadmap.md); remaining source cleanup is in the [Electron Agent foundation pruning plan](desktop-agent-foundation-pruning-plan.md). The Desktop product is Merforge; the repository still contains legacy DeepSeek Harness distribution entries. The planned personal Bot, organization service, and WorkGraph do not yet exist.
 
 ## Runtime and directories
 
-Cordis plugins compose the current Agent runtime. Desktop is an Electron shell that starts Desktop Host and loads packaged Web frontend assets in its window. The Host boots its own profile through app-boot and retains the internal Web bundle, local Webserver, and authenticated connection. The repository also distributes standalone Web, headless, SDK, ACP, and other entries. Those are targets of the pruning plan and must not be confused with Desktop's internal transport.
+Cordis plugins compose the current Agent runtime. Desktop is an Electron shell that starts Desktop Host and loads packaged Web frontend assets in its window. The Host boots its own profile through app-boot and retains the internal Web bundle, local Webserver, and authenticated connection. The repository also distributes standalone Web, headless, SDK, ACP, and other entries. Those are targets of the pruning plan and must not be confused with Desktop's internal transport. The Desktop bundle omits Office conversion and creation, microphone handling, plugin marketplace and inspection, Open in App, Schedule, PTC workflow, and Ralph; its standard Agent preset keeps files, shell, Skills, subagents, jobs, Plan Mode, Goal, and Todo. Browser guests remain in Electron; Agent browser and computer-use providers ship as disabled Desktop entries that can be enabled after their runtime prerequisites are met. The [closure record](desktop-agent-foundation-pruning-closure.json) lists the resulting Desktop package set.
 
 | Directory | Current responsibility |
 | --- | --- |

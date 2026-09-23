@@ -57,20 +57,6 @@ describe('desktop package-set selection', () => {
     ]))).toThrow(/omit @deepseek-ai\/dsh-desktop-host/u)
   })
 
-  it('leaves independently published Office packages to npm resolution', () => {
-    const available = new Map<string, PackedDesktopPackage>([
-      ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host', {
-        dependencies: {
-          '@deepseek-ai/libreoffice-kit': '0.0.1',
-          '@deepseek-ai/libreoffice-kit-wasm': '0.0.1',
-        },
-      })],
-    ])
-    expect(selectDesktopPackageClosure(available).map(entry => entry.manifest.name)).toEqual([
-      '@deepseek-ai/dsh-desktop-host',
-    ])
-  })
-
   it('rejects official service packages reintroduced through the Host closure', () => {
     const available = new Map<string, PackedDesktopPackage>([
       ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host', {
@@ -79,6 +65,18 @@ describe('desktop package-set selection', () => {
       ['@deepseek-ai/dsh-session-log-deepseek', packed('@deepseek-ai/dsh-session-log-deepseek')],
     ])
     expect(() => selectDesktopPackageClosure(available)).toThrow(/official service .* forbidden/u)
+  })
+
+  it.each(['@deepseek-ai/dsh-office-to-pdf', '@deepseek-ai/dsh-plugin-manager',
+    '@deepseek-ai/dsh-ptc-runtime-node', '@deepseek-ai/dsh-tool-workflow'])
+  ('rejects pruned features reintroduced through the Host closure: %s', (name) => {
+    const available = new Map<string, PackedDesktopPackage>([
+      ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host', {
+        dependencies: { [name]: '1.0.0' },
+      })],
+      [name, packed(name)],
+    ])
+    expect(() => selectDesktopPackageClosure(available)).toThrow(/pruned feature .* forbidden/u)
   })
 
   it('requires the Desktop Host entry', () => {

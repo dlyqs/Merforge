@@ -28,8 +28,6 @@ Layers apply to an empty entry list in this order: each bundle in the profile's 
 
 YAML controls HMR: base enables config-only `dsh-hmr`; headless, SDK and ACP disable it; `sdk-minimal` omits it. Profile patches override these defaults. HMR coordinates watching and reloads; the launcher provides profile data and readiness.
 
-Base includes [Plugin Manager](../packages/boot/plugin-manager/README.md) for Web and agents.
-
 To see the tree your machine boots:
 
 ```sh
@@ -52,7 +50,7 @@ The Python SDK follows the same application architecture. Its runtime wheel pack
 
 The [Electron desktop application](../apps/desktop/README.md) carries its production runtime in signed resources and owns `profiles/desktop` under the Merforge home (`~/.merforge` or `MERFORGE_HOME`). Shared profile helpers initialize files and resolve dependencies without replacing pnpm-owned packages. The legacy Harness home remains untouched; the public CLI cannot manage Desktop’s profile.
 
-Electron starts the private Desktop Host in Electron Node mode. The Host boots its own profile through app-boot and the internal Web application. The window loads packaged Web assets and activates client plugins after boot injection. Web owns RPC and streams; the desktop carrier connects the page to the authenticated Host. Node IPC carries boot injection, readiness, errors, and shutdown. Profile configuration can override the default port `19387`. Shell UI runs plugin transactions through bundled pnpm. Desktop omits official-services, Platform account IPC, and default Session upload; Desktop Host roots the packaged dependency closure.
+Electron starts the private Desktop Host in Electron Node mode. The Host boots its own profile through app-boot and the internal Web application. The window loads packaged Web assets and activates client plugins after boot injection. Web owns RPC and streams; the desktop carrier connects the page to the authenticated Host. Node IPC carries boot injection, readiness, errors, and shutdown. Profile configuration can override the default port `19387`. Shell UI runs plugin transactions through bundled pnpm. Desktop omits official-services, Platform account IPC, default Session upload, Office conversion, and the plugin marketplace; Desktop Host roots the packaged dependency closure. The Browser sidebar keeps Electron guests, while Agent browser and computer-use providers are present in the closure as disabled profile entries until the user enables them under their browser and OS permission prerequisites.
 
 ## Core packages
 

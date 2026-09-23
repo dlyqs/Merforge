@@ -63,9 +63,6 @@
       "path": "../../../vendor/schemastery"
     },
     {
-      "path": "../../document/office-to-pdf"
-    },
-    {
       "path": "../ui-settings/tsconfig.client.json"
     }
   ]

@@ -43,14 +43,14 @@
 | Phase 1 | 基线与数据隔离 | 固定 Desktop 能力证据、新产品数据目录及默认外传关闭 | 助手已完成 | Merforge 独立主目录、基线闭包与外传测试 | 用户侧数据目录核验仍待手动完成 |
 | Phase 2 | Desktop 独立启动 | 将桌面内部 profile/boot 从公开 Web/CLI 产品入口拆出 | 助手已完成 | 私有 Host boot、桌面 profile、Host 为根的打包闭包 | GUI 编码核验待用户手动完成；全仓构建仍会先打包不用的 CLI |
 | Phase 3 | 官方服务解耦 | 清除 DeepSeek 官方账号、上送、品牌和更新源耦合 | 助手已完成 | official-services bundle、Merforge 品牌与 API key 入口、禁用网络更新 | 品牌 GUI 核验待用户手动完成；公开 profile 继续保留官方服务 |
-| Phase 4 | 可选桌面功能 | 移除语音、Office、插件商店与调试等非目标功能 | pending | — | 保留浏览器操作与 computer use 的完整链路 |
-| Phase 5 | Agent 工具瘦身 | 裁掉 PTC/Ralph/实验团队等非目标执行入口 | pending | — | 保留编码、子 Agent 与个人辅助工具 |
+| Phase 4 | 可选桌面功能 | 移除语音、Office、插件商店与调试等非目标功能 | 助手完成 | 移除 Desktop Office/语音及商店/调试，保留所选 provider 链路 | 实际 provider 操作与 GUI 待人工核验 |
+| Phase 5 | Agent 工具瘦身 | 裁掉 PTC/Ralph/实验团队等非目标执行入口 | 助手完成 | 缩减 Desktop 工具目录与打包闭包，保留非 Desktop 快照 | 真实模型编码待 API key 验证 |
 | Phase 6 | 非 Desktop 发行 | 删除独立 Web/CLI/headless/SDK/ACP/Python 入口与发布链 | pending | — | 先核对所有 Desktop 内部消费者 |
 | Phase 7 | 闭包与双平台验收 | 清理孤立包、构建和文档，验证正式基座 | pending | — | macOS/Windows 人工 GUI 核验是完成条件 |
 
 ## 分阶段执行内容
 
-Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。base bundle 提供 Agent loop、模型和工具服务、权限预设及 JSONL Session 持久化；web-app 提供经认证的 Session API 和客户端模块。`apps/desktop/src/browser-guests.ts` 将客户端浏览器侧栏连接到 Electron guest。浏览器操作和 computer use 的模型工具由 `packages/experimental/` 下单独配置的 provider 提供；当前默认桌面 bundle 没有加载它们，因此 Phase 4 必须各选择并验证一个 provider，才能声称两类 Agent 操作可用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出原始和当前包集合；当前压缩 tarball 合计 13,435,070 字节。桌面 profile 仍支持动态插件，Session 快照沿用现有持久化链路，Windows 安装器与更新消费者留待 Phase 7 验证。
+Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。base bundle 提供 Agent loop、模型和工具服务、权限预设及 JSONL Session 持久化；web-app 提供经认证的 Session API 和客户端模块。`apps/desktop/src/browser-guests.ts` 将客户端浏览器侧栏连接到 Electron guest。浏览器操作和 computer use 的模型工具使用 `packages/experimental/` 下单独配置的 provider。Desktop bundle 保留 Chrome DevTools MCP 与原生 Cua Driver 链路；两者默认禁用，满足浏览器与系统前置条件后再启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出原始和当前包集合；当前第一方压缩 tarball 合计 12,797,593 字节。桌面 profile 仍支持动态插件，Session 快照沿用现有持久化链路，Windows 安装器与更新消费者留待 Phase 7 验证。
 
 ### Phase 1：基线与数据隔离
 
@@ -99,13 +99,13 @@ Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。ba
 
 预计区域：packages/client/ui-open-in-app、ui-plugin-manager、ui-cordis、相关设置、packages/host/open-in-app、packages/document/office-to-pdf、语音相关组件、apps/desktop-host/src/office*、apps/desktop/scripts 与 manifest；同时核对 packages/client/ui-sidebar-browser、apps/desktop/src/browser-guests.ts 和 computer-use 相关组件没有被误删。
 
-- [ ] 语音、Office 创作及转换、插件市场和 Cordis 调试不在正式 Desktop 组合与打包闭包中；浏览器 guest，以及各至少一套经验证的浏览器操作与 computer-use provider，仍能从 Desktop 配置启用并进入打包闭包。
-- [ ] 为 macOS/Windows 记录所选 provider 的模型、浏览器或驱动、系统权限等前置条件；不得因位于 packages/experimental 而一并删除所选实现。
-- [ ] 移除被裁功能的 UI、Host、IPC、资源、manifest、测试和文档消费者，保留浏览器/电脑操作所需组件，以及代码/Markdown/图片预览和文件下载。
-- [ ] 保留个人编码需要的终端、文件树、变更与产物视图；组织授权尚未实现的部分不宣称安全可用。
-- [ ] 对每项记录删掉的维护面、失去的能力与实际包体变化；未降低维护成本的删除不强推。
+- [x] 语音、Office 创作及转换、插件市场和 Cordis 调试不在正式 Desktop 组合与打包闭包中；浏览器 guest，以及各至少一套经验证的浏览器操作与 computer-use provider，仍能从 Desktop 配置启用并进入打包闭包。
+- [x] 为 macOS/Windows 记录所选 provider 的模型、浏览器或驱动、系统权限等前置条件；不得因位于 packages/experimental 而一并删除所选实现。
+- [x] 移除被裁功能的 UI、Host、IPC、资源、manifest、测试和文档消费者，保留浏览器/电脑操作所需组件，以及代码/Markdown/图片预览和文件下载。
+- [x] 保留个人编码需要的终端、文件树、变更与产物视图；组织授权尚未实现的部分不宣称安全可用。
+- [x] 对每项记录删掉的维护面、失去的能力与实际包体变化；未降低维护成本的删除不强推。
 
-助手侧检查：依赖可达性、Client/Host 纯逻辑测试、build、打包闭包清单与大小，重点核对浏览器与 computer-use 的工具、Host、IPC、权限及资源仍可达。用户侧核验：桌面侧边栏能完成文件、终端、成果和浏览器操作；用户自行人工确认，无页面自动化。依赖：Phase 3。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：依赖可达性、Client/Host 纯逻辑测试、build、打包闭包清单与大小，重点核对浏览器与 computer-use 的工具、Host、IPC、权限及资源仍可达。用户侧核验：桌面侧边栏能完成文件、终端、成果和浏览器操作；用户自行人工确认，无页面自动化。依赖：Phase 3。实际完成记录：Desktop Host 不再加载 Office 转换或处理麦克风，Document Preview 不再注册 Office，打包也不再包含 Office 资源。共享 Web 组合不再挂载插件商店、Cordis 调试、Open in App 或 Schedule UI。Desktop Host 打包闭包仍包含 Chrome DevTools MCP 与原生 Cua Driver，满足 Desktop README 所列前置条件后可通过 profile patch 启用。profile 与闭包测试验证配置可达性；真实浏览器/电脑操作、权限，以及文件、终端、成果的 GUI 操作留待 Phase 7 人工核验。同一批重新打包的 tarball 对比显示，闭包由 235 包降至 218 包，第一方压缩大小净减 623,348 字节；闭包 JSON 记录各项移除成本与新增 provider 成本。下一阶段：Phase 5 工具瘦身。
 
 ### Phase 5：Agent 工具瘦身
 
@@ -113,12 +113,16 @@ Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。ba
 
 预计区域：packages/bundle/base 与 Desktop preset、packages/ptc-runtime、packages/workflow、packages/experimental/agent-team*、packages/schedule、packages/webhook、相关工具、模型目录和快照。
 
-- [ ] 从 Desktop 默认模型工具中移除 PTC 工作流、Ralph、实验 Agent Teams、Schedule 与 Webhook 的专用入口；只在消费者为零时物理删包。
-- [ ] 保留原生工具执行、文件和 Shell、Web 搜索、浏览器操作与 computer use 的服务及所选 provider、Skill、基础子 Agent、compaction、受控后台任务与用户提问/审批。
-- [ ] Goal、Plan Mode、Todo 暂作为个人 Agent 辅助；明确它们不具备组织任务权威性，等路线图替代能力完成后再评估删除。
-- [ ] 模型请求、Session 日志、工具结果与恢复后的可见输出一致；不通过删事件或快照掩盖行为变化。
+- [x] 从 Desktop 默认模型工具中移除 PTC 工作流、Ralph、实验 Agent Teams、Schedule 与 Webhook 的专用入口；只在消费者为零时物理删包。
+- [x] 保留原生工具执行、文件和 Shell、Web 搜索、浏览器操作与 computer use 的服务及所选 provider、Skill、基础子 Agent、compaction、受控后台任务与用户提问/审批。
+- [x] Goal、Plan Mode、Todo 暂作为个人 Agent 辅助；明确它们不具备组织任务权威性，等路线图替代能力完成后再评估删除。
+- [x] 模型请求、Session 日志、工具结果与恢复后的可见输出一致；不通过删事件或快照掩盖行为变化。
 
-助手侧检查：工具目录与 profile 组合测试、相关单元、无浏览器 Session 快照、真实 API 编码 smoke（有有效密钥时）、typecheck。用户侧核验：个人模式对复杂编码任务仍可计划、执行和接力；未运行的真实模型项记录为待核验。依赖：Phase 4。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+[闭包对照](desktop-agent-foundation-pruning-closure.json)使用同一批源码打包的 tarball 比较 Phase 3 与当前第一方包。Office 预览与转换减少 46,970 字节，移除 Host/Client 转换维护面；电子表格与 PDF 预览保留。插件商店和调试减少 413,657 字节，移除包管理和调试 UI 维护面，失去应用内插件安装与 Cordis 检查。Open in App 减少 66,851 字节，移除 Host/UI 处理逻辑，失去从侧栏启动本地应用的能力。Schedule 减少 12,440 字节，移除 UI/Host 接线，失去定时任务控制。PTC 工作流与 Ralph 减少 156,500 字节，移除 Desktop 工具和运行时组合，默认工具目录不再提供脚本编排与新 Agent 迭代。语音没有带来额外包体减量；麦克风路径删除后不再维护 Desktop 权限与录音处理。所选浏览器及电脑 provider 增加 73,070 字节，净减量为 623,348 字节。外部 npm/原生 payload 和 shell 资源不在该测量范围内。
+
+助手侧检查：工具目录与 profile 组合测试、相关单元、无浏览器 Session 快照、真实 API 编码 smoke（有有效密钥时）、typecheck。用户侧核验：个人模式对复杂编码任务仍可计划、执行和接力；未运行的真实模型项记录为待核验。依赖：Phase 4。实际完成记录：Desktop base 与 standard preset 不再挂载 PTC 工作流、Ralph、Schedule 或实验团队专用入口。Goal、Plan Mode、Todo、文件与 Shell 工具、Skill、Web 搜索、基础子 Agent、compaction、后台任务、用户提问与审批保留。Headless、SDK 与 ACP 通过各自的 profile 行保留原有 PTC 工作流；所选无浏览器 Session 快照通过，未改动 Session 事件或录制 fixture。环境没有 `DEEPSEEK_API_KEY`，因此未运行真实模型编码 smoke；个人模式 GUI 验收仍待人工执行。Goal、Plan Mode 与 Todo 只作个人辅助，不具备组织任务权威性。下一阶段：Phase 6 发行入口清理。
+
+验证记录：`pnpm run build:official`、`pnpm run typecheck:contracts-ready`、`pnpm run lint:contracts-ready`、`pnpm run verify-cordis-config`（198 份配置）和聚焦的 Client/Desktop Vitest 测试通过。所选免密钥 Headless/SDK Session 快照通过 9 个用例。实际打包闭包包含 218 个 Desktop 包。`git diff --check` 通过。未运行真实模型任务、浏览器/电脑 provider 操作、安装后的 GUI 验收或签名安装包。
 
 ### Phase 6：非 Desktop 发行
 

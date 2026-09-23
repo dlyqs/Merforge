@@ -2,11 +2,11 @@
 
 [English](overview.md) | 中文
 
-本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，尚未执行的源码清理见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。Desktop 产品现名为 Merforge；仓库仍保留旧版 DeepSeek Harness 发行入口。计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
+本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，剩余源码清理见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。Desktop 产品现名为 Merforge；仓库仍保留旧版 DeepSeek Harness 发行入口。计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
 
 ## 运行与目录
 
-当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的 Web 前端；Host 通过 app-boot 独立启动自身 profile，仍使用内部 Web bundle、本机 Webserver 和认证连接。现有仓库也发行 Web、headless、SDK、ACP 等独立入口；这些是裁剪计划的目标，不能与 Desktop 内部传输混淆。
+当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的 Web 前端；Host 通过 app-boot 独立启动自身 profile，仍使用内部 Web bundle、本机 Webserver 和认证连接。现有仓库也发行 Web、headless、SDK、ACP 等独立入口；这些是裁剪计划的目标，不能与 Desktop 内部传输混淆。 Desktop bundle 不包含 Office 转换与创建、麦克风处理、插件商店与调试、Open in App、Schedule、PTC workflow 和 Ralph；其 standard Agent preset 保留文件、Shell、Skill、子 Agent、后台任务、Plan Mode、Goal 和 Todo。Electron 内的浏览器 guest 仍在；Agent 浏览器和 computer-use 提供方作为默认禁用的 Desktop 条目随包分发，满足运行条件后可启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出当前 Desktop 包集合。
 
 | 目录 | 当前职责 |
 | --- | --- |

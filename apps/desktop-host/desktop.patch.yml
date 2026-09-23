@@ -16,3 +16,19 @@
     printUrl: false
     surfaceContext: false
     trustedHosts: []
+
+# Agent browser tools use a separate Chromium installation; the sidebar guest remains Electron-owned.
+- insert:
+    - id: browser-use
+      name: '@deepseek-ai/dsh-browser-use'
+    - id: browser-use-chrome-devtools
+      name: '@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp'
+      disabled: true
+      config:
+        mode: launch
+        headless: false
+    - id: computer-use
+      name: '@deepseek-ai/dsh-computer-use'
+    - id: computer-use-cua-driver
+      name: '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
+      disabled: true

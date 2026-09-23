@@ -10,11 +10,11 @@ Status: implemented
 
 ## 决策
 
-[文档渲染能力](../../../../packages/document/README.zh.md)将转换委托给独立发布的 `@deepseek-ai/libreoffice-kit` Node API。[kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)负责源码维护、兼容版本和 npm 分发。DSH 负责 Session 文件授权、转换并发、私有临时文件、输出限制和 Remote 传输。[Web bundle](../../../../packages/bundle/web-app/README.zh.md)使用稳定 ID 声明转换服务与共享文档预览入口。服务负责带授权的转换 Remote 方法，其描述符由 `api/remotes` 挂载；Office UI 共享文档预览的 Loader 生命周期。
+[文档渲染能力](../../../../packages/document/README.zh.md)将转换委托给独立发布的 `@deepseek-ai/libreoffice-kit` Node API。[kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)负责源码维护、兼容版本和 npm 分发。DSH 负责 Session 文件授权、转换并发、私有临时文件、输出限制和 Remote 传输。转换服务持有已授权转换的 Remote 方法，`api/remotes` 可挂载其描述符。Desktop 与共享 Web bundle 均不加载此可选提供方或旧的 Office 预览 Client。
 
-[平台引擎决策](2026-09-15-platform-office-engines.zh.md)要求使用 kit 已声明的原生目标引擎，未声明原生目标时使用 WASM。缺失或无效的必需引擎会拒绝转换。共享的[有界提供方](2026-09-15-bounded-office-conversion.zh.md)负责准入、转换复用以及持续到临时文件清理完成的取消。预览消费该提供方，不注册另一个转换器，也不依赖 Office 创作 skills。
+[平台引擎决策](2026-09-15-platform-office-engines.zh.md)要求使用 kit 已声明的原生目标引擎，未声明原生目标时使用 WASM。缺失或无效的必需引擎会拒绝转换。共享的[有界提供方](2026-09-15-bounded-office-conversion.zh.md)负责准入、转换复用以及持续到临时文件清理完成的取消。选择启用的 Host 可消费该提供方，无需注册另一个转换器或依赖 Office 创作 skills。
 
-服务和 Remote 方法接受 DOC、DOCX、XLS、XLSX、PPT 和 PPTX。Client PDF 预览通过此路径显示 Word 和 PowerPoint；[浏览器表格预览](../feature/2026-09-16-browser-excel-preview.zh.md)独立读取 XLSX、XLS、CSV 和 TSV。LibreOffice 导入前，kit 校验 OOXML 输入的有界 ZIP 成员和内容类型，以及二进制 Office 输入的 OLE 复合文件头。将文本改为 Office 后缀不能通过校验。kit 不提取二进制格式的字体表，因此这些格式不返回缺失字体诊断。kit 在调用方拥有的私有目录中独占创建新的 PDF。DSH 读取并校验完整输出后才删除临时文件。[服务的 Remote 方法](../../../../packages/document/office-to-pdf/README.zh.md)通过 [Workspace Files](2026-09-09-workspace-file-read-authority.zh.md)授权源文件访问，保留源路径和版本，并返回 PDF 字节。源文件读取上限与生成 PDF 上限相互独立。读取权限探测和延迟读取（包括超限失败后的复查）采用同一个源路径／版本快照，防止转换将字节发布到另一个源身份下。预览字节不会进入 Session 存储或持久缓存。
+服务和 Remote 方法接受 DOC、DOCX、XLS、XLSX、PPT 和 PPTX。此前的 Client Office 预览通过此路径显示 Word 和 PowerPoint；[浏览器表格预览](../feature/2026-09-16-browser-excel-preview.zh.md)独立读取 XLSX、XLS、CSV 和 TSV。LibreOffice 导入前，kit 校验 OOXML 输入的有界 ZIP 成员和内容类型，以及二进制 Office 输入的 OLE 复合文件头。将文本改为 Office 后缀不能通过校验。kit 不提取二进制格式的字体表，因此这些格式不返回缺失字体诊断。kit 在调用方拥有的私有目录中独占创建新的 PDF。DSH 读取并校验完整输出后才删除临时文件。[服务的 Remote 方法](../../../../packages/document/office-to-pdf/README.zh.md)通过 [Workspace Files](2026-09-09-workspace-file-read-authority.zh.md)授权源文件访问，保留源路径和版本，并返回 PDF 字节。源文件读取上限与生成 PDF 上限相互独立。读取权限探测和延迟读取（包括超限失败后的复查）采用同一个源路径／版本快照，防止转换将字节发布到另一个源身份下。预览字节不会进入 Session 存储或持久缓存。
 
 converter 复用首个转换 Worker 返回的字体元数据；原始字体缓冲区和解码后的字符覆盖范围仍只属于单次转换。Worker 读取字体时校验索引中的文件。已安装字体族的精确匹配优先于配置的替代字体，完整的字体族、样式、字重、斜体、宽度、字距、语言与码点请求保留各自的匹配结果。WASM 回调将包含完整字体集合的原始字体文件导入 MEMFS。原生引擎还保留各平台的字体发现能力。两条路径均不下载或安装字体；原生操作系统管理的字体内存不受显式导入预算约束。字体变化后，重新创建 converter 会刷新元数据。
 
@@ -22,13 +22,13 @@ kit 维护 serif、sans-serif 和 monospace 的默认优先组，其中包含中
 
 DSH 按可配置分辨率导出栅格图片，默认 192 DPI，对应共享 PDF 画布在设备像素比 2 时的 96 CSS DPI。文本与矢量仍可缩放；JSON 过滤选项替代隐式选项时，显式书签导出保留引擎默认行为。Node WASM 使用 LibreOffice 的 CPU 过滤器降采样图片。原生转换使用独立的平台引擎。
 
-[Office 查看器](../../../../packages/client/ui-sidebar-documentpreview/README.zh.md#office-preview)位于文档预览的 `client/office/` 目录，与其使用的加载生命周期、PDF 正文和读取器类型同属一个包。这些组件放在同一包中，既减少一个独立 UI 启动入口，也无需跨插件运行时导入。其有界缓存校验已授权的源元数据，在读取方之间共享待完成转换，仅在最后一个读取方离开时取消，不缓存失败，并在连接重置时清空。用户打开预览时才开始转换。缺失的已声明字体族随 PDF 返回，可通过文档工具栏的警告图标查看；字体表清单与无关的引擎默认字体不构成警告。共享预览入口的 `office` 缓存设置复用页面全局注入通道，因为模块启动图携带包标识而不传递 Loader 配置。重新加载页面后采用更新的 YAML 值。
+Document Preview Client 注册代码、Markdown、图片、PDF、电子表格及纯文本渲染器；Desktop 不再包含 Office 查看器和转换缓存。
 
 Office 响应使用 Typert 二进制结果投影和 Connection multipart 封装。Client 直接收到一个由 `ArrayBuffer` 支撑的 `Uint8Array`，不会生成 base64 字符串或单独的解码缓冲区。构建后的浏览器场景会同时验证 multipart 附件和 PDF Worker。缓存字节限制不约束临时传输或查看器内存。
 
 [kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)定义 npm 分发和随应用打包的离线转换。
 
-Desktop 通过现有的目标 Node pnpm 依赖安装流程安装 kit，并保留完整依赖树。Worker 路径和可执行权限仍由普通包文件承载。[Desktop 构建指南](../../../../apps/desktop/README.zh.md) 负责目标选择与打包；每个签名应用仍需在目标平台验收。
+选择使用转换提供方的消费者安装 kit 及目标引擎。Worker 路径与可执行权限仍按普通包文件处理。Desktop 打包闭包不包含 kit。
 
 [Python 可执行分发](2026-07-10-single-file-executable-sdk-runtime-distribution.zh.md)将 kit、目标引擎及其依赖闭包保留在可执行文件旁。安装后的 wheel 冒烟测试会迁移载荷，要求仅存在目标后端，并通过该引擎转换一次 DOCX。各平台的打包与发布限制由[平台引擎决策](2026-09-15-platform-office-engines.zh.md)说明。
 
@@ -62,4 +62,4 @@ Desktop 通过现有的目标 Node pnpm 依赖安装流程安装 kit，并保留
 
 原生与 WASM 的保真度仍取决于构建、源文件格式、已安装字体及平台字体发现。没有覆盖字体就无法恢复缺失字形。图片分辨率限额不限制图片解码或总进程内存。WASM 为大型字体集合和 CFF 字体保留有界内存增长与受检查的栈空间；致命运行时中止会阻止后续 C++ 清理调用。宏与文档链接更新由实际支持的 LOKit 选项和固定源码补丁禁用；这不构成操作系统沙箱。
 
-[提供方测试](../../../../packages/document/office-to-pdf/tests/provider.spec.ts)、[Loader 组合](../../../../packages/bundle/web-app/tests/document-preview.spec.ts)和[浏览器场景](../../../../apps/web/tests/document-preview.e2e.ts)负责 DSH 生命周期、授权与展示证据。引擎验收还需要真实 DOC/DOCX/XLS/XLSX/PPT/PPTX 转换、外部 PDF 文本、字体、页数与图片检查、迁移安装和损坏包拒绝，以及同输入的原生/WASM 性能样本。模拟辅助进程和微基准不能证明这些结果。各目标的真实构建机与 Desktop 安装包需要独立验收；一个本地架构成功不能证明整个矩阵。
+[提供方测试](../../../../packages/document/office-to-pdf/tests/provider.spec.ts)覆盖转换生命周期与授权。引擎验收还需要真实 DOC/DOCX/XLS/XLSX/PPT/PPTX 转换、外部 PDF 文本、字体、页数与图片检查、迁移安装和损坏包拒绝，以及同输入的原生/WASM 性能样本。模拟辅助进程和微基准不能证明这些结果。各目标的真实构建机与 Desktop 安装包需要独立验收；一个本地架构成功不能证明整个矩阵。

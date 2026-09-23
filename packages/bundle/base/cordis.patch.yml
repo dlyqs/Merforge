@@ -13,14 +13,6 @@
 # driven); the grouping is for readers.
 
 - insert:
-    - id: tool-plugin-manager
-      name: '@deepseek-ai/dsh-plugin-manager/tools'
-      disabled: true
-
-    - id: plugin-manager
-      name: '@deepseek-ai/dsh-plugin-manager'
-      disabled: !!js "!ctx.get('profileContext')"
-
     - id: timer
       name: '@deepseek-ai/cordis-plugin-timer'
 
@@ -70,9 +62,6 @@
 
     - id: agent
       name: '@deepseek-ai/dsh-agent'
-
-    - id: plugin-package-inventory-deepseek
-      name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 
     # The transport-independent default for Agents created by entry points.
     # Settings may supply a saved selection; consumers read it at creation time.
@@ -340,17 +329,6 @@
         toolName: subagent_fork
         backgroundMode: one-shot
 
-    - id: ptc-runtime
-      name: '@deepseek-ai/dsh-ptc-runtime-node'
-
-    - id: workflow-ptc
-      name: '@deepseek-ai/dsh-workflow-ptc'
-      config:
-        provider: spawn
-
-    - id: tool-workflow
-      name: '@deepseek-ai/dsh-tool-workflow'
-
     - id: timeout-policy
       name: '@deepseek-ai/dsh-tool-call-timeout-policy'
 
@@ -389,20 +367,6 @@
     # domain, driver, and `/goal` command are above.
     - id: tool-goal
       name: '@deepseek-ai/dsh-tool-goal'
-
-    # Fresh-agent Ralph iteration over a build-time-fixed script. Off by
-    # default: the tool description restricts `ralph` to runs the human
-    # explicitly asked for, and completion is a worker self-report, not an
-    # independent evaluation. An overlay row restores it for a base-backed
-    # profile (`$DSH_HOME/cordis.patch.yml`, or a `--patch <file>`):
-    #   - id: tool-ralph
-    #     disabled: false
-    - id: tool-ralph
-      name: '@deepseek-ai/dsh-tool-ralph'
-      disabled: true
-      config:
-        subagentProvider: spawn
-        maxRounds: 64
 
     # Consecutive-repeat reminders on the tool chain.
     - id: repeat-tool-reminder

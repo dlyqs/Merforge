@@ -1,8 +1,9 @@
 /** Desktop resource locations and signing-aware verification for the shared runtime builder. */
 
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { preparePrimaryRuntime as preparePayload, smokePrimaryRuntime as smokePayload } from '../../../scripts/primary-runtime/prepare.ts'
+import { preparePrimaryRuntime as preparePayload } from '../../../scripts/primary-runtime/prepare.ts'
 import { parsePrimaryRuntime, workspaceDependencyPaths } from '../../../packages/skill/tool-workspace-dependencies/src/index.ts'
 import { resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { scrubWindowsSigningEnvironment } from './windows-sign.mjs'
@@ -15,7 +16,8 @@ import { scrubWindowsSigningEnvironment } from './windows-sign.mjs'
 export async function preparePrimaryRuntime(options: { deferSmoke?: boolean } = {}): Promise<void> {
   const paths = resolveDesktopTargetBuildPaths()
   const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
-  await preparePayload({ target: resolveDesktopBuildTarget(), output: paths.runtime, cache: paths.downloads, version })
+  await preparePayload({ target: resolveDesktopBuildTarget(), output: paths.runtime, cache: paths.downloads, version,
+    officeSkills: false })
   if (!options.deferSmoke) smokePrimaryRuntime(join(paths.runtime, 'primary-runtime'))
 }
 
@@ -29,7 +31,16 @@ export function smokePrimaryRuntime(root: string): void {
   if (Object.keys(manifest.pythonPackages).length === 0) throw new Error('primary runtime: missing Python distribution versions; prepare the payload before running its smoke checks.')
   const entries = workspaceDependencyPaths(root, manifest)
   if (entries.node === undefined || entries.pnpm === undefined) throw new Error('primary runtime: the Desktop payload must declare node and pnpm components.')
-  smokePayload(root, scrubWindowsSigningEnvironment(process.env))
+  const environment = scrubWindowsSigningEnvironment(process.env)
+  execFileSync(entries.python, ['-I', '-B', '-c',
+    'import decimal, lzma, numpy, pandas; assert numpy.arange(4).sum() == 6'],
+  { stdio: 'inherit', timeout: 120_000, env: environment })
+  execFileSync(entries.python, ['-I', '-B', '-m', 'pip', 'check'],
+    { stdio: 'inherit', timeout: 120_000, env: environment })
+  execFileSync(entries.node, ['-e', `if (process.versions.node !== ${JSON.stringify(manifest.node)}) process.exit(1)`],
+    { stdio: 'inherit', timeout: 120_000, env: environment })
+  execFileSync(entries.node, [entries.pnpm, '--version'],
+    { stdio: 'inherit', timeout: 120_000, env: environment })
 }
 
 if (import.meta.main) await preparePrimaryRuntime()

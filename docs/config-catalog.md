@@ -534,19 +534,8 @@ Source: [`packages/client/ui-settings-models/src/onboarding-config.ts:6`](../pac
 ## `@deepseek-ai/dsh-client-ui-sidebar-documentpreview`
 
 ```ts config-catalog
-/** Transient Office conversion reuse within one Client connection. */
+/** Browser document preview limits. */
 export interface Config {
-  /** Retained PDF limits; pending conversions share cancellation by reader lifetime. */
-  office: {
-    /** Maximum retained completed PDFs. */
-    maxCachedEntries: number
-    /** Maximum retained PDF bytes, counted by each binary buffer's byteLength. */
-    maxCachedBytes: number
-    /** Maximum unsettled Host conversion RPCs, including cancellation teardown. */
-    maxPending: number
-    /** Maximum readers including source and renderer metadata lookups. */
-    maxReaders: number
-  }
   /** Browser spreadsheet parser and dense cell allocation limits. */
   excel: {
     /** Maximum source file bytes. */

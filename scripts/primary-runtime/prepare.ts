@@ -103,6 +103,8 @@ export interface PreparePrimaryRuntimeOptions {
   readonly version: string
   /** Omit Node.js and pnpm for carriers providing only Python. */
   readonly pythonOnly?: boolean
+  /** Whether to copy Office skill resources beside the interpreter payload. */
+  readonly officeSkills?: boolean
 }
 
 /**
@@ -162,9 +164,11 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
   } finally {
     rmSync(staging, { recursive: true, force: true })
   }
-  const require = createRequire(import.meta.url)
-  await prepareOfficeSkillAssets(join(dirname(require.resolve('@deepseek-ai/dsh-skill-office/package.json')), 'assets'),
-    join(paths.runtime, 'office-skills'))
+  if (options.officeSkills !== false) {
+    const require = createRequire(import.meta.url)
+    await prepareOfficeSkillAssets(join(dirname(require.resolve('@deepseek-ai/dsh-skill-office/package.json')), 'assets'),
+      join(paths.runtime, 'office-skills'))
+  }
 }
 
 /**

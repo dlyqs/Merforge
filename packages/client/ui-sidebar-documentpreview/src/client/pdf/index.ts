@@ -37,7 +37,7 @@ export function apply(ctx: Context): void {
 /**
  * Retain PDF viewing state for a document entry's tab lifetime.
  * @param ctx - owning registration context.
- * @returns the store and injection shared by ordinary and Office PDF registrations.
+ * @returns the store and injection used by PDF registrations.
  */
 export function pdfBodyRegistration(ctx: Context): {
   store: PdfStore

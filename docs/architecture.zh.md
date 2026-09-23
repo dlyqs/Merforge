@@ -28,8 +28,6 @@
 
 YAML 控制 HMR：base 启用仅监视配置的 `dsh-hmr`；Headless、SDK 和 ACP 禁用它；`sdk-minimal` 不包含它。Profile patch 覆盖这些默认值。HMR 协调监听和重载；启动器提供 profile 数据和就绪信号。
 
-base 提供用于 Web 和 Agent 的[插件管理器](../packages/boot/plugin-manager/README.zh.md)。
-
 要查看你的机器启动的配置树：
 
 ```sh
@@ -52,7 +50,7 @@ Python SDK 遵循相同的应用架构。其运行时 wheel 把普通 `dsh` CLI 
 
 [Electron 桌面应用](../apps/desktop/README.zh.md)在签名资源中携带生产运行时，独占 Merforge 主目录（`~/.merforge` 或 `MERFORGE_HOME`）下的 `profiles/desktop`。共享 profile helper 初始化文件、解析依赖，不替换 pnpm 拥有的包。旧版 Harness 主目录不受影响；公开 CLI 不能管理 Desktop profile。
 
-Electron 使用 Electron Node 模式启动私有 Desktop Host。Host 通过 app-boot 启动专用 profile 和内部 Web 应用。窗口加载打包 Web 资源，在启动注入后激活客户端插件。Web 负责 RPC 与流；桌面载体将页面连接到已认证的 Host。Node IPC 承载启动注入、就绪、错误与关闭。profile 配置可以覆盖默认端口 `19387`。壳 UI 通过内置 pnpm 执行插件事务。Desktop 不加载 official-services、Platform 账号 IPC 或默认 Session 上送；Desktop Host 是打包依赖闭包的根。
+Electron 使用 Electron Node 模式启动私有 Desktop Host。Host 通过 app-boot 启动专用 profile 和内部 Web 应用。窗口加载打包 Web 资源，在启动注入后激活客户端插件。Web 负责 RPC 与流；桌面载体将页面连接到已认证的 Host。Node IPC 承载启动注入、就绪、错误与关闭。profile 配置可以覆盖默认端口 `19387`。壳 UI 通过内置 pnpm 执行插件事务。Desktop 不加载 official-services、Platform 账号 IPC、默认 Session 上送、Office 转换或插件商店；Desktop Host 是打包依赖闭包的根。Browser 侧栏保留 Electron guest；Agent 浏览器和 computer-use 提供方位于闭包内，但 profile 条目默认禁用，用户满足浏览器和系统权限条件后可启用。
 
 ## 核心包
 

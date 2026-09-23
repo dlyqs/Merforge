@@ -10,6 +10,17 @@
   disabled: true
 
 - insert:
+    - id: ptc-runtime
+      name: '@deepseek-ai/dsh-ptc-runtime-node'
+
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
     - id: sdk-app-startup
       name: '@deepseek-ai/dsh-sdk-app'
       config:

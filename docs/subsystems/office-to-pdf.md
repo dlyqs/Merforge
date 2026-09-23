@@ -9,8 +9,6 @@ The [document package family](../../packages/document/README.md) converts Office
 | Owner | Responsibility |
 |---|---|
 | [office-to-pdf](../../packages/document/office-to-pdf/README.md) | `ctx.officeToPdf`: shared LibreOffice conversion, bounded admission, and PDF caching |
-| [Web bundle](../../packages/bundle/web-app/README.md) | One configurable conversion provider shared by Host consumers |
-| [Office preview Client](../../packages/client/ui-sidebar-documentpreview/README.md#office-preview) | Office extension selection, PDF reuse, and missing-font notices |
 
 ## Requests and results
 
@@ -33,11 +31,11 @@ The provider admits the deferred read before allocating source bytes, shares con
 
 The `officeToPdf.render` Remote method checks source authorization and versions through the Session's [Workspace Files](../../packages/api/workspace-files/README.md) service. After conversion admission, `fs.readBytes` supplies raw input within the reserved byte capacity; Office input limits govern this read. The binary Remote projects the PDF into a multipart attachment and restores an `ArrayBuffer`-backed `Uint8Array` on the Client. Source access failures pass through; size and engine failures expose a classified reason without diagnostics. Conversion does not activate an Agent or append events.
 
-The `api/remotes` assembly mounts the conversion service's generated Remote descriptor. The shared Document Preview package registers Office formats with complete-byte loading and its existing PDF.js Worker. Each preview read rechecks renderer generation, source authorization, and version before sharing an in-flight conversion or cached PDF. Connection resets and plugin disposal cancel requests and clear cached bytes. Missing services show localized configuration guidance.
+The `api/remotes` assembly can mount the conversion service’s generated Remote descriptor when a Host loads the provider. The Desktop and shared Web compositions do not load the provider or an Office preview Client.
 
 ## Engine selection and limits
 
-The external [`@deepseek-ai/libreoffice-kit`](https://github.com/deepseek-harness/libreoffice-kit) Node API selects its precompiled engines. The kit has an independent version and release workflow, defined by the [release ownership decision](../../.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.md). Application builds install the published npm packages. Application packaging requires the target’s declared native engine, or Node WASM when the kit declares no native engine for that target. The [platform engine decision](../../.agents/notes/implemented/architecture/2026-09-15-platform-office-engines.md) defines installation and packaging. Invalid metadata, missing required assets, and conversion errors reject without switching engines. Conversion uses disk input and output paths on the Host, with no browser conversion engine or font RPC.
+The external [`@deepseek-ai/libreoffice-kit`](https://github.com/deepseek-harness/libreoffice-kit) Node API selects its precompiled engines. The kit has an independent version and release workflow, defined by the [release ownership decision](../../.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.md). Consumers that opt into this provider install the published npm packages. Their packaging requires the target’s declared native engine, or Node WASM when the kit declares no native engine for that target. The [platform engine decision](../../.agents/notes/implemented/architecture/2026-09-15-platform-office-engines.md) defines installation and packaging. Invalid metadata, missing required assets, and conversion errors reject without switching engines. Conversion uses disk input and output paths on the Host, with no browser conversion engine or font RPC.
 
 The [Host provider configuration](../../packages/document/office-to-pdf/README.md#use-this-package) owns concurrency, deadlines, input/output limits, archive limits, image resolution, and font access. Native/WASM implementation and asset distribution belong to the kit workspace. System LibreOffice discovery, runtime engine downloads, persistent PDF caching, and model-facing rendering are outside this provider.
 
