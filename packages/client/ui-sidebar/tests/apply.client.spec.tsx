@@ -65,7 +65,7 @@ describe('ui-sidebar apply', () => {
     expect(b.slots.entries('sidebar')).toHaveLength(1)
     expect(b.slots.spec('sidebar.brand.mark')).toEqual({ kind: 'single', scope: 'root' })
     expect(b.slots.spec('sidebar.brand.name')).toEqual({ kind: 'single', scope: 'root' })
-    expect(b.slots.spec('sidebar.workspaces')).toEqual({ kind: 'single', scope: 'root' })
+    expect(b.slots.spec('sidebar.personal')).toEqual({ kind: 'single', scope: 'root' })
     expect(b.slots.spec('sidebar.settings')).toEqual({ kind: 'single', scope: 'root' })
     expect(b.slots.spec('sidebar.footer.action')).toEqual({ kind: 'list', scope: 'root' })
     expect(b.slots.spec('sidebar.panellist')).toEqual({ kind: 'list', scope: 'root' })
@@ -81,11 +81,9 @@ describe('ui-sidebar apply', () => {
     expect(Object.keys(injected)).toEqual(['startSession', 'toggleSidebar', 'selectPanel', 'hooks'])
     expect(injected.hooks.panels.getSnapshot()).toEqual([])
     expect(b.slots.entries('main')).toEqual([])
-    // Both arms delegate to the Workspace UI's shared New Session action.
-    injected.startSession('workspace' as never)
-    expect(b.uiWorkspace.startSession).toHaveBeenCalledWith('workspace')
+    // New Session starts without assigning a Project or Bot.
     injected.startSession()
-    expect(b.uiWorkspace.startSession).toHaveBeenLastCalledWith(undefined)
+    expect(b.uiWorkspace.startSession).toHaveBeenCalledWith()
     injected.toggleSidebar()
     expect(b.layout.toggleSidebar).toHaveBeenCalledOnce()
     const panelId = 'custom-panel' as MainPanelId

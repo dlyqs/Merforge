@@ -10696,6 +10696,138 @@
       }
     },
     {
+      "key": "event:personal/affiliation",
+      "kind": "event",
+      "event": "personal/affiliation",
+      "surface": false,
+      "digest": "e9932c19363360162533c6f4a1ce3f9ad5bd9702a1b70bf2f8b83aecaeb205d6",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 9,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 11,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "from",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "to",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "bot",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "project",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "create"
+          },
+          {
+            "kind": "literal",
+            "value": "delete"
+          },
+          {
+            "kind": "literal",
+            "value": "move"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "personal/affiliation"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:plan/mode",
       "kind": "event",
       "event": "plan/mode",
@@ -41736,6 +41868,36 @@
       ]
     },
     {
+      "digest": "4185cd9e2508010c668aa0452964123b5dbac3691ae1b3b4a687de619534c2e6",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "create"
+          },
+          {
+            "kind": "literal",
+            "value": "delete"
+          },
+          {
+            "kind": "literal",
+            "value": "move"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "4208123b50df5006b181481ab45fcf1cde807b88d3fd4d340090bc2e202fac41",
       "schema": {
         "root": 0,
@@ -44605,10 +44767,12 @@
         "packages/webhook/webhook/src/brand.ts#WebhookDeliveryId",
         "packages/webhook/webhook/src/brand.ts#WebhookRuleId",
         "packages/webhook/webhook/src/brand.ts#WebhookSourceId",
-        "packages/workflow/workflow/src/types.ts#WorkflowRunId"
+        "packages/workflow/workflow/src/types.ts#WorkflowRunId",
+        "packages/workspace/personal-project/src/types.ts#BotId",
+        "packages/workspace/personal-project/src/types.ts#ProjectId"
       ],
       "sources": [
-        "packages/api/session-controller/src/types.ts:396",
+        "packages/api/session-controller/src/types.ts:442",
         "packages/attachment/attachment/src/brand.ts:6",
         "packages/compaction/compaction/src/brand.ts:4",
         "packages/core/session/src/types.ts:20",
@@ -44630,7 +44794,9 @@
         "packages/webhook/webhook/src/brand.ts:12",
         "packages/webhook/webhook/src/brand.ts:6",
         "packages/webhook/webhook/src/brand.ts:9",
-        "packages/workflow/workflow/src/types.ts:13"
+        "packages/workflow/workflow/src/types.ts:13",
+        "packages/workspace/personal-project/src/types.ts:6",
+        "packages/workspace/personal-project/src/types.ts:8"
       ]
     },
     {
@@ -58191,7 +58357,7 @@
       },
       "names": [],
       "sources": [
-        "packages/api/session-controller/src/types.ts:401"
+        "packages/api/session-controller/src/types.ts:447"
       ]
     },
     {
@@ -61678,7 +61844,7 @@
       },
       "names": [],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:40"
+        "packages/skill/tool-skill/src/index.ts:41"
       ]
     },
     {
@@ -63865,6 +64031,20 @@
       "sources": [
         "packages/core/tools/src/index.ts:34"
       ]
+    },
+    {
+      "digest": "9049e44a7cd62704329a9fac4e7b38644d6c410f0b4b0fbac4c98f9e46c102a8",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "personal/affiliation"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "904bf499d98be4a3a5f836fcac533b6c4899569b018071e6604e1d32657d00fd",
@@ -70980,6 +71160,39 @@
       ]
     },
     {
+      "digest": "b0b7b7f4d127101c49bfd0128e6f37c4627ebbc8baddf5b2e9edff1dac8c84b8",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          }
+        ]
+      },
+      "names": [],
+      "sources": [
+        "packages/workspace/personal-project/src/types.ts:48",
+        "packages/workspace/personal-project/src/types.ts:49"
+      ]
+    },
+    {
       "digest": "b158f3ff6923714807c0d73882f0b05dc87f8fa85c9e90814852d48bbc866081",
       "schema": {
         "root": 0,
@@ -73722,6 +73935,93 @@
       "sources": [
         "packages/workflow/workflow/src/types.ts:110"
       ]
+    },
+    {
+      "digest": "c33ab56af099b3756e5271ecd13c3f4f95ec385a717b283ff0d2a24592e0557a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "from",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "to",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "bot",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "project",
+                "type": 2,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "create"
+          },
+          {
+            "kind": "literal",
+            "value": "delete"
+          },
+          {
+            "kind": "literal",
+            "value": "move"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "c43b119ce579b3e9983a0d3adc4ba402ebb9ba773d89738a2dab01ecf5813943",
@@ -83220,6 +83520,56 @@
       "sources": []
     },
     {
+      "digest": "e95cf22f67942c97b2321bed398b19483fc2b09d257a4cd34a7e73d683d6eff8",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "bot",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "project",
+                "type": 1,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          }
+        ]
+      },
+      "names": [
+        "packages/workspace/personal-project/src/types.ts#AffiliationSnapshot"
+      ],
+      "sources": [
+        "packages/workspace/personal-project/src/types.ts:47"
+      ]
+    },
+    {
       "digest": "e95f957154b2b1b58692af53d4131180b6dd19e2264869f876dbaa959991494e",
       "schema": {
         "root": 0,
@@ -83227,6 +83577,136 @@
           {
             "kind": "literal",
             "value": "assistant/attempt"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e9932c19363360162533c6f4a1ce3f9ad5bd9702a1b70bf2f8b83aecaeb205d6",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 9,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 11,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "from",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "to",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "bot",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "project",
+                "type": 3,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "name",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "create"
+          },
+          {
+            "kind": "literal",
+            "value": "delete"
+          },
+          {
+            "kind": "literal",
+            "value": "move"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "personal/affiliation"
           }
         ]
       },
@@ -86750,7 +87230,7 @@
         "packages/api/session-controller/src/types.ts#ModelSelection"
       ],
       "sources": [
-        "packages/api/session-controller/src/types.ts:100"
+        "packages/api/session-controller/src/types.ts:101"
       ]
     },
     {
@@ -90459,6 +90939,20 @@
       "sources": []
     },
     {
+      "digest": "fa58424a95eecb0a595985bc5d70bfaecde11f8c4b050580bb83e5d5fdcf3482",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "move"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "fa87537f4a9c1e25602990a8bf686b383e9e00352ec8946e16ae24ba7c1625be",
       "schema": {
         "root": 0,
@@ -93921,7 +94415,7 @@
         "packages/skill/tool-skill/src/index.ts#SkillCatalogSource"
       ],
       "sources": [
-        "packages/skill/tool-skill/src/index.ts:34"
+        "packages/skill/tool-skill/src/index.ts:35"
       ]
     },
     {

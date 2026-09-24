@@ -6,7 +6,9 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { errorChain } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, errorChain } from '@deepseek-ai/dsh-llm'
+import { PersonalProjectRegistry } from '@deepseek-ai/dsh-personal-project'
+import type { BotId, BotModel, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
 import { canOpenNativePath, nativeFileManager, nativeFileApplications, openNativeFileApplication, openNativeAssociatedPath, revealNativePath } from '@deepseek-ai/dsh-native-command'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -61,6 +63,13 @@ import type {
   SessionProjectionValues,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
+  PersonalProjectCreateRequest,
+  PersonalProjectUpdateRequest,
+  PersonalBotCreateRequest,
+  PersonalBotUpdateRequest,
+  PersonalRecordsValue,
+  SessionAffiliationMoveRequest,
+  SessionAffiliationValue,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -272,6 +281,130 @@ export class SessionController extends TypertRemoteService {
   @Remote('create')
   create(request: SessionCreateRequest): Promise<SessionCreateValue> {
     return this.commands.create(request)
+  }
+
+  private personal(): PersonalProjectRegistry {
+    const registry = this.ctx.get('personalProjects')
+    if (registry === undefined) throw new Error('personal Project and Bot service is unavailable')
+    return registry
+  }
+
+  /** List current personal records for the Client data surface.
+   * @returns Project and Bot records.
+   */
+  @Remote('personalList')
+  personalList(): PersonalRecordsValue {
+    const registry = this.personal()
+    return { projects: registry.listProjects(), bots: registry.listBots() }
+  }
+
+  /** Create a Project with an identity independent of Workspace.
+   * @param request - validated Project fields.
+   * @returns the stored Project.
+   */
+  @Remote('personalCreateProject')
+  personalCreateProject(request: PersonalProjectCreateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').Project> {
+    return this.personal().createProject(request)
+  }
+
+  /** Edit the current Project metadata.
+   * @param request - Project ID and changed fields.
+   * @returns the updated Project.
+   */
+  @Remote('personalUpdateProject')
+  personalUpdateProject(request: PersonalProjectUpdateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').Project> {
+    const { id, ...patch } = request
+    return this.personal().updateProject(id, patch)
+  }
+
+  /** Remove one Project while retaining every Session and its history.
+   * @param id - Project to remove.
+   * @returns whether the Project existed.
+   */
+  @Remote('personalDeleteProject')
+  personalDeleteProject(id: ProjectId): Promise<boolean> {
+    return this.personal().deleteProject(id, sessionId => this.personalSession(sessionId))
+  }
+
+  /** Create a user-authored Bot profile.
+   * @param request - Bot fields without credentials.
+   * @returns the stored Bot profile.
+   */
+  @Remote('personalCreateBot')
+  async personalCreateBot(request: PersonalBotCreateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').BotProfile> {
+    await this.validateBotModel(request.defaultModel)
+    return this.personal().createBot(request)
+  }
+
+  /** Edit a Bot profile for subsequent requests.
+   * @param request - Bot ID and changed fields.
+   * @returns the updated Bot profile.
+   */
+  @Remote('personalUpdateBot')
+  async personalUpdateBot(request: PersonalBotUpdateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').BotProfile> {
+    if (request.defaultModel !== null) await this.validateBotModel(request.defaultModel)
+    const { id, ...patch } = request
+    return this.personal().updateBot(id, patch)
+  }
+
+  /** Remove one Bot while retaining every Session and its history.
+   * @param id - Bot to remove.
+   * @returns whether the Bot existed.
+   */
+  @Remote('personalDeleteBot')
+  personalDeleteBot(id: BotId): Promise<boolean> {
+    return this.personal().deleteBot(id, sessionId => this.personalSession(sessionId))
+  }
+
+  /** Read one Session's current affiliation and transitions without copying it.
+   * @param sessionId - Session to inspect.
+   * @returns its current affiliation and history.
+   */
+  @Remote('personalAffiliation')
+  async personalAffiliation(sessionId: SessionId): Promise<SessionAffiliationValue> {
+    const state = await this.inspect(sessionId)
+    return { affiliation: PersonalProjectRegistry.fold(state.events) }
+  }
+
+  /** Move a Session's Project and/or Bot reference in its own event log.
+   * @param request - Session ID and changed affiliation fields.
+   * @returns the committed affiliation projection.
+   */
+  @Remote('personalMove')
+  async personalMove(request: SessionAffiliationMoveRequest): Promise<SessionAffiliationValue> {
+    const session = await this.personalSession(request.sessionId)
+    const current = this.personal().affiliation(session).current
+    const affiliation = this.personal().move(session, {
+      ...(request.projectId === undefined
+        ? current.projectId === undefined ? {} : { projectId: current.projectId }
+        : request.projectId === null ? {} : { projectId: request.projectId }),
+      ...(request.botId === undefined
+        ? current.botId === undefined ? {} : { botId: current.botId }
+        : request.botId === null ? {} : { botId: request.botId }),
+    })
+    await this.ctx.sessions.flush(session)
+    return { affiliation }
+  }
+
+  private async personalSession(sessionId: SessionId): Promise<import('@deepseek-ai/dsh-session').Session> {
+    const resolved = await this.agents.resolveAgent(sessionId)
+    if ('error' in resolved) throw resolved.error
+    return resolved.agent.session
+  }
+
+  private async validateBotModel(model: BotModel | undefined): Promise<void> {
+    if (model === undefined) return
+    try {
+      await this.ctx.llm.resolveCallConfig({
+        provider: model.provider, model: model.model,
+        ...(model.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(model.reasoningEffort) }),
+      })
+    } catch (error) {
+      this.ctx.logger.warn(`personal-bot model-route-rejected provider=${model.provider} model=${model.model}`)
+      throw new RemoteError('session/model-unavailable', error instanceof Error ? error.message : String(error), {
+        provider: model.provider, model: model.model,
+      })
+    }
   }
 
   /**

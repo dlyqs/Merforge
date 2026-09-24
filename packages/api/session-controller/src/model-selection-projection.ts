@@ -19,6 +19,7 @@ const modelSelectionSchema = z.object({
 const modelSelectionProjectionStateSchema = z.object({
   lastUsed: modelSelectionSchema.nullable(),
   pending: modelSelectionSchema.nullable(),
+  explicit: modelSelectionSchema.nullable(),
 }) as z.ZodType<ModelSelectionProjectionState>
 
 const modelSelectionProjectionSchema = z.object({
@@ -39,7 +40,7 @@ function applyModelSelectionProjection(
   if (event.type === 'model/selection') {
     return sameSelection(state.pending, event.data)
       ? state
-      : { lastUsed: state.lastUsed, pending: event.data }
+      : { lastUsed: state.lastUsed, pending: event.data, explicit: event.data }
   }
   if (event.type !== 'request/header') return state
   const lastUsed: ModelSelection = {
@@ -52,19 +53,19 @@ function applyModelSelectionProjection(
   const pending = sameSelection(state.pending, lastUsed) ? null : state.pending
   return sameSelection(state.lastUsed, lastUsed) && pending === state.pending
     ? state
-    : { lastUsed, pending }
+    : { lastUsed, pending, explicit: state.explicit }
 }
 
 const modelSelectionProjection = {
   key: 'modelSelection',
   stateSchema: modelSelectionProjectionStateSchema,
-  init: () => ({ lastUsed: null, pending: null }),
+  init: () => ({ lastUsed: null, pending: null, explicit: null }),
   apply: applyModelSelectionProjection,
   wire: {
     viewSchema: modelSelectionProjectionSchema,
     view: state => ({ lastUsed: state.lastUsed, next: state.pending ?? state.lastUsed }),
   },
-  stateVersion: 2,
+  stateVersion: 3,
 } satisfies ProjectionDefinition<'modelSelection', ModelSelectionProjectionState>
 
 function sameSelection(left: ModelSelection | null, right: ModelSelection | null): boolean {

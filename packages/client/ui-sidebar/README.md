@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-The dsh web client sidebar lets users recognize the active build, start a new session, collapse navigation to a 56px rail, browse Workspaces and Sessions, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session uses an explicitly selected Workspace, then the current Session's Workspace, then the most recently active Workspace; if none exists, it opens a blank New Session page. Deployments can replace the brand mark or name while retaining the navigation controls and rail geometry.
+The dsh web client sidebar lets users recognize the active build, start a new session, collapse navigation to a 56px rail, browse Project and Bot conversations, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session creates an ordinary conversation without Project or Bot affiliation. Deployments can replace the brand mark or name while retaining the navigation controls and rail geometry.
 
 ## Table of Contents
 
@@ -23,11 +23,11 @@ The dsh web client sidebar lets users recognize the active build, start a new se
 <a id="use-this-package"></a>
 ## Use this package
 
-The sidebar is the navigation shell: users see the brand, start new sessions, collapse the rail, and reach Settings. Feature plugins fill its seats — ui-workspace fills `sidebar.workspaces`, ui-settings registers the trigger row and settings panel at `sidebar.settings`.
+The sidebar is the navigation shell: users see the brand, start new sessions, collapse the rail, and reach Settings. Feature plugins fill its seats — ui-personal fills `sidebar.personal` with the two direct sections, and ui-settings registers the trigger row and settings panel at `sidebar.settings`.
 
 ### Brand and New Session
 
-The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as independent single slots; the collapsed rail renders the same mark slot. Without occupants, the shell uses the fish mark and a localized local-build label. A complete build stacks a code badge below the label as `version[-commit][-dirty]`, using `DSH_CLIENT_VERSION`, the optional 7-character `DSH_CLIENT_COMMIT_HASH`, and `DSH_CLIENT_GIT_DIRTY=true`; missing version metadata omits the badge. New Session targets the explicit Workspace used by a scoped action, otherwise the current Session's Workspace, otherwise the most recently active Workspace; when none exists it clears into the blank New Session page.
+The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as independent single slots; the collapsed rail renders the same mark slot. Without occupants, the shell uses the fish mark and a localized local-build label. A complete build stacks a code badge below the label as `version[-commit][-dirty]`, using `DSH_CLIENT_VERSION`, the optional 7-character `DSH_CLIENT_COMMIT_HASH`, and `DSH_CLIENT_GIT_DIRTY=true`; missing version metadata omits the badge. New Session creates and opens an ordinary Session without Project or Bot affiliation.
 
 ### Global panel entries
 
@@ -47,7 +47,7 @@ Under `html[data-platform='darwin']` (set only by the desktop preload) the expan
 
 ### Scrollbars
 
-Scrollbars in the column are a pointer affordance: the shell rebinds the scrollbar indirection to `transparent` whenever the pointer is outside the column and keeps the thumb drawn for 2s after the pointer leaves, so a list nobody is pointing at carries no bar. The reservation that keeps rows from moving belongs to the scrolling region (ui-workspace), so revealing a thumb never reflows.
+Scrollbars in the column are a pointer affordance: the shell rebinds the scrollbar indirection to `transparent` whenever the pointer is outside the column and keeps the thumb drawn for 2s after the pointer leaves, so a list nobody is pointing at carries no bar. The scrolling region reserves space so revealing a thumb does not move rows.
 
 -----
 
@@ -57,7 +57,7 @@ Scrollbars in the column are a pointer affordance: the shell rebinds the scrollb
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The shell is pure composition: `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the declared brand, the `sidebar.workspaces` and `sidebar.settings` child slots, and injected navigation callbacks. Panel entries and their optional titles use the same composition path. Panel metadata is derived from list registrations and locale changes; selection belongs to the layout store.
+The shell is pure composition: `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the declared brand, the `sidebar.personal` and `sidebar.settings` child slots, and injected navigation callbacks. Panel entries and their optional titles use the same composition path. Panel metadata is derived from list registrations and locale changes; selection belongs to the layout store.
 
 ### Slot discipline
 
@@ -72,7 +72,8 @@ Declaration-aware `slots.inject()` lets a replacing package activate before or a
 
 These pages cover the surfaces that fill the shell's seats and the composition model.
 
-- [ui-workspace](../ui-workspace/README.md) — the Workspace and Session browser rendered into `sidebar.workspaces`.
+- [ui-workspace](../ui-workspace/README.md) — Session navigation and archive services used by the sidebar.
+- [ui-personal](../ui-personal/README.md) — Project/Bot navigation rendered into `sidebar.personal`.
 - [ui-settings](../ui-settings/README.md) — the settings domain base registering the trigger row at `sidebar.settings`.
 - [ui-layout](../ui-layout/README.md) — the layout owner whose rail and column state the collapse uses.
 - [ui-theme](../ui-theme/README.md) — the scrollbar token indirection the shell rebinds.
@@ -96,8 +97,8 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define what the shell owns versus what its occupants own; they are current package constraints.
 
-- **Session state-dot rendering is owned by ui-workspace** — no done/error notification sources are available to this shell.
-- **Workspace browser behavior is composition-owned** — grouping, ordering, search, and row state belong to ui-workspace, not this shell.
+- **Session state-dot rendering is owned by ui-personal** — no done/error notification sources are available to this shell.
+- **Project and Bot browsing is composition-owned** — membership, row actions, and state belong to ui-personal, not this shell.
 - **"New task completed" unread marking is local viewing state** — completion-time > last-seen never reaches the host.
 
 <a id="dev-note"></a>

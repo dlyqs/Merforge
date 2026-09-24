@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { act } from '@testing-library/react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { RemoteMock } from '@deepseek-ai/dsh-remote-mock'
+import { RemoteMock, ok } from '@deepseek-ai/dsh-remote-mock'
 import { TestClient, remoteDefaultResponses, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 describe('assembled renderer connection recovery', () => {
   it('keeps the mounted root across a transport reconnect', async () => {
     const mock = RemoteMock.create().load(remoteDefaultResponses)
+    mock.remote.session.personalList.mockResolvedValue(ok({ projects: [], bots: [] }))
+    mock.stream('workspace/follow', () => {})
     const client = await TestClient.start({ roster: webApp }, mock, { mount: true })
     onTestFinished(() => client.dispose())
     const root = client.container!.querySelector('[data-slot="root"]')

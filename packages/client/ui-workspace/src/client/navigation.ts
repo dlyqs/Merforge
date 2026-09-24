@@ -18,7 +18,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { RowToast } from './contract/slots.ts'
-import { en, zh } from './locales.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
 
@@ -183,17 +182,17 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       const summary = sessions.byId[id]
       if (summary === undefined || !summary.blank || summary.cwd !== workspace.path
         || !workspace.sessionIds.includes(id) || archived.includes(id)) continue
-      return this.reuseBlank(workspace.workspaceId, id)
+      return this.reuseBlank(workspace.path, id)
     }
-    return this.sessions.create({ workspaceId: workspace.workspaceId })
+    return this.sessions.create({ cwd: workspace.path })
   }
 
-  private async reuseBlank(workspaceId: WorkspaceId, sessionId: SessionId): Promise<SessionId> {
+  private async reuseBlank(path: string, sessionId: SessionId): Promise<SessionId> {
     try {
-      return await this.sessions.create({ workspaceId, sessionId })
+      return await this.sessions.create({ cwd: path, sessionId })
     } catch (error: unknown) {
       if (sessionCreateErrorOf(error)?.rpcError.code !== 'session/writer-held') throw error
-      return this.sessions.create({ workspaceId })
+      return this.sessions.create({ cwd: path })
     }
   }
 
@@ -221,23 +220,18 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   startSession(workspaceId?: WorkspaceId): void {
-    const workspace = this.workspaces.list.getSnapshot()
-    const sessions = this.sessions.list.getSnapshot()
-    const current = this.mainReference?.sessionId
-    const currentWorkspaceId = current === undefined
-      ? undefined
-      : workspace.items.find(item => item.sessionIds.includes(current))?.workspaceId
-    const recent = workspace.phase === 'ready' && sessions.phase === 'ready'
-      ? recentWorkspace(workspace.items, sessions.byId)
-      : undefined
-    const target = workspaceId ?? currentWorkspaceId ?? recent
-    if (target === undefined) {
-      this.clearMain()
+    if (workspaceId !== undefined) {
+      void this.openWorkspace(workspaceId).catch(
+        (reason: unknown) => { console.warn('new session failed:', reason) },
+      )
       return
     }
-    void this.openWorkspace(target).catch(
-      (reason: unknown) => { console.warn('new session failed:', reason) },
-    )
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    void this.sessions.create({}).then((sessionId) => {
+      if (!navigation.aborted) this.replaceMain(sessionId, navigation, 'reveal')
+    }).catch((reason: unknown) => {
+      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(reason) })
+    })
   }
 
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
@@ -332,31 +326,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     let sessionId: SessionId | undefined
     if (summary !== undefined && workspace !== undefined && summary.cwd === workspace.path
       && !workspaces.archivedSessionIds.includes(summary.id)) {
-      sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
+      sessionId = await this.reuseBlank(workspace.path, summary.id)
     }
-    let target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
-    if (target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
-      const prepared = await this.initializeDefaultWorkspace(navigation)
-      if (navigation.aborted) return
-      target = prepared?.workspaceId
-    }
-    if (sessionId === undefined && target !== undefined) sessionId = await this.connectWorkspace(target)
-    if (sessionId !== undefined && !navigation.aborted) {
+    if (sessionId === undefined) sessionId = await this.sessions.create({})
+    if (!navigation.aborted) {
       this.replaceMain(sessionId, navigation, 'preserve')
-    }
-  }
-
-  private async initializeDefaultWorkspace(signal: AbortSignal): Promise<WorkspaceView | undefined> {
-    const language = this.ctx.locale.getSnapshot().active.toLowerCase().split('-')[0]
-    const title = (language === 'zh' ? zh : en)['defaultWorkspace.title']
-    try {
-      return await this.workspaces.initializeDefault({
-        directoryName: language === 'zh' || language === 'en' ? title : 'default-workspace',
-        title,
-      }, signal)
-    } catch (_error: unknown) {
-      if (!signal.aborted) this.notify({ kind: 'defaultWorkspaceFailed' })
-      return undefined
     }
   }
 
@@ -431,25 +405,4 @@ function creationFailureMessage(error: unknown): string {
 }
 
 /** Stable tie-breaking follows Host Workspace order. */
-function recentWorkspace(
-  workspaces: readonly WorkspaceView[],
-  sessions: SessionListState['byId'],
-): WorkspaceId | undefined {
-  let selected: WorkspaceId | undefined
-  let selectedTime = Number.NEGATIVE_INFINITY
-  for (const workspace of workspaces) {
-    let latest = Number.NEGATIVE_INFINITY
-    for (const sessionId of workspace.sessionIds) {
-      const session = sessions[sessionId]
-      if (session !== undefined) latest = Math.max(latest, session.updatedAt)
-    }
-    if (latest === Number.NEGATIVE_INFINITY) latest = Date.parse(workspace.createdAt)
-    if (selected === undefined || latest > selectedTime) {
-      selected = workspace.workspaceId
-      selectedTime = latest
-    }
-  }
-  return selected
-}
-
 export { UiWorkspaceService }

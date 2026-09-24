@@ -733,6 +733,7 @@ export type ToolGuard = (execution: Readonly<ToolExecution>) => string | undefin
 class ToolLayer implements ScopeLayer {
   readonly tools: NamedEntries<ToolDefinition>
   readonly restrictions = new AnonymousEntries<CompiledToolRestriction>()
+  readonly visibility = new AnonymousEntries<(name: string) => boolean>()
   readonly guards = new AnonymousEntries<ToolGuard>()
   /**
    * Presentation this scope's agent declared for itself, shadowing the
@@ -749,7 +750,7 @@ class ToolLayer implements ScopeLayer {
 
   /** Whether every contribution table in this aggregate layer is empty. */
   isEmpty(): boolean {
-    return this.tools.isEmpty() && this.restrictions.isEmpty() && this.guards.isEmpty()
+    return this.tools.isEmpty() && this.restrictions.isEmpty() && this.visibility.isEmpty() && this.guards.isEmpty()
       && this.mode === undefined
   }
 
@@ -1123,6 +1124,22 @@ export class ToolRuntime extends Service {
   }
 
   /**
+   * Filter one agent's model-visible and callable tools using current policy.
+   * The predicate also covers tools registered in that agent's own scope;
+   * `run_code` remains a transport for permitted inner tools.
+   * @param admits - return whether the named end-capability is visible now.
+   * @returns the disposer for this scoped filter.
+   */
+  filterVisible(admits: (name: string) => boolean): () => void {
+    if (scopeOf(this.ctx) === undefined) throw new Error('tools.filterVisible() requires a scoped context (agent.ctx)')
+    return this.layers.effect(
+      this.ctx,
+      layer => layer.visibility.append(admits),
+      { label: 'tools.filterVisible()' },
+    )
+  }
+
+  /**
    * Register a monotonic guard after the extensible `tools/pre-execute`
    * waterfall. A plain-context guard applies globally; one registered through
    * `agent.ctx` applies only to that agent. Any matching guard may deny by
@@ -1205,6 +1222,10 @@ export class ToolRuntime extends Service {
         knownNames.add(name)
         visible.set(name, definition)
       }
+    }
+    const visibility = layers.flatMap(layer => [...layer.visibility.values()])
+    for (const name of visible.keys()) {
+      if (visibility.some(admits => !admits(name))) visible.delete(name)
     }
     // Presentation infrastructure is resolved last and outside capability
     // filtering. Registration rejects this reserved name, so the insertion is

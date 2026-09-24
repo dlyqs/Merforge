@@ -873,7 +873,7 @@ describe('create', () => {
   it('publishes a created identity without implicitly retaining its binding', async ({ bench }) => {
     const b = bench()
     b.mock.remote.session.create.mockResolvedValue(ok({ sessionId: sid('born') }))
-    const born = await b.svc.create({ workspaceId: 'ws' as never })
+    const born = await b.svc.create({ cwd: '/project' })
     // Synchronously after resolution — the draft hand-off contract: the
     // create echo IS the entity entering the client's view (blank row +
     // catalog publication), no notifier flush in between.
@@ -885,25 +885,6 @@ describe('create', () => {
     expect(b.svc.binding(born)).toBe(reference.binding)
   })
 
-  it('lists the published id after Workspace attachment fails (publication precedes attachment)', async ({ bench }) => {
-    const b = bench()
-    b.mock.remote.session.create.mockResolvedValue(err(new RemoteError(
-      'session/workspace-attach-failed',
-      'ledger unavailable',
-      { sessionId: sid('published'), workspaceId: 'ws' },
-    )))
-    const failure = await b.svc.create({
-      workspaceId: 'ws' as never,
-      sessionId: sid('published'),
-    }).catch((error: unknown) => error)
-    await Promise.resolve()
-    expect(failure).toBeInstanceOf(SessionCreateError)
-    expect(failure).toMatchObject({
-      requestedSessionId: 'published',
-      rpcError: { code: 'session/workspace-attach-failed' },
-    })
-    expect(b.svc.list.getSnapshot().byId[sid('published')]).toMatchObject({ id: 'published', blank: true })
-  })
 })
 
 describe('fork', () => {

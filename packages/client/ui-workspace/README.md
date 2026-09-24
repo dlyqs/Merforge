@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-This package lets users browse grouped or flat Session lists, choose a Workspace for a new Session, and manage Workspaces and Sessions through add, rename, reorder, search, fork, archive, and Workspace deletion; the Session row menu and its hover buttons are slot lists that client plugins extend. Pending interactions appear as warning dots, active scheduled tasks as alarm markers, and subagent-origin Sessions remain hidden. Canonically distinct folder paths remain separate Workspaces. Adding a Workspace requires a composed directory picker; without one, the add action is unavailable.
+The Desktop uses this package's Session navigation, archive/pin operations, and directory picker. Project is the only directory-bearing personal entity, and `ui-personal` renders the two direct Project and Bot sections. The Workspace browser and picker described below are old source paths whose slots are not declared by the Desktop shell; they are not a third product section or a Project storage layer.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ This package lets users browse grouped or flat Session lists, choose a Workspace
 <a id="use-this-package"></a>
 ## Use this package
 
-Use the sidebar to browse Workspaces and their Sessions, reorder them, and start new ones; use the picker in the Session Intent hero to choose a Workspace for a new session. An open Workspace shows five idle, non-blank Sessions by default. Running Sessions, including parents with running children, remain visible in their ordered positions without using that quota; the selected blank **New Session** is also an extra row until its first prompt. Each **Show more** click reveals up to five more idle Sessions; after the final batch, **Show less** restores the initial rows while keeping running Sessions visible. Closing and reopening the Workspace also restores this folded projection.
+The current Desktop sidebar uses `ui-personal` for Project and Bot browsing. The remaining sections document the old Workspace browser implementation for source maintenance; its browsing slots are not mounted in the Desktop composition.
 
 ### Reordering and view options
 
@@ -69,9 +69,7 @@ Navigation and startup restoration obtain the selected Session's projections fro
 
 New Session tries to acquire the first eligible blank in catalog order; startup restoration tries the saved blank. If that writer is held, navigation creates a new Session without trying other blanks. Other acquisition failures abort the request: an explicit New Session or hero Workspace pick shows the failure as a transient notice quoting the Host's code and message (for example a preset that fails to mount) or, for a failure that is not a Host refusal, that failure's own message; a request a later navigation or owner disposal superseded raises no notice, and startup restoration reports only to the console. Released blanks retain their slash-command state when reused. Later navigation cancels a pending startup selection.
 
-Once both Workspace and Session startup baselines are ready, an empty installation calls `workspaces.initializeDefault` and creates or reuses its blank Session. The composer becomes editable when that Session is selected; no message is submitted automatically. Later navigation or owner disposal prevents startup from selecting its result. Ineligible first use leaves the folder picker available without an error. Default Workspace creation failure shows a transient notice directing the user to Choose workspace, and is not retried until the next startup. Session creation failures use the ordinary restoration error handling. The registered Workspace remains available if Session creation or later submission fails.
-
-The Client chooses the initial directory name and title from its language at startup: Chinese uses `默认工作区`, English uses `Default workspace`, and other languages use directory `default-workspace` with title `Default workspace`. The request retains those names during initialization. A successfully initialized Workspace keeps its directory and title across language changes.
+On an empty installation, startup creates a plain Session without a Project or Bot. Project creation and optional directory selection happen in `ui-personal`; startup does not create a Workspace.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation

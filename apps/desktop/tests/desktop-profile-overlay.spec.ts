@@ -18,7 +18,8 @@ describe('Desktop product overlay', () => {
     ]) {
       expect(rows.find(row => row.id === id), id).toBeUndefined()
     }
-    for (const id of ['session-persistence-jsonl', 'credentials', 'webserver', 'connection', 'ui-conversation']) {
+    for (const id of ['session-persistence-jsonl', 'credentials', 'webserver', 'connection', 'ui-conversation',
+      'personal-project', 'personal-project-runtime', 'ui-personal']) {
       expect(rows.find(row => row.id === id)?.disabled, id).not.toBe(true)
     }
     expect(rows.find(row => row.id === 'web-startup')?.disabled).toBe(true)

@@ -102,6 +102,8 @@ This section explains how the package realizes the behavior above; the observabl
 
 The registry holds typed `ToolDefinition`s in scoped layers and projects them onto the model-facing `ToolSchema` set at request time — `output`, `execute`, `finalizeContent`, `timeoutMs`, and presentation callbacks never leak onto the wire. Every call runs a fixed pipeline: `tools/pre-execute` (extensible allow/deny/ask) → registered monotonic guards → `tools/execute` (around-dispatch wrappers) → `tools/post-execute` (inspect/replace, attach context) → definition-owned `finalizeContent` → the observe-only `tools/result` event. Only the `tools/execute` view may replace the required signal, and the registry re-fuses the caller signal before the body.
 
+An agent scope may register `tools.filterVisible(admits)` to apply a live end-capability policy to inherited and scope-owned tools. One filtered view feeds native schemas, PTC SDK declarations, lookup, and dispatch; the reserved `run_code` transport stays visible in PTC mode while its inner calls use the filtered view. A `tools.guard()` should also reject forbidden execution after `tools/pre-execute` policy, including calls that were prepared before the visibility policy changed.
+
 ### Source map
 
 | File | Role |

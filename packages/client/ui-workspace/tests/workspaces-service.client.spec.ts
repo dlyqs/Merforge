@@ -166,7 +166,7 @@ class FakeSessions implements ISessions {
   constructor(initial: SessionListState) {
     this.list = new MutableSource(initial)
     this.create = vi.fn<ISessions['create']>(async options =>
-      options?.sessionId ?? sid(`created-${String(options?.workspaceId ?? 'none')}`))
+      options?.sessionId ?? sid(`created-${options?.cwd?.split('/').at(-1) ?? 'none'}`))
   }
 }
 
@@ -307,110 +307,37 @@ function bench(options: BenchOptions = {}) {
 }
 
 describe('UiWorkspaceService', () => {
-  it.each([
-    ['zh', '默认工作区', '默认工作区'],
-    ['en', 'Default workspace', 'Default workspace'],
-    ['fr', 'default-workspace', 'Default workspace'],
-  ])('prepares and selects the default Workspace after both startup baselines (%s)', async (language, directoryName, title) => {
-    const b = bench({ language, configureWorkspaces: (workspaces) => {
-      workspaces.initializeDefault.mockImplementation(async () => {
-        const item = workspace('default')
-        workspaces.list.set(workspaceState([item]))
-        return item
-      })
-    } })
-    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
+  it('starts an ordinary Session after both startup catalogs are ready', async () => {
+    const b = bench()
     b.sessions.list.set(sessionState())
-    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
+    expect(b.sessions.create).not.toHaveBeenCalled()
     b.workspaces.list.set(workspaceState())
     await vi.waitFor(() => {
-      expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-default'), { source: 'mainView' })
+      expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-none'), { source: 'mainView' })
     })
-    expect(b.workspaces.initializeDefault).toHaveBeenCalledExactlyOnceWith({ directoryName, title }, expect.any(AbortSignal))
-    expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: wid('default') })
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({})
+    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
     expect(b.notify).not.toHaveBeenCalled()
   })
 
-  it('leaves an ineligible empty installation without a Session or failure notice', async () => {
-    const b = bench({ workspaces: workspaceState(), sessions: sessionState() })
-    await setImmediate()
-    b.workspaces.list.set(workspaceState())
-    b.sessions.list.set(sessionState())
-    await setImmediate()
-    expect(b.workspaces.initializeDefault).toHaveBeenCalledOnce()
-    expect(b.sessions.create).not.toHaveBeenCalled()
-    expect(b.notify).not.toHaveBeenCalled()
-  })
-
-  it('requires explicit selection when the startup Session list contains history', async () => {
+  it('starts an ordinary Session when history exists but no selection was saved', async () => {
     const b = bench({ workspaces: workspaceState(), sessions: sessionState([summary('history')]) })
-    await setImmediate()
-    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
-    expect(b.sessions.create).not.toHaveBeenCalled()
-  })
-
-  it('publishes a startup directory failure once without creating a Session', async () => {
-    const b = bench({ workspaces: workspaceState(), sessions: sessionState(), configureWorkspaces: (workspaces) => {
-      workspaces.initializeDefault.mockRejectedValueOnce(new Error('denied'))
-    } })
-    await vi.waitFor(() => { expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'defaultWorkspaceFailed' }) })
-    b.workspaces.list.set(workspaceState())
-    await setImmediate()
-    expect(b.workspaces.initializeDefault).toHaveBeenCalledOnce()
-    expect(b.sessions.create).not.toHaveBeenCalled()
-    expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'defaultWorkspaceFailed' })
-  })
-
-  it.each(['session', 'panel', 'disposal'] as const)('cancels startup directory preparation after %s navigation', async (kind) => {
-    const pending = Promise.withResolvers<WorkspaceView>()
-    const b = bench({ workspaces: workspaceState(), sessions: sessionState(), configureWorkspaces: (workspaces) => {
-      workspaces.initializeDefault.mockReturnValueOnce(pending.promise)
-    } })
-    if (kind === 'session') b.uiWorkspace.openSession(sid('manual'))
-    else if (kind === 'panel') b.layout.selectPanel('other-panel' as MainPanelId)
-    else await b.ctx.fiber.dispose()
-    expect(b.workspaces.initializeDefault.mock.calls[0]![1]?.aborted).toBe(true)
-    pending.resolve(workspace('default'))
-    await setImmediate()
-    expect(b.sessions.create).not.toHaveBeenCalled()
-    expect(b.sessions.retain.mock.calls.map(args => args[0])).toEqual(kind === 'session' ? [sid('manual')] : [])
-    expect(b.notify).not.toHaveBeenCalled()
-  })
-
-  it.each(['session', 'panel', 'disposal'] as const)('suppresses a startup directory failure after %s navigation', async (kind) => {
-    const pending = Promise.withResolvers<WorkspaceView>()
-    const b = bench({ workspaces: workspaceState(), sessions: sessionState(), configureWorkspaces: (workspaces) => {
-      workspaces.initializeDefault.mockReturnValueOnce(pending.promise)
-    } })
-    if (kind === 'session') b.uiWorkspace.openSession(sid('manual'))
-    else if (kind === 'panel') b.layout.selectPanel('other-panel' as MainPanelId)
-    else await b.ctx.fiber.dispose()
-    pending.reject(new Error('late failure'))
-    await setImmediate()
-    expect(b.sessions.create).not.toHaveBeenCalled()
-    expect(b.notify).not.toHaveBeenCalled()
-  })
-
-  it.each([false, true])('reports Session failure without a directory error and retains the Workspace (superseded: %s)', async (superseded) => {
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const created = Promise.withResolvers<SessionId>()
-    const b = bench({ workspaces: workspaceState(), sessions: sessionState(), configureWorkspaces: (workspaces) => {
-      workspaces.initializeDefault.mockImplementationOnce(async () => {
-        const item = workspace('default')
-        workspaces.list.set(workspaceState([item]))
-        return item
-      })
-    }, configureSessions: (sessions) => { sessions.create.mockReturnValueOnce(created.promise) } })
-    await vi.waitFor(() => { expect(b.sessions.create).toHaveBeenCalledOnce() })
-    if (superseded) b.layout.selectPanel('other-panel' as MainPanelId)
-    const failure = new Error('session failed')
-    created.reject(failure)
     await vi.waitFor(() => {
-      expect(warning).toHaveBeenCalledExactlyOnceWith('initial Session restoration failed:', failure)
+      expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-none'), { source: 'mainView' })
     })
-    expect(b.workspaces.list.getSnapshot().items).toEqual([workspace('default')])
-    expect(b.notify).not.toHaveBeenCalled()
-    expect(b.sessions.retain).not.toHaveBeenCalled()
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({})
+  })
+
+  it('does not select a startup Session after another navigation wins', async () => {
+    const pending = Promise.withResolvers<SessionId>()
+    const b = bench({
+      workspaces: workspaceState(), sessions: sessionState(),
+      configureSessions: (sessions) => { sessions.create.mockReturnValueOnce(pending.promise) },
+    })
+    b.uiWorkspace.openSession(sid('manual'))
+    pending.resolve(sid('created-none'))
+    await setImmediate()
+    expect(b.sessions.retain.mock.calls.map(([id]) => id)).toEqual([sid('manual')])
   })
 
   it('retains an explicit main target before revealing its Conversation', () => {
@@ -447,7 +374,7 @@ describe('UiWorkspaceService', () => {
     const b = bench({ workspaces: workspaceState([workspace('a'), workspace('b')]) })
     const first = Promise.withResolvers<SessionId>()
     const second = Promise.withResolvers<SessionId>()
-    b.sessions.create.mockImplementation(options => options?.workspaceId === wid('a') ? first.promise : second.promise)
+    b.sessions.create.mockImplementation(options => options?.cwd === '/w/a' ? first.promise : second.promise)
     const prepareA = vi.fn()
     const prepareB = vi.fn()
     const openingA = b.uiWorkspace.openWorkspace(wid('a'), prepareA)
@@ -639,7 +566,7 @@ describe('UiWorkspaceService', () => {
       workspaces: workspaceState([workspace('a', [sid('blank')]), workspace('b', [sid('archived')])], [sid('archived')]),
     })
     await expect(b.uiWorkspace.connectWorkspace(wid('a'))).resolves.toBe(sid('blank'))
-    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('a'), sessionId: sid('blank') })
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ cwd: '/w/a', sessionId: sid('blank') })
     b.sessions.create.mockClear()
     b.sessions.retain.mockClear()
     const created = Promise.withResolvers<SessionId>()
@@ -687,56 +614,20 @@ describe('UiWorkspaceService', () => {
     expect(b.notify).toHaveBeenCalledTimes(3)
   })
 
-  it('uses only an explicit Workspace or the recent-Workspace policy for new Sessions', async () => {
-    const current = summary('current', { cwd: '/w/current-home', updatedAt: 1 })
-    const recent = summary('recent', { cwd: '/w/recent-home', updatedAt: 2 })
+  it('starts an ordinary Session unless an explicit directory target was requested', async () => {
     const b = bench({
-      sessions: sessionState([current, recent]),
-      workspaces: workspaceState([
-        workspace('old'),
-        workspace('current-home', [current.id]),
-        workspace('recent-home', [recent.id]),
-      ]),
+      sessions: sessionState([summary('current', { cwd: '/w/a' })]),
+      workspaces: workspaceState([workspace('a', [sid('current')])]),
     })
-    b.uiWorkspace.startSession(wid('old'))
+    b.uiWorkspace.startSession(wid('a'))
     await vi.waitFor(() => {
-      expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-old'), { source: 'mainView' })
+      expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-a'), { source: 'mainView' })
     })
-    b.uiWorkspace.openSession(current.id)
     b.uiWorkspace.startSession()
     await vi.waitFor(() => {
-      expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-current-home'), { source: 'mainView' })
+      expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-none'), { source: 'mainView' })
     })
-    const recentOnly = bench({
-      sessions: sessionState([current, recent]),
-      workspaces: workspaceState([
-        workspace('current-home', [current.id]),
-        workspace('recent-home', [recent.id]),
-      ]),
-    })
-    recentOnly.uiWorkspace.startSession()
-    await vi.waitFor(() => {
-      expect(recentOnly.sessions.retain).toHaveBeenLastCalledWith(sid('created-recent-home'), { source: 'mainView' })
-    })
-    b.sessions.create.mockRejectedValueOnce(new Error('create failed'))
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    b.uiWorkspace.startSession(wid('recent-home'))
-    await vi.waitFor(() => { expect(warning).toHaveBeenCalledWith('new session failed:', expect.any(Error)) })
-    const empty = bench()
-    empty.uiWorkspace.startSession()
-    expect(empty.selectPanel).toHaveBeenCalledWith(null)
-
-    const missingMember = bench({
-      sessions: sessionState(),
-      workspaces: workspaceState([
-        workspace('older', [sid('missing')], '2026-01-01T00:00:00.000Z'),
-        workspace('newer', [], '2026-02-01T00:00:00.000Z'),
-      ]),
-    })
-    missingMember.uiWorkspace.startSession()
-    await vi.waitFor(() => {
-      expect(missingMember.sessions.create).toHaveBeenCalledWith({ workspaceId: wid('newer') })
-    })
+    expect(b.sessions.create.mock.calls.at(-1)).toEqual([{}])
   })
 
   it('releases a prepared Workspace target when synchronous preparation supersedes it', async () => {
@@ -753,7 +644,7 @@ describe('UiWorkspaceService', () => {
     expect(b.sessions.retained[1]!.release).not.toHaveBeenCalled()
   })
 
-  it('opens the most recent Workspace after both startup catalogs become ready', async () => {
+  it('starts an ordinary Session after both startup catalogs become ready', async () => {
     const b = bench()
     b.workspaces.list.set(workspaceState([
       workspace('newest', [], '2026-03-01T00:00:00.000Z'),
@@ -762,7 +653,7 @@ describe('UiWorkspaceService', () => {
     ]))
     b.sessions.list.set(sessionState())
     await vi.waitFor(() => {
-      expect(b.sessions.retain).toHaveBeenCalledWith(sid('created-newest'), { source: 'mainView' })
+      expect(b.sessions.retain).toHaveBeenCalledWith(sid('created-none'), { source: 'mainView' })
     })
   })
 
@@ -788,9 +679,9 @@ describe('UiWorkspaceService', () => {
       workspaces: workspaceState([workspace('a', [sid('saved')])], archived ? [sid('saved')] : []),
     })
     await vi.waitFor(() => {
-      expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-a'), { source: 'mainView' })
+      expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-none'), { source: 'mainView' })
     })
-    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('a') })
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({})
   })
 
   it('restores a saved ungrouped blank directly', () => {
@@ -814,7 +705,7 @@ describe('UiWorkspaceService', () => {
       workspaces: workspaceState([workspace('a', [sid('other'), sid('saved')])]),
       configureSessions: (sessions) => { sessions.create.mockReturnValue(acquired.promise) },
     })
-    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('a'), sessionId: sid('saved') })
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ cwd: '/w/a', sessionId: sid('saved') })
     expect(b.sessions.retain).not.toHaveBeenCalled()
     acquired.resolve(sid('saved'))
     await vi.waitFor(() => {
@@ -844,8 +735,8 @@ describe('UiWorkspaceService', () => {
       await expect(b.uiWorkspace.connectWorkspace(wid('a'))).resolves.toBe(sid('created-a'))
     }
     expect(b.sessions.create.mock.calls).toEqual([
-      [{ workspaceId: wid('a'), sessionId: sid('held') }],
-      [{ workspaceId: wid('a') }],
+      [{ cwd: '/w/a', sessionId: sid('held') }],
+      [{ cwd: '/w/a' }],
     ])
   })
 
@@ -920,10 +811,10 @@ describe('UiWorkspaceService', () => {
     })
   })
 
-  it('settles empty startup without creating a Session on later catalog updates', () => {
+  it('settles empty startup with one ordinary Session on later catalog updates', () => {
     const b = bench({ sessions: sessionState(), workspaces: workspaceState() })
     b.workspaces.list.set(workspaceState([workspace('a')]))
-    expect(b.sessions.create).not.toHaveBeenCalled()
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({})
   })
 
   it('clears a selected blank archived by a catalog update without reconnecting', () => {

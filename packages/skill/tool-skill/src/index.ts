@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-personal-project'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionSeq, type UserMessage } from '@deepseek-ai/dsh-session'
@@ -138,6 +139,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (!isModelInvocable(summary)) {
         throw new Error(`skill "${args.name}" is not available for model invocation`)
       }
+      if (exec.agent !== undefined && ctx.get('personalProjects')?.allowsSkill(exec.agent.session, args.name) === false) {
+        throw new Error(`skill "${args.name}" is not allowed by the current Bot`)
+      }
       const skill = await ctx.skills.get(args.name, lookup)
       if (!skill) {
         throw new Error(`skill "${args.name}" is unknown or no longer available`)
@@ -186,6 +190,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     const lookup = { cwd: agent.session.header.cwd, signal, scope: agent }
     const injections: UserMessage[] = []
     for (const name of names) {
+      if (ctx.get('personalProjects')?.allowsSkill(agent.session, name) === false) continue
       const skill = await ctx.skills.get(name, lookup)
       signal.throwIfAborted()
       // Unknown names and user-disabled skills stay plain prose: the
@@ -223,7 +228,8 @@ export function apply(ctx: Context, config: Config = {}): void {
       : { skills: [], complete: true }
     signal.throwIfAborted()
     if (!snapshot.complete) return decision
-    const skills = snapshot.skills.filter(isModelInvocable)
+    const skills = snapshot.skills.filter(skill => isModelInvocable(skill)
+      && ctx.get('personalProjects')?.allowsSkill(agent.session, skill.name) !== false)
     const entries = catalogSourceEntries(skills, catalogDescriptionMaxLength)
     const digest = digestCatalogEntries(entries)
     const history = catalogHistory(agent)

@@ -3,7 +3,7 @@ import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
-import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { BotId, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import { SESSION_SEARCH_RESULT_LIMIT } from '../../types.ts'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import {
@@ -424,11 +424,16 @@ export class ClientSessions implements ISessions {
   /**
    * Create a Host Session and publish its catalog row before resolving.
    * Callers retain the returned identity before borrowing its binding.
-   * @param opts - target workspace or directory and an optional preallocated id.
+   * @param opts - target Project, Bot, or directory and an optional preallocated id.
    * @returns the new session id.
    * @throws {SessionCreateError} with the requested id.
    */
-  async create(opts: { workspaceId?: WorkspaceId; cwd?: string; sessionId?: SessionId } = {}): Promise<SessionId> {
+  async create(opts: {
+    projectId?: ProjectId
+    botId?: BotId
+    cwd?: string
+    sessionId?: SessionId
+  } = {}): Promise<SessionId> {
     const result = await this.manager.create(opts)
     if (!result.ok) throw new SessionCreateError(result.error, opts.sessionId)
     this.projectList()

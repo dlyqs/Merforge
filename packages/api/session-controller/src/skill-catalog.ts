@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
+import type {} from '@deepseek-ai/dsh-personal-project'
 import { SessionQueryError } from '@deepseek-ai/dsh-session-query'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
@@ -37,6 +38,7 @@ export class SessionSkillCatalog extends TypertRemoteService {
     const { sessionId } = request
     let cwd: string | undefined
     let agentPreset: string | undefined
+    let allowedSkills: readonly string[] | undefined
     try {
       using observation = await this.ctx.sessionQuery.observeSession(sessionId)
       if (observation.projections === undefined) {
@@ -44,6 +46,12 @@ export class SessionSkillCatalog extends TypertRemoteService {
       }
       cwd = observation.header.cwd
       agentPreset = observation.projections.values.agentPreset ?? undefined
+      const botId = observation.projections.values.personalAffiliation?.current.botId
+      if (botId !== undefined) {
+        const bot = this.ctx.get('personalProjects')?.getBot(botId)
+        if (bot === undefined) throw new Error(`Bot "${botId}" is unavailable for skill listing`)
+        allowedSkills = bot.allowedSkills
+      }
     } catch (error: unknown) {
       if (error instanceof SessionQueryError
         && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
@@ -74,7 +82,8 @@ export class SessionSkillCatalog extends TypertRemoteService {
     await using lease = live === undefined ? await this.scopeFor(agentPreset) : undefined
     const scope = live ?? lease?.key
     try {
-      const skills = (await skillRegistry.list({ cwd, scope })).filter(isUserInvocable)
+      const skills = (await skillRegistry.list({ cwd, scope }))
+        .filter(skill => isUserInvocable(skill) && (allowedSkills === undefined || allowedSkills.includes(skill.name)))
       return {
         skills: skills.map(skill => ({
           name: skill.name,

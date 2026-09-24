@@ -8,6 +8,7 @@ import type {
 } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-personal-project'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
@@ -290,10 +291,28 @@ export class ApiSessionAgentController {
     let picked = projectionState.pending === null
       ? undefined
       : agentModelSelection(projectionState.pending)
+    let explicit = projectionState.explicit === null
+      ? undefined
+      : agentModelSelection(projectionState.explicit)
     const defaultModel = this.ctx.agentDefaultModel
+    const context = this.ctx
     const selection: InstalledSelection = {
       get current(): AgentModelSelection {
         if (picked !== undefined) return picked
+        if (explicit !== undefined) return explicit
+        const personal = context.get('personalProjects')
+        if (personal !== undefined) {
+          const botId = personal.affiliation(agent.session).current.botId
+          if (botId !== undefined) {
+            const bot = personal.getBot(botId)
+            if (bot === undefined) throw new Error(`Bot "${botId}" is unavailable for model selection`)
+            if (bot.defaultModel !== undefined) return agentModelSelection({
+              provider: bot.defaultModel.provider,
+              model: bot.defaultModel.model,
+              ...(bot.defaultModel.reasoningEffort === undefined ? {} : { reasoningEffort: bot.defaultModel.reasoningEffort }),
+            })
+          }
+        }
         const loggedHeader = agent.session.requestHeader()
         if (loggedHeader === undefined) return defaultModel.currentSelection()
         const logged = loggedHeader.config
@@ -315,6 +334,7 @@ export class ApiSessionAgentController {
         if (picked?.provider !== provider
           || picked.model !== model
           || picked.reasoningEffort !== reasoningEffort) return false
+        explicit = picked
         picked = undefined
         return true
       },

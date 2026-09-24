@@ -45,6 +45,12 @@
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
 
+    - id: personal-project
+      name: '@deepseek-ai/dsh-personal-project'
+
+    - id: personal-project-runtime
+      name: '@deepseek-ai/dsh-personal-project/runtime'
+
     - id: session-reference
       name: '@deepseek-ai/dsh-session-reference'
 
@@ -251,6 +257,8 @@
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
+    - id: ui-personal
+      name: '@deepseek-ai/dsh-client-ui-personal'
 
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the reference sources (ui-skill / ui-reference).

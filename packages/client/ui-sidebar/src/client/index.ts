@@ -31,8 +31,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 const NS = 'sidebar'
 
-interface WorkspaceNavigation {
-  startSession(workspaceId?: Parameters<SidebarRootInjected['startSession']>[0]): void
+interface SessionNavigation {
+  startSession(): void
 }
 
 /** Services required by the sidebar plugin. */
@@ -42,7 +42,7 @@ export const inject = ['slots', 'layout', 'uiWorkspace', 'locale']
  * @param ctx - Client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
+  const sessionNavigation = ctx.get('uiWorkspace') as unknown as SessionNavigation
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-sidebar: dictionaries')
   const panels = createSnapshotStore<readonly SidebarPanelMetadata[]>([])
   const syncPanels = (): void => {
@@ -62,9 +62,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.subscribe(syncPanels), 'ui-sidebar: panel labels')
 
   const injectProps = (): SidebarRootInjected => ({
-    // The shell's New Session button rides the Workspace UI's shared action
-    // (current Session Workspace, then recent Workspace).
-    startSession: (workspaceId) => { workspaceNavigation.startSession(workspaceId) },
+    startSession: () => { sessionNavigation.startSession() },
     toggleSidebar: () => { ctx.layout.toggleSidebar() },
     selectPanel: (id) => { ctx.layout.selectPanel(id) },
     hooks: { panels },
@@ -77,7 +75,7 @@ export function apply(ctx: ClientContext): void {
       'sidebar.brand.name': { kind: 'single', scope: 'root' },
       'sidebar.toggle.badge': { kind: 'single', scope: 'root' },
       'sidebar.panellist': { kind: 'list', scope: 'root' },
-      'sidebar.workspaces': { kind: 'single', scope: 'root' },
+      'sidebar.personal': { kind: 'single', scope: 'root' },
       'sidebar.settings': { kind: 'single', scope: 'root' },
       'sidebar.footer.action': { kind: 'list', scope: 'root' },
     },

@@ -40,7 +40,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-attachment/`](ui-attachment/README.md) | Registers composer and message-image attachment presentation | — |
 | [`ui-layout/`](ui-layout/README.md) | Arranges the main application regions | — |
 | [`ui-dockkit/`](ui-dockkit/README.md) | Provides docking layout operations and React components | — |
-| [`ui-sidebar/`](ui-sidebar/README.md) | Presents workspace and session navigation | — |
+| [`ui-sidebar/`](ui-sidebar/README.md) | Hosts direct Project/Bot and session navigation seats | — |
 | [`ui-sidebar-right/`](ui-sidebar-right/README.md) | Owns the right Sidebar and its tab types | `ctx.sidebarRight`, `ctx.sidebarRightTabs` |
 | [`ui-sidebar-documentpreview/`](ui-sidebar-documentpreview/README.md) | Displays documents in right Sidebar tabs | `ctx.documentPreviews` |
 | [`ui-sidebar-browser/`](ui-sidebar-browser/README.md) | Browses sandboxed HTTP(S) pages, including loopback services, in right-Sidebar tabs | — |
@@ -48,6 +48,7 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-sidebar-files/`](ui-sidebar-files/README.md) | Right-Sidebar workspace file tree tab type | — |
 | [`ui-brand-official/`](ui-brand-official/README.md) | Fills the generic browser-brand slots with the official name and marks | — |
 | [`ui-workspace/`](ui-workspace/README.md) | Provides workspace selection and creation surfaces | — |
+| [`ui-personal/`](ui-personal/README.md) | Presents personal Project and Bot navigation over shared Sessions | — |
 | [`ui-conversation/`](ui-conversation/README.md) | Presents the active conversation and its input surface | — |
 | [`ui-chat/`](ui-chat/README.md) | Projects and renders the Chat conversation target | — |
 | [`ui-approval/`](ui-approval/README.md) | Presents approval requests and returns user decisions | — |

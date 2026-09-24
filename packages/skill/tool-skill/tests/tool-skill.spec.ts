@@ -234,6 +234,42 @@ describe('dsh-tool-skill', () => {
     expect(seenSignal).toBe(controller.signal)
   })
 
+  it('applies current Bot Skill permission to catalog, loader, and user invocation', async () => {
+    const home = await tempDir('bot-skill-policy')
+    const ctx = await setup(home)
+    ctx.skills.register({ name: 'allowed-skill', description: 'Allowed', source: 'runtime', content: 'Allowed body.' })
+    ctx.skills.register({ name: 'denied-skill', description: 'Denied', source: 'runtime', content: 'Denied body.' })
+    let allowed = new Set(['allowed-skill'])
+    ctx.provide('personalProjects', { allowsSkill: (_session: Session, name: string) => allowed.has(name) } as never)
+    const agent = agentForCwd(home)
+    await fireStep(ctx, agent, 1, 1)
+    expect(catalogMessages(agent.session).at(-1)?.data.source).toMatchObject({
+      entries: [{ name: 'allowed-skill', description: 'Allowed' }],
+    })
+
+    const denied = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('bot-denied'), name: 'skill',
+      arguments: { name: 'denied-skill' }, agent,
+    })
+    expect(denied.isError).toBe(true)
+    expect(denied.content).toEqual([{ type: 'text', text: 'Error: skill "denied-skill" is not allowed by the current Bot' }])
+    const gesture = createUserMessage({ content: [{ type: 'text', text: '/denied-skill proceed' }], source: { kind: 'user' } })
+    const decision = await proposeStep(ctx, agent, [gesture])
+    if (decision.kind !== 'enter') throw new Error('expected enter')
+    expect(decision.messages.some(message => message.source.kind === 'skill-invocation')).toBe(false)
+
+    allowed = new Set(['denied-skill'])
+    await fireStep(ctx, agent, 1, 2)
+    expect(catalogMessages(agent.session).at(-1)?.data.source).toMatchObject({
+      entries: [{ name: 'denied-skill', description: 'Denied' }],
+    })
+    const permitted = await ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('bot-permitted'), name: 'skill',
+      arguments: { name: 'denied-skill' }, agent,
+    })
+    expect(permitted.isError).toBe(false)
+  })
+
   it('injects a stable durable name-and-description catalog at the first step', async () => {
     const home = await tempDir('tool-catalog')
     const ctx = await setup(home, { catalogDescriptionMaxLength: 50 })

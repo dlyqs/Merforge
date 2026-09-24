@@ -2,14 +2,13 @@
  * Sidebar slot contract: the registrant-side props composition for the
  * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
  * owns column geometry, the brand row, New Session, and global panel rows;
- * everything between the workspace section header and the list bottom is the
- * `sidebar.workspaces` registrant's (ui-workspace), and the foot is the
+ * the browsing region belongs to the `sidebar.personal` registrant
+ * (ui-personal), and the foot is the
  * `sidebar.settings` registrant's (ui-settings), followed by optional footer
  * actions in `sidebar.footer.action`.
  */
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -39,6 +38,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registers the browser.
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /** Project and Bot navigation in the sidebar browsing region. */
+    'sidebar.personal': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
     /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
@@ -115,11 +116,9 @@ export interface SidebarFooterActionOwnerProps {
  */
 export type SidebarRootInjected = {
   /**
-   * Start a New Session: with a workspace, reuse-or-create its blank session
-   * and open it; without one, inherit the current Session Workspace, then the
-   * recent Workspace, or clear into the New Session pure view when none exist.
+   * Start a new ordinary Session without Project or Bot affiliation.
    */
-  startSession: (workspaceId?: WorkspaceId) => void
+  startSession: () => void
   /** Toggle the sidebar column through the layout service. */
   toggleSidebar: () => void
   /** Select the global panel addressed by a sidebar row. */
@@ -140,7 +139,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.name'
     | 'sidebar.toggle.badge'
     | 'sidebar.panellist'
-    | 'sidebar.workspaces'
+    | 'sidebar.personal'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

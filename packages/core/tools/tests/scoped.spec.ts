@@ -201,6 +201,26 @@ describe('restrict()', () => {
   })
 })
 
+describe('filterVisible()', () => {
+  it('tracks current policy for global and scope-owned tools in presentation and dispatch', async () => {
+    const ctx = await mount()
+    const { scope, key } = await mintAgentScope(ctx, 'policy')
+    ctx.tools.register(tool('global'))
+    scope.ctx.tools.register(tool('local'))
+    let allowed = new Set(['global'])
+    const dispose = scope.ctx.tools.filterVisible(name => allowed.has(name))
+    expect(ctx.tools.schemas(key).map(t => t.name)).toEqual(['global'])
+    expect(await run(ctx, 'local', key)).toBe('Error: unknown tool "local"')
+    allowed = new Set(['local'])
+    expect(ctx.tools.schemas(key).map(t => t.name)).toEqual(['local'])
+    expect(await run(ctx, 'global', key)).toBe('Error: unknown tool "global"')
+    expect(await run(ctx, 'local', key)).toBe('ran:local')
+    dispose()
+    expect(ctx.tools.schemas(key).map(t => t.name).sort()).toEqual(['global', 'local'])
+    expect(() => ctx.tools.filterVisible(() => true)).toThrow(/requires a scoped context/)
+  })
+})
+
 describe('restrict() over an inherited scope layer', () => {
   /** Mint a child scope parented to `parent`, as a subagent's creation window does. */
   async function mintChild(ctx: Context, parentKey: Agent, name: string): Promise<{ scope: Scope; key: Agent }> {

@@ -1,0 +1,366 @@
+/** Project and Bot entrances over one Session catalog. */
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { AffiliationProjection, BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
+import {
+  IconAgentPresetOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenOutlineRegular, IconFolderOpenRegular,
+  IconNewChatOutlineRegular, IconPlusOutlineRegular, IconTrashOutlineRegular, IconTriangleRightFillRegular,
+  IconUnarchiveOutlineRegular, IconEllipsisOutlineRegular, Button, Menu, Modal, StateDot, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { PersonalSidebarProps } from './contract.ts'
+import { memberIds, unassignedIds, type Entrance } from './membership.ts'
+import css from './PersonalSidebar.module.css'
+
+type ProjectDraft = { kind: 'project'; id?: ProjectId; name: string; description: string; path: string }
+type BotDraft = {
+  kind: 'bot'
+  id?: BotId
+  name: string
+  identity: string
+  direction: string
+  provider: string
+  model: string
+  reasoningEffort: string
+  tools: string
+  skills: string
+}
+type Draft = ProjectDraft | BotDraft
+
+/** Comma separated allowlists become absent when the user leaves them unrestricted. */
+function allowlist(value: string): string[] | undefined {
+  const items = value.split(',').map(item => item.trim()).filter(Boolean)
+  return items.length === 0 ? undefined : items
+}
+
+/** Sidebar Project/Bot browser and editor. */
+export function PersonalSidebar(props: PersonalSidebarProps) {
+  const {
+    wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
+    refresh, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
+    createSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
+  } = props
+  const records = useRecords(value => value)
+  const sessions = useSessions(value => value)
+  const statuses = useSessionStatus(value => value)
+  const workspaces = useWorkspaces(value => value)
+  const [entrance, setEntrance] = useState<Entrance | null>(null)
+  const [showUnassigned, setShowUnassigned] = useState(false)
+  const [selectedSession, setSelectedSession] = useState<SessionId | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Entrance | null>(null)
+  const [botForNew, setBotForNew] = useState('')
+  const [newTarget, setNewTarget] = useState<Entrance | null>(null)
+  const [menu, setMenu] = useState<string | null>(null)
+  const [sortByName, setSortByName] = useState({ project: false, bot: false })
+  const closeOverlay = (): void => {
+    if (busy) return
+    setDraft(null)
+    setDeleteTarget(null)
+    setSelectedSession(null)
+    setNewTarget(null)
+    setError(null)
+  }
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const requested = useRef(new Set<SessionId>())
+
+  useEffect(() => {
+    if (records.phase === 'loading') void refresh()
+  }, [records.phase, refresh])
+
+  useEffect(() => {
+    for (const id of sessions.ids) {
+      if (sessions.projectionsBySession[id]?.state === 'idle') requested.current.delete(id)
+      if (requested.current.has(id) || sessions.byId[id]?.projectionValues?.personalAffiliation !== undefined) continue
+      requested.current.add(id)
+      void refreshAffiliation(id).catch(() => { requested.current.delete(id) })
+    }
+  }, [sessions, refreshAffiliation])
+
+  const unassigned = useMemo(() => unassignedIds(sessions), [sessions])
+  const affiliation: AffiliationProjection | undefined = selectedSession === null
+    ? undefined
+    : sessions.byId[selectedSession]?.projectionValues?.personalAffiliation
+
+  const perform = async (operation: () => Promise<unknown>, after?: () => void): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await operation()
+      after?.()
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const projectDraft = (project?: Project): ProjectDraft => ({
+    kind: 'project', ...(project === undefined ? {} : { id: project.id }),
+    name: project?.name ?? '', description: project?.description ?? '', path: project?.path ?? '',
+  })
+  const botDraft = (bot?: BotProfile): BotDraft => ({
+    kind: 'bot', ...(bot === undefined ? {} : { id: bot.id }),
+    name: bot?.name ?? '', identity: bot?.identity ?? '', direction: bot?.direction ?? '',
+    provider: bot?.defaultModel?.provider ?? '', model: bot?.defaultModel?.model ?? '',
+    reasoningEffort: bot?.defaultModel?.reasoningEffort ?? '',
+    tools: bot?.allowedTools?.join(', ') ?? '', skills: bot?.allowedSkills?.join(', ') ?? '',
+  })
+  const saveDraft = (): void => {
+    if (draft === null || busy) return
+    if (draft.kind === 'project') {
+      const path = draft.path.trim() || undefined
+      void perform(async () => {
+        if (draft.id === undefined) await createProject({
+          name: draft.name, description: draft.description,
+          ...(path === undefined ? {} : { path }),
+        })
+        else await updateProject({ id: draft.id, name: draft.name, description: draft.description, path: path ?? null })
+      }, () => { setDraft(null) })
+      return
+    }
+    const defaultModel = draft.provider.trim() === '' && draft.model.trim() === '' ? undefined : {
+      provider: draft.provider.trim(), model: draft.model.trim(),
+      ...(draft.reasoningEffort.trim() === '' ? {} : { reasoningEffort: draft.reasoningEffort.trim() }),
+    }
+    const allowedTools = allowlist(draft.tools)
+    const allowedSkills = allowlist(draft.skills)
+    void perform(async () => {
+      if (draft.id === undefined) await createBot({
+        name: draft.name, identity: draft.identity, direction: draft.direction,
+        ...(defaultModel === undefined ? {} : { defaultModel }),
+        ...(allowedTools === undefined ? {} : { allowedTools }),
+        ...(allowedSkills === undefined ? {} : { allowedSkills }),
+      })
+      else await updateBot({
+        id: draft.id, name: draft.name, identity: draft.identity, direction: draft.direction,
+        defaultModel: defaultModel ?? null, allowedTools: allowedTools ?? null, allowedSkills: allowedSkills ?? null,
+      })
+    }, () => { setDraft(null) })
+  }
+  const acceptDrop = (target: Entrance, event: React.DragEvent): void => {
+    event.preventDefault()
+    const id = event.dataTransfer.getData('application/x-dsh-personal-session') as SessionId
+    if (id === '' || sessions.byId[id] === undefined) return
+    void perform(() => moveSession({ sessionId: id, ...(target.kind === 'project' ? { projectId: target.id } : { botId: target.id }) }))
+  }
+  const sessionRow = (id: SessionId) => {
+    const summary = sessions.byId[id]
+    if (summary === undefined) return null
+    const status = statuses.get(id)
+    const archived = workspaces.archivedSessionIds.includes(id)
+    const botName = summary.projectionValues?.personalAffiliation?.current.botId === undefined
+      ? undefined
+      : records.bots.find(bot => bot.id === summary.projectionValues?.personalAffiliation?.current.botId)?.name
+    const statusLabel = archived ? t('archived')
+      : status?.pendingInteraction !== undefined ? t('waiting')
+        : status?.running || summary.running ? t('running')
+          : status?.completionUnread ? t('completed') : t('idle')
+    const statusState = archived ? 'idle' : status?.pendingInteraction !== undefined ? 'warning'
+      : status?.running || summary.running ? 'ongoing' : status?.completionUnread ? 'done' : 'idle'
+    return <div key={id} className={css.sessionRow} draggable onDragStart={(event) => {
+      event.dataTransfer.setData('application/x-dsh-personal-session', id)
+      event.dataTransfer.effectAllowed = 'move'
+    }}>
+      <button type="button" className={css.sessionButton} onClick={() => {
+        if (!archived) openSession(id)
+      }} aria-label={`${summary.displayTitle} · ${statusLabel}`}>
+        <span className={css.statusSlot}>{statusState !== 'idle' && <StateDot state={statusState} />}</span>
+        <span className={css.sessionTitle}>{summary.blank ? t('newSession') : summary.displayTitle}</span>
+        {botName !== undefined && <span className={css.tag}>{botName}</span>}
+      </button>
+      <div className={css.sessionActions}>
+        <Tooltip label={t('manageSession')}><button type="button" className={css.rowAction}
+          aria-label={t('manageSession')} onClick={() => { setError(null); setSelectedSession(id) }}><IconEllipsisOutlineRegular /></button></Tooltip>
+        {archived && <Tooltip label={t('unarchive')}><button type="button" className={css.rowAction}
+          aria-label={t('unarchive')} onClick={() => { void perform(() => unarchiveSession(id)) }}><IconUnarchiveOutlineRegular /></button></Tooltip>}
+      </div>
+    </div>
+  }
+
+  const groupRow = (target: Entrance, name: string, edit: () => void) => {
+    const open = entrance?.kind === target.kind && entrance.id === target.id
+    const ids = memberIds(sessions, target)
+    const menuId = `${target.kind}:${target.id}`
+    return <div key={`${target.kind}:${target.id}`} className={css.group}>
+      <div className={css.groupRow}
+        onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
+        onDrop={(event) => { acceptDrop(target, event) }}>
+        <button type="button" className={css.groupButton} aria-expanded={open}
+          aria-label={`${name} · ${t(target.kind === 'project' ? 'dropProject' : 'dropBot')}`}
+          onClick={() => { if (!wide) expandSidebar(); setEntrance(open ? null : target); setSelectedSession(null) }}>
+          <span className={css.leadingIcon} aria-hidden="true">
+            {target.kind === 'project'
+              ? open ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />
+              : <IconAgentPresetOutlineRegular />}
+            <IconTriangleRightFillRegular className={css.chevron} />
+          </span>
+          {wide && <span className={css.groupTitle}>{name}</span>}
+        </button>
+        {wide && <div className={css.rowActions}>
+          <Menu open={menu === menuId} portal align="end" autoFocus
+            onClose={() => { setMenu(null) }}
+            anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${name}`}
+              aria-haspopup="menu" aria-expanded={menu === menuId}
+              onClick={() => { setMenu(menu === menuId ? null : menuId) }}><IconEllipsisOutlineRegular /></button>}
+            items={[
+              { id: 'edit', label: t('edit'), icon: <IconEditOutlineRegular />, disabled: busy },
+              { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
+            ]}
+            onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
+          <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
+            disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>
+        </div>}
+      </div>
+      {wide && open && <div className={css.groupContents}>
+        {ids.map(sessionRow)}
+      </div>}
+    </div>
+  }
+
+  return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>
+    {wide && <div className={css.body}>
+      {records.phase === 'loading' && <p>{t('loading')}</p>}
+      {records.phase === 'error' && <button type="button" onClick={() => { void refresh() }}>{t('retry')}</button>}
+      <div className={css.groupHeading}><span>{t('projects')}</span>
+        <div className={css.headingActions}>
+          <Menu open={menu === 'projects'} portal align="end" autoFocus
+            onClose={() => { setMenu(null) }}
+            anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('projects')}`}
+              aria-haspopup="menu" aria-expanded={menu === 'projects'}
+              onClick={() => { setMenu(menu === 'projects' ? null : 'projects') }}><IconEllipsisOutlineRegular /></button>}
+            selectedId={sortByName.project ? 'name' : 'default'}
+            items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
+            onSelect={(id) => { setSortByName(value => ({ ...value, project: id === 'name' })); setMenu(null) }} />
+
+          <Tooltip label={t('addProject')}><button type="button" className={css.headerAction} aria-label={t('addProject')}
+            onClick={() => { setError(null); setDraft(projectDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+        </div>
+      </div>
+      {(sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects).map(project => groupRow({ kind: 'project', id: project.id }, project.name, () => { setDraft(projectDraft(project)) }))}
+      {unassigned.length > 0 && <div className={css.group}>
+        <div className={css.groupRow}>
+          <button type="button" className={css.groupButton} aria-expanded={showUnassigned}
+            onClick={() => { setShowUnassigned(value => !value) }}>
+            <span className={css.leadingIcon} aria-hidden="true">
+              {showUnassigned ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
+              <IconTriangleRightFillRegular className={css.chevron} />
+            </span>
+            <span className={css.groupTitle}>{t('unassigned')}</span></button>
+        </div>
+        {showUnassigned && <div className={css.groupContents}>{unassigned.map(sessionRow)}</div>}
+      </div>}
+      <div className={css.groupHeading}><span>{t('bots')}</span>
+        <div className={css.headingActions}>
+          <Menu open={menu === 'bots'} portal align="end" autoFocus
+            onClose={() => { setMenu(null) }}
+            anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('bots')}`}
+              aria-haspopup="menu" aria-expanded={menu === 'bots'}
+              onClick={() => { setMenu(menu === 'bots' ? null : 'bots') }}><IconEllipsisOutlineRegular /></button>}
+            selectedId={sortByName.bot ? 'name' : 'default'}
+            items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
+            onSelect={(id) => { setSortByName(value => ({ ...value, bot: id === 'name' })); setMenu(null) }} />
+
+          <Tooltip label={t('addBot')}><button type="button" className={css.headerAction} aria-label={t('addBot')}
+            onClick={() => { setError(null); setDraft(botDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+        </div>
+      </div>
+      {(sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots).map(bot => groupRow({ kind: 'bot', id: bot.id }, bot.name, () => { setDraft(botDraft(bot)) }))}
+      {records.phase === 'ready' && records.projects.length === 0 && records.bots.length === 0 && unassigned.length === 0 && <p>{t('none')}</p>}
+      {error !== null && draft === null && deleteTarget === null && selectedSession === null && newTarget === null && <p role="alert">{t('error', { message: error })}</p>}
+    </div>}
+    {selectedSession !== null && sessions.byId[selectedSession] !== undefined && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('manageSession')}
+      className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}>
+      <div className={css.detail}>
+        <strong>{sessions.byId[selectedSession].displayTitle}</strong>
+        <label>{t('moveProject')}<select value={affiliation?.current.projectId ?? ''} disabled={busy}
+          onChange={(event) => { void perform(() => moveSession({ sessionId: selectedSession, projectId: event.target.value === '' ? null : event.target.value as ProjectId })) }}>
+          <option value="">{t('noProject')}</option>
+          {records.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select></label>
+        <label>{t('moveBot')}<select value={affiliation?.current.botId ?? ''} disabled={busy}
+          onChange={(event) => { void perform(() => moveSession({ sessionId: selectedSession, botId: event.target.value === '' ? null : event.target.value as BotId })) }}>
+          <option value="">{t('noBotAffiliation')}</option>
+          {records.bots.map(bot => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+        </select></label>
+        <strong>{t('history')}</strong>
+        {affiliation?.history.length === 0 && <p>{t('historyEmpty')}</p>}
+        <ol className={css.history}>{affiliation?.history.map(change => <li key={change.seq}>
+          <time dateTime={new Date(change.time).toISOString()}>{new Date(change.time).toLocaleString()}</time>
+          {' · '}{t(change.source === 'create' ? 'created' : change.source === 'delete' ? 'deleted' : 'moved')}
+          {' · '}{change.from.project?.name ?? t('noProject')} / {change.from.bot?.name ?? t('noBotAffiliation')}
+          {' → '}{change.to.project?.name ?? t('noProject')} / {change.to.bot?.name ?? t('noBotAffiliation')}
+        </li>)}</ol>
+        {error !== null && <p role="alert">{t('error', { message: error })}</p>}
+      </div></Modal>}
+    {deleteTarget !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('delete')}>
+      <div className={css.confirm}>
+        <span>{t('confirmDelete', { name: deleteTarget.kind === 'project'
+          ? records.projects.find(project => project.id === deleteTarget.id)?.name ?? ''
+          : records.bots.find(bot => bot.id === deleteTarget.id)?.name ?? '' })}</span>
+        <Button variant="primary" disabled={busy} onClick={() => { void perform(
+          () => deleteTarget.kind === 'project' ? deleteProject(deleteTarget.id) : deleteBot(deleteTarget.id),
+          () => { setDeleteTarget(null); setEntrance(null); setSelectedSession(null) },
+        ) }}>{t('delete')}</Button>
+        <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
+        {error !== null && <p role="alert">{t('error', { message: error })}</p>}
+      </div></Modal>}
+    {draft !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')}
+      title={t(draft.kind === 'project' ? draft.id === undefined ? 'addProject' : 'editProject' : draft.id === undefined ? 'addBot' : 'editBot')}
+      className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}><form className={css.form} onSubmit={(event) => { event.preventDefault(); saveDraft() }}>
+        <label>{t('name')}<input autoFocus required disabled={busy} value={draft.name} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} /></label>
+        {draft.kind === 'project' ? <>
+          <label>{t('description')}<textarea disabled={busy} value={draft.description} onChange={(event) => { setDraft({ ...draft, description: event.target.value }) }} /></label>
+          <label>{t('directory')}<span className={css.directoryField}>
+            <input disabled={busy} value={draft.path} placeholder={t('noDirectory')}
+              onChange={(event) => { setDraft({ ...draft, path: event.target.value }) }} />
+            <Tooltip label={t('chooseDirectory')}><button type="button" className={css.rowAction} disabled={busy} aria-label={t('chooseDirectory')}
+              onClick={() => { void perform(async () => {
+                const path = await pickDirectory()
+                if (path !== null) setDraft(current => current?.kind === 'project' ? { ...current, path } : current)
+              }) }}><IconFolderOpenOutlineRegular /></button></Tooltip>
+          </span></label>
+        </> : <>
+          <label>{t('identity')}<textarea disabled={busy} value={draft.identity} onChange={(event) => { setDraft({ ...draft, identity: event.target.value }) }} /></label>
+          <label>{t('direction')}<textarea disabled={busy} value={draft.direction} onChange={(event) => { setDraft({ ...draft, direction: event.target.value }) }} /></label>
+          <label>{t('modelProvider')}<input disabled={busy} value={draft.provider} onChange={(event) => { setDraft({ ...draft, provider: event.target.value }) }} /></label>
+          <label>{t('modelName')}<input disabled={busy} value={draft.model} onChange={(event) => { setDraft({ ...draft, model: event.target.value }) }} /></label>
+          <label>{t('reasoningEffort')}<input disabled={busy} value={draft.reasoningEffort} onChange={(event) => { setDraft({ ...draft, reasoningEffort: event.target.value }) }} /></label>
+          <label>{t('allowedTools')}<input disabled={busy} value={draft.tools} onChange={(event) => { setDraft({ ...draft, tools: event.target.value }) }} /></label>
+          <label>{t('allowedSkills')}<input disabled={busy} value={draft.skills} onChange={(event) => { setDraft({ ...draft, skills: event.target.value }) }} /></label>
+        </>}
+        {error !== null && <p role="alert">{t('error', { message: error })}</p>}
+        <div className={css.formActions}>
+          <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
+          <Button variant="primary" type="submit" disabled={busy || draft.name.trim() === ''}>{t('save')}</Button>
+        </div>
+      </form></Modal>}
+    {newTarget !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('newSession')}
+      footer={<>
+        <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => { void perform(() => createSession(
+          newTarget.kind === 'project' ? { projectId: newTarget.id, ...(botForNew === '' ? {} : { botId: botForNew as BotId }) }
+            : { botId: newTarget.id },
+        ), () => { setNewTarget(null) }) }}>{t('newSession')}</Button>
+      </>}>
+      <div className={css.form}>
+        <p className={css.contextName}>{newTarget.kind === 'project'
+          ? records.projects.find(project => project.id === newTarget.id)?.name
+          : records.bots.find(bot => bot.id === newTarget.id)?.name}</p>
+        {newTarget.kind === 'project' && <label>{t('newWithBot')}
+          <select autoFocus disabled={busy} value={botForNew} onChange={(event) => { setBotForNew(event.target.value) }}>
+            <option value="">{t('noBot')}</option>
+            {records.bots.map(bot => <option value={bot.id} key={bot.id}>{bot.name}</option>)}
+          </select>
+        </label>}
+        {error !== null && <p role="alert">{t('error', { message: error })}</p>}
+      </div>
+    </Modal>}
+    {!wide && <div className={css.railNavigation}>
+      <Tooltip label={t('projects')}><button type="button" className={css.railButton} aria-label={t('projects')}
+        onClick={expandSidebar}><IconFolderCloseRegular size={18} /></button></Tooltip>
+      <Tooltip label={t('bots')}><button type="button" className={css.railButton} aria-label={t('bots')}
+        onClick={expandSidebar}><IconAgentPresetOutlineRegular size={18} /></button></Tooltip>
+    </div>}
+  </section>
+}

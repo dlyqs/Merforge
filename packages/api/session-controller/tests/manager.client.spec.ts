@@ -1059,40 +1059,30 @@ describe('remaining branches', () => {
     await manager.dispose()
   })
 
-  it('publishes a real Ungrouped summary from workspace-attach-failed', async ({ mock, remote }) => {
-    remote.session.create.mockResolvedValue(err(new RemoteError('session/workspace-attach-failed', 'published but unattached', {
-      sessionId: S1, workspaceId: 'w1',
+  it('retains a created Session when its personal affiliation could not be saved', async ({ mock, remote }) => {
+    remote.session.create.mockResolvedValue(err(new RemoteError('session/affiliation-failed', 'created but not classified', {
+      sessionId: S1,
     })))
     const manager = makeManager(mock, remote)
-    const result = await manager.create({ workspaceId: 'w1' as never, sessionId: S1 })
-    expect(result).toMatchObject({ ok: false, error: { code: 'session/workspace-attach-failed' } })
+    const result = await manager.create({ sessionId: S1 })
+    expect(result).toMatchObject({ ok: false, error: { code: 'session/affiliation-failed' } })
     expect(manager.getListSnapshot().items).toEqual([expect.objectContaining({ sessionId: S1 })])
-    expect(manager.getListSnapshot().items[0]).not.toHaveProperty('cwd')
   })
 
-  it('reconciles a fork child published before workspace attachment fails', async ({ mock, remote }) => {
-    remote.session.fork.mockResolvedValue(err(new RemoteError('session/workspace-attach-failed', 'forked but unattached', {
-      sessionId: S2, workspaceId: 'w1',
-    })))
+  it('passes personal classification through the ordinary Client create path', async ({ mock, remote }) => {
+    remote.session.create.mockResolvedValue(ok({ sessionId: S1 }))
     const manager = makeManager(mock, remote)
-    const result = await manager.fork({ sessionId: S1 })
-    expect(result).toMatchObject({ ok: false, error: { code: 'session/workspace-attach-failed' } })
-    expect(manager.getListSnapshot().items).toEqual([expect.objectContaining({
-      sessionId: S2,
-      parentSessionId: S1,
-      blank: true,
-    })])
-
-    manager.handleSessionAdded(summary(S2, { blank: true, parentSessionId: S1 }))
-    expect(manager.getListSnapshot().items[0]?.blank).toBe(true)
-    manager.handleSessionAdded(summary(S2, { blank: false, parentSessionId: S1 }))
-    expect(manager.getListSnapshot().items[0]?.blank).toBe(false)
+    const projectId = 'project' as never
+    const botId = 'bot' as never
+    await manager.create({ projectId, botId })
+    expect(remote.session.create).toHaveBeenCalledWith({ projectId, botId })
+    await manager.dispose()
   })
 
   it('reconciles a preallocated id after an ordinary transport failure', async ({ mock, remote }) => {
     remote.session.create.mockRejectedValue(new Error('response lost'))
     const manager = makeManager(mock, remote)
-    await expect(manager.create({ workspaceId: 'w1' as never, sessionId: S1 }))
+    await expect(manager.create({ cwd: '/w/one', sessionId: S1 }))
       .rejects.toThrow('response lost')
     expect(manager.getListSnapshot().items).toEqual([])
 

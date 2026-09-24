@@ -1,0 +1,19 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../util/brand" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/session" },
+    { "path": "../../session/session-persistence" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../core/tools" },
+    { "path": "../../llm/llm" },
+    { "path": "../../session/session-projection" },
+    { "path": "../../session-query/session-query" },
+    { "path": "../../storage/storage-domain" },
+    { "path": "../workspace" }
+  ]
+}

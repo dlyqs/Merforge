@@ -3,7 +3,7 @@
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import { SessionSeq, type SessionId, type SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
-import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { BotId, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import type {
   SessionControlBaseline,
   SessionControlFrame,
@@ -482,20 +482,23 @@ export class SessionManager {
    * Contract session.create; on success merge into summaries immediately (no
    * wait for the next refresh). A created session is blank by definition
    * (entity birth precedes the first message).
-   * @param opts - target workspace or working directory, plus an optional caller-owned id.
+   * @param opts - target Project, Bot, or working directory, plus an optional caller-owned id.
    * @returns the create result.
   */
   async create(
     opts: {
-      workspaceId?: WorkspaceId
+      projectId?: ProjectId
+      botId?: BotId
       cwd?: string
       sessionId?: SessionId
     } = {},
   ): Promise<RemoteResult<{ sessionId: SessionId }>> {
-    const shared = opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }
-    const payload = opts.workspaceId !== undefined
-      ? { workspaceId: opts.workspaceId, ...shared }
-      : { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), ...shared }
+    const shared = {
+      ...(opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }),
+      ...(opts.projectId === undefined ? {} : { projectId: opts.projectId }),
+      ...(opts.botId === undefined ? {} : { botId: opts.botId }),
+    }
+    const payload = { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), ...shared }
     const result = await this.remote.session.create(payload)
     if (result.ok) {
       this.recordMutation({ kind: 'placeholder', summary: { agentAvailable: true,
@@ -503,10 +506,9 @@ export class SessionManager {
         ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
       } })
     } else {
-      const publishedSessionId = workspaceAttachSessionId(result.error)
-      // Publication precedes attachment. The error's id is a real Session,
-      // so expose it immediately as Ungrouped while the caller keeps the
-      // prompt buffer and decides whether to retry attachment.
+      const publishedSessionId = partiallyCreatedSessionId(result.error)
+      // An affiliation write can fail after Session creation. Publish the
+      // real Session ID so the user can still find the unclassified conversation.
       if (publishedSessionId !== undefined) {
         this.recordMutation({ kind: 'placeholder', summary: { agentAvailable: true,
           sessionId: publishedSessionId,
@@ -539,7 +541,7 @@ export class SessionManager {
     })
     const childId = result.ok
       ? result.value.sessionId
-      : workspaceAttachSessionId(result.error)
+      : partiallyCreatedSessionId(result.error)
     if (childId !== undefined) {
       this.recordMutation({ kind: 'placeholder', summary: { agentAvailable: true,
         sessionId: childId, updatedAt: Date.now(), running: false, blank: true,
@@ -847,7 +849,9 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
   }
 }
 
-/** Temporary source-plane bridge while the Host contract and client project build independently. */
-function workspaceAttachSessionId(error: RemoteFailure): SessionId | undefined {
-  return error.code === 'session/workspace-attach-failed' ? error.details.sessionId : undefined
+/** A failed affiliation append can leave an otherwise created Session visible. */
+function partiallyCreatedSessionId(error: RemoteFailure): SessionId | undefined {
+  return error.code === 'session/affiliation-failed'
+    ? error.details.sessionId
+    : undefined
 }

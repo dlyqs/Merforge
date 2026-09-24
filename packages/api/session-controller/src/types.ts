@@ -10,7 +10,7 @@ import type { TextBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { AffiliationProjection, BotId, BotProfile, BotModel, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
@@ -109,6 +109,8 @@ export interface ModelSelectionProjectionState {
   readonly lastUsed: ModelSelection | null
   /** Later user selection not yet consumed by a matching model request. */
   readonly pending: ModelSelection | null
+  /** Last explicit Session choice; Bot defaults never overwrite it. */
+  readonly explicit: ModelSelection | null
 }
 
 /** Client view of the durable model-selection fold. */
@@ -211,7 +213,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/writer-held': { readonly sessionId: SessionId }
     'session/agent-busy': { readonly reason: string }
     'session/invalid-time-zone': { readonly value: string }
-    'session/workspace-attach-failed': { readonly sessionId: SessionId; readonly workspaceId: string }
+    'session/affiliation-failed': { readonly sessionId: SessionId }
     'agent-preset/conflict': {
       readonly sessionId: SessionId
       readonly requestedPreset: string
@@ -281,11 +283,53 @@ export interface SessionSearchValue {
 
 /** Session creation or explicit-id adoption request. */
 export interface SessionCreateRequest {
-  readonly workspaceId?: WorkspaceId
+  /** Optional independent personal Project. */
+  readonly projectId?: ProjectId
+  /** Optional private Bot; omission creates an ordinary conversation. */
+  readonly botId?: BotId
   readonly cwd?: string
   readonly sessionId?: SessionId
   readonly agentPreset?: string
 }
+
+/** Create a personal Project with an optional local directory. */
+export interface PersonalProjectCreateRequest { readonly name: string; readonly description?: string; readonly path?: string }
+/** Edit Project metadata; null removes the optional directory. */
+export interface PersonalProjectUpdateRequest {
+  readonly id: ProjectId
+  readonly name?: string
+  readonly description?: string
+  readonly path?: string | null
+}
+/** Create a private Bot profile. */
+export interface PersonalBotCreateRequest {
+  readonly name: string
+  readonly identity?: string
+  readonly direction?: string
+  readonly defaultModel?: BotModel
+  readonly allowedTools?: string[]
+  readonly allowedSkills?: string[]
+}
+/** Edit a Bot profile; null removes an optional preference or restriction. */
+export interface PersonalBotUpdateRequest {
+  readonly id: BotId
+  readonly name?: string
+  readonly identity?: string
+  readonly direction?: string
+  readonly defaultModel?: BotModel | null
+  readonly allowedTools?: string[] | null
+  readonly allowedSkills?: string[] | null
+}
+/** Current personal records for Host projection to Client. */
+export interface PersonalRecordsValue { readonly projects: readonly Project[]; readonly bots: readonly BotProfile[] }
+/** Move either Session affiliation; omission retains that side, null clears it. */
+export interface SessionAffiliationMoveRequest {
+  readonly sessionId: SessionId
+  readonly projectId?: ProjectId | null
+  readonly botId?: BotId | null
+}
+/** Current Session affiliation and complete transition history. */
+export interface SessionAffiliationValue { readonly affiliation: AffiliationProjection }
 
 /** Session creation response value. */
 export interface SessionCreateValue {

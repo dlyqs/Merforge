@@ -185,7 +185,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.view': { kind: 'list'; scope: 'session'; owner: ConvViewOwnerProps }
     /** Selector-routed replacements for the current Session's resident composer. */
     'conversation.composer': { kind: 'chain'; scope: 'session'; owner: ComposerChainProps }
-    /** Workspace picker shown by the blank-session Hero. */
+    /** Legacy Workspace picker slot retained for older optional plugins. */
     'conversation.hero.workspace': { kind: 'single'; scope: 'root'; owner: EmptyWorkspaceOwnerProps }
     /** Brand mark shown before the blank-session headline. */
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
@@ -234,7 +234,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.composer.bar': { kind: 'single'; scope: 'session-maybe' }
         'conversation.input.dock': { kind: 'list'; scope: 'session' }
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
-        'conversation.hero.workspace': { kind: 'single'; scope: 'root' }
         'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }
       }
       inject: ConversationInjected

@@ -5,7 +5,7 @@ import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace'
+import type { ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ApiSessionAgentController,
@@ -67,39 +67,44 @@ describe('Session creation failures', () => {
     await ctx.fiber.dispose()
   })
 
-  it('maps missing Workspaces and attachment failures', async () => {
-    const missing = await baseContext()
-    missing.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
-    const missingController = new SessionCommandController(
-      missing,
-      controllerAgents(),
-      '/default',
-    )
-    await expectFailure(missingController.create({
-      workspaceId: 'missing' as WorkspaceId,
-    }), 'workspace/not-found')
-    await missing.fiber.dispose()
-
-    const failed = await baseContext()
-    const workspace = {
-      id: 'workspace-1' as WorkspaceId,
-      path: '/workspace',
-      attachSession: () => Promise.reject(new Error('read-only workspace')),
-    } as unknown as Workspace
-    failed.provide('workspaceRegistry', {
-      get: () => workspace,
-      list: () => [workspace],
+  it('returns the created Session identity when affiliation cannot be written', async () => {
+    const ctx = await baseContext()
+    const projectId = 'project-one' as ProjectId
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
+    ctx.provide('personalProjects', {
+      getProject: () => ({ id: projectId }),
+      move: () => { throw new Error('affiliation write failed') },
     } as never)
-    const failedController = new SessionCommandController(
-      failed,
-      controllerAgents(),
-      '/default',
-    )
-    await expectFailure(failedController.create({
-      sessionId: SessionId('workspace-session'),
-      workspaceId: workspace.id,
-    }), 'session/workspace-attach-failed')
-    await failed.fiber.dispose()
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(ctx, controllerAgents({ ensureSession }), '/default')
+    const sessionId = SessionId('partial-session')
+    await expect(controller.create({ sessionId, projectId })).rejects.toMatchObject({
+      code: 'session/affiliation-failed', details: { sessionId },
+    })
+    expect(ctx.sessions.get(sessionId)).toBeDefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('uses an explicit cwd before the Project directory', async () => {
+    const ctx = await baseContext()
+    const projectId = 'project-one' as ProjectId
+    ctx.provide('personalProjects', {
+      getProject: () => ({ id: projectId, path: '/project-directory' }),
+      move: () => ({}),
+    } as never)
+    const ensureSession = vi.fn((sessionId: SessionId, cwd: string) => {
+      const session = ctx.sessions.create(sessionId, { meta: { cwd } })
+      return Promise.resolve({ id: sessionId, session } as Agent)
+    })
+    const controller = new SessionCommandController(ctx, controllerAgents({ ensureSession }), '/default')
+    await controller.create({ projectId, cwd: '/explicit' })
+    expect(ensureSession).toHaveBeenCalledWith(expect.any(String), '/explicit', false, undefined)
+    await controller.create({ projectId })
+    expect(ensureSession).toHaveBeenLastCalledWith(expect.any(String), '/project-directory', false, undefined)
+    await ctx.fiber.dispose()
   })
 
   it.each([
@@ -139,17 +144,6 @@ describe('Session creation failures', () => {
     await expectFailure(controller.create({
       sessionId: SessionId('failed-create'), cwd: '/requested',
     }), code)
-    await ctx.fiber.dispose()
-  })
-
-  it('rejects contradictory create targets', async () => {
-    const ctx = await baseContext()
-    const controller = new SessionCommandController(ctx, controllerAgents(), '/default')
-
-    await expectFailure(controller.create({
-      workspaceId: 'workspace-1' as WorkspaceId,
-      cwd: '/workspace',
-    }), 'gateway/bad-request')
     await ctx.fiber.dispose()
   })
 
@@ -228,19 +222,7 @@ describe('Session fork failures', () => {
     await ctx.fiber.dispose()
   })
 
-  it('maps lineage lookup and Agent creation failures', async () => {
-    const lineage = await baseContext()
-    lineage.provide('workspaceRegistry', { list: () => [] } as never)
-    vi.spyOn(lineage.sessionQuery, 'traceSession')
-      .mockRejectedValue(new Error('lineage unavailable'))
-    const child = completedSession(lineage, 'subagent-source', '/workspace', {
-      parentSession: SessionId('parent'),
-      origin: 'subagent',
-    })
-    const lineageController = new SessionCommandController(lineage, controllerAgents(), '/default')
-    await expectFailure(lineageController.fork({ sessionId: child.id }), 'gateway/internal')
-    await lineage.fiber.dispose()
-
+  it('maps Agent creation failures', async () => {
     const creation = await baseContext()
     creation.provide('workspaceRegistry', { list: () => [] } as never)
     const source = completedSession(creation, 'creation-source', '/workspace')
@@ -250,21 +232,15 @@ describe('Session fork failures', () => {
     await creation.fiber.dispose()
   })
 
-  it('omits absent cwd and preset metadata before reporting Workspace attachment failure', async () => {
+  it('omits absent cwd and preset metadata when forking', async () => {
     const ctx = await baseContext()
     const source = completedSession(ctx, 'workspace-source')
-    const workspace = {
-      id: 'workspace-1' as WorkspaceId,
-      sessionIds: [source.id],
-      attachSession: () => Promise.reject(new Error('workspace write failed')),
-    } as unknown as Workspace
-    ctx.provide('workspaceRegistry', { list: () => [workspace] } as never)
     const create = vi.spyOn(ctx.agents, 'create').mockImplementation(
       (options: CreateAgentOptions) => Promise.resolve(resolvedHandle(ctx, options.sessionId)),
     )
     const controller = new SessionCommandController(ctx, controllerAgents(), '/default')
 
-    await expectFailure(controller.fork({ sessionId: source.id }), 'session/workspace-attach-failed')
+    await controller.fork({ sessionId: source.id })
     const options = create.mock.calls[0]?.[0]
     if (options === undefined) throw new Error('Agent creation was not attempted')
     expect(options.meta).not.toHaveProperty('cwd')

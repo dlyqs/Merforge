@@ -19,10 +19,10 @@ import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
+import type {} from '@deepseek-ai/dsh-personal-project'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
-import type { Workspace } from '@deepseek-ai/dsh-workspace'
 import {
   ApiSessionAgentController,
   ApiSessionCwdConflict,
@@ -86,9 +86,9 @@ function latestCompletedPrefixBoundary(events: readonly SessionEvent[]): Session
 /** Implements Session business commands delegated by the Session Controller Remote service. */
 export class SessionCommandController {
   /**
-   * @param ctx - Host context carrying Agent, model, attachment, title, and Workspace services.
+   * @param ctx - Host context carrying Agent, model, attachment, and title services.
    * @param agents - sole owner of create, resume, and Session-local model selection.
-   * @param defaultCwd - project directory used when create names neither a Workspace nor a cwd.
+   * @param defaultCwd - directory used when create names neither a Project directory nor a cwd.
    */
   constructor(
     private readonly ctx: Context,
@@ -102,20 +102,16 @@ export class SessionCommandController {
    * @returns the Session identity and resolved preset when configured.
    */
   async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
-    if (request.workspaceId !== undefined && request.cwd !== undefined) {
-      throw new RemoteError('gateway/bad-request', 'session.create accepts workspaceId or cwd, not both', {})
-    }
     const sessionId = request.sessionId ?? brandString<SessionId>(`session-${randomUUID()}`)
-    let workspace: Workspace | undefined
-    if (request.workspaceId !== undefined) {
-      workspace = this.ctx.workspaceRegistry.get(request.workspaceId)
-      if (workspace === undefined) {
-        throw new RemoteError('workspace/not-found', `workspace "${request.workspaceId}" not found`, {
-          workspaceId: request.workspaceId,
-        })
-      }
+    const personal = this.ctx.get('personalProjects')
+    const project = request.projectId === undefined ? undefined : personal?.getProject(request.projectId)
+    if (request.projectId !== undefined && project === undefined) {
+      throw new RemoteError('gateway/bad-request', `Project "${request.projectId}" does not exist`, {})
     }
-    const cwd = workspace?.path ?? request.cwd ?? this.defaultCwd
+    if (request.botId !== undefined && personal?.getBot(request.botId) === undefined) {
+      throw new RemoteError('gateway/bad-request', `Bot "${request.botId}" does not exist`, {})
+    }
+    const cwd = request.cwd ?? project?.path ?? this.defaultCwd
     let adopted: Agent
     try {
       adopted = await this.agents.ensureSession(
@@ -127,14 +123,18 @@ export class SessionCommandController {
     } catch (error) {
       this.rejectCreation(sessionId, error)
     }
-    if (workspace !== undefined) {
+    if ((request.projectId !== undefined || request.botId !== undefined) && personal !== undefined) {
       try {
-        await workspace.attachSession(sessionId)
+        personal.move(adopted.session, {
+          ...(request.projectId === undefined ? {} : { projectId: request.projectId }),
+          ...(request.botId === undefined ? {} : { botId: request.botId }),
+        }, 'create')
+        await this.ctx.sessions.flush(adopted.session)
       } catch (error) {
         throw new RemoteError(
-          'session/workspace-attach-failed',
-          `session "${sessionId}" was created but could not attach to workspace "${workspace.id}": ${String(error)}`,
-          { sessionId, workspaceId: workspace.id },
+          'session/affiliation-failed',
+          `session "${sessionId}" was created but its personal affiliation could not be saved: ${String(error)}`,
+          { sessionId },
         )
       }
     }
@@ -253,16 +253,6 @@ export class SessionCommandController {
       )
     }
     const seed = buildForkSeed(source.events, boundary)
-    let workspace: Workspace | undefined
-    try {
-      workspace = await this.forkWorkspace(source.header)
-    } catch (error) {
-      throw new RemoteError(
-        'gateway/internal',
-        `failed to resolve fork workspace for session "${request.sessionId}": ${String(error)}`,
-        {},
-      )
-    }
     const childId = brandString<SessionId>(`session-${randomUUID()}`)
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
     try {
@@ -288,17 +278,6 @@ export class SessionCommandController {
         `failed to fork session "${request.sessionId}": ${String(error)}`,
         {},
       )
-    }
-    if (workspace !== undefined) {
-      try {
-        await workspace.attachSession(childId)
-      } catch (error) {
-        throw new RemoteError(
-          'session/workspace-attach-failed',
-          `session "${childId}" was forked but could not attach to workspace "${workspace.id}": ${String(error)}`,
-          { sessionId: childId, workspaceId: workspace.id },
-        )
-      }
     }
     return { sessionId: childId }
   }
@@ -566,17 +545,6 @@ export class SessionCommandController {
     return { id: inspected.meta.id, header: inspected.meta, events: inspected.events }
   }
 
-  private async forkWorkspace(source: SessionHeader): Promise<Workspace | undefined> {
-    const workspaces = this.ctx.workspaceRegistry.list()
-    const direct = workspaces.find(workspace => workspace.sessionIds.includes(source.id))
-    if (direct !== undefined || source.origin !== 'subagent') return direct
-    const lineage = await this.ctx.sessionQuery.traceSession(source.id)
-    for (const ancestor of lineage.ancestors) {
-      const workspace = workspaces.find(candidate => candidate.sessionIds.includes(ancestor.header.id))
-      if (workspace !== undefined) return workspace
-    }
-    return undefined
-  }
 }
 
 function resolvePromptFileReceipts(

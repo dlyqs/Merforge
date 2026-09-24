@@ -54,7 +54,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="regionArea"
     >
       <div
-        data-slot="sidebar.workspaces"
+        data-slot="sidebar.personal"
         style="display: contents;"
       />
     </div>
@@ -188,7 +188,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="regionArea"
     >
       <div
-        data-slot="sidebar.workspaces"
+        data-slot="sidebar.personal"
         style="display: contents;"
       />
     </div>
@@ -288,7 +288,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       class="regionArea"
     >
       <div
-        data-slot="sidebar.workspaces"
+        data-slot="sidebar.personal"
         style="display: contents;"
       />
     </div>
@@ -422,7 +422,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="regionArea"
     >
       <div
-        data-slot="sidebar.workspaces"
+        data-slot="sidebar.personal"
         style="display: contents;"
       />
     </div>
@@ -556,7 +556,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       class="regionArea"
     >
       <div
-        data-slot="sidebar.workspaces"
+        data-slot="sidebar.personal"
         style="display: contents;"
       />
     </div>

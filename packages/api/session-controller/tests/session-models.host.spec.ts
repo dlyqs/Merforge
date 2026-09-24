@@ -158,6 +158,28 @@ function currentSelection(ctx: Context, sessionId: SessionId) {
 }
 
 describe('Web session model selection', () => {
+  it('uses the current Bot default until a Session explicitly selects a model', async () => {
+    const { ctx, agent } = await harness()
+    createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp',
+    })
+    let botModel = 'deepseek-reasoner'
+    ctx.provide('personalProjects', {
+      affiliation: () => ({ current: { botId: 'bot' }, history: [] }),
+      getBot: () => ({ defaultModel: { provider: 'deepseek-official', model: botModel } }),
+    } as never)
+    const controller = new ApiSessionAgentController(ctx)
+    const selection = controller.selectionFor(agent)
+    expect(selection.current).toEqual({ provider: 'deepseek-official', model: 'deepseek-reasoner' })
+    botModel = 'private-preview'
+    expect(selection.current).toEqual({ provider: 'deepseek-official', model: 'private-preview' })
+    controller.selectForNextRequest(agent, { provider: 'deepseek-official', model: 'deepseek-chat' })
+    expect(selection.current).toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
+    expect(selection.consume('deepseek-official', 'deepseek-chat', undefined)).toBe(true)
+    expect(selection.current).toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
+    await ctx.fiber.dispose()
+  })
+
   it('validates an ordered image batch before persisting any member', async () => {
     const { ctx, agent, sessionId } = await harness()
     const validateImage = vi.fn((_input: { data: Uint8Array }) => Promise.resolve())
