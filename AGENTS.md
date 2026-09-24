@@ -153,7 +153,7 @@ Everything compiles under `strict: true` with `noImplicitAny`; every remaining `
 
 Comments and docs state complete contracts and context, not reasoning transcripts. Use direct, concrete terms. Do not use metaphors. Before writing `contract`, `boundary`, or `shape`, ask whether a more exact term names the subject: write `response fields`, `JSON validation`, or `ESM exports` instead of `response shape`, `validation boundary`, or `module shape`. Keep `contract` for preconditions, postconditions, invariants, compatibility promises, and other obligations that callers, callees, implementers, providers, producers, or consumers rely on. Keep a literal process, wire, security, transaction, or lifecycle boundary. Do not narrate control flow or tests, preserve review history, or restate code. Keep behavior, failure, timing, ownership, and safe-use facts. Wire mechanically checkable runtime invariants into an executed top-level gate and verify changed acceptance paths reject invalid cases.
 
-Update documentation when a public interface or developer procedure changes. `docs/` and READMEs are English-only; keep current-state facts in their owning page.
+Update documentation when a public interface or developer procedure changes; keep current-state facts in their owning page. Use the language requested for the relevant document, without a repository-wide language restriction.
 
 ## Editing these instructions
 

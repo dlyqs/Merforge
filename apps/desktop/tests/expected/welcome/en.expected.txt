@@ -1,7 +1,0 @@
-Merforge
-Welcome to Merforge
-Add an API key to get started
-Configure an API key to start using Merforge
-Enter API key [password]
-Save and continue [disabled]
-Set up later

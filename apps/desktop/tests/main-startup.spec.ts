@@ -293,12 +293,12 @@ vi.mock('../src/update-coordinator.ts', () => ({ DesktopUpdateCoordinator: class
   readonly install = harness.updateInstall
   readonly dispose = vi.fn()
 } }))
-vi.mock('../src/welcome-backend.ts', () => ({
-  connectDesktopWelcome: async () => ({
-    readLocalePreference: async () => null,
-    read: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
-    save: async () => ({ ok: true }),
-    account: { watch: harness.watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
+vi.mock('../src/locale-backend.ts', () => ({
+  connectDesktopLocale: async () => ({
+    readLocalePreference: async (): Promise<string | null> => {
+      const state = await harness.hosts.at(-1)!.fetch().then(response => response.json()) as { localePreference: string | null }
+      return state.localePreference
+    },
   }),
 }))
 
@@ -1619,6 +1619,20 @@ describe('desktop main startup', () => {
     expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
+  it('opens the workspace when no API key is configured', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!
+    host.fetch.mockResolvedValue(Response.json({ hasApiKey: false, localePreference: 'zh' }))
+    host.ready.resolve()
+    await vi.waitFor(() => { expect(harness.windows[0]!.show).toHaveBeenCalledOnce() })
+    expect(harness.windows).toHaveLength(1)
+    expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+    expect(harness.menu.setApplicationMenu).toHaveBeenCalled()
+  })
+
   it('prepares an independent plugin profile for the unpackaged Host', async () => {
     harness.app.isPackaged = false
     vi.stubEnv('DSH_DESKTOP_DSH_DIR', undefined)
@@ -1660,7 +1674,7 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(1)
   })
 
-  it('keeps recovery visible when the backend fails during the welcome preference read', async () => {
+  it('keeps recovery visible when the backend fails during the locale preference read', async () => {
     const preferences = Promise.withResolvers<Response>()
     await import('../src/main.ts')
     await harness.preparing.promise

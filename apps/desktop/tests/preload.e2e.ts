@@ -49,7 +49,8 @@ function browserEnvironment() {
 }
 
 describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop preloads', () => {
-  it.each(['preload-app', 'preload-welcome'])('%s loads without filesystem module access', (name) => {
+  it('preload-app loads without filesystem module access', () => {
+    const name = 'preload-app'
     const exposed = new Map<string, Record<string, unknown>>()
     const invoke = vi.fn(() => Promise.resolve({ languages: ['en-US'], preference: 'zh' }))
     const send = vi.fn()
@@ -64,22 +65,18 @@ describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop pr
         if (id !== 'electron') throw new Error(`sandbox cannot load ${id}`)
         return electron
       },
-      process: { argv: ['electron', '--dsh-welcome-locale=en'] },
+      process: { argv: ['electron'] },
       location: new URL('dsh-app://app/'),
       exports: {},
     })
-    if (name === 'preload-app') {
-      browser.loadTheme('dark')
-      expect(send).toHaveBeenCalledWith('dsh-desktop:native-theme-set', 'dark')
-      browser.changeTheme('light')
-      expect(send).toHaveBeenCalledWith('dsh-desktop:native-theme-set', 'light')
-      const bridge = exposed.get('__DSH_LOCALE__') as { read(): unknown; onChange(locale: string): void }
-      bridge.read()
-      expect(invoke).toHaveBeenCalledWith('dsh-desktop:locale-bootstrap')
-      bridge.onChange('zh')
-      expect(send).toHaveBeenCalledWith('dsh-desktop:locale-changed', 'zh')
-    } else {
-      expect(exposed.has('dshWelcome')).toBe(true)
-    }
+    browser.loadTheme('dark')
+    expect(send).toHaveBeenCalledWith('dsh-desktop:native-theme-set', 'dark')
+    browser.changeTheme('light')
+    expect(send).toHaveBeenCalledWith('dsh-desktop:native-theme-set', 'light')
+    const bridge = exposed.get('__DSH_LOCALE__') as { read(): unknown; onChange(locale: string): void }
+    bridge.read()
+    expect(invoke).toHaveBeenCalledWith('dsh-desktop:locale-bootstrap')
+    bridge.onChange('zh')
+    expect(send).toHaveBeenCalledWith('dsh-desktop:locale-changed', 'zh')
   })
 })

@@ -1,36 +1,36 @@
-# Current Engineering Overview
+# 当前工程概览
 
-This page records the current repository structure for finding code during foundation pruning and later roadmap work. The intended product is in the [product roadmap](../ai-native-work-os-product-roadmap.md); acceptance work is in the [Electron Agent foundation pruning plan](desktop-agent-foundation-pruning-plan.md). The Desktop product is Merforge. The planned personal Bot, organization service, and WorkGraph do not yet exist.
+本文记录当前代码结构，帮助开发者定位基础裁剪和后续产品阶段的实现。目标产品见[产品路线图](../ai-native-work-os-product-roadmap.md)，基础裁剪的实际状态见[基础裁剪计划](desktop-agent-foundation-pruning-plan.md)，下一阶段见[个人项目与 Bot 开发计划](personal-project-bot-plan.md)。Desktop 产品名为 Merforge。私人 Bot、组织服务和 WorkGraph 目前尚未实现。
 
-## Runtime and directories
+## 运行方式与目录
 
-Cordis plugins compose the Agent runtime. Desktop is an Electron shell that starts Desktop Host and loads packaged frontend assets in its window. The Host boots its own profile through app-boot and retains the internal Web bundle, local Webserver, and authenticated connection. Standalone Web, CLI, headless, SDK, ACP, and Python distribution entries have been removed. The Desktop bundle omits Office conversion and creation, microphone handling, plugin marketplace and inspection, Open in App, Schedule, PTC workflow, and Ralph; its standard Agent preset keeps files, shell, Skills, subagents, jobs, Plan Mode, Goal, and Todo. Browser guests remain in Electron; Agent browser and computer-use providers ship as disabled Desktop entries that can be enabled after their runtime prerequisites are met. The [closure record](desktop-agent-foundation-pruning-closure.json) lists the Desktop package set.
+Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有 Desktop Host，并在窗口中加载打包的前端资源。Host 通过 app-boot 启动自己的 profile，保留内部 Web bundle、本地 Webserver 和认证连接。独立 Web、CLI、headless、SDK、ACP 及 Python 产品入口已移除。Desktop 组合不包含 Office 转换与创建、麦克风、插件市场与检查、Open in App、Schedule、PTC workflow 和 Ralph；标准 Agent preset 保留文件、shell、Skill、subagent、job、Plan Mode、Goal 和 Todo。浏览器 guest 仍由 Electron 管理；Agent 浏览器和 computer-use provider 随 Desktop 打包，但默认禁用，需要满足各自运行前提后启用。[依赖闭包记录](desktop-agent-foundation-pruning-closure.json)列出 Desktop package 集合。
 
-| Directory | Current responsibility |
+| 目录 | 当前职责 |
 | --- | --- |
-| apps/desktop | Electron main process, windows, native interactions, recovery, updates, and cross-platform packaging. |
-| apps/desktop-host | Private Desktop Node process that boots the profile and provides Electron with the authenticated URL and boot injections. |
-| apps/web | Internal frontend build entry and frontend tests for Desktop. |
-| packages/bundle | Runtime compositions; Desktop selects base and web-app. |
-| packages/core, packages/session, packages/llm, packages/fs, packages/shell | Agent loop, tools, event log, persistence, models, and local execution. |
-| packages/client, packages/api, packages/host | Client plugins, Remote/API, Web Host, and resource transport. |
-| packages/subagent, packages/skill, packages/interaction | Basic delegation, Skills, and user questions/approval. |
-| docs, scripts, snapshots | Architecture and package docs, build/static gates, and Session-driven expected output. |
+| `apps/desktop` | Electron 主进程、窗口、原生交互、恢复、更新与跨平台打包。 |
+| `apps/desktop-host` | 私有 Desktop Node 进程，启动 profile，向 Electron 提供认证地址和 boot injection。 |
+| `apps/web` | Desktop 内部前端构建入口和前端测试。 |
+| `packages/bundle` | 运行时组合；Desktop 选用 base 和 web-app。 |
+| `packages/core`、`packages/session`、`packages/llm`、`packages/fs`、`packages/shell` | Agent loop、工具、事件日志、持久化、模型和本地执行。 |
+| `packages/client`、`packages/api`、`packages/host` | Client 插件、Remote/API、Web Host 和资源传输。 |
+| `packages/subagent`、`packages/skill`、`packages/interaction` | 基础委派、Skill、用户问题与审批。 |
+| `docs`、`scripts`、`snapshots` | 架构与 package 文档、构建/静态门禁、基于 Session 的预期输出。 |
 
-## Critical paths
+## 关键链路
 
-### Desktop boot and connection
+### Desktop 启动与连接
 
-apps/desktop/src/project-manager.ts owns the Desktop bundle list; apps/desktop-host/src/profile-boot.ts boots it directly. Electron loads frontend assets and uses the authenticated address and injections returned by the Host. apps/desktop/scripts/prepare-package-set.ts collects distribution dependencies rooted at Desktop Host. Before changing the profile or Web bundle, trace consumers and the package closure across this path.
+`apps/desktop/src/project-manager.ts` 管理 Desktop bundle 列表，`apps/desktop-host/src/profile-boot.ts` 直接启动该组合。Electron 加载前端资源，使用 Host 返回的认证地址和注入值。`apps/desktop/scripts/prepare-package-set.ts` 从 Desktop Host 出发收集发行依赖。修改 profile 或 Web bundle 前，应沿这条链路追踪消费者和 package 闭包。
 
-### Agent execution and recovery
+### Agent 执行与恢复
 
-packages/core/agent-loop uses system-prompt, tools, and llm for model requests and tool calls. Session events record recoverable model-visible inputs and execution outcomes, while the JSONL provider persists them. fs, shell, subprocess, sandbox, approval, and credentials determine actual local-action permissions. When deleting a model tool or runtime plugin, check Session logging, recovery, permission denial, and the Windows PowerShell path together.
+`packages/core/agent-loop` 使用 system-prompt、tools 和 llm 处理模型请求及工具调用。Session 事件记录可恢复的模型可见输入和执行结果，JSONL provider 持久化日志；fs、shell、subprocess、sandbox、approval 和 credentials 决定本地动作的实际权限。删除模型工具或运行时插件时，应同时检查 Session 日志、恢复、权限拒绝和 Windows PowerShell 路径。
 
-### Client presentation and release
+### Client 展示与发行
 
-packages/bundle/web-app/cordis.patch.yml mounts Host controllers, Client modules, and UI plugins; the Web frontend is not an independently removable static page. The Desktop main process also owns browser guests, directory picking, updates, and other native features. Removing an optional UI feature requires checking its Host, IPC, manifest, packaged assets, tests, and docs together; disabling a composition row does not automatically shrink the installer.
+`packages/bundle/web-app/cordis.patch.yml` 挂载 Host controller、Client module 和 UI 插件；内部 Web 前端是 Desktop 的一部分。Desktop 主进程还管理浏览器 guest、目录选择、更新等原生功能。移除可选 UI 功能时，应一并检查 Host、IPC、manifest、打包资源、测试及文档；只禁用组合条目不会自动缩小安装包。
 
-## Maintenance rules
+## 维护说明
 
-This page describes current code and never marks a planned deletion as implemented. After each phase, update this page and the plan's single status table using actual files, entries, and verification results. Merforge uses `~/.merforge` or `MERFORGE_HOME` and does not migrate or delete legacy DSH_HOME data. Current Session saving and reopening follow the [format status](session-format-status.md). The user prohibits page launches, Playwright, browser automation, and GitNexus; the user verifies relevant GUI behavior manually in the actual desktop app.
+本文只描述当前代码，不把计划中的 Bot 或组织功能写成已实现。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
