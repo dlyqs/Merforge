@@ -2,9 +2,9 @@
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`.
 
-## Pre-stable APIs and released Session data
+## Pre-stable APIs and Session data
 
-Public APIs are pre-stable; update every consumer. Session migration may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
+Public APIs are pre-stable; update every consumer. The [current format status](docs/session-format-status.md) describes the writer and reader. Desktop saves and reopens current-format Sessions; older versions are refused. SQLite uses monotonic `SCHEMA_VERSION`.
 
 **Application launch.** Desktop is the only supported application entry; its private Host boots the profile. Package bins and standalone Web, CLI, SDK, ACP, and Python launchers are forbidden ([rule](docs/architecture.md#application-launch)).
 
@@ -66,7 +66,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   util/                 zero-dependency utilities
 native/      @deepseek-ai/node-addon-system source (native/README.md)
 .agents/     Agent workflows/notes
-docs/        Documentation (docs/AGENTS.md)
+docs/        Documentation
 scripts/     gates and generators
 ```
 
@@ -78,17 +78,13 @@ Package groups: [packages/README.md](packages/README.md).
 pnpm install            # pnpm workspaces, node ^22.19 || >=24
 pnpm run clean           # remove build outputs and safe residue from deleted packages
 pnpm run test           # unit tests
-pnpm run test:coverage  # CI coverage gate: per-file 100% on packages/*/*/src
+pnpm run test:coverage  # optional full coverage report
 pnpm run test:e2e       # real-API tests; self-skip without DEEPSEEK_API_KEY
-pnpm run test:expected  # owner-local process expectations
-pnpm run test:snapshot  # keyless recorded-session replay through shipped profiles; filter: -t <name>
-pnpm run test:snapshot:record  # re-record expected outputs (needs key)
 pnpm run typecheck
 pnpm run lint
 pnpm run duplication    # cross-file TypeScript clone detection
-pnpm run build          # tsc emits lib/types, tsdown bundles runtime
-pnpm run hygiene        # publint + workspace/package/dependency checks + NodeNext consumer check
-pnpm run check:windows-wine  # ONLY when diagnosing a known Windows failure (needs wine); CI owns this signal
+pnpm run build          # build Desktop dependencies and client assets
+pnpm run check:windows-wine  # only when diagnosing a known Windows failure (needs wine)
 pnpm run dev:desktop       # build, then launch Desktop
 pnpm run start:desktop     # launch already-built Desktop
 make desktop|dev-desktop|build  # equivalent shortcuts
@@ -102,9 +98,8 @@ If a required `gh`, `pnpm`, build, test, or generator command fails because the 
 
 Before pushing, run checks relevant to the changed code and report only commands run. After `gh stack sync`, validate immediately; do not merge before checks pass.
 
-- Match evidence to the surface: focused behavior tests, model/user-output snapshots, built smokes for published paths, and real-API e2e for providers.
-- Never default to the full suite or repeat a passing check for commit or push. CI owns exhaustive coverage and the platform matrix; rehearse all locally only by explicit request, for CI diagnosis, or for an irreducibly repository-wide change.
-- `test:coverage`, not `test`, is the CI coverage gate ([why](docs/testing.md)).
+- Match evidence to the surface: focused behavior tests, built smokes for published paths, and real-API e2e for providers.
+- Never default to the full suite or repeat a passing check for commit or push. Run broad checks only for an irreducibly repository-wide change or when requested.
 - **Frontend verification:** use static checks, builds, and pure-logic tests for requested frontend changes; user-side Desktop checks own visible acceptance.
 
 ## Secrets / .env
@@ -140,10 +135,9 @@ Real-API tests/demos read `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, and 
 - **Prefer symmetry for parallel values**; unexplained asymmetry usually signals a missed extraction.
 - **Tests describe behavior, not correctness.** Change obsolete behavior with its tests; explain why in the PR.
 - **Client UI copy is locale-owned.** Route product text through typed dictionaries and `t` or localized primitive props; `verify-client-ui-i18n` rejects hardcoded copy ([decision](.agents/notes/implemented/architecture/2026-08-23-locale-owned-client-ui-copy.md)).
-- **Testing policy** — [docs/testing.md](docs/testing.md). Every non-trivial model- or product-user-visible change updates a keyless recorded-session snapshot; [snapshot ownership](snapshots/AGENTS.md) reserves the top-level tree for session-driven cases and keeps other expected output owner-local. Fixtures replay on macOS/Linux; fix fixtures, not normalizers.
+- **Testing policy** — [docs/testing.md](docs/testing.md). Use focused tests for current application behavior.
 - **Design each tool's UI presentation up front.** Host presenters stay pure; Web cards derive from raw events and persisted result metadata ([cookbook](docs/cookbook/adding-a-tool.md)).
-- **Plan unit, e2e, and snapshot coverage** for capability seams, lifecycle paths, and transcript output; include missing snapshot-harness support in the same change.
-- **Session snapshots project the loop.** Agent-loop, session-lifecycle, and `SessionEventMap` changes update owned recorded-session outputs in the same PR; `pnpm run test` does not cover them ([surfaces](docs/testing.md#when-a-snapshot-test-is-required)).
+- **Choose focused tests** for capability seams and lifecycle paths.
 - **Choose PR history deliberately.** Split independent changes and fix the introducing PR before propagation. Standalone/stack branches may merge-forward or rebase. Rewrites use `--force-with-lease`, abort on remote movement, never raw `--force`; preserve an in-progress merge-forward checkpoint before taking a newer base ([rationale](.agents/notes/implemented/process/2026-08-02-native-github-stacks-and-optional-rebases.md)).
 - **Labels:** one PR `kind/*`, all material `area/*`, and native Issue Type ([taxonomy](.agents/notes/implemented/process/2026-08-08-unified-github-label-taxonomy.md)).
 - TODO markers: `FIXME`/`TODO`/`XXX` by urgency ([semantics](docs/development.md)).

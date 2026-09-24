@@ -9,22 +9,7 @@ describe('snapshot manifest', () => {
     })
   })
 
-  it('parses an explicitly retained Session generation and its migration coverage', () => {
-    expect(parseSnapshotManifest([
-      'version: 1',
-      'profile: headless',
-      'sessionFormat:',
-      '  version: 0',
-      '  coverage: [multi-hop, packed-row]',
-      '',
-    ].join('\n'))).toEqual({
-      version: 1,
-      profile: 'headless',
-      sessionFormat: { version: 0, coverage: ['multi-hop', 'packed-row'] },
-    })
-  })
-
-  it('keeps explicitly retained generations read-only while current fixtures track writer output', () => {
+  it('writes only owned fixtures in record and refresh modes', () => {
     const current = parseSnapshotManifest('version: 1\nprofile: headless\n')
     const borrower = parseSnapshotManifest([
       'version: 1',
@@ -33,22 +18,13 @@ describe('snapshot manifest', () => {
       '  source: ../owner/session.jsonl',
       '',
     ].join('\n'))
-    const retained = parseSnapshotManifest([
-      'version: 1',
-      'profile: headless',
-      'sessionFormat:',
-      '  version: 0',
-      '  coverage: [multi-hop]',
-      '',
-    ].join('\n'))
+
 
     expect(writesCurrentSessionFixtures(current, 'replay')).toBe(false)
     expect(writesCurrentSessionFixtures(current, 'record')).toBe(true)
     expect(writesCurrentSessionFixtures(current, 'refresh')).toBe(true)
     expect(writesCurrentSessionFixtures(borrower, 'record')).toBe(false)
     expect(writesCurrentSessionFixtures(borrower, 'refresh')).toBe(false)
-    expect(writesCurrentSessionFixtures(retained, 'record')).toBe(false)
-    expect(writesCurrentSessionFixtures(retained, 'refresh')).toBe(false)
   })
 
   it('parses a read-only session reference', () => {
@@ -185,14 +161,9 @@ describe('snapshot manifest', () => {
     ['version: 1\nprofile: acp\ninput:\n  attachments:\n    - id: sha256:one\n      mediaType: image\n      data: AQ==\n', 'manifest.input.attachments[0].mediaType must be a MIME type'],
     ['version: 1\nprofile: acp\ninput:\n  attachments:\n    - id: sha256:one\n      mediaType: image/png\n      data: ""\n', 'manifest.input.attachments[0].data must be non-empty base64'],
     ['version: 1\nprofile: acp\ninput:\n  attachments:\n    - id: sha256:one\n      mediaType: image/png\n      data: AQ==\n    - id: sha256:one\n      mediaType: image/png\n      data: Ag==\n', 'manifest.input.attachments must have unique ids'],
-    ['version: 1\nprofile: acp\nsessionFormat:\n  version: -1\n  coverage: [multi-hop]\n', 'manifest.sessionFormat.version must be a non-negative safe integer'],
-    ['version: 1\nprofile: acp\nsessionFormat:\n  version: 0\n  coverage: []\n', 'manifest.sessionFormat.coverage must be a non-empty array of unique supported coverage names'],
-    ['version: 1\nprofile: acp\nsessionFormat:\n  version: 0\n  coverage: [multi-hop, multi-hop]\n', 'manifest.sessionFormat.coverage must be a non-empty array of unique supported coverage names'],
-    ['version: 1\nprofile: acp\nsessionFormat:\n  version: 0\n  coverage: [unknown]\n', 'manifest.sessionFormat.coverage must be a non-empty array of unique supported coverage names'],
     ['version: 1\nprofile: acp\nsession: {}\n', 'manifest.session.source must be a non-empty string'],
     ['version: 1\nprofile: acp\nsession:\n  source: /tmp/session.jsonl\n', 'manifest.session.source must be a relative POSIX path'],
     ['version: 1\nprofile: acp\nsession:\n  source: ..\\session.jsonl\n', 'manifest.session.source must be a relative POSIX path'],
-    ['version: 1\nprofile: acp\nsession:\n  source: ../session.jsonl\nsessionFormat:\n  version: 0\n  coverage: [multi-hop]\n', 'manifest.sessionFormat is only valid when the scenario owns its Session fixtures'],
     ['version: 1\nprofile: !!js acp\n', 'invalid YAML'],
   ])('rejects invalid metadata', (source, message) => {
     expect(() => parseSnapshotManifest(source, 'case/snapshot.yml')).toThrow(message)

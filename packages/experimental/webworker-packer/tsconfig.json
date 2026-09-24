@@ -27,7 +27,7 @@
       "path": "../../session/session-format-catalog"
     },
     {
-      "path": "../../session/session-format-v3-to-v4"
+      "path": "../../session/session-format-current"
     }
   ]
 }

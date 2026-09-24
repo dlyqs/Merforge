@@ -4,7 +4,6 @@ import { Context } from '@deepseek-ai/cordis'
 import { appendFile, mkdtemp, mkdir, rm, readFile, writeFile, readdir, stat, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
-import { scheduler } from 'node:timers/promises'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
@@ -15,11 +14,10 @@ import {
   toHeaderLine,
 } from '../src/format.ts'
 import {
-  runPersistenceContract, meta, oneTurnLog, releasedV1OneTurnLog,
+  runPersistenceContract, meta, oneTurnLog,
 } from '../../session-persistence/tests/contract.ts'
 import { runLiveWritePathContract } from '../../session-persistence/tests/live-write-contract.ts'
 import { LIVE_WRITE_BATCH_MAX_DELAY_MS, type JsonlSessionHandle } from '../src/storage.ts'
-import { JsonlGenerationSourceChangedError } from '../src/generation.ts'
 import SessionStore from '@deepseek-ai/dsh-session'
 
 const statRace = vi.hoisted(() => ({
@@ -140,27 +138,6 @@ async function freshRoot(): Promise<string> {
   return dir
 }
 
-function pausePhysicalRead(path: string): {
-  readonly entered: Promise<void>
-  readonly finished: Promise<void>
-  release(): void
-} {
-  const entered = Promise.withResolvers<undefined>()
-  const resume = Promise.withResolvers<undefined>()
-  const finished = Promise.withResolvers<undefined>()
-  pausedRead.path = path
-  pausedRead.entered = () => { entered.resolve(undefined) }
-  pausedRead.resume = resume.promise
-  pausedRead.release = () => { resume.resolve(undefined) }
-  pausedRead.done = finished.promise
-  pausedRead.finished = () => { finished.resolve(undefined) }
-  return {
-    entered: entered.promise,
-    finished: finished.promise,
-    release: () => { resume.resolve(undefined) },
-  }
-}
-
 function rawLogPath(root: string, cwd: string | undefined, id: SessionId): string {
   return logPath(root, cwd, id, 'none')
 }
@@ -185,68 +162,7 @@ function releasedV0Header(header: SessionHeader): Record<string, unknown> {
 }
 
 /** Construct a supported historical turn with its first surface inside the step. */
-function migrationOneTurnLog(): SessionEvent[] {
-  const [turn, user, step, ...tail] = releasedV1OneTurnLog()
-  return [turn!, { ...step!, time: 2 }, { ...user!, time: 3 }, ...tail]
-    .map((event, seq) => ({ ...event, seq: SessionSeq(seq) }))
-}
-
 /** Expected V3 insertion for an append-only log beginning with turn/start and step/start. */
-function withMigratedEmptyHead(log: readonly SessionEvent[]): readonly unknown[] {
-  return [
-    ...log.slice(0, 2),
-    {
-      type: 'system/message', seq: 2, time: log[1]!.time, surfaceOp: 'append',
-      data: { turn: 1, step: 1, message: {
-        id: expect.stringMatching(/^v2-to-v3-system-[0-9a-f]{64}$/) as unknown,
-        role: 'system', content: [], source: { kind: 'system-prompt' },
-      } },
-    },
-    ...log.slice(2).map(event => ({ ...event, seq: SessionSeq(event.seq + 1) })),
-  ]
-}
-
-function migratedOneTurnLog(): readonly unknown[] {
-  const [turn, user, step, ...tail] = oneTurnLog()
-  const log = [turn!, { ...step!, time: 2 }, { ...user!, time: 3 }, ...tail]
-    .map((event, seq) => ({ ...event, seq: SessionSeq(seq) }))
-  return withMigratedEmptyHead(log)
-}
-
-function releasedV1PackedPhysicalLog(header: SessionHeader): string {
-  const source = migrationOneTurnLog()
-  const extraChunks: SessionEvent[] = [
-    {
-      type: 'assistant/chunk', seq: SessionSeq(5), time: 3,
-      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '' } },
-    } as unknown as SessionEvent,
-    {
-      type: 'assistant/chunk', seq: SessionSeq(6), time: 3,
-      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: '' } },
-    } as unknown as SessionEvent,
-  ]
-  const events = [
-    ...source.slice(0, 5),
-    ...extraChunks,
-    ...source.slice(5).map((event): SessionEvent => ({
-      ...event,
-      seq: SessionSeq(event.seq + 2),
-      ...(event.type === 'assistant/message'
-        ? { sourceEventSeqs: [3, 4, 5, 6, 7, 8].map(SessionSeq) }
-        : {}),
-    } as SessionEvent)),
-  ]
-  const packed = {
-    type: 'text-chunks',
-    seq0: 4,
-    time0: 3,
-    data: { turn: 1, step: 1, index: 0, dt: [0, 0], texts: ['hello', '', ''] },
-  }
-  const rows = [...events.slice(0, 4), packed, ...events.slice(7)]
-  return [{ ...releasedV0Header(header), version: 1 }, ...rows]
-    .map(row => JSON.stringify(row)).join('\n') + '\n'
-}
-
 /** Create + append + close: persist one whole log through the write handle. */
 async function writeLog(persistence: SessionPersistence, m: SessionHeader, events: readonly SessionEvent[]): Promise<void> {
   const handle = await persistence.create(m)
@@ -698,94 +614,6 @@ describe('JsonlSessionPersistence: immutable format generations', () => {
 
   afterEach(async () => { await ctx.fiber.dispose() })
 
-  it.each([3, SESSION_FORMAT_VERSION])('shares deeply frozen opaque JSON from format v%s', async (version) => {
-    type NestedValue = {
-      values: [null, boolean, number, string, unknown[]]
-      __proto__: { leaf: number }
-      constructor: { leaf: number }
-    }
-    const data = JSON.parse('{"nested":[[{"values":[null,true,7,"text",[]],"__proto__":{"leaf":1},"constructor":{"leaf":2}}]]}') as { nested: [[NestedValue]] }
-    const header = meta(`frozen-json-v${version}`, '/work')
-    const path = generationLogPath(root, header.cwd, header.id, version, 'none')
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, [
-      { ...toHeaderLine(header), version },
-      { type: 'external/frozen-json', seq: 0, time: 1, ignorable: true, data },
-    ].map(row => JSON.stringify(row) + '\n').join(''))
-
-    const handle = await ctx.sessionPersistence.open(header.id, 'read')
-    try {
-      const read = await handle.read()
-      expect(read.eventState).toBe('shared-frozen')
-      expect(read.events).toHaveLength(1)
-      const event = read.events[0] as SessionEvent
-      const actual = event.data as unknown as typeof data
-      const nested = actual.nested[0][0]
-      expect(actual).toEqual(data)
-      expect(Object.getPrototypeOf(nested)).toBe(Object.prototype)
-      expect(Object.hasOwn(nested, '__proto__')).toBe(true)
-      expect(Object.hasOwn(nested, 'constructor')).toBe(true)
-      expect([
-        event, actual, actual.nested, actual.nested[0], nested, nested.values,
-        nested.values[4], nested.__proto__, nested.constructor,
-      ].every(Object.isFrozen)).toBe(true)
-      expect(Reflect.set(nested.__proto__, 'leaf', 9)).toBe(false)
-      expect(Reflect.set(nested.constructor, 'leaf', 9)).toBe(false)
-      expect(() => nested.values[4].push('changed')).toThrow(TypeError)
-
-      const reread = await handle.read()
-      expect(reread.events).not.toBe(read.events)
-      expect(reread.events[0]).toBe(event)
-      expect(reread.events[0]?.data).toBe(actual)
-      expect(actual).toEqual(data)
-    } finally {
-      await handle.close()
-    }
-  })
-
-  it('projects a released v0 header through stat and list without reading or mutating its body', async () => {
-    const header = meta('released-v0-metadata', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    const source = Buffer.from(
-      `${JSON.stringify(releasedV0Header(header))}\n${releasedV1OneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`,
-    )
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-
-    expect(await ctx.sessionPersistence.stat(header.id)).toMatchObject({
-      header: { id: header.id, version: SESSION_FORMAT_VERSION },
-    })
-    const [listed] = await ctx.sessionPersistence.list()
-    expect(listed?.header).toMatchObject({ id: header.id, version: SESSION_FORMAT_VERSION })
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(stat(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('serves a migrated v0 read without publishing at the service durability barrier', async () => {
-    const header = meta('released-v0-read', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    const source = Buffer.from(
-      `${JSON.stringify(releasedV0Header(header))}\n${migrationOneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`,
-    )
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-
-    const restored = await readAll(ctx.sessionPersistence, header.id)
-    expect(restored).toEqual({
-      meta: { ...header, delegationDepth: 0 },
-      events: migratedOneTurnLog(),
-    })
-    const userMessage = restored.events.find(event => event.type === 'user/message')
-    expect(userMessage).toBeDefined()
-    expect(Object.isFrozen(userMessage?.data)).toBe(true)
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    expect((await readdir(dirname(sourcePath))).filter(name => name.startsWith('session')).sort())
-      .toEqual(['session.jsonl'])
-  })
-
   it('resolves absent, current, and historical current-generation paths', async () => {
     const persistence = ctx.sessionPersistence as JsonlSessionPersistence
     expect(await persistence.resolveCurrentLog(SessionId('missing-generation'))).toBeUndefined()
@@ -811,237 +639,6 @@ describe('JsonlSessionPersistence: immutable format generations', () => {
     })
   })
 
-  it('singleflights concurrent historical reads and keeps service flush read-only', async () => {
-    const header = meta('released-v0-source-drift', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    readTally.enabled = true
-
-    const [first, second] = await Promise.all([
-      ctx.sessionPersistence.open(header.id, 'read'),
-      ctx.sessionPersistence.open(header.id, 'read'),
-    ])
-    expect((await first.read()).events).toEqual([])
-    expect((await second.read()).events).toEqual([])
-    expect(readTally.bySuffix.get(sourcePath)).toBe(1)
-    await appendFile(sourcePath, '\n')
-
-    await expect(ctx.sessionPersistence.flush()).resolves.toBeUndefined()
-    await expect(stat(rawLogPath(root, header.cwd, header.id))).rejects.toMatchObject({ code: 'ENOENT' })
-    await Promise.all([first.close(), second.close()])
-    await ctx.fiber.dispose()
-    ctx = new Context()
-  })
-
-  it('does not join an in-flight historical preparation for an older source revision', async () => {
-    const header = meta('released-v0-revision-singleflight', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    const pause = pausePhysicalRead(sourcePath)
-    readTally.enabled = true
-
-    const firstOpening = ctx.sessionPersistence.open(header.id, 'read')
-    await pause.entered
-    await appendFile(sourcePath, `${migrationOneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`)
-    const secondOpening = ctx.sessionPersistence.open(header.id, 'read')
-    let tallyFailure: unknown
-    try {
-      await vi.waitFor(() => { expect(readTally.bySuffix.get(sourcePath)).toBe(2) })
-    } catch (error: unknown) {
-      tallyFailure = error
-    } finally {
-      pause.release()
-    }
-
-    const [first, second] = await Promise.all([firstOpening, secondOpening])
-    try {
-      if (tallyFailure !== undefined) throw tallyFailure
-      expect((await first.read()).events).toEqual(migratedOneTurnLog())
-      expect((await second.read()).events).toEqual(migratedOneTurnLog())
-    } finally {
-      await Promise.all([first.close(), second.close()])
-    }
-  })
-
-  it('lets one historical-open caller abort without cancelling another waiter', async () => {
-    const header = meta('released-v0-shared-cancellation', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    const pause = pausePhysicalRead(sourcePath)
-    readTally.enabled = true
-    const controller = new AbortController()
-    const reason = new Error('first historical waiter cancelled')
-
-    const internals = ctx.sessionPersistence as unknown as {
-      migrationPreparations: Map<SessionId, { waiters: number }>
-    }
-    const first = ctx.sessionPersistence.open(header.id, 'read', { signal: controller.signal })
-    const second = ctx.sessionPersistence.open(header.id, 'read')
-    const settled = Promise.allSettled([first, second])
-    try {
-      await pause.entered
-      // Both callers must join the preparation before either caller leaves it.
-      await expect.poll(() => internals.migrationPreparations.get(header.id)?.waiters).toBe(2)
-      controller.abort(reason)
-      await expect(first).rejects.toBe(reason)
-      pause.release()
-      const handle = await second
-      expect((await handle.read()).events).toEqual([])
-      expect(readTally.bySuffix.get(sourcePath)).toBe(1)
-    } finally {
-      controller.abort(reason)
-      pause.release()
-      for (const result of await settled) {
-        if (result.status === 'fulfilled') await result.value.close()
-      }
-    }
-  })
-
-  it('cancels shared historical preparation after its last waiter leaves', async () => {
-    const header = meta('released-v0-last-waiter-cancellation', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    const pause = pausePhysicalRead(sourcePath)
-    readTally.enabled = true
-    const controller = new AbortController()
-    const reason = 'last historical waiter cancelled'
-
-    const opening = ctx.sessionPersistence.open(header.id, 'read', { signal: controller.signal })
-    await pause.entered
-    controller.abort(reason)
-    await expect(opening).rejects.toMatchObject({
-      message: 'session migration preparation aborted',
-      cause: reason,
-    })
-    pause.release()
-    await pause.finished
-    await scheduler.yield()
-
-    const retried = await ctx.sessionPersistence.open(header.id, 'read')
-    expect((await retried.read()).events).toEqual([])
-    expect(readTally.bySuffix.get(sourcePath)).toBe(2)
-    await retried.close()
-  })
-
-  it.each(['read', 'write'] as const)('refuses the frozen pre-step V0 fixture on %s open without publishing a successor', async (access) => {
-    const id = SessionId('released-v0-real-shapes')
-    const sourcePath = historicalLogPath(root, '/work', id)
-    const currentPath = rawLogPath(root, '/work', id)
-    const source = await readFile(resolve(
-      'packages/session/session-persistence-jsonl/tests/fixtures/released-v0-real-shapes.jsonl',
-    ))
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-    const before = await stat(sourcePath, { bigint: true })
-
-    await expect(ctx.sessionPersistence.open(id, access)).rejects.toMatchObject({
-      name: 'SessionFormatUnsupportedError',
-      message: expect.stringContaining('surface before first step') as unknown,
-    })
-    await ctx.sessionPersistence.flush()
-
-    const after = await stat(sourcePath, { bigint: true })
-    expect({ dev: after.dev, ino: after.ino, size: after.size, mtimeNs: after.mtimeNs, ctimeNs: after.ctimeNs })
-      .toEqual({ dev: before.dev, ino: before.ino, size: before.size, mtimeNs: before.mtimeNs, ctimeNs: before.ctimeNs })
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    expect((await readdir(dirname(sourcePath))).filter(name => name !== 'session.lock'))
-      .toEqual(['session.jsonl'])
-  })
-
-  it.each(['read', 'write'] as const)('restores canonical replacement envelopes from valid V2 chronology on %s open', async (access) => {
-    const header = meta('released-v2-replacement', '/work')
-    const sourcePath = generationLogPath(root, header.cwd, header.id, 2, 'none')
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    const message = { id: 'original', role: 'user', content: [{ type: 'text', text: 'question' }], source: { kind: 'user' } }
-    const source = Buffer.from([
-      JSON.stringify({ ...toHeaderLine(header), version: 2 }),
-      ...[
-        { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
-        { type: 'step/start', seq: 1, time: 2, data: { turn: 1, step: 1 } },
-        { type: 'user/message', seq: 2, time: 3, data: message, surfaceOp: 'append' },
-        { type: 'user/message', seq: 3, time: 4, data: { ...message, id: 'summary' }, surfaceOp: { op: 'replace', start: 2, end: 2 }, sourceEventSeqs: [2] },
-        { type: 'step/end', seq: 4, time: 5, data: { turn: 1, step: 1 } },
-        { type: 'turn/end', seq: 5, time: 6, data: { turn: 1, reason: { kind: 'completed' } } },
-      ].map(event => JSON.stringify(event)),
-      '',
-    ].join('\n'))
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-    const handle = await ctx.sessionPersistence.open(header.id, access)
-    try {
-      const restored = await handle.read()
-      expect(restored.events[2]).toMatchObject({ type: 'system/message', surfaceOp: 'append' })
-      expect(restored.events[4]).toMatchObject({
-        type: 'user/message', seq: 4,
-        surfaceOp: { op: 'replace', startSeq: 3, endSeq: 3 }, sourceEventSeqs: [3],
-      })
-      expect(restored.events[4]?.surfaceOp).not.toHaveProperty('start')
-      expect(restored.events[4]?.surfaceOp).not.toHaveProperty('end')
-      await ctx.sessionPersistence.flush()
-      if (access === 'write') {
-        const published = scanLog(await readFile(currentPath))
-        expect(published.events).toEqual(restored.events)
-      } else {
-        await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-      }
-      expect(await readFile(sourcePath)).toEqual(source)
-    } finally {
-      await handle.close()
-    }
-  })
-
-  it('reads v1 packed chunk rows without publishing or changing the source', async () => {
-    const header = meta('released-v1-read', '/work')
-    const sourcePath = generationLogPath(root, header.cwd, header.id, 1, 'none')
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    const source = Buffer.from(releasedV1PackedPhysicalLog(header))
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-
-    const restored = await readAll(ctx.sessionPersistence, header.id)
-    expect(restored.meta).toEqual({ ...header, delegationDepth: 0 })
-    expect(restored.events.map(event => event.type)).toEqual([
-      'turn/start', 'step/start', 'system/message', 'user/message', 'assistant/message', 'step/end', 'turn/end',
-    ])
-    expect(restored.events.find(event => event.type === 'assistant/message'))
-      .toMatchObject({ data: { message: { content: [{ type: 'text', text: 'hello' }] } } })
-
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    expect((await readdir(dirname(sourcePath))).filter(name => name.startsWith('session')).sort())
-      .toEqual(['session.v1.jsonl'])
-  })
-
-  it('selects v1 from a v0/v1 directory, then the current generation from the retained three-generation set', async () => {
-    const header = meta('mixed-generation-read', '/work')
-    const directory = sessionDir(root, header.cwd, header.id)
-    const v0Path = historicalLogPath(root, header.cwd, header.id)
-    const v1Path = generationLogPath(root, header.cwd, header.id, 1, 'none')
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    await mkdir(directory, { recursive: true })
-    await writeFile(v0Path, `${JSON.stringify(releasedV0Header(header))}\n`)
-    await writeFile(v1Path, releasedV1PackedPhysicalLog(header))
-
-    const migrated = await readAll(ctx.sessionPersistence, header.id)
-    expect(migrated.events.map(event => event.type)).toContain('assistant/message')
-    const writer = await ctx.sessionPersistence.open(header.id, 'write')
-    await writer.close()
-    expect((await readdir(directory)).filter(name => name.startsWith('session')).sort())
-      .toEqual(process.platform === 'win32'
-        ? ['session.jsonl', 'session.v1.jsonl', `session.v${SESSION_FORMAT_VERSION}.jsonl`]
-        : ['session.jsonl', 'session.lock', 'session.v1.jsonl', `session.v${SESSION_FORMAT_VERSION}.jsonl`])
-
-    await writeFile(v0Path, 'corrupt lower v0\n')
-    await writeFile(v1Path, 'corrupt lower v1\n')
-    await expect(readAll(ctx.sessionPersistence, header.id)).resolves.toEqual(migrated)
-    expect(await readFile(currentPath, 'utf8')).toContain(`"version":${SESSION_FORMAT_VERSION}`)
-  })
-
   it('does not publish a historical generation through handle storage resolution', async () => {
     const header = meta('released-v0-handle-read', '/work')
     const sourcePath = historicalLogPath(root, header.cwd, header.id)
@@ -1053,90 +650,6 @@ describe('JsonlSessionPersistence: immutable format generations', () => {
     await expect(persistence.resolveCurrentLog(header.id, new AbortController().signal)).resolves.toBeUndefined()
     expect(await readFile(sourcePath, 'utf8')).toBe(`${JSON.stringify(releasedV0Header(header))}\n`)
     await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('opens the migrated successor for append while retaining the historical source', async () => {
-    const header = meta('released-v0-write', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const source = Buffer.from(
-      `${JSON.stringify(releasedV0Header(header))}\n${migrationOneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`,
-    )
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-    const suffix: SessionEvent[] = [
-      { type: 'turn/start', seq: SessionSeq(7), time: 9, data: { turn: 2 } },
-      { type: 'turn/end', seq: SessionSeq(8), time: 10, data: { turn: 2, reason: { kind: 'completed' } } },
-    ]
-
-    await appendBatch(ctx.sessionPersistence, header.id, suffix)
-
-    expect(await readFile(sourcePath)).toEqual(source)
-    expect((await readAll(ctx.sessionPersistence, header.id)).events).toEqual([
-      ...migratedOneTurnLog(),
-      ...suffix,
-    ])
-  })
-
-  it('switches an existing prepared read handle to the published append tail', async () => {
-    const header = meta('released-v0-read-handoff', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(
-      sourcePath,
-      `${JSON.stringify(releasedV0Header(header))}\n${migrationOneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`,
-    )
-    const reader = await ctx.sessionPersistence.open(header.id, 'read')
-    const suffix: SessionEvent[] = [
-      { type: 'turn/start', seq: SessionSeq(7), time: 9, data: { turn: 2 } },
-      { type: 'turn/end', seq: SessionSeq(8), time: 10, data: { turn: 2, reason: { kind: 'completed' } } },
-    ]
-    try {
-      expect((await reader.read()).events).toEqual(migratedOneTurnLog())
-      await appendBatch(ctx.sessionPersistence, header.id, suffix)
-      expect((await reader.read()).events).toEqual([...migratedOneTurnLog(), ...suffix])
-    } finally {
-      await reader.close()
-    }
-  })
-
-  it('fails a stale prepared publication once and re-prepares on the next write open', async () => {
-    const header = meta('released-v0-write-source-drift', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    const source = `${JSON.stringify(releasedV0Header(header))}\n`
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-    await readAll(ctx.sessionPersistence, header.id)
-    vi.spyOn(scheduler, 'yield').mockImplementationOnce(async () => {
-      await appendFile(sourcePath, '\n')
-    })
-
-    await expect(ctx.sessionPersistence.open(header.id, 'write'))
-      .rejects.toBeInstanceOf(JsonlGenerationSourceChangedError)
-    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-
-    const writer = await ctx.sessionPersistence.open(header.id, 'write')
-    await writer.close()
-    expect(await readFile(sourcePath, 'utf8')).toBe(`${source}\n`)
-    expect(await readFile(currentPath, 'utf8')).toContain(`"version":${SESSION_FORMAT_VERSION}`)
-  })
-
-  it('finishes publication before rejecting a write open cancelled during publication', async () => {
-    const header = meta('released-v0-publication-cancellation', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const currentPath = rawLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    await readAll(ctx.sessionPersistence, header.id)
-    const controller = new AbortController()
-    const reason = new Error('write open cancelled during publication')
-    vi.spyOn(scheduler, 'yield').mockImplementationOnce(async () => { controller.abort(reason) })
-
-    await expect(ctx.sessionPersistence.open(header.id, 'write', { signal: controller.signal }))
-      .rejects.toBe(reason)
-    expect(await readFile(currentPath, 'utf8')).toContain(`"version":${SESSION_FORMAT_VERSION}`)
-    const writer = await ctx.sessionPersistence.open(header.id, 'write')
-    await writer.close()
   })
 
   it('treats a historical generation as an existing id at create', async () => {
@@ -1201,53 +714,6 @@ describe('JsonlSessionPersistence: immutable format generations', () => {
       .rejects.toThrow(/filename identifies v3.*header identifies v2/)
   })
 
-  it('refuses a malformed historical header before migration reads its rows', async () => {
-    const header = meta('malformed-v0-header', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify({ version: 0, id: header.id })}\n`)
-
-    await expect(ctx.sessionPersistence.open(header.id, 'read'))
-      .rejects.toThrow(/released v0 physical header lacks required member "type"/)
-  })
-
-  it('tracks a disappearing corpus member and propagates its storage faults in historical revisions', async () => {
-    const parent = meta('corpus-revision-parent', '/work')
-    const child = meta('corpus-revision-child', '/work')
-    for (const header of [parent, child]) {
-      const path = historicalLogPath(root, header.cwd, header.id)
-      await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, `${JSON.stringify(releasedV0Header(header))}\n`)
-    }
-    const present = await ctx.sessionPersistence.stat(parent.id)
-    statFailure.path = historicalLogPath(root, child.cwd, child.id)
-    statFailure.error = Object.assign(new Error('member disappeared'), { code: 'ENOENT' })
-    const missing = await ctx.sessionPersistence.stat(parent.id)
-    expect(missing).toBeDefined()
-    expect(missing?.revision).not.toBe(present?.revision)
-    expect((await ctx.sessionPersistence.stat(parent.id))?.revision).toBe(missing?.revision)
-    statFailure.error = Object.assign(new Error('member denied'), { code: 'EACCES' })
-    await expect(ctx.sessionPersistence.stat(parent.id)).rejects.toBe(statFailure.error)
-  })
-
-  it('surfaces source-read storage faults and aborts unwrapped during migration', async () => {
-    const header = meta('source-read-fault', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, `${JSON.stringify(releasedV0Header(header))}\n`)
-    statFailure.path = sourcePath
-    statFailure.error = Object.assign(new Error('EACCES: denied'), { code: 'EACCES' })
-    await expect(ctx.sessionPersistence.open(header.id, 'read')).rejects.toMatchObject({ code: 'EACCES' })
-    statFailure.error = new DOMException('source read aborted', 'AbortError')
-    await expect(ctx.sessionPersistence.open(header.id, 'read')).rejects.toMatchObject({ name: 'AbortError' })
-    statFailure.error = undefined
-    readFailure.path = sourcePath
-    readFailure.error = new DOMException('source read failed', 'InvalidStateError')
-    await expect(ctx.sessionPersistence.open(header.id, 'read')).rejects.toMatchObject({
-      name: 'SessionPersistenceCorruptionError',
-    })
-  })
-
   it('selects the highest opposite-encoding generation for its refusal', async () => {
     const header = meta('opposite-generations', '/work')
     const dir = sessionDir(root, header.cwd, header.id)
@@ -1282,26 +748,6 @@ describe('JsonlSessionPersistence: immutable format generations', () => {
     await expect(ctx.sessionPersistence.open(header.id, 'read')).rejects.toMatchObject({
       code: 'ENOTDIR',
     })
-  })
-
-  it('leaves v0 unchanged when migration policy refuses an unknown event', async () => {
-    const header = meta('released-v0-refusal', '/work')
-    const sourcePath = historicalLogPath(root, header.cwd, header.id)
-    const source = Buffer.from([
-      JSON.stringify(releasedV0Header(header)),
-      JSON.stringify({ type: 'external/info', seq: 0, time: 1, data: {}, ignorable: true }),
-      '',
-    ].join('\n'))
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-
-    const failure = await ctx.sessionPersistence.open(header.id, 'read')
-      .then(() => undefined, (error: unknown) => error)
-    expect(failure).toBeInstanceOf(Error)
-    expect((failure as Error).name).toBe('SessionFormatUnsupportedError')
-    expect((failure as Error).message).toContain('unknown historical event type "external/info" at seq 0')
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(stat(rawLogPath(root, header.cwd, header.id))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('attaches the current path when a direct handle read finds a foreign header', async () => {
@@ -2375,49 +1821,6 @@ describe('JsonlSessionPersistence: nested Assistant streams', () => {
 
     const loaded = await readAll(ctx.sessionPersistence, m.id)
     expect(loaded.events).toEqual(log)
-  })
-
-  it.each([2, 3])('reads v%s rows and appends a current turn without changing predecessor bytes', async (version) => {
-    const m = meta('mixed', '/work')
-    const log = chunkRunLog()
-    const sourcePath = generationLogPath(root, '/work', m.id, version, 'none')
-    const currentPath = rawLogPath(root, '/work', m.id)
-    const source = Buffer.from([
-      JSON.stringify({
-        type: 'session', version, id: 'mixed', createdAt: 1000,
-        cwd: '/work', isSeeded: false, delegationDepth: 0,
-      }),
-      ...log.map(e => JSON.stringify(e)),
-    ].join('\n') + '\n')
-    await mkdir(dirname(sourcePath), { recursive: true })
-    await writeFile(sourcePath, source)
-
-    const expected = version === 2 ? withMigratedEmptyHead(log) : log
-    const restored = await readAll(ctx.sessionPersistence, m.id)
-    expect(restored.meta.version).toBe(SESSION_FORMAT_VERSION)
-    expect(restored.events).toEqual(expected)
-    expect(await readFile(sourcePath)).toEqual(source)
-    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    const secondTurn: SessionEvent[] = JSON.parse(JSON.stringify(log)) as SessionEvent[]
-    for (const [k, e] of secondTurn.entries()) {
-      ;(e as { seq: number }).seq = expected.length + k
-      ;(e.data as { turn: number }).turn = 2
-    }
-    await appendBatch(ctx.sessionPersistence, m.id, secondTurn)
-
-    const loaded = await readAll(ctx.sessionPersistence, m.id)
-    expect(loaded.events).toEqual([...expected, ...secondTurn])
-    expect(currentPath).toBe(join(dirname(sourcePath), `session.v${SESSION_FORMAT_VERSION}.jsonl`))
-    const successor = (await readFile(currentPath, 'utf8')).trimEnd().split('\n')
-    expect(JSON.parse(successor[0] as string)).toMatchObject({ version: SESSION_FORMAT_VERSION })
-    expect(successor.slice(1).map(row => JSON.parse(row) as unknown)).toEqual([...expected, ...secondTurn])
-    expect(await readFile(sourcePath)).toEqual(source)
-    // Compact tags stay nested; physical rows contain only current event tags.
-    const tags = (await readFile(rawLogPath(root, '/work', m.id), 'utf8')).split('\n').filter(Boolean)
-      .map(line => (JSON.parse(line) as { type: string }).type)
-    expect(tags.filter(t => t === 'text-chunks')).toHaveLength(0)
-    expect(tags.filter(t => t === 'assistant/chunk')).toHaveLength(0)
-    expect(tags.filter(t => t === 'assistant/message')).toHaveLength(2)
   })
 
   it('scanLog rejects a removed top-level packed row before a committed boundary', () => {

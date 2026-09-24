@@ -28,7 +28,6 @@ import { type AgentUnderTest, type HarvestedLog, type InputScript, runScenario }
 import {
   parseSnapshotManifest,
   writesCurrentSessionFixtures,
-  type SnapshotSessionFormatManifest,
 } from './manifest.ts'
 import { redactSessionSnapshotIds } from './identity.ts'
 import { captureExpectedWorkspaceSnapshot } from './workspace.ts'
@@ -93,7 +92,7 @@ export interface Scenario {
    */
   comparesLog?: boolean
   /**
-   * Whether `test:snapshot:record` regenerates this scenario's current-version
+   * Whether recording regenerates this scenario's current-version
    * Session fixtures from the LIVE API. `recorded` scenarios are model-driven and reproducible;
    * `authored` scenarios (fixtures hand-written or hand-harvested — e.g. a
    * provider error or a cancel the live API can't be coaxed into
@@ -101,8 +100,6 @@ export interface Scenario {
    * a live model won't reproduce) are NEVER re-recorded.
    */
   recorded: boolean
-  /** Historical generation retained as a read-only migration fixture. */
-  sessionFormat?: SnapshotSessionFormatManifest
   /**
    * Whether replay is driven by a hand-written `replay.override.json` sidecar
    * (a `ReplayOverrideDoc` that replaces or patches the script derived from
@@ -231,7 +228,7 @@ export function scenarioSkipped(
   platform: NodeJS.Platform = process.platform,
   hasPwsh?: boolean,
 ): boolean {
-  if (recording && (!scenario.recorded || scenario.sessionFormat !== undefined)) return true
+  if (recording && !scenario.recorded) return true
   if (scenario.posixOnly === true && platform === 'win32') return true
   return scenario.pwshOnly === true && hasPwsh !== true
 }
@@ -1314,10 +1311,7 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
         let fixtureFiles = RECORDING ? [] : await sessionFixtures(dir)
         const childFixtureFiles = fixtureFiles.slice(1)
         const primaryFixtureFile = fixtureFiles[0] ?? sessionFixtureName(0, 0)
-        // A retained historical generation is an immutable replay input: record
-        // and refresh never write or compare a current-writer session for it.
-        const comparesLog = scenario.comparesLog ?? (scenario.hasModelTurn
-          && manifest.sessionFormat === undefined)
+        const comparesLog = scenario.comparesLog ?? scenario.hasModelTurn
         const result = await runScenario(input, {
           agent,
           mode: childMode,

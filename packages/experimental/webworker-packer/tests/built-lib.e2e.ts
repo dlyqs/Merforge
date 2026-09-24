@@ -112,12 +112,12 @@ it('loads both tarballs through plain Node and mounts their base image and overl
     runtime.loadVfsOverlay(await runtime.inflateImage(overlay.image, 'packed overlay'), '/dsh', vfs)
     assert.equal(vfs.readFileSync('/dsh/workspace/hello.txt', 'utf8'), 'packed worker pair\\n')
     mkdirSync('home/sessions/project/preview', { recursive: true })
-    const historical = JSON.stringify({ type: 'session', version: 3, id: 'preview', createdAt: 1, isSeeded: false, delegationDepth: 0 }) + '\\n'
-    writeFileSync('home/sessions/project/preview/session.v3.jsonl', historical)
+    const fixtureLog = JSON.stringify({ type: 'session', version: sessionFormatCatalog.currentVersion, id: 'preview', createdAt: 1, isSeeded: false, delegationDepth: 0 }) + '\\n'
+    writeFileSync('home/sessions/project/preview/session.v4.jsonl', fixtureLog)
     const prepared = packer.packPreviewFixture([{ mount: 'home', directory: fileURLToPath(new URL('./home', import.meta.url)) }])
     runtime.loadVfsOverlay(await runtime.inflateImage(prepared.image, 'prepared preview'), '/dsh', vfs)
-    assert.equal(vfs.readFileSync('/dsh/home/sessions/project/preview/session.v3.jsonl', 'utf8'), historical)
-    const current = JSON.parse(vfs.readFileSync('/dsh/home/sessions/project/preview/session.v' + sessionFormatCatalog.currentVersion + '.jsonl', 'utf8'))
+    assert.equal(vfs.readFileSync('/dsh/home/sessions/project/preview/session.v4.jsonl', 'utf8'), fixtureLog)
+    const current = JSON.parse(fixtureLog)
     assert.equal(current.version, sessionFormatCatalog.currentVersion)
     console.log('packed image and overlay mounted')
   `

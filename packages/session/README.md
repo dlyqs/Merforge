@@ -7,7 +7,7 @@ kind: "package-group"
 
 ## Summary
 
-The session group keeps conversations durable, restores released log formats, and makes committed history available after restart. Its storage and checkpoint packages protect requests, tool side effects, and completed steps; projection packages derive client-ready values; title packages name sessions; telemetry packages report activity. Start with the shipped JSONL storage, then add checkpointing and only the projections, title policy, or telemetry your deployment needs. Each package README owns its guarantees and configuration, while a sibling query group provides independent read and tool access.
+The session group keeps conversations durable, restores current log files, and makes committed history available after restart. Its storage and checkpoint packages protect requests, tool side effects, and completed steps; projection packages derive client-ready values; title packages name sessions; telemetry packages report activity. Start with the shipped JSONL storage, then add checkpointing and only the projections, title policy, or telemetry your deployment needs. Each package README owns its guarantees and configuration, while a sibling query group provides independent read and tool access.
 
 ## Table of Contents
 
@@ -26,14 +26,11 @@ The group splits into four families: durable storage (persistence seam, backends
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`session-format/`](session-format/README.md) | Pure adjacent-format chain and artifact validation library | library — no ctx key |
-| [`session-format-v0-to-v1/`](session-format-v0-to-v1/README.md) | Frozen released-v0 decoder and identity migration into released v1 | library — no ctx key |
-| [`session-format-v1-to-v2/`](session-format-v1-to-v2/README.md) | Frozen released-v1 decoder and cardinality-changing Assistant-stream migration into released v2 | library — no ctx key |
-| [`session-format-v2-to-v3/`](session-format-v2-to-v3/README.md) | Frozen V2 decoder and system-prompt, envelope, and PTC migration into V3 | library — no ctx key |
-| [`session-format-v3-to-v4/`](session-format-v3-to-v4/README.md) | V3 identity migration and V4 codec with generation-aware delivery validation | library — no ctx key |
-| [`session-format-catalog/`](session-format-catalog/README.md) | Generated static catalog of shipped adjacent migrations | library — no ctx key |
+| [`session-format/`](session-format/README.md) | Current format values and artifact validation library | library — no ctx key |
+| [`session-format-current/`](session-format-current/README.md) | Current physical codec and structural validation | library — no ctx key |
+| [`session-format-catalog/`](session-format-catalog/README.md) | Static catalog of the current format | library — no ctx key |
 | [`session-persistence/`](session-persistence/README.md) | Defines the durable session-storage service and the shared write coordination every backend composes | `ctx.sessionPersistence` |
-| [`session-persistence-jsonl/`](session-persistence-jsonl/README.md) | Shipped backend: immutable canonical generation filenames per Session with exclusive successor publication, optionally Zstandard-compressed | registers on `ctx.sessionPersistence` |
+| [`session-persistence-jsonl/`](session-persistence-jsonl/README.md) | Shipped backend: durable current-format Session files, optionally Zstandard-compressed | registers on `ctx.sessionPersistence` |
 | [`session-checkpoint-policy/`](session-checkpoint-policy/README.md) | Makes model requests, top-level tool side effects, and completed steps durable before the next action | wraps `ctx.llm` and `ctx.tools` |
 | [`session-log-deepseek/`](session-log-deepseek/README.md) | Uploads the incremental canonical log as optional official DeepSeek request metadata | contributes `dsh_session_log` |
 

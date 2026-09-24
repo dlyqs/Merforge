@@ -24,7 +24,7 @@ import { parseSessionFormatLogFilename, sessionFormatLogFilename, SessionFormatU
 import type { SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatRecovery, SessionFormatRestore } from '@deepseek-ai/dsh-session-format'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
-import { assertV4RowAdmission, assertReleasedV4Relationships } from '@deepseek-ai/dsh-session-format-v3-to-v4'
+import { assertV4RowAdmission, assertReleasedV4Relationships } from '@deepseek-ai/dsh-session-format-current'
 import {
   SessionFormatUnsupportedError,
   sessionFormatVersionRefusal,
@@ -368,7 +368,7 @@ function parseHeaderRecord(record: Buffer): { readonly meta: SessionHeader; read
   try {
     restore = sessionFormatCatalog.createRestore(parsed, {
       recovery: 'strict',
-      validation: 'transformed',
+      validation: 'physical',
     })
   } catch {
     /* v8 ignore next -- isHeaderLine matches the current codec; this preserves classification if it tightens. */

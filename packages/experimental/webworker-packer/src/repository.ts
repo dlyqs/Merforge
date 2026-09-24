@@ -163,7 +163,7 @@ export function previewFixtures(repoRoot: string): PreviewFixture[] {
     id: 'vfs-example',
     label: 'Built-in showcase',
     description: 'Sample workspace, tool cards, subagents, and paged history.',
-    trees: ['home', 'workspace'].map(mount => ({ mount, directory: join(root, mount) })),
+    trees: [{ mount: 'workspace', directory: join(root, 'workspace') }],
   }]
 }
 

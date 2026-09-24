@@ -53,7 +53,7 @@ With `providers` configured, the plugin registers a replay-only adapter whose ca
 
 | Field | Default | Meaning |
 |---|---|---|
-| `file` | `$DSH_SNAPSHOT_FILE` | Path to the selected primary fixture: `session.jsonl` for v0 or `session.vN.jsonl` for a positive generation; required (config or env) |
+| `file` | `$DSH_SNAPSHOT_FILE` | Path to the selected primary fixture: `session.vN.jsonl` for the current writer; required (config or env) |
 | `overrideFile` | `$DSH_SNAPSHOT_OVERRIDE` | Optional `ReplayOverrideDoc` sidecar for the primary session |
 | `childFiles` | `$DSH_SNAPSHOT_CHILD_FILES` | Recorded subagent child-session logs for a nested scenario |
 | `providers` | — | Optional replay-only provider and model catalog; a model may declare `contextWindow`, text/image modalities, positive `imageRequestTokens` when image-capable, and `systemPromptUpdate: in-history` so a keyless scenario exercises in-history system prompt replacement; invalid values fail at load (`llm-replay: provider "…" model "…" systemPromptUpdate must be "in-history" when present`) and routes never perform provider I/O |
@@ -63,7 +63,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### How the fixture works
 
-The fixture is a projection of one selected persisted Session generation produced by running the real agent once — this plugin does not record. The snapshot harness supplies the numerically highest canonical parent path (`<scenario>/session.jsonl` for v0 or `<scenario>/session.vN.jsonl` for a positive generation), and validates filename/header agreement before replay. The fixture keeps the header and every event payload but omits body `seq`/`time` envelopes (`seq0`/`time0` for historical packed rows). Replay supplies contiguous sequences and deterministic timestamps, restores typed values replaced by snapshot tokens, rejects partial or mixed envelopes, decodes the complete physical artifact through the build-static Session format catalog, and migrates historical input in memory before it exposes events or the inherited cut; current input takes direct restoration. For a projected v0 header only, an absent `delegationDepth` denotes `0`. The parser never rewrites or renames the fixture. Runtime persistence continues to write complete logs. Replay expands the compact stream on each current-view `assistant/message` or `assistant/attempt`, so a recorded fixture replays the same logical stream the live model produced. A fixture may carry its `request/header` content tokenized to `{{system}}`/`{{tools}}`; replay materializes validation-only values, while derivation reads only Assistant settlements, marked summary events, and Session metadata. Every replay and comparison fixture must pass the same content-only catalog validation; replay never repairs a refused artifact. Comparison encoding preserves accepted catalog output, including extension request-header fields; current `header.system` is rejected. Wire-notification expected outputs compare directly with current-writer output, retaining event order, inserted system messages, wrapper fields, and opaque delivery and captured-generation values; only complete Session artifacts use the format migration catalog.
+The fixture is a projected current-format Session produced by running the real agent once. It retains the header and event payloads while omitting top-level `seq` and `time`; replay synthesizes those envelopes, restores snapshot tokens, and validates the complete artifact through the current Session catalog. Runtime persistence continues to write complete logs. Replay expands the compact stream on each `assistant/message` or `assistant/attempt`. A `request/header` may carry `{{system}}` and `{{tools}}` tokens backed by sidecars; replay materializes validation-only values and never repairs a refused artifact.
 
 ### Nested agents
 
@@ -81,7 +81,7 @@ Two failure modes are not reconstructable from a durable Assistant settlement al
 - **An unrecorded session makes a call** — replay fails loud and tells you to re-record the scenario.
 - **A scripted placeholder matches nothing** — `{{fromRequest:<regex>}}` resolution validates the pattern and the request corpus and fails loud on no match, an invalid pattern, or an unterminated placeholder.
 
-Isolated transcript extraction supplies an explicit empty child-fact set to V3→V4. It retains recorded catalog entries but does not discover related files. Complete historical parent catalog migration belongs to JSONL persistence.
+
 
 -----
 
@@ -95,16 +95,15 @@ This section explains the design of the replay plugin; the observable behavior i
 
 ### Design
 
-Replay treats the selected projected Session generation as the fixture. One parser completes projected envelopes, validates and migrates the whole artifact through `sessionFormatCatalog`, and returns the current header, inherited cut, and event list as one result. `deriveReplayScript` expands each `assistant/message` or `assistant/attempt` stream in log order, so each durable settlement becomes one `chunks` entry; a non-empty stream without a `finish` chunk is the fingerprint of a thrown `stream()` and must be expressed through an override sidecar. A `compaction/summary` carrying `llmStreamCall: true` and a complete `rawOutput` replays as one canonical successful stream at that event's position. Scripted strings may embed `{{fromRequest:<regex>}}`; at stream time each placeholder resolves against the live request's string leaves, taking the pattern's last match and its first capture group (or the whole match) in place.
+Replay treats the selected projected Session generation as the fixture. One parser completes projected envelopes, validates the whole current artifact through `sessionFormatCatalog`, and returns the current header, inherited cut, and event list as one result. `deriveReplayScript` expands each `assistant/message` or `assistant/attempt` stream in log order, so each durable settlement becomes one `chunks` entry; a non-empty stream without a `finish` chunk is the fingerprint of a thrown `stream()` and must be expressed through an override sidecar. A `compaction/summary` carrying `llmStreamCall: true` and a complete `rawOutput` replays as one canonical successful stream at that event's position. Scripted strings may embed `{{fromRequest:<regex>}}`; at stream time each placeholder resolves against the live request's string leaves, taking the pattern's last match and its first capture group (or the whole match) in place.
 
-The [committed-corpus test](tests/session-format-corpus.spec.ts) restores each versioned `session*.jsonl` under `snapshots/`, `packages/`, and `scripts/snapshots/python-sdk-single-exe/` through the real catalog without changing source bytes. Its [inventory](tests/session-format-corpus-inventory.ts) pins deliberate historical refusals by path, source generation, error type, and exact reason; a refusal that disappears or changes fails. Current-generation artifacts cannot receive an exception. Headerless snapshot-harness protocol examples have a separate explicit exemption. All other restoration errors fail with the artifact path; historical files remain unchanged, and native current fixtures require owner correction.
+Recorded Session tests read the current writer format. The snapshot corpus gate checks selected parent and child generations against `SESSION_FORMAT_VERSION`.
 
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Types, fixture derivation, override validation, placeholder resolution, session binding, `installLlmReplay`, and the plugin export |
-| [`tests/session-format-corpus.spec.ts`](tests/session-format-corpus.spec.ts) | Committed-generation restoration and exact historical refusal checks |
 | — | No runtime invariant companion is published; this test-only adapter consumes a fixed replay script; its stream grammar is checked by the LLM companion and fixture derivation tests. |
 
 ### Binding and stream flow

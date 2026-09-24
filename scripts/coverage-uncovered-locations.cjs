@@ -18,10 +18,7 @@ const path = require('node:path');
 const { ReportBase } = require('istanbul-lib-report');
 
 /**
- * End column of a location that spans to the end of its start line. Whole-line
- * statements carry `Infinity` until a partition blob serializes it, which the
- * partition reporter replaces with this finite column
- * (scripts/coverage-canonical-locations.ts); both spellings read as line ends.
+ * End column of a location that spans to the end of its start line.
  */
 const END_OF_LINE_COLUMN = Number.MAX_SAFE_INTEGER;
 

@@ -6,7 +6,7 @@ PNPM ?= pnpm
 ARGS ?=
 
 help:
-	@echo "make build        pnpm run build           complete repository build"
+	@echo "make build        pnpm run build           Desktop dependency build"
 	@echo "make desktop      pnpm run start:desktop   launch the built Desktop artifacts"
 	@echo "make dev-desktop  pnpm run dev:desktop     build, then launch Desktop"
 

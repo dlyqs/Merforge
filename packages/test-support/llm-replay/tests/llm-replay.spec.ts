@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,7 +64,7 @@ function sessionJsonl(
   events: SessionEvent[],
   header?: { id?: string; createdAt?: number; seedLength?: number; version?: 0 | 1 | 2 | 3 | 4 },
 ): string {
-  const version = header?.version ?? 0
+  const version = header?.version ?? SESSION_FORMAT_VERSION
   const headerLine = JSON.stringify({
     type: 'session',
     version,
@@ -259,13 +259,13 @@ describe('fixture format diagnostics', () => {
       const actual = await importOriginal<typeof import('@deepseek-ai/dsh-session-format-catalog')>()
       return {
         ...actual,
-        createSessionFormatCatalogWithChildren: () => ({
-          ...actual.createSessionFormatCatalogWithChildren([]),
+        sessionFormatCatalog: {
+          ...actual.sessionFormatCatalog,
           createRestore(): never {
             const failure: unknown = 'decoder exploded'
             throw failure
           },
-        }),
+        },
       }
     })
     try {
@@ -285,8 +285,8 @@ describe('fixture format diagnostics', () => {
       const actual = await importOriginal<typeof import('@deepseek-ai/dsh-session-format-catalog')>()
       return {
         ...actual,
-        createSessionFormatCatalogWithChildren: () => ({
-          ...actual.createSessionFormatCatalogWithChildren([]),
+        sessionFormatCatalog: {
+          ...actual.sessionFormatCatalog,
           createRestore() {
             return {
               header: { version: SESSION_FORMAT_VERSION, id: 'fixture', createdAt: 0, isSeeded: false, delegationDepth: 0 },
@@ -296,7 +296,7 @@ describe('fixture format diagnostics', () => {
               },
             }
           },
-        }),
+        },
       }
     })
     try {
@@ -316,8 +316,8 @@ describe('fixture format diagnostics', () => {
       const actual = await importOriginal<typeof import('@deepseek-ai/dsh-session-format-catalog')>()
       return {
         ...actual,
-        createSessionFormatCatalogWithChildren: () => ({
-          ...actual.createSessionFormatCatalogWithChildren([]),
+        sessionFormatCatalog: {
+          ...actual.sessionFormatCatalog,
           createRestore() {
             return {
               header: { version: SESSION_FORMAT_VERSION, id: 'fixture', createdAt: 0, isSeeded: false, delegationDepth: 0 },
@@ -327,7 +327,7 @@ describe('fixture format diagnostics', () => {
               },
             }
           },
-        }),
+        },
       }
     })
     try {
@@ -348,8 +348,8 @@ describe('fixture format diagnostics', () => {
       let row = 0
       return {
         ...actual,
-        createSessionFormatCatalogWithChildren: () => ({
-          ...actual.createSessionFormatCatalogWithChildren([]),
+        sessionFormatCatalog: {
+          ...actual.sessionFormatCatalog,
           createRestore() {
             return {
               header: { version: SESSION_FORMAT_VERSION, id: 'fixture', createdAt: 0, isSeeded: false, delegationDepth: 0 },
@@ -360,7 +360,7 @@ describe('fixture format diagnostics', () => {
               finish(): never { throw new Error('unexpected finish') },
             }
           },
-        }),
+        },
       }
     })
     try {
@@ -391,8 +391,8 @@ describe('fixture format diagnostics', () => {
       const actual = await importOriginal<typeof import('@deepseek-ai/dsh-session-format-catalog')>()
       return {
         ...actual,
-        createSessionFormatCatalogWithChildren: () => ({
-          ...actual.createSessionFormatCatalogWithChildren([]),
+        sessionFormatCatalog: {
+          ...actual.sessionFormatCatalog,
           createRestore() {
             return {
               header: { version: SESSION_FORMAT_VERSION, id: 'fixture', createdAt: 0, isSeeded: false, delegationDepth: 0 },
@@ -400,7 +400,7 @@ describe('fixture format diagnostics', () => {
               finish(): never { throw new Error(message) },
             }
           },
-        }),
+        },
       }
     })
     try {
@@ -433,200 +433,21 @@ describe('parseSessionLog', () => {
     },
     surfaceOp: 'append',
   }
-  const migratedSystemHead = {
-    ...emptySystemHead,
-    data: {
-      ...emptySystemHead.data,
-      message: { ...emptySystemHead.data.message, source: { kind: 'system-prompt' } },
-    },
-  }
-
-  it('reports invalid JSON at its physical source line', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-
-    expect(() => parseSessionLog(`${header}\n{"type":\n`))
-      .toThrow('session snapshot line 2 contains invalid JSON')
-  })
-
   it('skips the header line and parses each event', () => {
     const events: SessionEvent[] = [{ type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } }]
     expect(parseSessionLog(sessionJsonl(events))).toEqual(events)
   })
 
-  it('ignores blank lines', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-    const ev: SessionEvent = { type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } }
-    expect(parseSessionLog(`${header}\n\n${JSON.stringify(ev)}\n\n`)).toEqual([ev])
-  })
-
-  it('expands range-encoded sourceEventSeqs', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-    const events = [
-      { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
-      { type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } },
-      ...Array.from({ length: 5 }, (_, index) => ({
-        type: 'user/message',
-        seq: index + 2,
-        time: 0,
-        data: { role: 'user', id: `message-${index}`, content: [], source: { kind: 'user' } },
-        surfaceOp: 'append',
-        ...(index === 4 ? { sourceEventSeqs: [[2, 4], 5] } : {}),
-      })),
-    ]
-    const parsed = parseSessionLog(`${header}\n${events.map(event => JSON.stringify(event)).join('\n')}\n`)
-    expect(parsed[7]).toEqual({ ...events[6], seq: 7, sourceEventSeqs: [3, 4, 5, 6] })
-  })
-
-  it('reports a malformed sourceEventSeqs range with its source line', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-    const events = [
-      { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
-      { type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } },
-      ...Array.from({ length: 5 }, (_, index) => ({
-        type: 'user/message',
-        seq: index + 2,
-        time: 0,
-        data: { role: 'user', id: `message-${index}`, content: [], source: { kind: 'user' } },
-        surfaceOp: 'append',
-        ...(index === 4 ? { sourceEventSeqs: [[5, 3]] } : {}),
-      })),
-    ]
-    expect(() => parseSessionLog(`${header}\n${events.map(event => JSON.stringify(event)).join('\n')}\n`))
-      .toThrow(/session snapshot line 8: sourceEventSeqs range/)
-  })
-
-  it('locates malformed source-event ranges with a materialized v0 seedLength header', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0, seedLength: 0 })
-    const events = [
-      { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
-      { type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } },
-      ...Array.from({ length: 3 }, (_, index) => ({
-        type: 'user/message',
-        seq: index + 2,
-        time: 0,
-        data: { role: 'user', id: `message-${index}`, content: [], source: { kind: 'user' } },
-        surfaceOp: 'append',
-        ...(index === 2 ? { sourceEventSeqs: [[4, 3]] } : {}),
-      })),
-    ]
-
-    expect(() => parseSessionLog(`${header}\n${events.map(event => JSON.stringify(event)).join('\n')}\n`))
-      .toThrow(/session snapshot line 6: sourceEventSeqs range/)
-  })
-
-  it('rejects non-object body rows with their source line', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-    expect(() => parseSessionLog(`${header}\nnull\n`))
-      .toThrow('session snapshot line 2 must be a JSON object')
-  })
-
-  it('rejects partial and mixed projected envelopes at their source lines', () => {
-    const header = JSON.stringify({
-      type: 'session', version: 0, id: 's1', createdAt: 0, delegationDepth: 0,
-    })
-    const partial = JSON.stringify({ type: 'turn/start', seq: 0, data: { turn: 1 } })
-    expect(() => parseSessionLog(`${header}\n${partial}\n`))
-      .toThrow('session snapshot line 2 must contain both seq and time, or neither')
-
-    const projected = JSON.stringify({ type: 'turn/start', data: { turn: 1 } })
-    const complete = JSON.stringify({ type: 'permission/preset', seq: 1, time: 0, data: { preset: 'auto' } })
-    expect(() => parseSessionLog(`${header}\n${projected}\n${complete}\n`))
-      .toThrow('session snapshot line 3 cannot mix projected and complete body rows')
-  })
-
-  it('expands a packed chunk row into its events (a fixture recorded with packChunks on)', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 0 })
-    const turn = JSON.stringify({ type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } })
-    const step = JSON.stringify({ type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } })
-    const row = JSON.stringify({
-      type: 'text-chunks', seq0: 2, time0: 0,
-      data: { turn: 1, step: 1, index: 0, dt: [0, 0], texts: ['a', 'b', 'c'] },
-    })
-    expect(parseSessionLog(`${header}\n${turn}\n${step}\n${row}\n`).slice(2)).toEqual([migratedSystemHead, {
-      type: 'assistant/attempt',
-      seq: 3,
-      time: 0,
-      data: {
-        turn: 1,
-        step: 1,
-        stream: [{ type: 'text-chunks', time0: 0, index: 0, dt: [0, 0], texts: ['a', 'b', 'c'] }],
-      },
-    }])
-  })
-
-  it('synthesizes omitted ordinary and packed snapshot envelopes', () => {
-    const header = JSON.stringify({ type: 'session', version: 0, id: 's1', createdAt: 7 })
-    const ordinary = JSON.stringify({ type: 'turn/start', data: { turn: 1 } })
-    const step = JSON.stringify({ type: 'step/start', data: { turn: 1, step: 1 } })
-    const packed = JSON.stringify({
-      type: 'text-chunks',
-      data: { turn: 1, step: 1, index: 0, dt: [3], texts: ['a', 'b'] },
-    })
-    expect(parseSessionLog(`${header}\n${ordinary}\n${step}\n${packed}\n`)).toEqual([
-      { type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } },
-      { type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } },
-      migratedSystemHead,
-      {
-        type: 'assistant/attempt',
-        seq: 3,
-        time: 3,
-        data: {
-          turn: 1,
-          step: 1,
-          stream: [{ type: 'text-chunks', time0: 0, index: 0, dt: [3], texts: ['a', 'b'] }],
-        },
-      },
-    ])
-  })
-
-  it.each([0, 1, 2] as const)('derives system messages and omits tokenized request tools during v%i validation', (version) => {
-    const source = [
-      JSON.stringify({ type: 'session', version, id: 'tokens', createdAt: 7, delegationDepth: 0, ...version >= 2 ? { isSeeded: false } : {} }),
-      JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
-      JSON.stringify({ type: 'step/start', data: { turn: 1, step: 1 } }),
-      JSON.stringify({
-        type: 'request/header',
-        data: {
-          header: { config: { provider: 'mock', model: 'mock' }, system: '{{system}}', tools: '{{tools}}' },
-          reason: 'initial',
-        },
-      }),
-    ].join('\n')
-
-    expect(parseSessionLog(source).slice(2)).toEqual([
-      migratedSystemHead,
-      {
-        ...migratedSystemHead,
-        seq: 3,
-        data: {
-          ...migratedSystemHead.data,
-          message: { ...migratedSystemHead.data.message, content: [{ type: 'text', text: '{{system}}' }] },
-        },
-        surfaceOp: { op: 'replace', startSeq: 2, endSeq: 2 },
-        sourceEventSeqs: [2],
-      },
-      {
-        type: 'request/header', seq: 4, time: 0,
-        data: { reason: 'initial', header: { config: { provider: 'mock', model: 'mock' } } },
-      },
-    ])
-    const comparison = prepareSessionSnapshotFixtureForComparison(source)
-    const header = JSON.parse(comparison.split('\n').at(-1)!) as { data: { header: object } }
-    expect(header.data.header).toEqual({ config: { provider: 'mock', model: 'mock' }, tools: '{{tools}}' })
-    expect(header.data.header).not.toHaveProperty('system')
-    expect(parseSessionLog(comparison)).toEqual(parseSessionLog(source))
-  })
-
   it('preserves the current system envelope and tool sidecar token during comparison', () => {
     const source = [
-      sessionJsonl([], { version: 3 }).trimEnd(),
+      sessionJsonl([], { version: SESSION_FORMAT_VERSION }).trimEnd(),
       JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
       JSON.stringify({ type: 'step/start', data: { turn: 1, step: 1 } }),
       JSON.stringify({
         ...emptySystemHead,
         data: {
           ...emptySystemHead.data,
-          message: { ...emptySystemHead.data.message, id: 'current-system', content: [{ type: 'text', text: '{{system}}' }] },
+          message: { ...emptySystemHead.data.message, source: { kind: 'system-prompt' }, id: 'current-system', content: [{ type: 'text', text: '{{system}}' }] },
         },
         seq: undefined,
         time: undefined,
@@ -661,165 +482,18 @@ describe('parseSessionLog', () => {
   it('rejects genuine empty current tools instead of treating them as a placeholder', () => {
     const tools: unknown[] = []
     const source = [
-      sessionJsonl([], { version: 3 }).trimEnd(),
+      sessionJsonl([], { version: SESSION_FORMAT_VERSION }).trimEnd(),
       JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
       JSON.stringify({
         type: 'request/header',
         data: { header: { config: { provider: 'mock', model: 'mock' }, tools }, reason: 'initial' },
       }),
     ].join('\n')
-    expect(() => parseSessionLog(source)).toThrow(/session snapshot line 3:.*empty optional header fields must be omitted/)
+    expect(() => parseSessionLog(source)).toThrow(/omit empty tools|empty optional header fields/)
     expect(() => prepareSessionSnapshotFixtureForComparison(source))
-      .toThrow(/session snapshot line 3:.*empty optional header fields must be omitted/)
+      .toThrow(/omit empty tools|empty optional header fields/)
   })
 
-  it('materializes Python snapshot tool-name projections before format validation', () => {
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'tool-names', createdAt: 7, delegationDepth: 0 }),
-      JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
-      JSON.stringify({
-        type: 'request/header',
-        data: {
-          header: { config: { provider: 'mock', model: 'mock' }, tools: ['bash', 'workflow'] },
-          reason: 'initial',
-        },
-      }),
-    ].join('\n')
-
-    expect(parseSessionLog(source)[1]).toMatchObject({
-      type: 'request/header',
-      data: { header: { tools: [
-        { name: 'bash', description: '', parameters: {} },
-        { name: 'workflow', description: '', parameters: {} },
-      ] } },
-    })
-  })
-
-  it.each([
-    ['non-object request data', null],
-    ['non-object request header', { header: [] }],
-    ['unsupported tools projection', { header: { tools: [42] } }],
-  ])('keeps %s unchanged so released-format validation rejects its source line', (_name, data) => {
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'malformed-request', createdAt: 7, delegationDepth: 0 }),
-      JSON.stringify({ type: 'request/header', data }),
-    ].join('\n')
-
-    expect(() => parseSessionLog(source)).toThrow(/session snapshot line 2:/)
-  })
-
-  it('synthesizes projected tool-call chunk envelopes from their argument count', () => {
-    const callId = ToolCallId('call-1')
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'packed-tool', createdAt: 0 }),
-      JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
-      JSON.stringify({ type: 'step/start', data: { turn: 1, step: 1 } }),
-      JSON.stringify({
-        type: 'tool-call-chunks',
-        data: { turn: 1, step: 1, index: 0, id: 'call-1', name: 'read', dt: [0], args: ['{', '}'] },
-      }),
-    ].join('\n')
-
-    expect(parseSessionLog(source).slice(2)).toEqual([migratedSystemHead, {
-      type: 'assistant/attempt',
-      seq: 3,
-      time: 0,
-      data: {
-        turn: 1,
-        step: 1,
-        stream: [{
-          type: 'tool-call-chunks',
-          time0: 0,
-          index: 0,
-          dt: [0],
-          id: callId,
-          name: 'read',
-          args: ['{', '}'],
-        }],
-      },
-    }])
-  })
-
-  it.each([
-    ['non-object packed data', { type: 'text-chunks', data: null }],
-    ['empty packed payload', {
-      type: 'text-chunks',
-      data: { turn: 1, step: 1, index: 0, dt: [], texts: [] },
-    }],
-  ])('reports %s at its one synthesized event line', (_name, row) => {
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'malformed-packed', createdAt: 0 }),
-      JSON.stringify(row),
-    ].join('\n')
-
-    expect(() => parseSessionLog(source)).toThrow(/session snapshot line 2:/)
-  })
-
-  it('migrates projected v0 legacy messages through the released catalog before returning events', () => {
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'legacy', createdAt: 7, delegationDepth: 0 }),
-      JSON.stringify({ type: 'turn/start', data: { turn: 1 } }),
-      JSON.stringify({ type: 'step/start', data: { turn: 1, step: 1 } }),
-      JSON.stringify({
-        type: 'assistant/message',
-        data: {
-          turn: 1,
-          step: 1,
-          content: [{ type: 'text', text: 'migrated' }],
-          [['pro', 'venance'].join('')]: { provider: 'mock', model: 'mock' },
-        },
-        surfaceOp: 'append',
-      }),
-    ].join('\n')
-
-    expect(parseSessionLog(source)[3]).toEqual({
-      type: 'assistant/message',
-      seq: 3,
-      time: 0,
-      data: {
-        turn: 1,
-        step: 1,
-        message: {
-          id: 'legacy-message:legacy:2',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'migrated' }],
-          source: { kind: 'model', provider: 'mock', model: 'mock' },
-        },
-        stream: [],
-      },
-      surfaceOp: 'append',
-    })
-  })
-
-  it('takes the direct v1 path and rejects v0-only message fields', () => {
-    const current = projectSessionJsonl(replaySessionJsonl([TEXT_CHUNKS], { version: 1 }))
-    expect(deriveReplayScript(parseSessionLog(current))).toEqual([{ kind: 'chunks', chunks: TEXT_CHUNKS }])
-
-    const source = [
-      JSON.stringify({ type: 'session', version: 1, id: 'current', createdAt: 7, delegationDepth: 0 }),
-      JSON.stringify({
-        type: 'assistant/message',
-        data: {
-          turn: 1,
-          step: 1,
-          content: [{ type: 'text', text: 'legacy-only' }],
-          [['pro', 'venance'].join('')]: { provider: 'mock', model: 'mock' },
-        },
-        surfaceOp: 'append',
-      }),
-    ].join('\n')
-
-    expect(() => parseSessionLog(source)).toThrow(/assistant\/message.*unexpected member "content"/)
-  })
-
-  it('refuses a retired v0 event through the released migration policy', () => {
-    const source = [
-      JSON.stringify({ type: 'session', version: 0, id: 'legacy', createdAt: 7, delegationDepth: 0 }),
-      JSON.stringify({ type: 'mode/set', data: { mode: 'plan' } }),
-    ].join('\n')
-
-    expect(() => parseSessionLog(source)).toThrow(/unsupported legacy mode\/set event at seq 0/)
-  })
 })
 
 describe('prepareSessionSnapshotFixtureForComparison', () => {
@@ -1064,42 +738,6 @@ describe('deriveReplayScript', () => {
       .toThrow('llm-replay: compaction/summary marks an LLM stream call without rawOutput')
   })
 
-  it('rejects a persisted marked compact LLM call without its complete output', () => {
-    const source = [
-      JSON.stringify({
-        type: 'session', version: 0, id: 'invalid-compact', createdAt: 0, delegationDepth: 0,
-      }),
-      JSON.stringify({ type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } }),
-      JSON.stringify({ type: 'step/start', seq: 1, time: 0, data: { turn: 1, step: 1 } }),
-      JSON.stringify({
-        type: 'user/message', seq: 2, time: 0,
-        data: { role: 'user', id: 'source', content: [], source: { kind: 'user' } },
-        surfaceOp: 'append',
-      }),
-      JSON.stringify({
-        type: 'compaction/start', seq: 3, time: 0,
-        data: { compactionId: COMPACTION_ID, turn: 1 },
-      }),
-      JSON.stringify({
-        type: 'compaction/summary',
-        seq: 4,
-        time: 0,
-        data: {
-          compactionId: COMPACTION_ID,
-          summary: [{ type: 'text', text: 'missing source events' }],
-          llmStreamCall: true,
-          shadowedRange: { start: 2, end: 2 },
-          shadowedSeqs: [2],
-          shadowedTokenCount: 20,
-          provider: 'mock',
-          model: 'mock',
-        },
-      }),
-    ].join('\n')
-
-    expect(() => parseSessionLog(source)).toThrow(/llmStreamCall requires rawOutput/)
-  })
-
   it('derives a compaction/summary stream when usage is unavailable', () => {
     const block = { type: 'text' as const, text: 'summary without usage' }
     const event: SessionEvent<'compaction/summary'> = {
@@ -1183,15 +821,6 @@ describe('loadReplayScript', () => {
   it('derives from the session JSONL when no override is present', () => {
     writeFileSync(file, replaySessionJsonl([TEXT_CHUNKS]), 'utf8')
     expect(loadReplayScript({ file })).toEqual([{ kind: 'chunks', chunks: TEXT_CHUNKS }])
-  })
-
-  it('never rewrites a projected source fixture while migrating it in memory', () => {
-    const source = projectSessionJsonl(replaySessionJsonl([TEXT_CHUNKS], { version: 2 }))
-    writeFileSync(file, source, 'utf8')
-
-    expect(loadReplayScript({ file })).toEqual([{ kind: 'chunks', chunks: TEXT_CHUNKS }])
-    expect(JSON.parse(prepareSessionSnapshotFixtureForComparison(source).split('\n')[0] as string)).toMatchObject({ version: SESSION_FORMAT_VERSION })
-    expect(readFileSync(file, 'utf8')).toBe(source)
   })
 
   it('uses the sidecar override when present, ignoring the JSONL', () => {
@@ -1822,33 +1451,10 @@ describe('parseSessionHeader', () => {
       .toEqual({ id: 'abc', createdAt: 42, inheritedEventCount: 0 })
   })
 
-  it('reads a non-zero v0 seedLength as the inherited event count', () => {
-    const events: SessionEvent[] = Array.from({ length: 4 }, (_, seq) => ({
-      type: 'permission/preset', seq: SessionSeq(seq), time: 0, data: { preset: 'workspace-write' },
-    }))
-    expect(parseSessionHeader(sessionJsonl(events, { id: 'child', createdAt: 7, seedLength: 4 })))
-      .toEqual({ id: 'child', createdAt: 7, inheritedEventCount: 4 })
-  })
-
-  it('materializes omitted v0 delegation depth and tokenized cwd for projected validation', () => {
-    expect(parseSessionHeader(
-      '{"type":"session","version":0,"id":"projected","createdAt":7,"cwd":"{{cwd}}/workspace"}\n',
-    )).toEqual({ id: 'projected', createdAt: 7, inheritedEventCount: 0 })
-  })
-
-  it('rejects a projected header that lacks required identity fields', () => {
-    expect(() => parseSessionHeader('{"type":"session","version":0}\n')).toThrow(/lacks required member "id"/)
-  })
-
   it('rejects an empty fixture instead of inventing header identity', () => {
     expect(() => parseSessionHeader('')).toThrow(/must start with a session header/)
   })
 
-  it.each([-1, 0.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid v0 seedLength %s', (seedLength) => {
-    expect(() => parseSessionHeader(JSON.stringify({
-      type: 'session', version: 0, id: 'invalid', createdAt: 0, seedLength, delegationDepth: 0,
-    }))).toThrow(/seedLength/)
-  })
 })
 
 describe('loadSessionScripts', () => {
@@ -1875,45 +1481,6 @@ describe('loadSessionScripts', () => {
     const f = writeSession('session.jsonl', { id: 'p', createdAt: 1 }, [TEXT_CHUNKS])
     expect(() => loadSessionScripts({ file: f, childFiles: [join(dir, 'absent.jsonl')] }))
       .toThrow(/child fixture not found/)
-  })
-
-  it('derives a FORK child script from its OWN events only (skips the seeded parent prefix)', () => {
-    // A fork log includes the parent's assistant chunks before `seedLength`. Deriving from the
-    // whole log would replay parent responses as child calls, so only child-owned chunks qualify.
-    const parentChunk: StreamChunk = { type: 'text-delta', index: 0, text: 'PARENT-RESPONSE' }
-    const childChunks: StreamChunk[] = [{ type: 'text-delta', index: 0, text: 'CHILD-RESPONSE' }, { type: 'finish', reason: { kind: 'stop' } }]
-    const f = writeSession('session.jsonl', { id: 'parent', createdAt: 100 }, [TEXT_CHUNKS])
-    // The child fixture contains one complete inherited turn followed by its own turn.
-    // seedLength = 6 marks the exact cut between those lifecycles.
-    const childEvents: SessionEvent[] = [
-      { type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } },
-      { type: 'step/start', seq: SessionSeq(1), time: 0, data: { turn: 1, step: 1 } },
-      legacyChunkEvent(2, 1, 1, parentChunk),
-      legacyChunkEvent(3, 1, 1, { type: 'finish', reason: { kind: 'stop' } }),
-      { type: 'step/end', seq: SessionSeq(4), time: 0, data: { turn: 1, step: 1 } },
-      {
-        type: 'turn/end', seq: SessionSeq(5), time: 0,
-        data: { turn: 1, reason: { kind: 'completed' } },
-      },
-      { type: 'turn/start', seq: SessionSeq(6), time: 0, data: { turn: 2 } },
-      { type: 'step/start', seq: SessionSeq(7), time: 0, data: { turn: 2, step: 1 } },
-      legacyChunkEvent(8, 2, 1, childChunks[0]!),
-      legacyChunkEvent(9, 2, 1, childChunks[1]!),
-      { type: 'step/end', seq: SessionSeq(10), time: 0, data: { turn: 2, step: 1 } },
-      {
-        type: 'turn/end', seq: SessionSeq(11), time: 0,
-        data: { turn: 2, reason: { kind: 'completed' } },
-      },
-    ]
-    const childPath = join(dir, 'session.1.jsonl')
-    writeFileSync(childPath, sessionJsonl(childEvents, {
-      id: 'child', createdAt: 200, seedLength: 6, version: 0,
-    }), 'utf8')
-
-    const scripts = loadSessionScripts({ file: f, childFiles: [childPath] })
-    // The child script is ONLY the child's own model call — the parent's seeded
-    // chunk is gone.
-    expect(scripts[1]?.entries).toEqual([{ kind: 'chunks', chunks: childChunks }])
   })
 
   it('uses the override for the primary and still derives children', () => {

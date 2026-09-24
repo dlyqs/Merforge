@@ -4,8 +4,6 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
-import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
-import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
 // path, and function when a file misses the per-file 100% gate — the built-in
@@ -126,23 +124,6 @@ const testIncludes = [
   'scripts/**/*.spec.ts',
 ]
 
-// The instrumented coverage gate sets this env; the exempt heavy suites then
-// run beside it uninstrumented (membership contract in scripts/coverage-exempt.ts).
-// A set-but-not-'1' value is a misconfiguration, not a silent no-op.
-const coverageExemptRaw = process.env[COVERAGE_EXEMPT_ENV]
-if (coverageExemptRaw !== undefined && coverageExemptRaw !== '' && coverageExemptRaw !== '1') {
-  throw new Error(`vitest config: ${COVERAGE_EXEMPT_ENV} must be '1' or unset, got ${JSON.stringify(coverageExemptRaw)}.`)
-}
-const coverageExemptExcludes = coverageExemptRaw === '1'
-  ? coverageExemptHeavySuites.map(suite => suite.exclude)
-  : []
-
-const coveragePartitionRaw = process.env[COVERAGE_PARTITION_MODE_ENV]
-if (coveragePartitionRaw !== undefined && coveragePartitionRaw !== '' && coveragePartitionRaw !== '1') {
-  throw new Error(`vitest config: ${COVERAGE_PARTITION_MODE_ENV} must be '1' or unset, got ${JSON.stringify(coveragePartitionRaw)}.`)
-}
-const coveragePartitionMode = coveragePartitionRaw === '1'
-
 // These suites exercise process-global state, process APIs, or timing-sensitive process I/O
 // that worker threads cannot isolate reliably under aggregate gate contention.
 // Keep the narrow exception in forks while the rest of the inventory avoids per-file processes.
@@ -181,7 +162,6 @@ export default defineConfig({
           exclude: [
             ...platformUnsupportedTests,
             ...processBoundTests,
-            ...coverageExemptExcludes,
           ],
         },
       },
@@ -195,7 +175,6 @@ export default defineConfig({
           include: processBoundTests,
           exclude: [
             ...platformUnsupportedTests,
-            ...coverageExemptExcludes,
           ],
         },
       },
@@ -354,24 +333,16 @@ export default defineConfig({
         ...windowsRunnerCoverageExclusions,
         ...pwshCoverageExclusions,
       ],
-      // 100% or it doesn't merge (docs/testing.md: excessive tests are welcome).
-      // Per-file so a well-covered big file can't subsidize a bare one.
-      // Every v8 ignore comment must carry a reason — see the quality-gates Agent Note
-      // (.agents/notes/implemented/process/2026-06-11-quality-gates.md).
-      thresholds: coveragePartitionMode
-        ? undefined
-        : {
-            perFile: true,
-            statements: 100,
-            branches: 100,
-            functions: 100,
-            lines: 100,
-          },
-      reporter: coveragePartitionMode
-        ? []
-        : process.env.CI
-          ? ['text', uncoveredLocationsReporter]
-          : ['text', 'html', uncoveredLocationsReporter],
+      thresholds: {
+        perFile: true,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
+      reporter: process.env.CI
+        ? ['text', uncoveredLocationsReporter]
+        : ['text', 'html', uncoveredLocationsReporter],
     },
   },
 })

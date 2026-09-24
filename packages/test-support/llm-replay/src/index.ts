@@ -15,7 +15,6 @@ import type {} from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
 import {
-  createSessionFormatCatalogWithChildren,
   SessionFormatUnsupportedMigrationError,
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
@@ -233,7 +232,7 @@ function parseSessionFixture(text: string): ParsedSessionFixture {
       headerLineNumber = lineNumber
       sourceHeader = recordValue
       try {
-        restore = createSessionFormatCatalogWithChildren([]).createRestore(normalizeProjectedHeader(recordValue), {
+        restore = sessionFormatCatalog.createRestore(normalizeProjectedHeader(recordValue), {
           recovery: 'strict',
           validation: 'current',
         })
@@ -802,7 +801,7 @@ function resolveReplayScript(
 /** Derive a script from an already migrated fixture, failing loud when it is absent. */
 function deriveScriptFromFixture(file: string, fixture: ParsedSessionFixture | undefined): ReplayEntry[] {
   if (fixture === undefined) {
-    throw new Error(`llm-replay: fixture not found: ${file} — run \`pnpm run test:snapshot:record\` first`)
+    throw new Error(`llm-replay: fixture not found: ${file}`)
   }
   return deriveReplayScript(fixture.events)
 }

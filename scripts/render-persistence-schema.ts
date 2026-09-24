@@ -265,11 +265,11 @@ function definition(
  * @param introduction - paragraphs before the root table; defaults to current-source links.
  * @param headingLevel - section depth within the containing reference.
  * @param rendering - explicit current mode selects structural links; omission preserves historical output.
- * @returns Markdown index including the history and contributor workflow links.
+ * @returns Markdown index of the current inventory.
  */
 export function renderPersistenceSchemaIndex(
   inventory: PersistenceSchemaInventory,
-  introduction: readonly string[] = [persistenceCatalogText.fingerprintsIntro, persistenceCatalogText.historyIntro],
+  introduction: readonly string[] = [persistenceCatalogText.fingerprintsIntro],
   headingLevel: 2 | 3 = 2,
   rendering: PersistenceSchemaRendering = 'historical',
 ): string {

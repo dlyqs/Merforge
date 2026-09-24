@@ -60,7 +60,7 @@ Persistence returns the physically valid log; semantic repair belongs to the rea
 
 ### Failures and recovery
 
-A stored log the current build cannot faithfully interpret is refused with a direction-aware error, never misread. `SessionHandle` exposes only current logical records identified by `SESSION_FORMAT_VERSION`; a provider must convert any supported historical storage before returning a handle, and the shipped JSONL provider migrates supported historical generations through its static catalog. A newer format instructs the operator to upgrade the harness. An event type unknown to this build refuses unless its envelope marks it `ignorable`, and committed-prefix corruption rejects as `SessionPersistenceCorruptionError`.
+A stored log the current build cannot faithfully interpret is refused with a direction-aware error, never misread. `SessionHandle` exposes only current logical records identified by `SESSION_FORMAT_VERSION`; the shipped JSONL provider accepts only the current format and refuses other versions before returning a handle. A newer format instructs the operator to upgrade the harness. An event type unknown to this build refuses unless its envelope marks it `ignorable`, and committed-prefix corruption rejects as `SessionPersistenceCorruptionError`.
 
 -----
 

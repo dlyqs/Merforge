@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { canonicalizeSchema, schemaDigest, type PersistenceRoot, type PersistenceSchemaInventory, type PersistenceType, type SchemaNode } from './persistence-schema-model.ts'
 import { renderPersistenceSchemaDefinitions, renderPersistenceSchemaIndex } from './render-persistence-schema.ts'
 import { render } from './gen-persistence-catalog.ts'
-import { classifyPersistenceChange } from './persistence-changes.ts'
 
 function eventRoot(
   event: string,
@@ -288,13 +287,11 @@ describe('current persistence schema anchors', () => {
     assertLinkedOnce(definitions)
   })
 
-  it('renders recursion once and leaves inventories, digests and classifications unchanged', () => {
+  it('renders recursion once and leaves inventories and digests unchanged', () => {
     const inventory = recursiveFixture()
     const { schema, digest } = inventory.roots[0]!
     const saved = JSON.stringify(inventory)
-    const before = fixture()
     const after = fixture(false)
-    const classification = classifyPersistenceChange(before.roots[0]!, after.roots[0]!)
     const rendered = currentDefinitions(inventory)
     expect(rendered.match(/### `Recursive`/gu)).toHaveLength(1)
     expect(rendered).toContain('[`Recursive`](#persistence-type-sha256-' + digest + ')')
@@ -302,7 +299,6 @@ describe('current persistence schema anchors', () => {
     currentDefinitions(after)
     expect(JSON.stringify(inventory)).toBe(saved)
     expect(schemaDigest(schema)).toBe(digest)
-    expect(classifyPersistenceChange(before.roots[0]!, after.roots[0]!)).toEqual(classification)
   })
 
   it('shows recorded source policies only in the current catalog and preserves their fields', () => {

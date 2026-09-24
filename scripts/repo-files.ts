@@ -58,9 +58,7 @@ function assertSupportedSegment(segment: string): void {
  * Walk `root` matching one repository-relative glob without node's `fs.glob`.
  * The repository's own walker exists because node's internal glob, from some
  * 24.x releases, lstat-probes `<matched>/<next segment>` for symlinked files
- * while expanding `**` and throws ENOTDIR instead of skipping (observed on
- * node 24.13.0 scanning `snapshots/acp/image-compaction`'s symlinked
- * `system-prompt.expected.md`). The walker decides directoryhood from dirent
+ * while expanding `**` and throws ENOTDIR instead of skipping. The walker decides directoryhood from dirent
  * types and stat results, never by probing a path under a file, so the same
  * tree enumerates identically on every node version.
  *

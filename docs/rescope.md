@@ -44,7 +44,7 @@ Subpath exports keep their path: `@cordisjs/plugin-loader/repository` becomes `@
 ```sh
 pnpm run rescope-vendor            # report what would change
 pnpm run rescope-vendor --apply    # rewrite every reference
-pnpm run rescope-vendor:check      # assert the post-state; runs in the hygiene gate
+pnpm run rescope-vendor:check      # assert the post-state
 pnpm run rescope-vendor --apply --reverse   # return to the upstream names
 ```
 

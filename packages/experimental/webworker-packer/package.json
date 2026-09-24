@@ -38,9 +38,9 @@
     "@deepseek-ai/dsh-home-paths": "workspace:*",
     "@deepseek-ai/dsh-session-format": "workspace:*",
     "@deepseek-ai/dsh-session-format-catalog": "workspace:*",
-    "@deepseek-ai/dsh-session-format-v3-to-v4": "workspace:*",
     "js-yaml": "^4.2.0",
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.4",
+    "@deepseek-ai/dsh-session-format-current": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",

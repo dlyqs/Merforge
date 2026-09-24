@@ -161,9 +161,9 @@ See the [plugin metadata Agent Note](../../.agents/notes/implemented/architectur
 
 ```sh
 pnpm install        # registers the workspace
-pnpm run doc-sync
 pnpm run constraints && pnpm run typecheck && pnpm run lint
-pnpm run build && pnpm run hygiene
+pnpm run build
+pnpm run publint
 ```
 
 Follow the [repository testing policy](../testing.md) for the behavior-specific checks and coverage required by the new package.
