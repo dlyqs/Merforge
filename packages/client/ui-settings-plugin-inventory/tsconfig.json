@@ -24,9 +24,6 @@
       "path": "../ui-settings/tsconfig.client.json"
     },
     {
-      "path": "../ui-agent-preset"
-    },
-    {
       "path": "../../preset/agent-preset-registry"
     },
     {

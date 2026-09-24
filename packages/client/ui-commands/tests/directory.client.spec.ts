@@ -24,7 +24,7 @@ function deferred<T>() {
 
 const CMDS: CommandDescriptor[] = [
   { name: 'plan', description: 'plan mode' },
-  { name: 'goal', description: 'set goal', input: { hint: 'goal text' } },
+  { name: 'feedback', description: 'set feedback', input: { hint: 'feedback text' } },
 ]
 
 const S2_CMDS: CommandDescriptor[] = [
@@ -54,25 +54,25 @@ function bench() {
 
 describe('status and resolve (per key)', () => {
   it('resolves bilingual aliases by definition identity and retains exact-name priority', async () => {
-    const goal = {
-      definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-goal'),
+    const feedback = {
+      definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-feedback'),
       name: 'objective',
       description: 'Reworded description.',
     }
-    const exact = { name: 'goal', description: 'independent exact-name entry' }
+    const exact = { name: 'feedback', description: 'independent exact-name entry' }
     const { dir, pull } = bench()
     const refreshed = dir.refresh(S1)
-    pull(S1, 0).resolve([goal])
+    pull(S1, 0).resolve([feedback])
     await refreshed
-    expect(dir.resolve(S1, '目标')).toEqual(goal)
-    expect(dir.resolve(S1, 'goal')).toEqual(goal)
+    expect(dir.resolve(S1, '反馈')).toEqual(feedback)
+    expect(dir.resolve(S1, 'feedback')).toEqual(feedback)
     expect(dir.resolve(S1, '计划')).toBeUndefined()
     expect(dir.resolve(S1, 'unregistered')).toBeUndefined()
     const next = dir.refresh(S1)
-    pull(S1, 1).resolve([goal, exact])
+    pull(S1, 1).resolve([feedback, exact])
     await next
-    expect(dir.resolve(S1, 'goal')).toEqual(exact)
-    expect(dir.resolve(S1, '目标')).toEqual(goal)
+    expect(dir.resolve(S1, 'feedback')).toEqual(exact)
+    expect(dir.resolve(S1, '反馈')).toEqual(feedback)
   })
 
   it('starts cold and resolves nothing', () => {
@@ -88,7 +88,7 @@ describe('status and resolve (per key)', () => {
     pull(S1, 0).resolve(CMDS)
     await refreshed
     expect(dir.status(S1)).toBe('ready')
-    expect(dir.resolve(S1, 'goal')).toEqual(CMDS[1])
+    expect(dir.resolve(S1, 'feedback')).toEqual(CMDS[1])
     expect(dir.resolve(S1, 'nope')).toBeUndefined()
   })
 

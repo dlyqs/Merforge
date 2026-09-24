@@ -127,6 +127,8 @@ flowchart LR
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
   pkg_command_feedback["command-feedback"]
   svc_sessionFeedback["ctx.sessionFeedback<br/>Session-level feedback recorder"]
+  pkg_personal_project["personal-project"]
+  svc_personalProjects["ctx.personalProjects<br/>Personal Project and Bot records"]
   svc_workspaceRegistry["ctx.workspaceRegistry<br/>Workspace entity registry"]
   svc_sessionQuery["ctx.sessionQuery<br/>Session reads, traces, filters, and search"]
   pkg_session_reference["session-reference"]
@@ -151,8 +153,6 @@ flowchart LR
   pkg_tool_todo["tool-todo"]
   pkg_user_questions["user-questions"]
   svc_userQuestions["ctx.userQuestions<br/>Human question/answer seam"]
-  pkg_plan_mode["plan-mode"]
-  svc_planMode["ctx.planMode<br/>Plan collaboration state"]
   pkg_agent_preset_registry["agent-preset-registry"]
   svc_agentPresets["ctx.agentPresets<br/>Per-session agent composition"]
   pkg_commands["commands"]
@@ -174,8 +174,6 @@ flowchart LR
   svc_agentLoop["ctx.agentLoop<br/>Concrete loop driver"]
   pkg_base["base"]
   pkg_sdk_minimal["sdk-minimal"]
-  pkg_goal["goal"]
-  svc_goals["ctx.goals<br/>Same-session goal domain"]
   pkg_ssh["ssh"]
   svc_ssh["ctx.ssh<br/>POSIX SSH connection owner"]
   pkg_fs_ssh["fs-ssh"]
@@ -325,7 +323,6 @@ flowchart LR
   pkg_fs_local --> svc_fs
   pkg_fs_sandbox --> svc_fs
   pkg_fs_ssh --> svc_fs
-  pkg_goal --> svc_goals
   pkg_hmr --> svc_hmr
   pkg_host_directory_picker --> svc_directoryPicker
   pkg_host_directory_picker_browse --> svc_directoryPicker
@@ -347,7 +344,7 @@ flowchart LR
   pkg_message_feedback --> svc_messageFeedback
   pkg_office_to_pdf --> svc_officeToPdf
   pkg_permission_presets --> svc_permissionPresets
-  pkg_plan_mode --> svc_planMode
+  pkg_personal_project --> svc_personalProjects
   pkg_plugin_manager --> svc_pluginManager
   pkg_plugin_package_inventory_deepseek --> svc_deepseekLlmApiExtensions
   pkg_ptc_runtime --> svc_ptcRuntime
@@ -609,6 +606,7 @@ flowchart LR
 | `ctx.storageDomain` | `core` | [`storage-domain`](../packages/storage/storage-domain) | - | [`workspace`](../packages/workspace/workspace) | - | Waits for every configured backend, then publishes the domain form as one lifecycle-bound service for typed durable state. |
 | `ctx.messageFeedback` | `core` | [`message-feedback`](../packages/feedback/message-feedback) | - | - | - | Owns per-assistant-message feedback in the canonical Session log, target validation, per-item compare-and-set, and the Host unary Remote contract. Feedback stays outside model history; log export follows the consumer policy. |
 | `ctx.sessionFeedback` | `core` | [`command-feedback`](../packages/feedback/command-feedback) | - | - | - | Records one Session-level remark with its category as a log-only feedback/record event on a live Session through the Host unary Remote contract; the /feedback command shares the same producer. |
+| `ctx.personalProjects` | `core` | [`personal-project`](../packages/workspace/personal-project) | - | - | - | Stores Project and Bot records and folds Session affiliation from the log. |
 | `ctx.workspaceRegistry` | `core` | [`workspace`](../packages/workspace/workspace) | - | [`api-workspace-controller`](../packages/api/workspace-controller), [`api-session-controller`](../packages/api/session-controller) | - | Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections. |
 | `ctx.sessionQuery` | `seam` | [`session-query`](../packages/session-query/session-query) | [`session-query-sqlite`](../packages/session-query/session-query-sqlite) | [`session-reference`](../packages/context/session-reference), [`tool-session-query`](../packages/session-query/tool-session-query) | - | The interface supplies exact reads, filters, and traces; its concrete backend adds full-text reconciliation, ranking, snippets, and cursor generations, while the model consumer owns workspace authority and cursor-free rendering. |
 | `ctx.fileReferences` | `seam` | [`file-reference`](../packages/context/file-reference) | [`file-reference-local`](../packages/context/file-reference-local) | [`api-session-controller`](../packages/api/session-controller) | - | The interface returns path-only completion candidates within an Agent cwd; providers own namespace access and ranking without reading file contents. |
@@ -617,7 +615,6 @@ flowchart LR
 | `ctx.systemPrompt` | `core` | [`system-prompt`](../packages/core/system-prompt) | - | [`agent-loop`](../packages/core/agent-loop), [`tools`](../packages/core/tools), [`tool-fs`](../packages/fs/tool-fs), [`tool-terminal`](../packages/terminal/tool-terminal), [`tool-web`](../packages/web/tool-web) | - | Collects prompt sections and model-facing tool schemas for each step. |
 | `ctx.tools` | `core` | [`tools`](../packages/core/tools) | - | [`agent-loop`](../packages/core/agent-loop), [`tool-ask-user`](../packages/interaction/tool-ask-user), [`tool-bash`](../packages/shell/tool-bash), [`tool-cordis`](../packages/extensions/tool-cordis), [`tool-fs`](../packages/fs/tool-fs), [`tool-terminal`](../packages/terminal/tool-terminal), [`tool-skill`](../packages/skill/tool-skill), [`tool-subagent`](../packages/subagent/tool-subagent), [`tool-todo`](../packages/todo/tool-todo), [`tool-web`](../packages/web/tool-web) | - | Registers capabilities, owns PTC mode transport, and routes calls through pre-policy, monotonic guards, around dispatch, post-policy, and final-result observation. |
 | `ctx.userQuestions` | `seam` | [`user-questions`](../packages/interaction/user-questions) | - | [`tool-ask-user`](../packages/interaction/tool-ask-user) | - | UI front ends provide the active human-answer provider; tool-ask-user pauses a tool call on the provider-neutral ask() promise. |
-| `ctx.planMode` | `core` | [`plan-mode`](../packages/plan/plan-mode) | - | - | - | Folds logged plan/mode state, flushes user selections at turn boundaries, renders deployment-owned guidance, registers /plan, and keeps the plan-exit schema stable across transitions. |
 | `ctx.agentPresets` | `core` | [`agent-preset-registry`](../packages/preset/agent-preset-registry) | - | - | - | Eagerly mounts YAML-declared preset revisions, binds Agents and cold readers to scoped contributions, and retains retired revisions until their last user releases them. |
 | `ctx.commands` | `core` | [`commands`](../packages/interaction/commands) | - | - | - | Plugins register direct human commands without sending invocations to the model. |
 | `ctx.sessionProjections` | `core` | [`session-projection`](../packages/session/session-projection) | - | [`api-session-controller`](../packages/api/session-controller), [`tool-todo`](../packages/todo/tool-todo), [`session-title`](../packages/session/session-title) | - | Domains register state-driven fold units; the eager drive keeps per-session watermark states and the Session controller serves baselines and pushes changed values. |
@@ -626,7 +623,6 @@ flowchart LR
 | `ctx.agents` | `core` | [`agent`](../packages/core/agent) | - | [`agent-loop`](../packages/core/agent-loop), `acp`, [`subagent-in-process-driver`](../packages/subagent/subagent-in-process-driver) | - | Owns live Agent handles, the create/resume factory seam, and process-local initiator propagation. |
 | `ctx.agentDefaultModel` | `core` | [`agent-default-model`](../packages/core/agent-default-model) | - | [`api-session-controller`](../packages/api/session-controller), `headless` | - | Reads the default ModelSelection from volatile Config and saves selections through the profile editor. |
 | `ctx.agentLoop` | `bundle` | [`agent-loop`](../packages/core/agent-loop) | - | [`base`](../packages/bundle/base), `sdk-minimal` | - | The one concrete loop plugin; extension packages depend on dsh-agent events and services, not on this package. |
-| `ctx.goals` | `core` | [`goal`](../packages/goal/goal) | - | - | - | Folds revisioned objective state from the session log and keeps live continuation activation process-local. |
 | `ctx.ssh` | `core` | [`ssh`](../packages/ssh/ssh) | - | [`fs-ssh`](../packages/ssh/fs-ssh), [`subprocess-ssh`](../packages/ssh/subprocess-ssh), [`sandbox-ssh`](../packages/ssh/sandbox-ssh) | - | Owns one authenticated OpenSSH connection, installed helper identity, independent program streams and disconnect cleanup for the paired remote providers. |
 | `ctx.subprocess` | `seam` | [`subprocess`](../packages/subprocess/subprocess) | [`subprocess-local`](../packages/subprocess/subprocess-local), [`subprocess-ssh`](../packages/ssh/subprocess-ssh) | [`bash-local`](../packages/shell/bash-local), [`bash-sandbox`](../packages/shell/bash-sandbox), [`terminal-bash`](../packages/terminal/terminal-bash), [`lsp-stdio`](../packages/lsp/lsp-stdio), [`subagent-acp`](../packages/subagent/subagent-acp), [`subagent-codex`](../packages/subagent/subagent-codex), [`subagent-claude-code`](../packages/subagent/subagent-claude-code) | - | The bash executors, the PTY shell backend, the LSP host, and the out-of-process ACP, Codex, and Claude Code subagent backends spawn through ctx.subprocess; the service owns process coordinates, tree/session lifetime, stdio dispositions, terminal mechanics, and kill escalation. |
 | `ctx.shell` | `seam` | [`shell`](../packages/shell/shell) | [`bash-local`](../packages/shell/bash-local), [`bash-sandbox`](../packages/shell/bash-sandbox), [`pwsh-local`](../packages/shell/pwsh-local) | [`tool-bash`](../packages/shell/tool-bash), [`tool-pwsh`](../packages/shell/tool-pwsh), [`hooks-claude-code`](../packages/hooks/hooks-claude-code), [`hooks-codex`](../packages/hooks/hooks-codex) | - | The model-facing shell tools and hook bridges consume this seam; sandboxed, remote, or PowerShell executors replace bash-local without touching them. |

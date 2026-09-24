@@ -33,7 +33,7 @@ export function owningGroupKey(
 }
 
 /** Pending interaction kinds with dedicated Workspace-row presentation. */
-export type SessionPendingInteractionStatus = 'approval' | 'plan-review' | 'question'
+export type SessionPendingInteractionStatus = 'approval' | 'question'
 type SessionStatuses = SessionStatusSnapshot
 
 function mainSessionId(list: SessionListState): SessionId | undefined {
@@ -385,7 +385,6 @@ function groupByWorkspace(
 function visiblePendingKind(kind: string | undefined): SessionPendingInteractionStatus | undefined {
   switch (kind) {
     case 'approval':
-    case 'plan-review':
     case 'question':
       return kind
     default:

@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`ralph` runs a foreground sequence of fresh child agents against one immutable objective, with each round receiving only the previous bounded report and shared workspace state. It returns when a worker reports completion or a concrete blocker, or when the configured round limit is reached; those reports are not independently verified. Parent conversation and prior child sessions are never copied into a new round. Use it only when the direct human explicitly requests Ralph-style fresh-agent iteration; use goal tools for ordinary long-running work and subagents or workflows for bounded delegation.
+`ralph` runs a foreground sequence of fresh child agents against one immutable objective, with each round receiving only the previous bounded report and shared workspace state. It returns when a worker reports completion or a concrete blocker, or when the configured round limit is reached; those reports are not independently verified. Parent conversation and prior child sessions are never copied into a new round. Use it only when the direct human explicitly requests Ralph-style fresh-agent iteration; use subagents or workflows for bounded delegation.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## Use this package
 
-The `ralph` tool runs a fixed foreground loop: one fresh child per round works on the immutable objective in the shared workspace, and only a bounded structured report crosses rounds. Use it only when the direct human explicitly asks for a Ralph loop or fresh-agent iterative execution. For ordinary long-running same-session work, use goal tools; for bounded delegation and fan-out, use plain subagents or the `workflow` tool.
+The `ralph` tool runs a fixed foreground loop: one fresh child per round works on the immutable objective in the shared workspace, and only a bounded structured report crosses rounds. Use it only when the direct human explicitly asks for a Ralph loop or fresh-agent iterative execution. For bounded delegation and fan-out, use plain subagents or the `workflow` tool.
 
 ### Calling the tool
 
@@ -56,7 +56,7 @@ This section explains the fixed-script design and the validation and lifecycle m
 
 ### Design concept
 
-The loop is a deployment-owned fixed script: the model supplies data only and cannot alter the loop, provider route, schema, or handoff validation. The tool is an ordinary plugin over `ctx.workflowEngine` and `ctx.subagents` — no Ralph mode or fresh-agent loop is added to `agent-loop`, and the same-session goal domain stays independent. The [harness-level goal-based execution Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.md) owns the policy and deferred work.
+The loop is a deployment-owned fixed script: the model supplies data only and cannot alter the loop, provider route, schema, or handoff validation. The tool is an ordinary plugin over `ctx.workflowEngine` and `ctx.subagents` — no Ralph mode or fresh-agent loop is added to `agent-loop`. The [harness-level goal-based execution Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.md) owns the policy and deferred work.
 
 ### Fixed script and routing
 
@@ -94,7 +94,6 @@ Read these pages when the tool-level contract is not enough. They move from the 
 - [Workflow seam](../workflow/README.md) — the run and result vocabulary.
 - [PTC workflow engine](../workflow-ptc/README.md) — the engine that executes the fixed script.
 - [subagent seam](../../subagent/subagent/README.md) — the fresh-child provider contract.
-- [Goal group](../../goal/goal/README.md) — same-session goal tools for ordinary long-running objectives.
 - [Harness-level goal-based execution Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.md) — the policy, provider requirements, and deferred work.
 
 -----
@@ -111,7 +110,7 @@ Every parent request in this plugin's registration scope receives the fixed rout
 ##### Ralph guidance
 
 ```markdown
-Use the ralph tool ONLY when the direct human explicitly asks for a Ralph loop or fresh-agent iterative execution. Each Ralph round starts a fresh child with no conversation seed and uses the shared workspace as durable memory. Completion and blockers are worker reports, not independent evaluation. Use same-session goal tools for ordinary long-running objectives, and plain subagents or workflows for bounded delegation and fan-out.
+Use the ralph tool ONLY when the direct human explicitly asks for a Ralph loop or fresh-agent iterative execution. Each Ralph round starts a fresh child with no conversation seed and uses the shared workspace as durable memory. Completion and blockers are worker reports, not independent evaluation. Use plain subagents or workflows for bounded delegation and fan-out.
 ```
 
 #### Token effect

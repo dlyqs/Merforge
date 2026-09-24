@@ -76,7 +76,7 @@ The Turn control follows all its opening inputs, including human steering and no
 | Non-human message in an idle `next-step` claim | Turn-trigger notice only in Step 1, with a loaded Turn start, a claim after that start, no `next-turn` claim in this Turn, and no human in the same `next-step` batch. |
 | Other non-human input | Ordinary Context, retained in the Node Store but omitted from Chat. Unclaimed, canceled, or requeued messages do not establish a waking claim. |
 
-Trigger titles and icons use the recorded `source.kind`: `schedule`, `tool-jobs`, and `cordis-host-runner` identify scheduled work, background work, and plugin updates. Goal, agent, team, subagent, and webhook sources have their own titles; a webhook with `provider: github` uses the GitHub title. Unknown sources use the generic execution-request title. Expanding the notice shows its recorded body; it does not imply successful execution.
+Trigger titles and icons use the recorded `source.kind`: `schedule`, `tool-jobs`, and `cordis-host-runner` identify scheduled work, background work, and plugin updates. Agent, team, subagent, and webhook sources have their own titles; a webhook with `provider: github` uses the GitHub title. Unknown sources use the generic execution-request title. Expanding the notice shows its recorded body; it does not imply successful execution.
 
 | Turn condition | Current behavior |
 |---|---|
@@ -120,7 +120,7 @@ A closed group's header names the first three categories from its ranked summary
 
 ### Group-title rules
 
-All three stages share the tool-name classification below. A preparing Tool node uses its category's preparation label: read files for `read`, read images for `read_image`, write files for `write`, edit files for `edit` and `apply_patch`, and update the plan for `todo_write` and goal tools. Only the generic “Preparing tool calls” category appends the wire tool name in Standard mode; other categories omit it. It contributes one call without parsing arguments and renders one non-expandable row. A named live delta can create this node; historical calls start directly from tool/call without replaying preparation.
+All three stages share the tool-name classification below. A preparing Tool node uses its category's preparation label: read files for `read`, read images for `read_image`, write files for `write`, edit files for `edit` and `apply_patch`, and update the plan for `todo_write`. Only the generic “Preparing tool calls” category appends the wire tool name in Standard mode; other categories omit it. It contributes one call without parsing arguments and renders one non-expandable row. A named live delta can create this node; historical calls start directly from tool/call without replaying preparation.
 
 The labels below describe recorded activity, not successful outcomes. For example, a failed read still participates in the “Read files” category.
 
@@ -237,7 +237,7 @@ Classification uses the recorded tool name exactly: no case folding, namespace s
 | `webSearch` | `web_search` |
 | `webFetch` | `web_fetch` |
 | `subagents` | `subagent` or prefix `subagent_` |
-| `plan` | `todo_write`, `create_goal`, `update_goal`, `get_goal` |
+| `plan` | `todo_write` |
 | `questions` | `ask_user_question`, `request_user_input` |
 | `tools` | Every other name, including `list_mcp_resources`, `list_mcp_resource_templates`, and `read_mcp_resource` |
 

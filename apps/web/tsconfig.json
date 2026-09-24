@@ -77,8 +77,6 @@
     "tests/skill-invocation-policy.e2e.ts",
     "tests/skill-user-invoke.e2e.ts",
     "tests/access-confirmation.e2e.ts",
-    "tests/agent-preset-selection.e2e.ts",
-    "tests/agent-preset-authoring.e2e.ts",
     "tests/shipped-composition.e2e.ts",
     "tests/sidebar-right.e2e.ts",
     "tests/sidebar-terminal.e2e.ts",
@@ -93,7 +91,7 @@
     "tests/chat-long-interactions.e2e.ts",
     "tests/chat-continuous-conversation.e2e.ts",
     "tests/composer-tab-geometry.e2e.ts",
-    "tests/complex-history.perf.ts",
+    "tests/complex-history.perf.ts"
   ],
   "references": [
     { "path": "../../packages/experimental/auto-review" },

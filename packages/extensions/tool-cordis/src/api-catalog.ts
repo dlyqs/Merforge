@@ -149,21 +149,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote(\'list\') async remoteExportList(): Promise<AgentPresetRoster>',
-        description: 'Read the selection roster and chooser policy.',
+        description: 'Read the composition roster.',
         parameters: [],
-        returns: 'Current presets, default and chooser policy.',
+        returns: 'Current presets and deployment default.',
       },
       {
         signature: 'async resolve(id?: string): Promise<AgentPreset>',
         description: 'Resolve an identity without starting an Agent.',
         parameters: [{ name: 'id', description: 'Explicit preset or the current default.' }],
         returns: 'Current metadata, including failure when activation failed.',
-      },
-      {
-        signature: '@Remote(\'read\') readDocument(agentPreset: string): Promise<AgentPresetDocument>',
-        description: 'Read one declaration\'s child plugin list as YAML, for viewing only.',
-        parameters: [{ name: 'agentPreset', description: 'Preset identity.' }],
-        returns: 'The declared composition beside its published metadata.',
       },
       {
         signature: 'async mount(ctx: Context, id?: string): Promise<AgentPreset>',
@@ -188,18 +182,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read a service supplied inside an Agent\'s isolated preset group.',
         parameters: [{ name: 'agent', description: 'Agent whose composition is queried.' }, { name: 'name', description: 'Cordis service name.' }],
         returns: 'The service, or undefined.',
-      },
-      {
-        signature: 'async recompose(ctx: Context, id: string): Promise<AgentPreset>',
-        description: 'Rebind a blank Agent; the caller owns the blank-session check.',
-        parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }],
-        returns: 'The bound identity.',
-      },
-      {
-        signature: '@Remote(\'select\') async select(agent: Agent, agentPreset: string): Promise<string>',
-        description: 'Select a preset before a session starts its first turn.',
-        parameters: [{ name: 'agent', description: 'Target Agent.' }, { name: 'agentPreset', description: 'Requested identity.' }],
-        returns: 'Committed preset identity.',
       },
       {
         signature: 'async acquireScope(id?: string): Promise<{ key: ScopeKey } & AsyncDisposable>',
@@ -1114,74 +1096,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
-    key: 'goals',
-    summary: 'Goal service (`ctx.goals`) backed exclusively by the owning session log.',
-    description: 'Goal service (`ctx.goals`) backed exclusively by the owning session log.',
-    methods: [
-      {
-        signature: '@Remote(\'get\') get(agent: Agent): GoalView | undefined',
-        description: 'Read the current goal for one exact live agent.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }],
-        returns: 'a fresh view or `undefined` when no goal is current.',
-        throws: ['{@link GoalError} when the agent is not the registry\'s live instance.'],
-      },
-      {
-        signature: 'disarm(agent: Agent): GoalView | undefined',
-        description: 'Remove process-local continuation authority without changing durable goal phase or revision. Lifecycle owners use this before unloading a driver; a later human-authorized resume records the new activation edge.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }],
-        returns: 'a fresh disarmed view, or `undefined` when no goal is current.',
-      },
-      {
-        signature: 'create(agent: Agent, request: CreateGoalRequest): GoalView',
-        description: 'Create and arm a goal. A completed goal may be replaced; every other current phase must be cleared or resumed instead.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'request', description: 'objective and optional round cap.' }],
-        returns: 'the created live view.',
-      },
-      {
-        signature: '@Remote(\'edit\') edit(agent: Agent, ref: GoalRef, request: EditGoalRequest): GoalView',
-        description: 'Edit objective and/or round cap without changing phase.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'request', description: 'at least one replacement field.' }],
-        returns: 'the edited view.',
-      },
-      {
-        signature: '@Remote(\'pause\') pause(agent: Agent, ref: GoalRef): GoalView',
-        description: 'Pause an active goal and disarm automatic continuation.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
-        returns: 'the paused view.',
-      },
-      {
-        signature: '@Remote(\'resume\') resume(agent: Agent, ref: GoalRef): GoalView',
-        description: 'Resume and arm a stopped goal, or rearm an active goal after a session-start edge, while its round budget still has capacity.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
-        returns: 'the active view.',
-      },
-      {
-        signature: '@Remote(\'complete\') complete(agent: Agent, ref: GoalRef): GoalView',
-        description: 'Mark a current non-complete goal complete and disarm it.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
-        returns: 'the completed view.',
-      },
-      {
-        signature: 'block(agent: Agent, ref: GoalRef, reason: GoalBlockReason): GoalView',
-        description: 'Mark an active goal blocked and disarm it.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'reason', description: 'policy-owned stable code and human-readable explanation.' }],
-        returns: 'the blocked view with its durable reason.',
-      },
-      {
-        signature: '@Remote(\'clear\') clear(agent: Agent, ref: GoalRef): GoalRef',
-        description: 'Clear the current goal while retaining a durable tombstone and history.',
-        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
-        returns: 'the tombstone ref whose revision is one past the cleared snapshot.',
-      },
-      {
-        signature: '@Remote(\'create\') remoteExportCreate(agent: Agent, request: CreateGoalRequest): CreateGoalResult',
-        description: 'Create one Goal through the remote boundary.',
-        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'objective and optional round cap.' }],
-        returns: 'the created Goal identity.',
-      },
-    ],
-  },
-  {
     key: 'hmr',
     summary: 'Hot reload service with Cordis-compatible module configuration and events.',
     description: 'Hot reload service with Cordis-compatible module configuration and events.',
@@ -1568,21 +1482,87 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
-    key: 'planMode',
-    summary: '`ctx.planMode`: owns logged plan state, applies and narrates selected state at step start, the `plan:policy` section, the `/plan` command, and the stable exit tool.',
-    description: '`ctx.planMode`: owns logged plan state, applies and narrates selected state at step start, the `plan:policy` section, the `/plan` command, and the stable exit tool. Client carriers expose the projection\'s cropped `{ active, pending }` view.',
+    key: 'personalProjects',
+    summary: 'Persistent records and affiliation transitions for ordinary Sessions.',
+    description: 'Persistent records and affiliation transitions for ordinary Sessions.',
     methods: [
       {
-        signature: 'get(agent: Agent): { active: boolean; pending?: boolean }',
-        description: 'Read the logged plan state and any selected state awaiting the next accepted in-turn pre-step.',
-        parameters: [{ name: 'agent', description: 'The agent to read.' }],
-        returns: 'Current logged state plus a pending selection, when present.',
+        signature: 'listProjects(): Project[]',
+        description: 'Return personal projects in creation order.',
+        parameters: [],
+        returns: 'stored Projects.',
       },
       {
-        signature: 'set(agent: Agent, active: boolean): \'committed\' | \'queued\' | \'cancelled\' | \'noop\'',
-        description: 'Select whether plan mode should be active. Between turns the method appends the change immediately because no in-turn pre-step will run until another prompt starts a turn. The open-turn fold is the idle signal: agent status stays `running` through post-turn checkpointing, when no further in-turn pre-step runs. During an open turn the selection remains pending until the next accepted in-turn pre-step. Repeated selection of the current or already-pending state is a no-op.',
-        parameters: [{ name: 'agent', description: 'The agent to switch.' }, { name: 'active', description: 'Whether plan mode should be active.' }],
-        returns: 'what happened: `committed` (logged now), `queued` (awaiting the next accepted in-turn pre-step), `cancelled` (an opposite pending selection was cleared; the logged state already matches), or `noop` (already in that state).',
+        signature: 'listBots(): BotProfile[]',
+        description: 'Return private Bot profiles in creation order.',
+        parameters: [],
+        returns: 'stored Bot profiles.',
+      },
+      {
+        signature: 'getProject(id: ProjectId): Project | undefined',
+        description: 'Resolve one project identity.',
+        parameters: [{ name: 'id', description: 'Project ID.' }],
+        returns: 'stored Project.',
+      },
+      {
+        signature: 'getBot(id: BotId): BotProfile | undefined',
+        description: 'Resolve one Bot identity.',
+        parameters: [{ name: 'id', description: 'Bot ID.' }],
+        returns: 'stored Bot profile, if present.',
+      },
+      {
+        signature: 'allowsSkill(session: Session, name: string): boolean',
+        description: 'Whether the current Bot permits a named Skill at its loading entry point.',
+        parameters: [{ name: 'session', description: 'Session whose current Bot applies.' }, { name: 'name', description: 'Skill name.' }],
+        returns: 'whether the Skill is permitted.',
+      },
+      {
+        signature: 'createProject(input: z.input<typeof projectInput>): Promise<Project>',
+        description: 'Create a Project independently of any local directory.',
+        parameters: [{ name: 'input', description: 'Project fields.' }],
+        returns: 'the stored Project.',
+      },
+      {
+        signature: 'updateProject(id: ProjectId, input: z.input<typeof projectPatch>): Promise<Project>',
+        description: 'Edit a Project\'s current metadata and optional directory.',
+        parameters: [{ name: 'id', description: 'Project ID.' }, { name: 'input', description: 'changed fields.' }],
+        returns: 'the updated Project.',
+      },
+      {
+        signature: 'createBot(input: z.input<typeof botInput>): Promise<BotProfile>',
+        description: 'Create a private Bot profile without storing credentials.',
+        parameters: [{ name: 'input', description: 'Bot fields.' }],
+        returns: 'the stored Bot profile.',
+      },
+      {
+        signature: 'updateBot(id: BotId, input: z.input<typeof botPatch>): Promise<BotProfile>',
+        description: 'Edit the current Bot profile; old request logs remain immutable.',
+        parameters: [{ name: 'id', description: 'Bot ID.' }, { name: 'input', description: 'changed fields.' }],
+        returns: 'the updated Bot profile.',
+      },
+      {
+        signature: 'affiliation(session: Session): AffiliationProjection',
+        description: 'Current affiliation projected from the exact Session event prefix.',
+        parameters: [{ name: 'session', description: 'live or restored Session.' }],
+        returns: 'current affiliation and transitions.',
+      },
+      {
+        signature: 'move(session: Session, next: Affiliation, source: \'create\' | \'move\' | \'delete\' = \'move\'): AffiliationProjection',
+        description: 'Append a complete affiliation transition to the same Session.',
+        parameters: [{ name: 'session', description: 'Session to change.' }, { name: 'next', description: 'complete new affiliation.' }, { name: 'source', description: 'cause of the transition.' }],
+        returns: 'the projected current affiliation and transitions.',
+      },
+      {
+        signature: 'deleteProject(id: ProjectId, resolveSession: (id: SessionId) => Promise<Session>): Promise<boolean>',
+        description: 'Delete a Project after clearing all current Session references.',
+        parameters: [{ name: 'id', description: 'Project to delete.' }, { name: 'resolveSession', description: 'opens one referenced Session for its clear event.' }],
+        returns: 'whether the Project existed.',
+      },
+      {
+        signature: 'deleteBot(id: BotId, resolveSession: (id: SessionId) => Promise<Session>): Promise<boolean>',
+        description: 'Delete a Bot after clearing all current Session references.',
+        parameters: [{ name: 'id', description: 'Bot to delete.' }, { name: 'resolveSession', description: 'opens one referenced Session for its clear event.' }],
+        returns: 'whether the Bot existed.',
       },
     ],
   },
@@ -1824,6 +1804,60 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Create or idempotently adopt one ordinary Session.',
         parameters: [{ name: 'request', description: 'requested identity, location, and Agent preset.' }],
         returns: 'the Session identity and resolved preset when configured.',
+      },
+      {
+        signature: '@Remote(\'personalList\') personalList(): PersonalRecordsValue',
+        description: 'List current personal records for the Client data surface.',
+        parameters: [],
+        returns: 'Project and Bot records.',
+      },
+      {
+        signature: '@Remote(\'personalCreateProject\') personalCreateProject(request: PersonalProjectCreateRequest): Promise<import(\'@deepseek-ai/dsh-personal-project/types\').Project>',
+        description: 'Create a Project with an identity independent of Workspace.',
+        parameters: [{ name: 'request', description: 'validated Project fields.' }],
+        returns: 'the stored Project.',
+      },
+      {
+        signature: '@Remote(\'personalUpdateProject\') personalUpdateProject(request: PersonalProjectUpdateRequest): Promise<import(\'@deepseek-ai/dsh-personal-project/types\').Project>',
+        description: 'Edit the current Project metadata.',
+        parameters: [{ name: 'request', description: 'Project ID and changed fields.' }],
+        returns: 'the updated Project.',
+      },
+      {
+        signature: '@Remote(\'personalDeleteProject\') personalDeleteProject(id: ProjectId): Promise<boolean>',
+        description: 'Remove one Project while retaining every Session and its history.',
+        parameters: [{ name: 'id', description: 'Project to remove.' }],
+        returns: 'whether the Project existed.',
+      },
+      {
+        signature: '@Remote(\'personalCreateBot\') async personalCreateBot(request: PersonalBotCreateRequest): Promise<import(\'@deepseek-ai/dsh-personal-project/types\').BotProfile>',
+        description: 'Create a user-authored Bot profile.',
+        parameters: [{ name: 'request', description: 'Bot fields without credentials.' }],
+        returns: 'the stored Bot profile.',
+      },
+      {
+        signature: '@Remote(\'personalUpdateBot\') async personalUpdateBot(request: PersonalBotUpdateRequest): Promise<import(\'@deepseek-ai/dsh-personal-project/types\').BotProfile>',
+        description: 'Edit a Bot profile for subsequent requests.',
+        parameters: [{ name: 'request', description: 'Bot ID and changed fields.' }],
+        returns: 'the updated Bot profile.',
+      },
+      {
+        signature: '@Remote(\'personalDeleteBot\') personalDeleteBot(id: BotId): Promise<boolean>',
+        description: 'Remove one Bot while retaining every Session and its history.',
+        parameters: [{ name: 'id', description: 'Bot to remove.' }],
+        returns: 'whether the Bot existed.',
+      },
+      {
+        signature: '@Remote(\'personalAffiliation\') async personalAffiliation(sessionId: SessionId): Promise<SessionAffiliationValue>',
+        description: 'Read one Session\'s current affiliation and transitions without copying it.',
+        parameters: [{ name: 'sessionId', description: 'Session to inspect.' }],
+        returns: 'its current affiliation and history.',
+      },
+      {
+        signature: '@Remote(\'personalMove\') async personalMove(request: SessionAffiliationMoveRequest): Promise<SessionAffiliationValue>',
+        description: 'Move a Session\'s Project and/or Bot reference in its own event log.',
+        parameters: [{ name: 'request', description: 'Session ID and changed affiliation fields.' }],
+        returns: 'the committed affiliation projection.',
       },
       {
         signature: '@Remote(\'selectModel\') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>',
@@ -2273,7 +2307,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async flush(session: Session): Promise<boolean>',
-        description: 'Dispatch the awaited `session/flush` durability checkpoint for `session`, with the carrier captured at enter. THE flush entry point: the store owns the carrier, so callers (the checkpoint policy\'s per-request barrier, goal-round-driver\'s idle checkpoint, teardown drains, and consumers that flush themselves before reading storage) must come through here rather than dispatch a raw `ctx.parallel(\'session/flush\', …)` — one owner, one spelling, and the scoped-dispatch invariant can pin it.',
+        description: 'Dispatch the awaited `session/flush` durability checkpoint for `session`, with the carrier captured at enter. THE flush entry point: the store owns the carrier, so callers (the checkpoint policy\'s per-request barrier, teardown drains, and consumers that flush themselves before reading storage) must come through here rather than dispatch a raw `ctx.parallel(\'session/flush\', …)` — one owner, one spelling, and the scoped-dispatch invariant can pin it.',
         parameters: [{ name: 'session', description: 'the session whose buffered events must reach durable storage.' }],
         returns: 'whether at least one durability listener participated, after every listener has settled successfully.',
         throws: ['the first registered listener failure after every listener settles.'],
@@ -3167,6 +3201,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the exact disposer that lifts this restriction.',
       },
       {
+        signature: 'filterVisible(admits: (name: string) => boolean): () => void',
+        description: 'Filter one agent\'s model-visible and callable tools using current policy. The predicate also covers tools registered in that agent\'s own scope; `run_code` remains a transport for permitted inner tools.',
+        parameters: [{ name: 'admits', description: 'return whether the named end-capability is visible now.' }],
+        returns: 'the disposer for this scoped filter.',
+      },
+      {
         signature: 'guard(guard: ToolGuard): () => void',
         description: 'Register a monotonic guard after the extensible `tools/pre-execute` waterfall. A plain-context guard applies globally; one registered through `agent.ctx` applies only to that agent. Any matching guard may deny by returning a reason, while no guard can force-allow a call another guard denied. The exact effect disposer is returned for ordered ownership and HMR cleanup.',
         parameters: [{ name: 'guard', description: 'synchronous check; a returned string denies the execution.' }],
@@ -3918,22 +3958,6 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'target', description: 'the resolved target about to be written.' }, { name: 'actor', description: 'the opaque tool-execution context the decider keys off.' }],
   },
   {
-    name: 'goal/activation-changed',
-    mode: 'emit',
-    signature: '\'goal/activation-changed\'(payload: GoalActivationChanged): void',
-    summary: 'Process-local goal activation changed for one session.',
-    description: 'Process-local goal activation changed for one session.',
-    parameters: [{ name: 'payload', description: 'session id and the exact current goal activation, or no goal after a clear.' }],
-  },
-  {
-    name: 'goal/changed',
-    mode: 'emit',
-    signature: '\'goal/changed\'(this: import(\'@deepseek-ai/dsh-scope\').Scoped<Agent>, payload: { agent: Agent; change: GoalChanged }): void',
-    summary: 'Goal mutation accepted by one live agent.',
-    description: 'Goal mutation accepted by one live agent. The matching `goal/change` session event has already committed. Listener failures are contained. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.',
-    parameters: [{ name: 'payload', description: '.change - fresh current projection or clear tombstone.' }],
-  },
-  {
     name: 'hmr/change',
     mode: 'emit',
     signature: '\'hmr/change\'(url: string): void',
@@ -4266,6 +4290,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AdmittedPromptContentPart = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'image\';\n    readonly attachment: ImageAttachmentRef;\n} | {\n    readonly type: \'file\';\n    readonly attachment: FileAttachmentRef;\n};',
   },
   {
+    name: 'Affiliation',
+    declaration: 'export interface Affiliation {\n    readonly projectId?: ProjectId | undefined;\n    readonly botId?: BotId | undefined;\n}',
+  },
+  {
+    name: 'AffiliationChange',
+    declaration: 'export interface AffiliationChange {\n    readonly from: AffiliationSnapshot;\n    readonly to: AffiliationSnapshot;\n    readonly source: \'create\' | \'move\' | \'delete\';\n    readonly seq: number;\n    readonly time: number;\n}',
+  },
+  {
+    name: 'AffiliationProjection',
+    declaration: 'export interface AffiliationProjection {\n    readonly current: Affiliation;\n    readonly history: readonly AffiliationChange[];\n}',
+  },
+  {
+    name: 'AffiliationSnapshot',
+    declaration: 'export interface AffiliationSnapshot {\n    readonly project?: {\n        readonly id: ProjectId;\n        readonly name: string;\n    } | undefined;\n    readonly bot?: {\n        readonly id: BotId;\n        readonly name: string;\n    } | undefined;\n}',
+  },
+  {
     name: 'Agent',
     declaration: 'export interface Agent {\n    readonly id: SessionId;\n}',
   },
@@ -4294,12 +4334,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AgentPresetCompositionRow {\n    readonly entryId: string | null;\n    readonly moduleName: string;\n    readonly enabled: CompositionRowEnablement;\n    readonly condition?: string;\n    readonly fiberState?: FiberState;\n}',
   },
   {
-    name: 'AgentPresetDocument',
-    declaration: 'export interface AgentPresetDocument {\n    readonly agentPreset: string;\n    readonly content: string;\n    readonly name?: string;\n    readonly description?: string;\n}',
-  },
-  {
     name: 'AgentPresetRoster',
-    declaration: 'export interface AgentPresetRoster {\n    readonly presets: readonly AgentPresetRow[];\n    readonly modeSelectionEnabled: boolean;\n}',
+    declaration: 'export interface AgentPresetRoster {\n    readonly presets: readonly AgentPresetRow[];\n}',
   },
   {
     name: 'AgentPresetRow',
@@ -4362,12 +4398,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AskUserQuestionAnswerItem {\n    id: string;\n    selected: string[];\n    custom?: string;\n}',
   },
   {
-    name: 'AskUserQuestionIntent',
-    declaration: 'export type AskUserQuestionIntent = {\n    kind: \'plan-review\';\n    approve: string;\n    callId?: ToolCallId;\n};',
-  },
-  {
     name: 'AskUserQuestionItem',
-    declaration: 'export interface AskUserQuestionItem {\n    id: string;\n    question: string;\n    detail?: string;\n    header?: string;\n    options?: AskUserQuestionOption[];\n    multiSelect?: boolean;\n    intent?: AskUserQuestionIntent;\n}',
+    declaration: 'export interface AskUserQuestionItem {\n    id: string;\n    question: string;\n    detail?: string;\n    header?: string;\n    options?: AskUserQuestionOption[];\n    multiSelect?: boolean;\n}',
   },
   {
     name: 'AskUserQuestionOption',
@@ -4488,6 +4520,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BashEnvVariableInfo',
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
+  },
+  {
+    name: 'BotId',
+    declaration: 'export type BotId = Branded<\'BotId\'>;',
+  },
+  {
+    name: 'BotModel',
+    declaration: 'export interface BotModel {\n    readonly provider: string;\n    readonly model: string;\n    readonly reasoningEffort?: string | undefined;\n}',
+  },
+  {
+    name: 'BotProfile',
+    declaration: 'export interface BotProfile {\n    readonly id: BotId;\n    readonly name: string;\n    readonly identity: string;\n    readonly direction: string;\n    readonly defaultModel?: BotModel;\n    readonly allowedTools?: readonly string[];\n    readonly allowedSkills?: readonly string[];\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
   },
   {
     name: 'Branded',
@@ -4750,14 +4794,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly parentAgent?: Agent;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
   },
   {
-    name: 'CreateGoalRequest',
-    declaration: 'export interface CreateGoalRequest {\n    readonly objective: string;\n    readonly maxGoalRounds?: number;\n}',
-  },
-  {
-    name: 'CreateGoalResult',
-    declaration: 'export interface CreateGoalResult {\n    readonly ref: GoalRef;\n}',
-  },
-  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
@@ -4914,10 +4950,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface DynamicCordisRunRequest {\n    requestId: ApprovalRequestId;\n    agentId: SessionId;\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    mode: CordisDynamicRunMode;\n    name: string;\n    purpose: string;\n    requiresApproval: boolean;\n}',
   },
   {
-    name: 'EditGoalRequest',
-    declaration: 'export interface EditGoalRequest {\n    readonly objective?: string;\n    readonly maxGoalRounds?: number;\n}',
-  },
-  {
     name: 'EncodedFileAttachment',
     declaration: 'export interface EncodedFileAttachment {\n    data: string;\n    name?: string;\n}',
   },
@@ -5032,46 +5064,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GenericResultView',
     declaration: 'export interface GenericResultView {\n    card: \'generic\';\n    title?: string;\n    content?: ContentBlock[];\n}',
-  },
-  {
-    name: 'GoalActivation',
-    declaration: 'export type GoalActivation = \'armed\' | \'disarmed\';',
-  },
-  {
-    name: 'GoalActivationChanged',
-    declaration: 'export interface GoalActivationChanged {\n    readonly sessionId: SessionId;\n    readonly goal?: {\n        readonly id: GoalId;\n        readonly revision: number;\n        readonly activation: GoalActivation;\n    };\n}',
-  },
-  {
-    name: 'GoalBlockReason',
-    declaration: 'export interface GoalBlockReason {\n    readonly code: string;\n    readonly message: string;\n}',
-  },
-  {
-    name: 'GoalChanged',
-    declaration: 'export interface GoalChanged {\n    readonly operation: GoalOperation;\n    readonly ref: GoalRef;\n    readonly goal?: GoalView;\n}',
-  },
-  {
-    name: 'GoalId',
-    declaration: 'export type GoalId = Branded<\'GoalId\'>;',
-  },
-  {
-    name: 'GoalOperation',
-    declaration: 'export type GoalOperation = \'create\' | \'edit\' | \'pause\' | \'resume\' | \'complete\' | \'block\' | \'clear\';',
-  },
-  {
-    name: 'GoalPhase',
-    declaration: 'export type GoalPhase = \'active\' | \'paused\' | \'blocked\' | \'complete\';',
-  },
-  {
-    name: 'GoalRef',
-    declaration: 'export interface GoalRef {\n    readonly id: GoalId;\n    readonly revision: number;\n}',
-  },
-  {
-    name: 'GoalSnapshot',
-    declaration: 'export interface GoalSnapshot extends GoalRef {\n    readonly objective: string;\n    readonly phase: GoalPhase;\n    readonly blockedReason?: GoalBlockReason;\n    readonly maxGoalRounds: number;\n}',
-  },
-  {
-    name: 'GoalView',
-    declaration: 'export interface GoalView extends GoalSnapshot {\n    readonly roundsStarted: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly activation: GoalActivation;\n}',
   },
   {
     name: 'GrantRecord',
@@ -5634,6 +5626,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PermissionCatalog {\n    options: PresetOption[];\n    defaultOptions: PresetOption[];\n    defaultPreset: string;\n}',
   },
   {
+    name: 'PersonalBotCreateRequest',
+    declaration: 'export interface PersonalBotCreateRequest {\n    readonly name: string;\n    readonly identity?: string;\n    readonly direction?: string;\n    readonly defaultModel?: BotModel;\n    readonly allowedTools?: string[];\n    readonly allowedSkills?: string[];\n}',
+  },
+  {
+    name: 'PersonalBotUpdateRequest',
+    declaration: 'export interface PersonalBotUpdateRequest {\n    readonly id: BotId;\n    readonly name?: string;\n    readonly identity?: string;\n    readonly direction?: string;\n    readonly defaultModel?: BotModel | null;\n    readonly allowedTools?: string[] | null;\n    readonly allowedSkills?: string[] | null;\n}',
+  },
+  {
+    name: 'PersonalProjectCreateRequest',
+    declaration: 'export interface PersonalProjectCreateRequest {\n    readonly name: string;\n    readonly description?: string;\n    readonly path?: string;\n}',
+  },
+  {
+    name: 'PersonalProjectUpdateRequest',
+    declaration: 'export interface PersonalProjectUpdateRequest {\n    readonly id: ProjectId;\n    readonly name?: string;\n    readonly description?: string;\n    readonly path?: string | null;\n}',
+  },
+  {
+    name: 'PersonalRecordsValue',
+    declaration: 'export interface PersonalRecordsValue {\n    readonly projects: readonly Project[];\n    readonly bots: readonly BotProfile[];\n}',
+  },
+  {
     name: 'PlatformSession',
     declaration: 'export interface PlatformSession {\n    readonly origin: string;\n    readonly token: string;\n    readonly embeddedPageDist?: string;\n    readonly requestHeaders?: Readonly<Record<string, string>>;\n}',
   },
@@ -5752,6 +5764,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ProfilePnpmInvocation',
     declaration: 'export interface ProfilePnpmInvocation {\n    readonly command: string;\n    readonly args: readonly string[];\n    readonly env: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'Project',
+    declaration: 'export interface Project {\n    readonly id: ProjectId;\n    readonly name: string;\n    readonly description: string;\n    readonly path?: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'ProjectId',
+    declaration: 'export type ProjectId = Branded<\'ProjectId\'>;',
   },
   {
     name: 'ProjectionChangeListener',
@@ -6094,6 +6114,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SessionAddress = {\n    readonly kind: \'session\';\n    readonly sessionId: SessionId;\n} | {\n    readonly kind: \'subagent\';\n    readonly parentSessionId: SessionId;\n    readonly childSessionId: SessionId;\n    readonly mode: \'one-shot\' | \'continuable\' | \'unknown\';\n};',
   },
   {
+    name: 'SessionAffiliationMoveRequest',
+    declaration: 'export interface SessionAffiliationMoveRequest {\n    readonly sessionId: SessionId;\n    readonly projectId?: ProjectId | null;\n    readonly botId?: BotId | null;\n}',
+  },
+  {
+    name: 'SessionAffiliationValue',
+    declaration: 'export interface SessionAffiliationValue {\n    readonly affiliation: AffiliationProjection;\n}',
+  },
+  {
     name: 'SessionAssistantStreamAttempt',
     declaration: 'export interface SessionAssistantStreamAttempt {\n    readonly attemptId: LlmAttemptId;\n    readonly startedAfterSeq: SessionSeqCursor;\n    readonly turn: number;\n    readonly step: number;\n    readonly nextIndex: number;\n    readonly stream: readonly JsonValue[];\n}',
   },
@@ -6135,7 +6163,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionCreateRequest',
-    declaration: 'export interface SessionCreateRequest {\n    readonly workspaceId?: WorkspaceId;\n    readonly cwd?: string;\n    readonly sessionId?: SessionId;\n    readonly agentPreset?: string;\n}',
+    declaration: 'export interface SessionCreateRequest {\n    readonly projectId?: ProjectId;\n    readonly botId?: BotId;\n    readonly cwd?: string;\n    readonly sessionId?: SessionId;\n    readonly agentPreset?: string;\n}',
   },
   {
     name: 'SessionCreateValue',
@@ -7307,7 +7335,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ToolRuntime',
-    declaration: 'export class ToolRuntime extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly [TOOL_RUNTIME_SCHEDULER]: ToolRuntimeScheduler;\n    constructor(ctx: Context, config: Config = {});\n    presentAs(mode: ToolPresentationMode): () => void;\n    register(definition: ToolDefinition): () => void;\n    restrict(filter: ToolRestriction): () => void;\n    guard(guard: ToolGuard): () => void;\n    get(name: string, scope?: ScopeKey): ToolDefinition | undefined;\n    schemas(scope?: ScopeKey): ToolSchema[];\n    executionMode(exec: ToolExecutionInput): ToolExecutionMode;\n    async execute(exec: ToolExecutionInput): Promise<ToolExecutionResult>;\n}',
+    declaration: 'export class ToolRuntime extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly [TOOL_RUNTIME_SCHEDULER]: ToolRuntimeScheduler;\n    constructor(ctx: Context, config: Config = {});\n    presentAs(mode: ToolPresentationMode): () => void;\n    register(definition: ToolDefinition): () => void;\n    restrict(filter: ToolRestriction): () => void;\n    filterVisible(admits: (name: string) => boolean): () => void;\n    guard(guard: ToolGuard): () => void;\n    get(name: string, scope?: ScopeKey): ToolDefinition | undefined;\n    schemas(scope?: ScopeKey): ToolSchema[];\n    executionMode(exec: ToolExecutionInput): ToolExecutionMode;\n    async execute(exec: ToolExecutionInput): Promise<ToolExecutionResult>;\n}',
   },
   {
     name: 'ToolRuntimeScheduler',

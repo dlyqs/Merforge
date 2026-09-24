@@ -6,11 +6,6 @@
  * carrier (domain encoding in contract/slots.ts PendingQuestion); copy rides
  * the standard locale seat. Export discipline: packages/client/AGENTS.md.
  *
- * One entry, two shapes: the composer renders a request that declares a
- * presentation intent as that intent's own surface (`plan-review` → the plan
- * decision card) and every other request as the generic question flow. A
- * separate chain entry per shape would race the same carrier, so the shape
- * choice lives inside this entry — see QuestionComposer.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -28,7 +23,7 @@ import { QuestionComposer } from './QuestionComposer.tsx'
 import { en, zh, type QuestionKey } from './locales.ts'
 
 export type {
-  PendingQuestion, PlanReview, QuestionAnswer, QuestionComposerProps, QuestionWait,
+  PendingQuestion, QuestionAnswer, QuestionComposerProps, QuestionWait,
 } from './contract/slots.ts'
 export type { QuestionKey } from './locales.ts'
 
@@ -89,7 +84,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-questions: dictionaries')
   const questionDraftStore = createQuestionDraftStore()
   const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingQuestion>(
-    pending => pending.kind === 'plan-review' ? 2 : 1,
+    () => 1,
   )
   ctx.slots.inject('conversation.composer', () => ctx.slots.register(
     {
@@ -98,7 +93,6 @@ export function apply(ctx: ClientContext): void {
         pendingInteraction instanceof PendingQuestion ? pendingInteraction : null,
       locale: NS,
       store: questionDraftStore,
-      children: { 'conversation.plan-review.actions': { kind: 'list', scope: 'session' } },
     },
     QuestionComposer,
   ))

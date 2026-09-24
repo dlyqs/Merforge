@@ -1,7 +1,7 @@
 /**
  * The summary blank bit means "conversation not started" (no turn has run),
  * not "log empty": standalone plugin events — command lifecycle records,
- * plan/mode, permission knob events, session titles — never flip it, so running /plan or /goal on a
+ * permission knob events, session titles — never flip it, so running /permission on a
  * fresh session keeps it list-hidden and reusable, while the first accepted
  * prompt's turn/start clears it. The host/session-added frame shares the
  * same predicate function (covered by the workspace spec's frame assertion).
@@ -35,10 +35,9 @@ async function harness(): Promise<{ ctx: Context; remote: TestSessionRemote; att
 /** Append the standalone (non-conversation) event family a fresh session can accumulate. */
 function appendStandalone(session: Session): void {
   session.append('command/run', {
-    commandId: CommandId('blank-cmd-1'), name: 'plan', args: '', source: { kind: 'user' },
+    commandId: CommandId('blank-cmd-1'), name: 'permission', args: '', source: { kind: 'user' },
   })
-  session.append('plan/mode', { active: true })
-  session.append('command/done', { commandId: CommandId('blank-cmd-1'), kind: 'success', text: 'Plan mode on.' })
+  session.append('command/done', { commandId: CommandId('blank-cmd-1'), kind: 'success', text: 'Permission selected.' })
   session.append('session/title', {
     title: 'standalone title', messageSeqs: [], source: { kind: 'fallback' },
   })
@@ -54,7 +53,7 @@ async function listBlank(remote: TestSessionRemote, id: string): Promise<boolean
 }
 
 describe('summary blank = conversation not started', () => {
-  it('standalone events (command lifecycle, plan/mode, title) keep the session blank', async () => {
+  it('standalone events (command lifecycle, title) keep the session blank', async () => {
     const { ctx, remote, attach } = await harness()
     const session = ctx.sessions.create()
     await attach(session)

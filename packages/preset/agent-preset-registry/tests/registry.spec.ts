@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import { entryListProblem, livePresetMounts } from '../src/index.ts'
-import { currentKey, harness, declare, contribution, agentOn, liveRegistries, plugin } from './harness.ts'
+import { currentKey, harness, declare, contribution, agentOn } from './harness.ts'
 import { omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -74,7 +74,6 @@ describe('declarative preset revisions', () => {
     await expect(ctx.agentPresets.mount(scope.ctx, 'broken')).rejects.toThrow()
     expect(await ctx.agentPresets.mount(scope.ctx)).toEqual({ id: 'standard' })
     const roster = await ctx.agentPresets.remoteExportList()
-    expect(roster.modeSelectionEnabled).toBe(true)
     expect(roster.presets.find(row => row.id === 'standard')?.isDefault).toBe(true)
   })
 
@@ -94,22 +93,12 @@ describe('declarative preset revisions', () => {
     await ctx.agentPresets.mount(scope.ctx)
     const child = createScope(ctx, {})
     ctx.agentPresets.composeFrom(child.ctx, scope.ctx)
-    await ctx.agentPresets.recompose(scope.ctx, 'minimal')
+    await ctx.agentPresets.mount(scope.ctx, 'minimal')
     expect(ctx.agentPresets.composedPreset(scope.ctx)).toBe('minimal')
     expect(ctx.agentPresets.composedPreset(child.ctx)).toBe('standard')
     expect(ctx.agentPresets.composeFrom(createScope(ctx, {}).ctx, ctx)).toBeUndefined()
   })
 
-  it('logs selection and rejects preset changes after the first turn', async () => {
-    const ctx = await setup()
-    await declare(ctx, contribution('standard'))
-    await declare(ctx, contribution('minimal'))
-    const agent = await agentOn(ctx, 'selection')
-    expect(await ctx.agentPresets.select(agent, 'minimal')).toBe('minimal')
-    expect(ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('minimal')
-    agent.session.append('turn/start', { turn: 1 })
-    await expect(ctx.agentPresets.select(agent, 'standard')).rejects.toThrow('already started')
-  })
 
   it('inventories active and disabled child entries and declared display metadata', async () => {
     const ctx = await setup()
@@ -122,26 +111,6 @@ describe('declarative preset revisions', () => {
     ]))
   })
 
-  it('renders a declaration as entry-list YAML for reading, conditions included', async () => {
-    const ctx = await setup()
-    await declare(ctx, {
-      ...contribution('standard'), name: 'Standard', description: 'General',
-      plugins: [
-        { id: 'contribute', name: plugin('contribute'), config: { tool: 'standard' } },
-        { id: 'windows-only', name: 'missing', disabled: { __jsExpr: "process.platform !== 'win32'" } },
-      ],
-    })
-    const document = await ctx.agentPresets.readDocument('standard')
-    expect(document).toMatchObject({ agentPreset: 'standard', name: 'Standard', description: 'General' })
-    expect(document.content.startsWith('- id: contribute\n  name: ')).toBe(true)
-    expect(document.content).toContain("\n  config:\n    tool: standard\n- id: windows-only\n  name: missing\n  disabled: !!js process.platform !== 'win32'\n")
-    expect(document.content).not.toContain('__jsExpr')
-    await declare(ctx, contribution('minimal'))
-    expect(await ctx.agentPresets.readDocument('minimal')).toEqual({
-      agentPreset: 'minimal', content: expect.any(String) as string,
-    })
-    await expect(ctx.agentPresets.readDocument('absent')).rejects.toThrow('Unknown agent preset: absent')
-  })
 })
 
 it('retains a retired revision for an in-flight cold read', async () => {
@@ -217,20 +186,6 @@ it('allows an isolated service and resolves it through the Agent composition', a
   expect(ctx.agentPresets.serviceFor({ ctx: scope.ctx }, 'loader')).toBeUndefined()
 })
 
-it('keeps policy preferences while hiding and restoring the chooser', async () => {
-  const ctx = await harness({ live: true })
-  contexts.push(ctx)
-  const live = liveRegistries.get(ctx)!
-  await live.update({ selectedDefault: 'minimal', modeSelectionEnabled: true })
-  expect(ctx.agentPresets.defaultId).toBe('minimal')
-  await live.update({ modeSelectionEnabled: false })
-  expect(ctx.agentPresets.defaultId).toBe('standard')
-  await live.update({ modeSelectionEnabled: true })
-  expect(ctx.agentPresets.defaultId).toBe('minimal')
-  await live.replace({ default: 'standard' })
-  expect(ctx.agentPresets.defaultId).toBe('standard')
-})
-
 it('keeps its own instance off the generated Settings pages', () => omitsGeneratedPage(async (ctx) => {
   await ctx.plugin(Loader)
   await ctx.plugin(SessionProjectionRegistry)
@@ -255,17 +210,6 @@ it('refuses an unscoped binding and a second child join without leaking referenc
   await expect(ctx.agentPresets.acquireScope()).rejects.toThrow('Unknown')
 })
 
-it('serializes competing blank-session selections and recovers after a failed selection', async () => {
-  const ctx = await setup()
-  await declare(ctx, contribution('standard'))
-  await declare(ctx, contribution('minimal'))
-  const agent = await agentOn(ctx, 'competing')
-  const results = await Promise.allSettled([
-    ctx.agentPresets.select(agent, 'absent'), ctx.agentPresets.select(agent, 'minimal'), ctx.agentPresets.select(agent, 'standard'),
-  ])
-  expect(results.map(row => row.status)).toEqual(['rejected', 'fulfilled', 'fulfilled'])
-  expect(ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('standard')
-})
 
 it('retains a newly acquired generation when a previous activation is replaced', async () => {
   const ctx = await setup()
@@ -286,15 +230,6 @@ it('retains a newly acquired generation when a previous activation is replaced',
   expect(livePresetMounts(ctx.fiber)).toHaveLength(0)
 })
 
-it('does not lose the durable selection when a tools observer rejects notification', async () => {
-  const ctx = await setup()
-  await declare(ctx, contribution('standard'))
-  await declare(ctx, contribution('minimal'))
-  const agent = await agentOn(ctx, 'observer')
-  ctx.on('tools/change', () => { throw new Error('observer refused') })
-  expect(await ctx.agentPresets.select(agent, 'minimal')).toBe('minimal')
-  expect(ctx.sessionProjections.stateOf(agent.session, 'agentPreset')).toBe('minimal')
-})
 
 it('inventories failed conditional entries without executing their expressions again', async () => {
   const ctx = await setup()

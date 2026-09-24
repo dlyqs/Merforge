@@ -3,13 +3,10 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
-import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
-import { dump } from 'js-yaml'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 // Type-only: the optional `settings` service this registry keeps off the generated pages.
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-tools'
-import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
+import type { AgentPresetRoster } from './types.ts'
 import { entryListProblem, type PresetDefinition } from './definition.ts'
 import type { AgentPreset, Config } from './preset.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
@@ -52,14 +49,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
   static inject = ['loader', 'sessionProjections']
   static Config = z.object({
     default: z.string().required(),
-    selectedDefault: z.string().volatile(),
-    modeSelectionEnabled: z.boolean().default(true).volatile(),
   })
   private readonly owner: Context
   private readonly definitions = new Map<string, Definition>()
   private readonly generations = new Map<ScopeKey, Generation>()
   private readonly bindings = new WeakMap<ScopeKey, Binding>()
-  private readonly switches = new Map<string, Promise<unknown>>()
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'agentPresets')
@@ -72,12 +66,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /** Default preset for a subsequently created session. */
-  get defaultId(): string { return this.policy().defaultId }
-
-  private policy(): { enabled: boolean; defaultId: string } {
-    const enabled = this.config.modeSelectionEnabled.get()
-    return { enabled, defaultId: enabled ? this.config.selectedDefault.get() ?? this.config.default : this.config.default }
-  }
+  get defaultId(): string { return this.config.default }
 
   /** Register and eagerly load a definition; activation failure remains visible in the roster.
    * @param definition Parsed configuration supplied by the declaring plugin.
@@ -170,14 +159,12 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return rows.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))
   }
 
-  /** Read the selection roster and chooser policy.
-   * @returns Current presets, default and chooser policy.
+  /** Read the composition roster.
+   * @returns Current presets and deployment default.
    */
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
-    const policy = this.policy()
-    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === policy.defaultId })),
-      modeSelectionEnabled: policy.enabled }
+    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === this.defaultId })) }
   }
 
   /** Resolve an identity without starting an Agent.
@@ -191,25 +178,6 @@ export class AgentPresetRegistry extends TypertRemoteService {
       { agentPreset: wanted, available: [...this.definitions.keys()] })
     const broken = await this.diagnostic(record)
     return { id: wanted, ...(broken === undefined ? {} : { broken }) }
-  }
-
-  /** Read one declaration's child plugin list as YAML, for viewing only.
-   * @param agentPreset Preset identity.
-   * @returns The declared composition beside its published metadata.
-   */
-  @Remote('read')
-  readDocument(agentPreset: string): Promise<AgentPresetDocument> {
-    const record = this.definitions.get(agentPreset)
-    if (record === undefined) {
-      return Promise.reject(new RemoteError('agent-preset/not-found', `Unknown agent preset: ${agentPreset}`,
-        { agentPreset, available: [...this.definitions.keys()] }))
-    }
-    const { id, name, description, plugins } = record.config
-    // The Loader's own dialect, so `!!js` conditions read as declared rather than as expression objects.
-    const content = dump(plugins, { schema: entryListSchema, noRefs: true, lineWidth: -1 })
-    return Promise.resolve({
-      agentPreset: id, content, ...(name === undefined ? {} : { name }), ...(description === undefined ? {} : { description }),
-    })
   }
 
   private async retain(id?: string): Promise<Generation> {
@@ -303,41 +271,6 @@ export class AgentPresetRegistry extends TypertRemoteService {
    */
   serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): Context[K] | undefined {
     return serviceForAgent(this.owner, agent, name)
-  }
-
-  /** Rebind a blank Agent; the caller owns the blank-session check.
-   * @param ctx Agent context.
-   * @param id Requested preset.
-   * @returns The bound identity.
-   */
-  async recompose(ctx: Context, id: string): Promise<AgentPreset> {
-    const preset = await this.mount(ctx, id)
-    try { this.owner.emit('tools/change') }
-    catch (error) { this.owner.logger.warn(`Preset tools observer: ${String(error)}`) }
-    return preset
-  }
-
-  /** Select a preset before a session starts its first turn.
-   * @param agent Target Agent.
-   * @param agentPreset Requested identity.
-   * @returns Committed preset identity.
-   */
-  @Remote('select')
-  async select(agent: Agent, agentPreset: string): Promise<string> {
-    const turn = (this.switches.get(agent.id) ?? Promise.resolve()).then(async () => {
-      const boundary = this.owner.sessionProjections.stateOf(agent.session, 'turnBoundary')
-      if (boundary !== undefined && (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0)) {
-        throw new RemoteError('agent-preset/locked', 'This session has already started', { sessionId: agent.id, agentPreset })
-      }
-      const preset = await this.recompose(agent.ctx, agentPreset)
-      agent.session.append('agent-preset/selected', { agentPreset: preset.id })
-      return preset.id
-    })
-    const guard = turn.catch(() => undefined)
-    this.switches.set(agent.id, guard)
-    try { return await turn } finally {
-      if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
-    }
   }
 
   /** Read current registrations for cold transcript presentation.

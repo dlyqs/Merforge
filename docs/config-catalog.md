@@ -119,16 +119,10 @@ Requires: `loader` · `sessionProjections`
 export interface Config {
   /** Deployment default when the caller omits a preset. */
   default: string
-  /** User-selected default while the chooser is shown; edited through Settings. */
-  selectedDefault: Volatile<string | undefined>
-  /** Whether new-session surfaces expose preset selection and the saved default applies. */
-  modeSelectionEnabled: Volatile<boolean>
 }
 ```
 
-Depends on: `Volatile` (`@deepseek-ai/cordis`)
-
-Source: [`packages/preset/agent-preset-registry/src/preset.ts:13`](../packages/preset/agent-preset-registry/src/preset.ts)
+Source: [`packages/preset/agent-preset-registry/src/preset.ts:12`](../packages/preset/agent-preset-registry/src/preset.ts)
 
 <a id="deepseek-aidsh-agent-tool-presentation"></a>
 
@@ -204,7 +198,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/api/session-controller/src/index.ts:79`](../packages/api/session-controller/src/index.ts)
+Source: [`packages/api/session-controller/src/index.ts:88`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -1113,22 +1107,6 @@ export type Config = LocalConfig
 Depends on: [`LocalConfig`](#deepseek-aidsh-fs-local)
 
 Source: [`packages/fs/fs-sandbox/src/index.ts:45`](../packages/fs/fs-sandbox/src/index.ts)
-
-<a id="deepseek-aidsh-goal"></a>
-
-## `@deepseek-ai/dsh-goal`
-
-Requires: `agents` · `sessionProjections`
-
-```ts config-catalog
-/** Deployment defaults for goal creation. */
-export interface Config {
-  /** Total rounds used when a create request omits its own cap. */
-  defaultMaxGoalRounds?: number
-}
-```
-
-Source: [`packages/goal/goal/src/index.ts:172`](../packages/goal/goal/src/index.ts)
 
 <a id="deepseek-aidsh-hmr"></a>
 
@@ -2090,22 +2068,6 @@ export interface Config {
 ```
 
 Source: [`packages/preset/persona/src/index.ts:30`](../packages/preset/persona/src/index.ts)
-
-<a id="deepseek-aidsh-plan-mode"></a>
-
-## `@deepseek-ai/dsh-plan-mode`
-
-Requires: `tools` · `systemPrompt` · `sessionProjections`
-
-```ts config-catalog
-/** Deployment-owned plan guidance. */
-export interface PlanModeConfig {
-  /** Guidance rendered as the `plan:policy` prompt section while plan mode is active. */
-  section: string
-}
-```
-
-Source: [`packages/plan/plan-mode/src/index.ts:70`](../packages/plan/plan-mode/src/index.ts)
 
 <a id="deepseek-aidsh-plugin-manager"></a>
 
@@ -3251,22 +3213,6 @@ export interface Config {
 
 Source: [`packages/fs/tool-fs-search/src/index.ts:73`](../packages/fs/tool-fs-search/src/index.ts)
 
-<a id="deepseek-aidsh-tool-goal"></a>
-
-## `@deepseek-ai/dsh-tool-goal`
-
-Requires: `agents` · `goals` · `tools` · `systemPrompt` · `sessionProjections`
-
-```ts config-catalog
-/** Model policy and hard lower bounds for goal-state updates. */
-export interface Config {
-  /** Minimum admitted goal rounds before the model may self-report `blocked`. */
-  blockedAfterConsecutiveRounds?: number
-}
-```
-
-Source: [`packages/goal/tool-goal/src/index.ts:32`](../packages/goal/tool-goal/src/index.ts)
-
 <a id="deepseek-aidsh-tool-jobs"></a>
 
 ## `@deepseek-ai/dsh-tool-jobs`
@@ -3444,7 +3390,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/skill/tool-skill/src/index.ts:61`](../packages/skill/tool-skill/src/index.ts)
+Source: [`packages/skill/tool-skill/src/index.ts:62`](../packages/skill/tool-skill/src/index.ts)
 
 <a id="deepseek-aidsh-tool-str-replace-editor"></a>
 
@@ -3970,7 +3916,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-locale` ([`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts))
 - `@deepseek-ai/dsh-client-modules` — requires `loader` ([`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts))
 - `@deepseek-ai/dsh-client-resources` ([`packages/client/resources/src/index.ts`](../packages/client/resources/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-agent-preset` ([`packages/client/ui-agent-preset/src/index.ts`](../packages/client/ui-agent-preset/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-approval` ([`packages/client/ui-approval/src/index.ts`](../packages/client/ui-approval/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-attachment` ([`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-brand-official` ([`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts))
@@ -3981,7 +3926,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` · `workspaceChanges` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
@@ -3989,7 +3933,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-open-in-app` ([`packages/client/ui-open-in-app/src/index.ts`](../packages/client/ui-open-in-app/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-permission-presets` ([`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-plan` ([`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-personal` ([`packages/client/ui-personal/src/index.ts`](../packages/client/ui-personal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-renderer` ([`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-schedule` ([`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts))
@@ -4016,7 +3960,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-workspace` ([`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts))
 - `@deepseek-ai/dsh-command-compact` — requires `commands` · `compaction` ([`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts))
 - `@deepseek-ai/dsh-command-feedback` — requires `commands` ([`packages/feedback/command-feedback/src/index.ts`](../packages/feedback/command-feedback/src/index.ts))
-- `@deepseek-ai/dsh-command-goal` — requires `commands` · `goals` ([`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts))
 - `@deepseek-ai/dsh-commands` ([`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts))
 - `@deepseek-ai/dsh-compaction-image-offload` — requires `agents` · `sessions` ([`packages/compaction/compaction-image-offload/src/index.ts`](../packages/compaction/compaction-image-offload/src/index.ts))
 - `@deepseek-ai/dsh-computer-use` ([`packages/computer-use/computer-use/src/index.ts`](../packages/computer-use/computer-use/src/index.ts))
@@ -4029,13 +3972,13 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` — requires `computerUse` · `tools` · `systemPrompt` ([`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-fs-ssh` — requires `ssh` · `sandboxPolicy` ([`packages/ssh/fs-ssh/src/index.ts`](../packages/ssh/fs-ssh/src/index.ts))
-- `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-auto` — requires `webServer` · `loader` ([`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-native` ([`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-host-plugin-inventory` — requires `loader` ([`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts))
 - `@deepseek-ai/dsh-llm` ([`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts))
 - `@deepseek-ai/dsh-lsp` ([`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts))
 - `@deepseek-ai/dsh-mcp-resources` — requires `tools` ([`packages/mcp/mcp-resources/src/index.ts`](../packages/mcp/mcp-resources/src/index.ts))
+- `@deepseek-ai/dsh-personal-project` — requires `storageDomain` · `workspaceRegistry` · `sessionPersistence` · `sessionProjections` · `sessionQuery` · `sessions` ([`packages/workspace/personal-project/src/index.ts`](../packages/workspace/personal-project/src/index.ts))
 - `@deepseek-ai/dsh-sandbox-ssh` — requires `ssh` ([`packages/ssh/sandbox-ssh/src/index.ts`](../packages/ssh/sandbox-ssh/src/index.ts))
 - `@deepseek-ai/dsh-schedule` — requires `agents` · `sessions` · `tools` · `sessionPersistence` ([`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts))
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))

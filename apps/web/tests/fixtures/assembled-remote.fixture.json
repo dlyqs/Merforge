@@ -170,19 +170,8 @@
           "id": "standard",
           "trust": "system",
           "isDefault": true
-        },
-        {
-          "id": "minimal",
-          "trust": "system",
-          "isDefault": false
-        },
-        {
-          "id": "my-agent",
-          "trust": "user",
-          "isDefault": false
         }
-      ],
-      "modeSelectionEnabled": true
+      ]
     }
   },
   "commands": {
@@ -200,29 +189,11 @@
         }
       },
       {
-        "definitionId": "@deepseek-ai/dsh-command-goal",
-        "name": "goal",
-        "description": "Set or view the goal for a long-running task",
-        "input": {
-          "hint": "<objective>",
-          "attachments": true
-        }
-      },
-      {
         "definitionId": "@deepseek-ai/dsh-permission-presets",
         "name": "permission",
         "description": "Switch the permission preset (sandbox mode + approval policy)",
         "input": {
           "hint": "<preset>"
-        }
-      },
-      {
-        "definitionId": "@deepseek-ai/dsh-plan-mode",
-        "name": "plan",
-        "description": "Enter or leave plan mode",
-        "input": {
-          "hint": "[off|message]",
-          "attachments": true
         }
       }
     ]
@@ -308,11 +279,6 @@
               ],
               "currentValue": "workspace-write"
             },
-            "plan": {
-              "active": false,
-              "pending": false
-            },
-            "goal": null,
             "tokenUsage": {
               "uncachedInputTokens": 1914,
               "outputTokens": 708,
@@ -376,11 +342,6 @@
               ],
               "currentValue": "workspace-write"
             },
-            "plan": {
-              "active": false,
-              "pending": false
-            },
-            "goal": null,
             "tokenUsage": {
               "uncachedInputTokens": 0,
               "outputTokens": 0,
@@ -441,11 +402,6 @@
               ],
               "currentValue": "workspace-write"
             },
-            "plan": {
-              "active": false,
-              "pending": false
-            },
-            "goal": null,
             "tokenUsage": {
               "uncachedInputTokens": 0,
               "outputTokens": 0,
@@ -5713,11 +5669,6 @@
           ],
           "currentValue": "workspace-write"
         },
-        "plan": {
-          "active": false,
-          "pending": false
-        },
-        "goal": null,
         "tokenUsage": {
           "uncachedInputTokens": 1914,
           "outputTokens": 708,

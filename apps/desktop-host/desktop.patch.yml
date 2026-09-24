@@ -1,4 +1,7 @@
 # Product-owned restrictions apply after profile and home customization.
+- id: agent-preset-registry
+  config:
+    default: standard
 - id: web-startup
   disabled: true
 - id: webserver

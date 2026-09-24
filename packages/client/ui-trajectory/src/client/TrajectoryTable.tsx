@@ -887,12 +887,6 @@ function messageSourceLabel(source: unknown, t: TrajectoryTranslate): string {
   const properties = source as Record<string, unknown>
   const kind = properties.kind
   if (kind === 'user') return t('source.user')
-  if (kind === 'goal') {
-    const round = properties.round
-    return typeof round === 'number' && round > 0
-      ? t('source.goalRound', { round })
-      : t('source.goal')
-  }
   if (typeof kind !== 'string' || kind === '') return t('source.unknown')
   return `${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)}`
 }

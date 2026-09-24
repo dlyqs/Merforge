@@ -497,8 +497,8 @@ async register(definition: PresetDefinition): Promise<() => Promise<void>>
  */
 async list(): Promise<AgentPreset[]>
 
-/** Read the selection roster and chooser policy.
- * @returns Current presets, default and chooser policy.
+/** Read the composition roster.
+ * @returns Current presets and deployment default.
  */
 @Remote('list') async remoteExportList(): Promise<AgentPresetRoster>
 
@@ -507,12 +507,6 @@ async list(): Promise<AgentPreset[]>
  * @returns Current metadata, including failure when activation failed.
  */
 async resolve(id?: string): Promise<AgentPreset>
-
-/** Read one declaration's child plugin list as YAML, for viewing only.
- * @param agentPreset Preset identity.
- * @returns The declared composition beside its published metadata.
- */
-@Remote('read') readDocument(agentPreset: string): Promise<AgentPresetDocument>
 
 /** Bind an unpublished Agent to the current preset revision.
  * @param ctx Agent context from its setup callback.
@@ -540,20 +534,6 @@ composedPreset(ctx: Context): string | undefined
  * @returns The service, or undefined.
  */
 serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): Context[K] | undefined
-
-/** Rebind a blank Agent; the caller owns the blank-session check.
- * @param ctx Agent context.
- * @param id Requested preset.
- * @returns The bound identity.
- */
-async recompose(ctx: Context, id: string): Promise<AgentPreset>
-
-/** Select a preset before a session starts its first turn.
- * @param agent Target Agent.
- * @param agentPreset Requested identity.
- * @returns Committed preset identity.
- */
-@Remote('select') async select(agent: Agent, agentPreset: string): Promise<string>
 
 /** Read current registrations for cold transcript presentation.
  * @param id Preset identity or the default.

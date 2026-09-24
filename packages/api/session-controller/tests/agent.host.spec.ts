@@ -407,21 +407,21 @@ describe('ApiSession create or adoption', () => {
       .rejects.toBeInstanceOf(ApiSessionCwdConflict)
   })
 
-  it('resumes a matching persisted identity and preserves its selected preset', async () => {
+  it.each(['standard', 'minimal'])('resumes only supported persisted modes: %s', async (agentPreset) => {
     const { ctx, agents } = await harness()
-    const meta = { ...header('stored'), agentPreset: 'minimal' }
+    const meta = { ...header('stored'), agentPreset }
     const events = [{
       type: 'agent-preset/selected',
       seq: 0,
       time: 1,
-      data: { agentPreset: 'minimal' },
+      data: { agentPreset },
     }] as SessionEvent[]
     providePersistence(ctx, {
       list: () => Promise.resolve([meta]),
       inspect: () => Promise.resolve({ meta, events }),
     })
     ctx.provide('agentPresets', {
-      resolve: (id?: string) => Promise.resolve({ id: id ?? 'minimal' }),
+      resolve: (id?: string) => Promise.resolve({ id: id ?? 'standard' }),
       mount: () => Promise.resolve(),
     } as never)
     const resumed = {
@@ -441,8 +441,15 @@ describe('ApiSession create or adoption', () => {
       dispose: () => Promise.resolve(),
     })
 
-    await expect(agents.ensureSession(meta.id, '/workspace', true, 'minimal')).resolves.toBe(resumed)
-    expect(resume).toHaveBeenCalledWith(expect.objectContaining({ resumeSessionId: meta.id }))
+    if (agentPreset === 'standard') {
+      await expect(agents.ensureSession(meta.id, '/workspace', true)).resolves.toBe(resumed)
+      expect(resume).toHaveBeenCalledWith(expect.objectContaining({ resumeSessionId: meta.id }))
+    } else {
+      await expect(agents.ensureSession(meta.id, '/workspace', true)).rejects.toMatchObject({
+        code: 'agent-preset/not-found', details: { agentPreset, available: ['standard'] },
+      })
+      expect(resume).not.toHaveBeenCalled()
+    }
   })
 
   it('rejects an ownership race before resume and a persisted cwd conflict', async () => {

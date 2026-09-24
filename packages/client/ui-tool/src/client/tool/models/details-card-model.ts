@@ -1,4 +1,4 @@
-/** Recorded todo, goal, and schedule values for the compact detail body. */
+/** Recorded todo and schedule values for the compact detail body. */
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallBlock } from './tool-call-model.ts'
 import type { ToolDetailsModel } from '../components/ToolDetails.tsx'
@@ -44,26 +44,6 @@ export function todosDetail(args: Record<string, unknown>, t: Translate): ToolDe
     items.push({ title, status: { value: status, label: t(`detail.todo.${status}`) }, fields: [] })
   }
   return { items, empty: t('detail.todo.empty') }
-}
-
-function goalDetail(value: unknown, t: Translate): ToolDetailsModel | null {
-  if (!detailRecord(value)) return null
-  if (value.goal === null) return { items: [], empty: t('detail.goal.empty') }
-  const goal = value.goal
-  if (!detailRecord(goal) || !nonempty(goal.id) || !nonempty(goal.objective)
-    || !count(goal.revision) || !count(goal.roundsStarted) || !count(goal.maxGoalRounds)) return null
-  const phase = goal.phase
-  if (phase !== 'active' && phase !== 'paused' && phase !== 'blocked' && phase !== 'complete') return null
-  if (value.activation !== 'armed' && value.activation !== 'disarmed') return null
-  const fields = [
-    { label: t('detail.state'), value: t(phase === 'active' && value.activation === 'disarmed' ? 'detail.goal.disarmed' : `detail.goal.${phase}`) },
-    { label: t('detail.goal.rounds'), value: `${goal.roundsStarted} / ${goal.maxGoalRounds}` },
-  ]
-  if (goal.blockedReason !== undefined) {
-    if (!detailRecord(goal.blockedReason) || !nonempty(goal.blockedReason.code) || !nonempty(goal.blockedReason.message)) return null
-    fields.push({ label: t('detail.goal.reason'), value: goal.blockedReason.message })
-  }
-  return { items: [{ title: goal.objective, fields }] }
 }
 
 function interval(seconds: number, t: Translate): string {
@@ -121,9 +101,6 @@ export function detailsCardModel(block: ToolCallBlock, t: Translate, locale: str
   if (details !== null) return details
   if (value === undefined) return null
   switch (call.name) {
-    case 'create_goal':
-    case 'get_goal':
-    case 'update_goal': return goalDetail(value, t)
     case 'schedule_create': {
       const item = scheduleItem(value, t, locale)
       return item === null ? null : { items: [item] }

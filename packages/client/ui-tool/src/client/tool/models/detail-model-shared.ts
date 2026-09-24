@@ -45,7 +45,7 @@ const STATUS_KEYS = {
   completed: 'detail.status.completed', complete: 'detail.status.completed', done: 'detail.status.completed',
   pending: 'detail.todo.pending', in_progress: 'detail.todo.in_progress',
   deleted: 'detail.status.deleted', killed: 'detail.status.killed',
-  blocked: 'detail.goal.blocked', accepted: 'detail.status.accepted', queued: 'detail.status.queued',
+  blocked: 'detail.status.blocked', accepted: 'detail.status.accepted', queued: 'detail.status.queued',
 } as const
 
 /**

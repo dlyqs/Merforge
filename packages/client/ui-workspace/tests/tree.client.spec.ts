@@ -237,14 +237,14 @@ describe('deriveGroups', () => {
     const sessions = list(awaiting)
     const attention: SessionStatusSnapshot = new Map([[
       awaiting.id,
-      status({ key: 'question:1', kind: 'plan-review', sessionId: awaiting.id } as SessionPendingInteraction, { running: true }),
+      status({ key: 'question:1', kind: 'question', sessionId: awaiting.id } as SessionPendingInteraction, { running: true }),
     ]])
     const grouped = deriveGroups(
       sessions, [workspace('project', ['awaiting'])], noRows, attention, view(['project']),
     )
-    expect(grouped[0]!.sessions[0]).toMatchObject({ pendingInteraction: 'plan-review', running: true })
+    expect(grouped[0]!.sessions[0]).toMatchObject({ pendingInteraction: 'question', running: true })
     expect(deriveFlat(sessions, visibleSessionIds(sessions, noArchive, 'default'), noRows, attention)[0])
-      .toMatchObject({ pendingInteraction: 'plan-review', running: true })
+      .toMatchObject({ pendingInteraction: 'question', running: true })
   })
 
   it.each(['approval', 'question'] as const)(
@@ -656,7 +656,7 @@ describe('deriveSearchResults', () => {
       noArchive,
       'default',
       new Map([[titleHit.id, status({
-        key: 'question:1', kind: 'plan-review', sessionId: titleHit.id,
+        key: 'question:1', kind: 'question', sessionId: titleHit.id,
       } as SessionPendingInteraction)]]),
       {
         items: [
@@ -678,7 +678,7 @@ describe('deriveSearchResults', () => {
           workspace: 'Alpha',
           running: false,
           runningSubagentCount: 0,
-          pendingInteraction: 'plan-review',
+          pendingInteraction: 'question',
           completed: false,
           hasActiveSchedule: false,
           archived: false,

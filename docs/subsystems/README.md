@@ -10,7 +10,6 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [token-meter.md](token-meter.md) | immutable scalar and positional replay measurements with consumed-log revisions |
 | [scope.md](scope.md) | scoped registration identity, dispatch carriers, and the owned `Scope` context |
 | [typert.md](typert.md) | Remote invocation descriptors, lookup/Context declarations, Typert registries, and the Host Gateway/Client API boundaries |
-| [goal.md](goal.md) | persisted goal identity, lifecycle snapshots, activation, change records, and round attribution |
 | [schedule.md](schedule.md) | Session-local reminder records, durable transitions, active views, and ordinary-conversation delivery |
 | [todo.md](todo.md) | the todo package's whole-list item type, durable event ownership, projection, and open-turn invariant |
 | [deliverables.md](deliverables.md) | what a turn hands to the user: `PresentedFile` deliveries from `present` and the Host-served `WorkspaceChangesSummary` of changed files from git snapshots |
@@ -51,7 +50,6 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [workflow.md](workflow.md) | the workflow seam: `WorkflowStartRequest`, `WorkflowMeta`, `WorkflowRun`/`Result`, the `workflow/*` event payloads, `WorkflowError` fatality |
 | [jobs.md](jobs.md) | the background-job runtime: branded `JobId`s, the producer contract, consumer views, and `ctx.jobs` service behavior |
 | [permission-presets.md](permission-presets.md) | the permission-preset layer: `PresetSpec`/`PresetOption`, the derived `custom` state, the log-only `permission/preset` event |
-| [plan.md](plan.md) | plan mode: the log-only `plan/mode` state, pending-selection flush, `PlanModeConfig`, the `exit_plan_mode` review arc |
 | [invariants.md](invariants.md) | the runtime-invariant registry: selection `Config`, `InvariantInstaller`/`InvariantFailure`, the empty-companion contract |
 | [web-server.md](web-server.md) | the HTTP carrier: `WebRouteKind`/`WebRoute`, match order, the claimable fallback seat, index taps |
 | [webhook.md](webhook.md) | authenticated provider deliveries, arbitrary programmatic rules, and fire-and-forget Workspace Session creation |

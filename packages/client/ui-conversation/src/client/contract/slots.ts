@@ -189,8 +189,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.workspace': { kind: 'single'; scope: 'root'; owner: EmptyWorkspaceOwnerProps }
     /** Brand mark shown before the blank-session headline. */
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
-    /** Agent-preset control staged for a New Session. */
-    'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe'; owner: HeroAgentPresetOwnerProps }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
@@ -211,8 +209,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session-maybe'
       owner: ComposerAttachmentsOwnerProps
     }
-    /** Plan control inside the composer tool row. */
-    'conversation.input.plan': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
     /** Current-session permission control inside the composer tool row. */
     'conversation.input.permission': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
     /**
@@ -234,7 +230,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.composer.bar': { kind: 'single'; scope: 'session-maybe' }
         'conversation.input.dock': { kind: 'list'; scope: 'session' }
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
-        'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }
       }
       inject: ConversationInjected
       locale: 'conversation'
@@ -267,12 +262,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Input actions are absent without a current Session. */
     inputActions: InputActions | undefined
   }
-}
-
-/** Owner share of the Hero agent-preset control. */
-export interface HeroAgentPresetOwnerProps {
-  /** Marker field: the occupant owns its roster and staged selection. */
-  children?: never
 }
 
 /** Header actions derive their state from standard Session props. */
@@ -403,7 +392,7 @@ export interface ComposerBarInjected {
   }
 }
 
-/** Owner share of the named plan, permission, and model controls. */
+/** Owner share of the named permission and model controls. */
 export interface InputControlOwnerProps {
   /** Whether the composer currently refuses interaction. */
   locked: boolean
@@ -421,7 +410,7 @@ export type ComposerBarProps =
   & PropsRenderSlots<
     | 'conversation.input.attachments' | 'conversation.input.overlay'
     | 'conversation.input.permission'
-    | 'conversation.input.left' | 'conversation.input.plan'
+    | 'conversation.input.left'
     | 'conversation.input.right' | 'conversation.input.model' | 'conversation.input.activity'
     | 'conversation.composer.dock'
   >

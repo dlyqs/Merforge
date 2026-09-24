@@ -125,7 +125,7 @@ describe('a child agent composed in-process', () => {
     // A DIFFERENT preset, so the assertion below distinguishes reading the
     // parent's live scope chain from reading its creation header — re-linking
     // to the same id would pass either way.
-    await ctx.agentPresets.recompose(parent.ctx, 'reviewing')
+    await ctx.agentPresets.mount(parent.ctx, 'reviewing')
 
     const run = await startInProcessRun(spawnRequest(parent), {})
     await run.result

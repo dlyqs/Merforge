@@ -67,7 +67,6 @@ const GROUP_ORDER = [
   'llm',
   'core',
   'typert',
-  'goal',
   'experimental',
   'process',
   'bash',
@@ -84,7 +83,6 @@ const GROUP_ORDER = [
   'webhook',
   'spill',
   'todo',
-  'plan',
   'cordis',
   'hooks',
   'session-persistence',
@@ -446,6 +444,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Records one Session-level remark with its category as a log-only feedback/record event on a live Session through the Host unary Remote contract; the /feedback command shares the same producer.',
   },
   {
+    key: 'personalProjects',
+    pkg: 'personal-project',
+    title: 'Personal Project and Bot records',
+    mode: 'core',
+    note: 'Stores Project and Bot records and folds Session affiliation from the log.',
+  },
+  {
     key: 'workspaceRegistry',
     pkg: 'workspace',
     title: 'Workspace entity registry',
@@ -511,13 +516,6 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'UI front ends provide the active human-answer provider; tool-ask-user pauses a tool call on the provider-neutral ask() promise.',
   },
   {
-    key: 'planMode',
-    pkg: 'plan-mode',
-    title: 'Plan collaboration state',
-    mode: 'core',
-    note: 'Folds logged plan/mode state, flushes user selections at turn boundaries, renders deployment-owned guidance, registers /plan, and keeps the plan-exit schema stable across transitions.',
-  },
-  {
     key: 'agentPresets',
     pkg: 'agent-preset-registry',
     title: 'Per-session agent composition',
@@ -579,13 +577,6 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'bundle',
     consumers: ['base', 'sdk-minimal'],
     note: 'The one concrete loop plugin; extension packages depend on dsh-agent events and services, not on this package.',
-  },
-  {
-    key: 'goals',
-    pkg: 'goal',
-    title: 'Same-session goal domain',
-    mode: 'core',
-    note: 'Folds revisioned objective state from the session log and keeps live continuation activation process-local.',
   },
   {
     key: 'ssh',
@@ -1014,7 +1005,7 @@ const EVENT_API_METHODS = new Set(['on', 'once', 'emit', 'parallel', 'serial', '
  * documents why: one program cannot hold both faces' Context merges), so a
  * Client package enters only when a host file imports it. Client-face
  * listeners on client-face events are therefore under-reported —
-   * `connection/reset` omits `ui-skill`/`ui-agent-preset`. Closing it needs a
+   * `connection/reset` omits `ui-skill`. Closing it needs a
    * second Client program whose relations merge into these, not a wider seed.
  */
 export class EventRelationCollector {

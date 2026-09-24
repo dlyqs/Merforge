@@ -63,7 +63,6 @@ export function ConversationContent(props: ConversationContentProps) {
 
   const heroOptions = (
     <div className={css.heroWorkspaceRow}>
-      {renderSlot('conversation.hero.agentPreset', {})}
     </div>
   )
 

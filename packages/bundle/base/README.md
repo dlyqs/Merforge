@@ -27,7 +27,7 @@ The Desktop profile includes this bundle automatically. The [Desktop README](../
 
 ### What you get
 
-The Desktop profile receives a configurable model connection, file editing, shell commands, web search, subagents, personal goal and task aids, durable Sessions, and workspace safety defaults from this core. Web fetch rejects non-public destinations. The base layer does not upload Session logs or mount an official account service.
+The Desktop profile receives a configurable model connection, file editing, shell commands, web search, subagents, task aids, durable Sessions, and workspace safety defaults from this core. Web fetch rejects non-public destinations. The base layer does not upload Session logs or mount an official account service.
 
 Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:
 

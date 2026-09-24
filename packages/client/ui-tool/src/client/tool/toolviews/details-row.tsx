@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   IconAgentPresetOutlineRegular, IconBranchOutlineRegular, IconChecklistOutlineRegular, IconClockOutlineRegular,
-  IconCodeOutlineRegular, IconCordisPluginOutlineRegular, IconGoalOutlineRegular, IconSearchOutlineRegular,
+  IconCodeOutlineRegular, IconCordisPluginOutlineRegular, IconSearchOutlineRegular,
   IconUsersOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -29,7 +29,6 @@ const TEAMMATE_TOOLS = new Set(['spawn_teammate', 'list_agents', 'send_message',
 function detailIcon(toolName: string) {
   if (TEAMMATE_TOOLS.has(toolName)) return <IconUsersOutlineRegular size={14} />
   if (toolName.startsWith('schedule_')) return <IconClockOutlineRegular size={14} />
-  if (toolName.endsWith('_goal')) return <IconGoalOutlineRegular size={14} />
   if (toolName.startsWith('cordis_')) return <IconCordisPluginOutlineRegular />
   if (toolName.startsWith('terminal_')) return <IconCodeOutlineRegular size={14} />
   if (toolName.startsWith('session_') || toolName === 'lsp') return <IconSearchOutlineRegular size={14} />
@@ -77,9 +76,6 @@ export const detailsToolview = {
   inject: ['slots'],
   apply(ctx: Context): void {
     ctx.slots.inject('tool.call.toolview', function* () {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'create_goal', locale: NS }, DetailsRow)
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'get_goal', locale: NS }, DetailsRow)
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'update_goal', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_create', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_list', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_delete', locale: NS }, DetailsRow)

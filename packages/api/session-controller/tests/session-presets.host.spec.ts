@@ -84,71 +84,29 @@ async function harness(presets?: readonly string[]) {
 }
 
 describe('session.create Agent preset identity', () => {
-  it('records the requested preset on the Session header', async () => {
-    const { ctx, remote } = await harness(['standard', 'minimal'])
-
-    const created = await remote.create({ sessionId: SessionId('s1'), agentPreset: 'minimal' })
-
-    expect(created.ok).toBe(true)
-    expect(ctx.sessions.get(SessionId('s1'))?.header.agentPreset).toBe('minimal')
+  it('records standard for an explicit or omitted mode, regardless of the registry default', async () => {
+    const { ctx, remote } = await harness(['minimal', 'standard'])
+    for (const [id, agentPreset] of [['explicit', 'standard'], ['implicit', undefined]] as const) {
+      const result = await remote.create({ sessionId: SessionId(id), ...(agentPreset ? { agentPreset } : {}) })
+      expect(result.ok).toBe(true)
+      expect(ctx.sessions.get(SessionId(id))?.header.agentPreset).toBe('standard')
+    }
   })
 
-  it('records the roster default when the caller names no preset', async () => {
-    const { ctx, remote } = await harness(['standard', 'minimal'])
-
-    await remote.create({ sessionId: SessionId('s2') })
-
-    expect(ctx.sessions.get(SessionId('s2'))?.header.agentPreset).toBe('standard')
-  })
-
-  it('rejects an unknown preset', async () => {
-    const { remote } = await harness(['standard'])
-
-    const response = await remote.create({ sessionId: SessionId('s3'), agentPreset: 'nope' })
-
+  it.each(['minimal', 'ptc', 'cordis', 'custom'])('rejects the removed %s mode before creating a Session', async (agentPreset) => {
+    const { ctx, remote } = await harness(['standard', agentPreset])
+    const response = await remote.create({ sessionId: SessionId('removed'), agentPreset })
     expect(response).toMatchObject({ ok: false, error: { code: 'agent-preset/not-found' } })
+    expect(ctx.sessions.get(SessionId('removed'))).toBeUndefined()
   })
 
-  it('refuses to adopt a live Session under a different preset', async () => {
+  it('does not adopt an existing Session through a removed mode', async () => {
     const { remote } = await harness(['standard', 'minimal'])
-    await remote.create({ sessionId: SessionId('s4'), agentPreset: 'minimal' })
-
-    const response = await remote.create({ sessionId: SessionId('s4'), agentPreset: 'standard' })
-
-    expect(response).toMatchObject({
-      ok: false,
-      error: {
-        code: 'agent-preset/conflict',
-        details: {
-          sessionId: 's4',
-          requestedPreset: 'standard',
-          existingPreset: 'minimal',
-        },
-      },
-    })
-  })
-
-  it('adopts a live Session under the preset selected in its log', async () => {
-    const { ctx, remote } = await harness(['standard', 'minimal'])
-    await remote.create({ sessionId: SessionId('s4b'), agentPreset: 'standard' })
-    ctx.sessions.get(SessionId('s4b'))?.append('agent-preset/selected', { agentPreset: 'minimal' })
-
-    const adopted = await remote.create({ sessionId: SessionId('s4b'), agentPreset: 'minimal' })
-    const stale = await remote.create({ sessionId: SessionId('s4b'), agentPreset: 'standard' })
-
-    expect(adopted).toMatchObject({ ok: true, value: { agentPreset: 'minimal' } })
-    expect(stale).toMatchObject({
-      ok: false,
-      error: { details: { existingPreset: 'minimal' } },
-    })
-  })
-
-  it('adopts a live Session unchanged when the caller names no preset', async () => {
-    const { remote } = await harness(['standard', 'minimal'])
-    await remote.create({ sessionId: SessionId('s5'), agentPreset: 'minimal' })
-
-    await expect(remote.create({ sessionId: SessionId('s5') }))
-      .resolves.toMatchObject({ ok: true })
+    await remote.create({ sessionId: SessionId('existing') })
+    const result = await remote.create({ sessionId: SessionId('existing'), agentPreset: 'minimal' })
+    expect(result).toMatchObject({ ok: false, error: { code: 'agent-preset/not-found' } })
+    await expect(remote.create({ sessionId: SessionId('existing') }))
+      .resolves.toMatchObject({ ok: true, value: { agentPreset: 'standard' } })
   })
 
   it('leaves the header preset-less when no roster is composed', async () => {

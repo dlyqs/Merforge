@@ -33,9 +33,6 @@
       "path": "../../llm/llm"
     },
     {
-      "path": "../../goal/goal"
-    },
-    {
       "path": "../../preset/agent-preset-registry"
     },
     {

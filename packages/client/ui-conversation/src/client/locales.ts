@@ -3,16 +3,8 @@
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'conversation'
 
-// The claimed /plan hint and the plan-mode textarea placeholder describe the same next action.
-const PLAN_NEXT_ACTION_ZH = '描述你的任务以生成计划'
-const PLAN_NEXT_ACTION_EN = 'describe your task to generate plan'
-
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'hint.plan': PLAN_NEXT_ACTION_ZH,
-  'hint.goal': '输入目标，智能体将持续执行',
-  'hint.goal.active': '当前目标进行中。可输入 edit 修改 / pause 暂停 / resume 继续 / clear 清除',
-  'placeholder.plan': PLAN_NEXT_ACTION_ZH,
   'placeholder.default': '发消息或创建任务, / 调用指令, @ 文件或对话',
   'placeholder.unavailable': '会话不可用',
   'placeholder.parentOffline': '父会话已离线，无法继续发送；仍可停止当前运行',
@@ -82,14 +74,14 @@ export const zh = {
   'todo.status.inProgress': '进行中',
   'todo.status.pending': '待处理',
   'todo.rowTitle': '更新任务清单',
-  'tool.title.createGoal': '创建目标',
-  'tool.title.getGoal': '查看目标',
-  'tool.title.updateGoal': '更新目标',
   'tool.preparing.content': '正在准备内容 {kilobytes}KB',
   'tool.title.createSchedule': '创建定时任务',
   'tool.title.listSchedules': '查看定时任务',
   'tool.title.deleteSchedule': '删除定时任务',
   'detail.state': '状态',
+  'detail.status.blocked': '受阻',
+  'detail.field.rounds': '执行轮次',
+  'detail.field.blocker': '受阻原因',
   'detail.todo.completed': '已完成',
   'detail.todo.in_progress': '进行中',
   'detail.todo.pending': '待处理',
@@ -106,14 +98,6 @@ export const zh = {
   'todo.diff.updatedItem': '状态变化',
   'todo.diff.movedItem': '顺序调整',
   'todo.diff.removedItem': '移除',
-  'detail.goal.empty': '没有目标',
-  'detail.goal.active': '进行中',
-  'detail.goal.disarmed': '等待继续',
-  'detail.goal.paused': '已暂停',
-  'detail.goal.blocked': '受阻',
-  'detail.goal.complete': '已完成',
-  'detail.goal.rounds': '执行轮次',
-  'detail.goal.reason': '受阻原因',
   'detail.days': '{count} 天',
   'detail.hours': '{count} 小时',
   'detail.minutes': '{count} 分钟',
@@ -363,10 +347,6 @@ export type ConversationKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
-  'hint.plan': PLAN_NEXT_ACTION_EN,
-  'hint.goal': 'describe the objective for a long-running task',
-  'hint.goal.active': 'goal active — edit / pause / resume / clear',
-  'placeholder.plan': PLAN_NEXT_ACTION_EN,
   'placeholder.default': 'Message or run a task, / commands, @ files or sessions',
   'placeholder.unavailable': 'Session unavailable',
   'placeholder.parentOffline': 'Parent session offline; sending is unavailable but you can still stop the run',
@@ -436,14 +416,14 @@ export const en = {
   'todo.status.inProgress': 'In progress',
   'todo.status.pending': 'Pending',
   'todo.rowTitle': 'Update to-do list',
-  'tool.title.createGoal': 'Create goal',
-  'tool.title.getGoal': 'View goal',
-  'tool.title.updateGoal': 'Update goal',
   'tool.preparing.content': 'Preparing content {kilobytes}KB',
   'tool.title.createSchedule': 'Create reminder',
   'tool.title.listSchedules': 'List reminders',
   'tool.title.deleteSchedule': 'Delete reminder',
   'detail.state': 'Status',
+  'detail.status.blocked': 'Blocked',
+  'detail.field.rounds': 'Rounds',
+  'detail.field.blocker': 'Blocker',
   'detail.todo.completed': 'Completed',
   'detail.todo.in_progress': 'In progress',
   'detail.todo.pending': 'Pending',
@@ -460,14 +440,6 @@ export const en = {
   'todo.diff.updatedItem': 'Status changed',
   'todo.diff.movedItem': 'Reordered',
   'todo.diff.removedItem': 'Removed',
-  'detail.goal.empty': 'No goal',
-  'detail.goal.active': 'Active',
-  'detail.goal.disarmed': 'Awaiting continuation',
-  'detail.goal.paused': 'Paused',
-  'detail.goal.blocked': 'Blocked',
-  'detail.goal.complete': 'Completed',
-  'detail.goal.rounds': 'Rounds',
-  'detail.goal.reason': 'Blocker',
   'detail.days': '{count} d',
   'detail.hours': '{count} h',
   'detail.minutes': '{count} min',

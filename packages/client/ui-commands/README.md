@@ -67,7 +67,7 @@ Read these pages when the command surface is not enough. They move from the comm
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the host `command.execute` RPC they trigger, each command handler's host package owns any model-visible effect (the `/plan` handler flips plan mode, whose owning package injects its policy section), while the command line, the detached result, and every menu and notice rendering stay client-side and never enter the session log.
+Indirectly, through the host `command.execute` RPC they trigger, each command handler's host package owns any model-visible effect, while the command line, the detached result, and every menu and notice rendering stay client-side and never enter the session log.
 
 #### KV Cache effect
 

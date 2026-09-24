@@ -29,7 +29,6 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`core/`](core/README.md) | Product API spine: sessions, prompts, tools, agent services, and the concrete loop |
 | [`api/`](api/README.md) | Remote BFF assembly and Typert RPC gateway |
 | [`typert/`](typert/README.md) | Type graph generation, artifact loading, and runtime registry |
-| [`goal/`](goal/README.md) | Same-session goal persistence and lifecycle |
 | [`schedule/`](schedule/README.md) | Session-local scheduled follow-ups |
 | [`feedback/`](feedback/README.md) | Human feedback capture and command |
 | [`identity/`](identity/README.md) | Shared anonymous identity |
@@ -58,7 +57,6 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`attachment/`](attachment/README.md) | Durable attachment identity, validation, local content-addressed storage |
 | [`spill/`](spill/README.md) | Spill capability family: storage seam, local impl, tool-result spill policy |
 | [`todo/`](todo/README.md) | The model-facing `todo_write` tool |
-| [`plan/`](plan/README.md) | Plan collaboration state with a direct entry command and reviewed exit |
 | [`preset/`](preset/README.md) | Per-session agent composition from preset `cordis.yml` files |
 | [`guard/`](guard/README.md) | Loop-hygiene guards: advisory repeat-call reminders + the `tools/execute` deadline enforcer |
 | [`bundle/`](bundle/README.md) | Installable `dsh --profile` patch layers |

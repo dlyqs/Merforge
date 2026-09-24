@@ -31,12 +31,12 @@ A plugin registers a command with `ctx.commands.register()`: a lowercase name, a
 
 ```text
 ctx.commands.register({
-  name: 'plan',
-  description: 'Enter plan mode',
+  name: 'inspect',
+  description: 'Inspect the session',
   input: { hint: '<message>' },
   handler: ({ agent, rawInput }) => {
     // Runs directly against the agent; no model message is created.
-    return { kind: 'success', text: 'plan mode selected' }
+    return { kind: 'success', text: 'Inspection complete' }
   },
 })
 ```
@@ -106,7 +106,6 @@ Read these pages when the package-level contract is not enough. They move from t
 - [Commands subsystem reference](../../../docs/subsystems/commands.md) — registry semantics, input metadata, and the `ctx.commands` Cordis surface.
 - [Command registration Agent Note](../../../.agents/notes/implemented/feature/2026-07-19-plugin-command-registration.md) — the boundary and dispatch contract behind this service.
 - [Interaction group map](../README.md) — adjacent approval, permission, and question packages.
-- [Plan mode package](../../plan/plan-mode/README.md) — a shipped command producer that drives model-visible work.
 
 -----
 
@@ -117,7 +116,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-The registry itself submits nothing. Known slash commands execute in the UI command plane, and their `CommandResult` text is not submitted as a user message. Unknown slash-command input is rejected by shipped adapters instead of becoming a model prompt. A command producer may explicitly use the receiving `Agent`; for example, [`dsh-plan-mode`](../../plan/plan-mode/README.md#model-and-human-interactions) submits the optional message and ordered attachments in `/plan [message]` after selecting plan mode. The executor only admits attachments into durable objects; the declaring producer decides whether and how they become model-visible message content.
+The registry itself submits nothing. Known slash commands execute in the UI command plane, and their `CommandResult` text is not submitted as a user message. Unknown slash-command input is rejected by shipped adapters instead of becoming a model prompt. A command producer may explicitly submit messages through the receiving Agent. The executor only admits attachments into durable objects; the declaring producer decides whether and how they become model-visible message content.
 
 #### Token effect
 

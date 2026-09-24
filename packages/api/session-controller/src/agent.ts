@@ -243,6 +243,7 @@ export class ApiSessionAgentController {
     checkPersistedIdentity: boolean,
     presetId?: string,
   ): Promise<Agent> {
+    this.assertStandardPreset(presetId)
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
       creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId)
@@ -393,9 +394,16 @@ export class ApiSessionAgentController {
     return result
   }
 
+  private assertStandardPreset(presetId: string | undefined): void {
+    if (presetId !== undefined && presetId !== 'standard') {
+      throw new RemoteError('agent-preset/not-found', `Unsupported agent mode: ${presetId}. Only standard is available.`,
+        { agentPreset: presetId, available: ['standard'] })
+    }
+  }
+
   /**
    * Resolve the preset id and pre-publication Agent setup for a create or resume.
-   * @param presetId - requested preset or the configured default when omitted.
+   * @param presetId - standard, or omitted for the application default.
    * @returns the resolved preset identity and Agent setup callback.
    */
   async composeAgent(presetId: string | undefined): Promise<{
@@ -406,7 +414,8 @@ export class ApiSessionAgentController {
     if (presets === undefined) {
       return { setup: (_agentCtx, agent) => { this.installSelection(agent) } }
     }
-    const resolvedId = (await presets.resolve(presetId)).id
+    this.assertStandardPreset(presetId)
+    const resolvedId = (await presets.resolve('standard')).id
     return {
       agentPreset: resolvedId,
       setup: async (agentCtx, agent) => {

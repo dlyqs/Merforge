@@ -12,7 +12,6 @@ import { DetailsRow, detailsToolview } from '../src/client/tool/toolviews/detail
 import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 
 const t = makeTranslate(en, commonEn)
-const goal = { id: 'goal-1', revision: 2, objective: 'Ship compact cards', phase: 'active', roundsStarted: 2, maxGoalRounds: 8 }
 const schedule = { id: 'schedule-1', prompt: 'Review the build', kind: 'every', everySeconds: 3600, scheduledAt: '2026-09-10T09:00:00.000Z', state: 'scheduled', deliveryMode: 'session-local' }
 
 function result(name: string, value: unknown, args = '{}'): ToolResultNode {
@@ -22,12 +21,6 @@ function result(name: string, value: unknown, args = '{}'): ToolResultNode {
 afterEach(cleanup)
 
 describe('detailsCardModel', () => {
-  it('reads the recorded goal phase and activation, including blockers and absence', () => {
-    const model = (value: unknown) => detailsCardModel(result('get_goal', value), t, 'en')
-    expect(model({ goal, activation: 'disarmed' })?.items[0]).toEqual({ title: 'Ship compact cards', fields: [{ label: 'Status', value: 'Awaiting continuation' }, { label: 'Rounds', value: '2 / 8' }] })
-    expect(model({ goal: { ...goal, phase: 'blocked', blockedReason: { code: 'agent_blocked', message: 'Needs credentials' } }, activation: 'disarmed' })?.items[0]?.fields).toContainEqual({ label: 'Blocker', value: 'Needs credentials' })
-    expect(model({ goal: null })).toEqual({ items: [], empty: 'No goal' })
-  })
 
   it('keeps all reminders and their recorded state, including one-shot and empty lists', () => {
     const model = detailsCardModel(result('schedule_list', [schedule, { ...schedule, id: 'schedule-2', kind: 'at', state: 'overdue' }, { ...schedule, id: 'schedule-3', kind: 'after', afterSeconds: 30 }]), t, 'en')
@@ -41,9 +34,6 @@ describe('detailsCardModel', () => {
   })
 
   it.each([
-    ['get_goal', { goal: { ...goal, phase: 'unknown' }, activation: 'armed' }],
-    ['get_goal', { goal, activation: 'unknown' }],
-    ['get_goal', { goal: { ...goal, blockedReason: {} }, activation: 'armed' }],
     ['schedule_create', { ...schedule, scheduledAt: 'invalid' }],
     ['schedule_create', { ...schedule, kind: 'unknown' }],
     ['schedule_create', { ...schedule, everySeconds: -1 }],
@@ -51,20 +41,20 @@ describe('detailsCardModel', () => {
     ['schedule_list', { code: 'corrupt_schedule_log', message: 'The session schedule log is corrupt.' }],
     ['schedule_delete', { id: 'schedule-1', deleted: false, code: 'schedule_not_found' }],
     ['schedule_delete', { code: 'persistence_uncertain', operation: 'delete', id: 'schedule-1', message: 'Persistence is uncertain.' }],
-    ['unknown_tool', { goal, activation: 'armed' }],
+    ['unknown_tool', schedule],
   ])('retains raw output for unsupported %s results (%j)', (name, value) => {
     expect(detailsCardModel(result(name, value), t, 'en')).toBeNull()
   })
 
   it('does not present an unsuccessful, partial, mixed-content, or window-truncated result as applied', () => {
-    const block = result('create_goal', { goal, activation: 'armed' })
+    const block = result('schedule_create', schedule)
     expect(detailsCardModel({ ...block, isError: true }, t, 'en')).toBeNull()
     expect(detailsCardModel({ ...block, call: null }, t, 'en')).toBeNull()
-    expect(detailsCardModel({ ...block, call: { name: 'create_goal', argsRaw: '{' } }, t, 'en')).toBeNull()
+    expect(detailsCardModel({ ...block, call: { name: 'schedule_create', argsRaw: '{' } }, t, 'en')).toBeNull()
     expect(detailsCardModel({ ...block, content: [{ type: 'text', text: 'partial {' }] }, t, 'en')).toBeNull()
     expect(detailsCardModel({ ...block, content: [...block.content, { type: 'text', text: 'Extra result' }] }, t, 'en')).toBeNull()
-    expect(detailsCardModel({ phase: 'start' as const, callId: 'c1', name: 'create_goal', argsRaw: '{}', turn: 1, step: 1, time: 1000, subCalls: [] }, t, 'en')).toBeNull()
-    expect(detailsCardModel({ ...block, parentCallId: 'parent' }, t, 'en')?.items[0]?.title).toBe(goal.objective)
+    expect(detailsCardModel({ phase: 'start' as const, callId: 'c1', name: 'schedule_create', argsRaw: '{}', turn: 1, step: 1, time: 1000, subCalls: [] }, t, 'en')).toBeNull()
+    expect(detailsCardModel({ ...block, parentCallId: 'parent' }, t, 'en')?.items[0]?.title).toBe(schedule.prompt)
   })
 })
 
@@ -81,11 +71,11 @@ describe('todosDetail', () => {
 describe('DetailsRow', () => {
   it('expands fields with the keyboard and keeps Inspect available', () => {
     const inspect = vi.fn()
-    render(<DetailsRow {...{ useDisclosure, toolName: 'get_goal', block: result('get_goal', { goal, activation: 'armed' }), inspect, t } as Parameters<typeof DetailsRow>[0]} />)
-    expect(screen.queryByText('Rounds')).toBeNull()
+    render(<DetailsRow {...{ useDisclosure, toolName: 'schedule_create', block: result('schedule_create', schedule), inspect, t } as Parameters<typeof DetailsRow>[0]} />)
+    expect(screen.queryByText('Repeat')).toBeNull()
     fireEvent.keyDown(screen.getByRole('button', { expanded: false }), { key: 'Enter' })
-    expect(screen.getByText('Rounds')).toBeTruthy()
-    expect(screen.getByText('2 / 8')).toBeTruthy()
+    expect(screen.getByText('Repeat')).toBeTruthy()
+    expect(screen.getByText('Every 1 h')).toBeTruthy()
     expect(screen.queryByText('Output')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Inspect' }))
     expect(inspect).toHaveBeenCalledOnce()
@@ -105,7 +95,7 @@ describe('DetailsRow', () => {
       for (const dispose of callback()) dispose()
     })
     detailsToolview.apply({ slots: { inject, register } } as never)
-    expect(register.mock.calls).toHaveLength(36)
+    expect(register.mock.calls).toHaveLength(33)
     expect(register.mock.calls.map(([spec]) => spec)).toContainEqual({ name: 'tool.call.toolview', key: 'cordis_inspect_query', locale: 'conversation' })
   })
 })

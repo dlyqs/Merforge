@@ -222,6 +222,101 @@ Host service backing the generated `ctx.remote.directoryPicker` namespace. The s
 
 Source: [`packages/api/workspace-controller/src/directory-picker.ts`](../../packages/api/workspace-controller/src/directory-picker.ts)
 
+<a id="ctxpersonalprojects--personalprojectregistry"></a>
+
+### `ctx.personalProjects` — `PersonalProjectRegistry`
+
+Persistent records and affiliation transitions for ordinary Sessions.
+
+```ts cordis-catalog
+/** Return personal projects in creation order.
+ * @returns stored Projects.
+ */
+listProjects(): Project[]
+
+/** Return private Bot profiles in creation order.
+ * @returns stored Bot profiles.
+ */
+listBots(): BotProfile[]
+
+/** Resolve one project identity.
+ * @param id - Project ID.
+ * @returns stored Project.
+ */
+getProject(id: ProjectId): Project | undefined
+
+/** Resolve one Bot identity.
+ * @param id - Bot ID.
+ * @returns stored Bot profile, if present.
+ */
+getBot(id: BotId): BotProfile | undefined
+
+/** Whether the current Bot permits a named Skill at its loading entry point.
+ * @param session - Session whose current Bot applies.
+ * @param name - Skill name.
+ * @returns whether the Skill is permitted.
+ */
+allowsSkill(session: Session, name: string): boolean
+
+/** Create a Project independently of any local directory.
+ * @param input - Project fields.
+ * @returns the stored Project.
+ */
+createProject(input: z.input<typeof projectInput>): Promise<Project>
+
+/** Edit a Project's current metadata and optional directory.
+ * @param id - Project ID.
+ * @param input - changed fields.
+ * @returns the updated Project.
+ */
+updateProject(id: ProjectId, input: z.input<typeof projectPatch>): Promise<Project>
+
+/** Create a private Bot profile without storing credentials.
+ * @param input - Bot fields.
+ * @returns the stored Bot profile.
+ */
+createBot(input: z.input<typeof botInput>): Promise<BotProfile>
+
+/** Edit the current Bot profile; old request logs remain immutable.
+ * @param id - Bot ID.
+ * @param input - changed fields.
+ * @returns the updated Bot profile.
+ */
+updateBot(id: BotId, input: z.input<typeof botPatch>): Promise<BotProfile>
+
+/** Current affiliation projected from the exact Session event prefix.
+ * @param session - live or restored Session.
+ * @returns current affiliation and transitions.
+ */
+affiliation(session: Session): AffiliationProjection
+
+/** Append a complete affiliation transition to the same Session.
+ * @param session - Session to change.
+ * @param next - complete new affiliation.
+ * @param source - cause of the transition.
+ * @returns the projected current affiliation and transitions.
+ */
+move(session: Session, next: Affiliation, source: 'create' | 'move' | 'delete' = 'move'): AffiliationProjection
+
+/** Delete a Project after clearing all current Session references.
+ * @param id - Project to delete.
+ * @param resolveSession - opens one referenced Session for its clear event.
+ * @returns whether the Project existed.
+ */
+deleteProject(id: ProjectId, resolveSession: (id: SessionId) => Promise<Session>): Promise<boolean>
+
+/** Delete a Bot after clearing all current Session references.
+ * @param id - Bot to delete.
+ * @param resolveSession - opens one referenced Session for its clear event.
+ * @returns whether the Bot existed.
+ */
+deleteBot(id: BotId, resolveSession: (id: SessionId) => Promise<Session>): Promise<boolean>
+```
+
+Types: [Session](session.md) · [SessionId](core.md)
+
+Source: [`packages/workspace/personal-project/src/index.ts`](../../packages/workspace/personal-project/src/index.ts)
+
 <a id="ctxterminalcontroller--terminalcontroller"></a>
 
 ### `ctx.terminalController` — `TerminalController`

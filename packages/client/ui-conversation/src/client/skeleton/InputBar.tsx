@@ -19,11 +19,6 @@ import clsx from 'clsx'
 import {
   IconPlusOutlineMedium, IconWarningOutlineRegular, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-// Type-only: the `plan` projection key merge (the TodoDock posture — the
-// composer reads a host-computed value; the domain owns the key).
-import type {} from '@deepseek-ai/dsh-plan-mode/client'
-// Type-only: the `goal` projection key merge (hint disambiguation).
-import type {} from '@deepseek-ai/dsh-goal/client'
 // The `imageLimits` projection key merge (intake pre-check) arrives with the
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
 // api-remotes import already places it in every client program.
@@ -62,11 +57,6 @@ export const InputBar = memo(function InputBar({
   const running = useSession(s => s.running) ?? false
   const subagent = useSession(s => s.subagent) ?? null
   const removed = useSession(s => s.removed) ?? false
-  // Plan mode swaps the composer placeholder (the projection is the folded
-  // host value; owner-prop placeholders — hero, session-unavailable — win).
-  const planActive = useProjection('plan', plan => plan !== undefined && (plan.pending ? !plan.active : plan.active))
-  // Absent (undefined: no frame yet) and cleared (null) both mean no goal.
-  const hasGoal = useProjection('goal', goal => goal != null)
   // Session-maybe: the machine faces are absent together while no session is
   // current; the bar renders the same DOM inert instead of a parallel tree.
   const live = input !== undefined && keyboard !== undefined && inputActions !== undefined
@@ -332,7 +322,7 @@ export const InputBar = memo(function InputBar({
   const hint = ((): string | null => {
     if (rawHint === null) return null
     const commandName = input?.claim?.name ?? ''
-    const hintKey = `hint.${commandName === 'goal' && hasGoal ? 'goal.active' : commandName}`
+    const hintKey = `hint.${commandName}`
     // Dynamic lookup by claimed command name: unknown commands miss the
     // dictionary and keep the machine's own hint, so the call is wide.
     const translated = (t as Translate)(hintKey)
@@ -343,12 +333,9 @@ export const InputBar = memo(function InputBar({
     ? t('placeholder.parentOffline')
     : disabled
       ? t('placeholder.unavailable')
-      // The steer hint deliberately outranks the plan placeholder:
-      // while it shows, the whole-queue gesture is genuinely available
-      // (the gate never consults plan mode), so the actionable hint wins.
       : canSteerQueue
         ? t('placeholder.steerQueue')
-        : planActive ? t('placeholder.plan') : t('placeholder.default'))
+        : t('placeholder.default'))
 
   return (
     <div className={clsx(css.root, variant === 'hero' && css.hero)}>
@@ -440,7 +427,6 @@ export const InputBar = memo(function InputBar({
             />
             <div className={css.modes}>
               {sessionId === undefined ? null : renderSlot('conversation.input.permission', { locked })}
-              {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}
             </div>
             {input === undefined || sessionId === undefined
               ? null

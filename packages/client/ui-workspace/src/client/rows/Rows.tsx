@@ -351,13 +351,6 @@ function sessionStatuses(
         trailingLabel: t('status.compact.approval'),
       }
       break
-    case 'plan-review':
-      pending = {
-        state: 'warning',
-        label: t('status.planReview'),
-        trailingLabel: t('status.compact.planReview'),
-      }
-      break
     case 'question':
       pending = {
         state: 'warning',

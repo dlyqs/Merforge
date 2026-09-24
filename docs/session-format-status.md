@@ -7,3 +7,5 @@
 The Desktop application creates and reopens Sessions written in the current format. A file with a different format version is refused. Existing Session generations are never rewritten or deleted automatically.
 
 When changing the current format, update the writer, reader, catalog, and affected consumers together.
+
+Goal and plan mode are no longer supported. Logs containing their required `goal/change` or `plan/mode` events are refused by the unknown-event check; existing generations are left intact.

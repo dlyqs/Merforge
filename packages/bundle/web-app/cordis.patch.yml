@@ -283,24 +283,12 @@
     - id: ui-jobs
       name: '@deepseek-ai/dsh-client-ui-jobs'
 
-    # Goal surface: GoalBar in the input dock over the goal session projection.
-    - id: ui-goal
-      name: '@deepseek-ai/dsh-client-ui-goal'
-
     - id: ui-model-selection
       name: '@deepseek-ai/dsh-client-ui-model-selection'
 
     - id: ui-permission
       name: '@deepseek-ai/dsh-client-ui-permission-presets'
 
-    # The agent-preset row in General settings: the default preset for
-    # sessions created later. Absent a roster it renders nothing.
-    - id: ui-agent-preset
-      name: '@deepseek-ai/dsh-client-ui-agent-preset'
-
-    # Plan control: the composer plan seat over the plan projection + /plan channel.
-    - id: ui-plan
-      name: '@deepseek-ai/dsh-client-ui-plan'
 
     - id: ui-user-questions
       name: '@deepseek-ai/dsh-client-ui-user-questions'
@@ -334,7 +322,7 @@
 # with `ctx.get`, and an entry-local realm around the registry is invisible to
 # every sibling row outside that realm, so `run_in_background` answered
 # "background jobs unavailable" while the controls sat in the catalog. That is
-# the `goals` criterion read from inside the preset: a Service a row outside its
+# the registry visibility rule: a Service a row outside its
 # realm READS belongs to the plane both can see. The registry is keyed by owning
 # agent, so one host instance serves every session exactly as before presets.
 
@@ -362,23 +350,11 @@
 - id: tool-skill
   disabled: true
 
-# The goal service and session driver stay on the host plane, where Gateway
-# remotes resolve them. Presets own the human command and model-facing tool.
-
-- id: command-goal
-  disabled: true
-
-- id: tool-goal
-  disabled: true
-
-- id: plan-mode
-  disabled: true
-
 # The token METER stays on the host plane; only the compaction backend that
 # reads it moves. It owns the context-meter projection units, and that table is
 # process-wide, so preset ownership would make the meter a function of which
 # presets happen to be mounted rather than a per-session fact. Same criterion as
-# `tasks` and `goals`; the reasoning has one home in
+# `tasks`; the reasoning has one home in
 # `.agents/notes/implemented/architecture/2026-08-10-host-plane-ownership-after-presets.md`.
 
 - id: compaction-basic

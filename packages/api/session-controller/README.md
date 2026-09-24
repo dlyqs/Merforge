@@ -127,3 +127,5 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. Every page and frame is checked against the addressed durable Session.
+
+Desktop Session creation and resume accept only `standard` when an Agent composition is configured. Omitted mode IDs resolve to `standard` regardless of a stored registry default; removed mode IDs fail before a new Session is published.

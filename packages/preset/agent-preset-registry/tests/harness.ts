@@ -9,14 +9,9 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import AgentPresets, { type PresetDefinition } from '../src/index.ts'
-import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
-
-/** Loader-backed registry entries by harness context, for tests that edit live fields. */
-export const liveRegistries = new WeakMap<Context, Awaited<ReturnType<typeof liveConfig>>>()
-
 export const plugin = (name: string): string => new URL(`./fixtures/plugins/${name}.js`, import.meta.url).href
 export const contribution = (tool: string): PresetDefinition => ({ id: tool, plugins: [{ name: plugin('contribute'), config: { tool } }] })
-export async function harness(options: { live?: boolean } = {}): Promise<Context> {
+export async function harness(): Promise<Context> {
   const ctx = new Context()
   ctx.baseUrl = new URL('./fixtures/', import.meta.url).href
   await ctx.plugin(Loader)
@@ -28,8 +23,7 @@ export async function harness(options: { live?: boolean } = {}): Promise<Context
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
-  if (options.live) liveRegistries.set(ctx, await liveConfig(ctx, AgentPresets, { default: 'standard' }))
-  else await ctx.plugin(AgentPresets, { default: 'standard' })
+  await ctx.plugin(AgentPresets, { default: 'standard' })
   return ctx
 }
 export async function declare(ctx: Context, config: PresetDefinition) {

@@ -475,10 +475,7 @@ function assertLeanChildRecord(agent: Agent, mode: 'one-shot' | 'continuable'): 
 const EXPECTED_TOOLS = [
   'ask_user_question',
   'bash',
-  'create_goal',
   'edit',
-  'exit_plan_mode',
-  'get_goal',
   'interrupt_agent',
   'job_kill',
   'job_list',
@@ -492,7 +489,6 @@ const EXPECTED_TOOLS = [
   'subagent',
   'subagent_fork',
   'todo_write',
-  'update_goal',
   'web_fetch',
   'web_search',
   'write',

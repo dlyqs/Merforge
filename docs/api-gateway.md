@@ -17,35 +17,35 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TypertRemoteService, Remote, RemoteScope } from '@deepseek-ai/dsh-typert-protocol'
 import type { Context } from '@deepseek-ai/cordis'
 
-export interface CreateGoalRequest {
+export interface CreateExampleRequest {
   objective: string
 }
 
-export interface CreateGoalResult {
+export interface CreateExampleResult {
   accepted: boolean
 }
 
-export class GoalService extends TypertRemoteService {
+export class ExampleService extends TypertRemoteService {
   constructor(ctx: Context) {
-    super(ctx, 'goals')
+    super(ctx, 'examples')
   }
 
   @Remote('create')
   createForClient(
     agent: Agent,
-    request: CreateGoalRequest,
+    request: CreateExampleRequest,
     signal: AbortSignal,
-  ): CreateGoalResult {
+  ): CreateExampleResult {
     signal.throwIfAborted()
     return this.create(agent, request)
   }
 
   @RemoteScope('agent', 'current')
-  currentForClient(): CreateGoalResult {
+  currentForClient(): CreateExampleResult {
     return { accepted: true }
   }
 
-  private create(_agent: Agent, request: CreateGoalRequest): CreateGoalResult {
+  private create(_agent: Agent, request: CreateExampleRequest): CreateExampleResult {
     return { accepted: request.objective.length > 0 }
   }
 }
@@ -63,14 +63,14 @@ import type { AgentContext } from '@deepseek-ai/dsh-api-session-controller/clien
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 
-export const inject = ['remote', 'remote.goals']
+export const inject = ['remote', 'remote.examples']
 
 declare const ctx: Context
 declare const agentCtx: AgentContext
 declare const agentId: SessionId
 
-await ctx.remote.goals.create(agentId, { objective: 'ship it' })
-await agentCtx.remote.goals.create({ objective: 'ship it' })
+await ctx.remote.examples.create(agentId, { objective: 'ship it' })
+await agentCtx.remote.examples.create({ objective: 'ship it' })
 ```
 
 Client applications assemble only `@deepseek-ai/dsh-api-remotes`. That package imports the `/remote` subpaths of selected business packages as runtime values, mounts their contributions through `ctx.remote.$mount()`, and re-exports the declaration merges from the same files. Adding a Host Remote package is an explicit choice by the Client composition owner; business components do not need to load the Typert Gateway or the business package's Remote JS separately.
@@ -112,7 +112,7 @@ Each contributing business package writes generated files to its own `lib/` dire
 
 Business packages expose the Host Loader entry through `./typert` and the Host-for-Client entry through `./remote`. The generator also validates these package exports and published-file lists; it generates artifacts only for explicit contribution packages that provide the corresponding entry.
 
-Parameter names in Remote Client declarations come from wire fields, while parameter and return types reference Client-safe types exported by the original business package. The declaration map resolves the generated property behind `ctx.remote.goals.create` back to the Host source method marked with `@Remote`, so editors that support declaration maps can navigate from a Client call to the real implementation instead of stopping at the generated `.d.ts`.
+Parameter names in Remote Client declarations come from wire fields, while parameter and return types reference Client-safe types exported by the original business package. The declaration map resolves the generated property behind `ctx.remote.examples.create` back to the Host source method marked with `@Remote`, so editors that support declaration maps can navigate from a Client call to the real implementation instead of stopping at the generated `.d.ts`.
 
 Strict analysis requires a Remote to be a public, non-static instance method with a concrete implementation. The method cannot be generic; parameters must be required, named simple identifiers and cannot use destructuring, default values, rest parameters, or optional parameters. Typert generates strict schemas for ordinary JSON-representable types; complex objects such as workspace classes must have a unique `TypertLookupMap` declaration. Lookup and Context packages are responsible for both static declaration merges and runtime provider registration; if either side is missing, the build fails or the first call that needs the provider fails.
 

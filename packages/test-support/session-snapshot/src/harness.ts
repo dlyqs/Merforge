@@ -63,7 +63,6 @@ const WAIT_POLL_INTERVAL_MS = 10
  * `waitForTurnStart` waits for an open durable turn, optionally at or beyond a
  * specified turn number. `waitForTurnEnd` holds the subprocess open until the
  * selected session's latest complete raw-JSONL turn boundary is `turn/end`.
- * `waitForGoalPhase` waits for the latest durable goal snapshot to reach one phase.
  * `waitForInboxMessage` waits for inserted inbox text containing a scenario marker.
  * `waitForSubagentTurnEnd` waits until one background child has persisted a
  * closed model-work turn after its own descriptor; child progress has no ACP
@@ -72,7 +71,7 @@ const WAIT_POLL_INTERVAL_MS = 10
  * `waitForTitleAfterTurnEnd` additionally waits for a later durable title.
  * `waitForEventAfterTurnEnd` waits until a complete record of the given event
  * type follows the latest closed turn — for scenarios whose asserted state
- * (e.g. a goal pause) is appended only after cancellation reaches idle.
+ * (e.g. a final checkpoint) is appended only after cancellation reaches idle.
  * A standalone `cancel` may also wait for a cwd-relative readiness marker.
  * All wait timeouts default to 10s.
  */
@@ -93,7 +92,6 @@ export type InputStep =
   | { op: 'waitForTurnStart'; minimumTurn?: number; timeoutMs?: number }
   | { op: 'waitForTurnEnd'; timeoutMs?: number }
   | { op: 'waitForSubagentTurnEnd'; child?: number; minimumTurn?: number; timeoutMs?: number }
-  | { op: 'waitForGoalPhase'; phase: 'active' | 'paused' | 'blocked' | 'complete'; timeoutMs?: number }
   | { op: 'waitForInboxMessage'; text: string; timeoutMs?: number }
   | { op: 'waitForTitleAfterTurnEnd'; timeoutMs?: number }
   | { op: 'waitForEventAfterTurnEnd'; type: string; timeoutMs?: number }
@@ -327,7 +325,6 @@ export async function runScenario(input: InputScript, opts: RunOptions): Promise
         (id, timeoutMs, minimumTurn) => waitForPersistedTurnStart(sessionsRoot, id, timeoutMs, minimumTurn),
         (id, timeoutMs) => waitForPersistedTurnEnd(sessionsRoot, id, timeoutMs),
         (child, timeoutMs, minimumTurn) => waitForPersistedChildTurnEnd(sessionsRoot, child, timeoutMs, minimumTurn),
-        (id, phase, timeoutMs) => waitForPersistedGoalPhase(sessionsRoot, id, phase, timeoutMs),
         (id, text, timeoutMs) => waitForPersistedInboxMessage(sessionsRoot, id, text, timeoutMs),
         (id, timeoutMs) => waitForPersistedTitleAfterTurnEnd(sessionsRoot, id, timeoutMs),
         (id, type, timeoutMs) => waitForPersistedEventAfterTurnEnd(sessionsRoot, id, type, timeoutMs),
@@ -411,7 +408,6 @@ async function runStep(
   waitForTurnStart: (sessionId: string, timeoutMs?: number, minimumTurn?: number) => Promise<void>,
   waitForTurnEnd: (sessionId: string, timeoutMs?: number) => Promise<void>,
   waitForChildTurnEnd: (child: number, timeoutMs?: number, minimumTurn?: number) => Promise<void>,
-  waitForGoalPhase: (sessionId: string, phase: string, timeoutMs?: number) => Promise<void>,
   waitForInboxMessage: (sessionId: string, text: string, timeoutMs?: number) => Promise<void>,
   waitForTitleAfterTurnEnd: (sessionId: string, timeoutMs?: number) => Promise<void>,
   waitForEventAfterTurnEnd: (sessionId: string, type: string, timeoutMs?: number) => Promise<void>,
@@ -504,12 +500,6 @@ async function runStep(
     case 'waitForSubagentTurnEnd':
       await waitForChildTurnEnd(step.child ?? 1, step.timeoutMs, step.minimumTurn)
       return
-    case 'waitForGoalPhase': {
-      const sessionId = getSessionId()
-      if (sessionId === undefined) throw new Error('snapshot-harness: waitForGoalPhase before newSession')
-      await waitForGoalPhase(sessionId, step.phase, step.timeoutMs)
-      return
-    }
     case 'waitForInboxMessage': {
       const sessionId = getSessionId()
       if (sessionId === undefined) throw new Error('snapshot-harness: waitForInboxMessage before newSession')
@@ -631,25 +621,6 @@ function hasClosedTurn(content: string, turn: number): boolean {
     const event = JSON.parse(line) as { type?: unknown; data?: { turn?: unknown } }
     return event.type === 'turn/end' && event.data?.turn === turn
   })
-}
-
-/** Wait until the latest durable goal snapshot reaches one phase. */
-async function waitForPersistedGoalPhase(
-  root: string,
-  sessionId: string,
-  phase: string,
-  timeoutMs = DEFAULT_WAIT_TIMEOUT_MS,
-): Promise<void> {
-  await vi.waitFor(async () => {
-    const content = (await harvestSessionLogs(root)).find(log => log.id === sessionId)?.content
-    const matched = content?.split('\n').filter(Boolean).some((line) => {
-      const event = JSON.parse(line) as { type?: unknown; data?: { goal?: { phase?: unknown } } }
-      return event.type === 'goal/change' && event.data?.goal?.phase === phase
-    }) ?? false
-    if (!matched) {
-      throw new Error(`snapshot-harness: session "${sessionId}" did not persist goal phase "${phase}" within ${timeoutMs}ms`)
-    }
-  }, { interval: WAIT_POLL_INTERVAL_MS, timeout: timeoutMs })
 }
 
 /** Wait until an inserted inbox message contains scenario-owned text. */

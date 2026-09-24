@@ -536,6 +536,15 @@ register(definition: ToolDefinition): () => void
 restrict(filter: ToolRestriction): () => void
 
 /**
+ * Filter one agent's model-visible and callable tools using current policy.
+ * The predicate also covers tools registered in that agent's own scope;
+ * `run_code` remains a transport for permitted inner tools.
+ * @param admits - return whether the named end-capability is visible now.
+ * @returns the disposer for this scoped filter.
+ */
+filterVisible(admits: (name: string) => boolean): () => void
+
+/**
  * Register a monotonic guard after the extensible `tools/pre-execute`
  * waterfall. A plain-context guard applies globally; one registered through
  * `agent.ctx` applies only to that agent. Any matching guard may deny by

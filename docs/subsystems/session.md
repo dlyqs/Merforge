@@ -811,6 +811,59 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
  */
 @Remote('create') create(request: SessionCreateRequest): Promise<SessionCreateValue>
 
+/** List current personal records for the Client data surface.
+ * @returns Project and Bot records.
+ */
+@Remote('personalList') personalList(): PersonalRecordsValue
+
+/** Create a Project with an identity independent of Workspace.
+ * @param request - validated Project fields.
+ * @returns the stored Project.
+ */
+@Remote('personalCreateProject') personalCreateProject(request: PersonalProjectCreateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').Project>
+
+/** Edit the current Project metadata.
+ * @param request - Project ID and changed fields.
+ * @returns the updated Project.
+ */
+@Remote('personalUpdateProject') personalUpdateProject(request: PersonalProjectUpdateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').Project>
+
+/** Remove one Project while retaining every Session and its history.
+ * @param id - Project to remove.
+ * @returns whether the Project existed.
+ */
+@Remote('personalDeleteProject') personalDeleteProject(id: ProjectId): Promise<boolean>
+
+/** Create a user-authored Bot profile.
+ * @param request - Bot fields without credentials.
+ * @returns the stored Bot profile.
+ */
+@Remote('personalCreateBot') async personalCreateBot(request: PersonalBotCreateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').BotProfile>
+
+/** Edit a Bot profile for subsequent requests.
+ * @param request - Bot ID and changed fields.
+ * @returns the updated Bot profile.
+ */
+@Remote('personalUpdateBot') async personalUpdateBot(request: PersonalBotUpdateRequest): Promise<import('@deepseek-ai/dsh-personal-project/types').BotProfile>
+
+/** Remove one Bot while retaining every Session and its history.
+ * @param id - Bot to remove.
+ * @returns whether the Bot existed.
+ */
+@Remote('personalDeleteBot') personalDeleteBot(id: BotId): Promise<boolean>
+
+/** Read one Session's current affiliation and transitions without copying it.
+ * @param sessionId - Session to inspect.
+ * @returns its current affiliation and history.
+ */
+@Remote('personalAffiliation') async personalAffiliation(sessionId: SessionId): Promise<SessionAffiliationValue>
+
+/** Move a Session's Project and/or Bot reference in its own event log.
+ * @param request - Session ID and changed affiliation fields.
+ * @returns the committed affiliation projection.
+ */
+@Remote('personalMove') async personalMove(request: SessionAffiliationMoveRequest): Promise<SessionAffiliationValue>
+
 /**
  * Select one Session-local model after explicitly resuming the Session.
  * @param request - Session identity and requested model selection.
@@ -1035,7 +1088,7 @@ announce(session: Session): void
  * Dispatch the awaited `session/flush` durability checkpoint for `session`,
  * with the carrier captured at {@link enter}. THE flush entry point: the
  * store owns the carrier, so callers (the checkpoint policy's per-request
- * barrier, goal-round-driver's idle checkpoint, teardown drains, and consumers
+ * barrier, teardown drains, and consumers
  * that flush themselves before reading storage) must come through here
  * rather than dispatch a raw `ctx.parallel('session/flush', …)` — one owner,
  * one spelling, and the scoped-dispatch invariant can pin it.

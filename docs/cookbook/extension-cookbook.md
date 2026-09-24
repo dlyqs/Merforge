@@ -8,7 +8,7 @@ A tool registers on `ctx.tools`. The annotated `defineTool` example (typed `exec
 
 ## A hook plugin (permission-gate example)
 
-This permission gate is one example of a hook plugin. It returns a typed decision from the `tools/pre-execute` gate to allow or deny a call; sandbox, permission, and plan-mode plugins can use this extension point. Hook plugins can intercept other extension points and are not inherently permission gates. A "native hook" is an ordinary Cordis plugin on an interception point; it needs no external protocol.
+This permission gate is one example of a hook plugin. It returns a typed decision from the `tools/pre-execute` gate to allow or deny a call; sandbox and permission plugins can use this extension point. Hook plugins can intercept other extension points and are not inherently permission gates. A "native hook" is an ordinary Cordis plugin on an interception point; it needs no external protocol.
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
@@ -101,7 +101,6 @@ Every product feature maps to a listener on a documented extension point — the
 | Product feature | Plugin mechanism |
 |---|---|
 | Hook system (user + project level) | listeners on `agent/created`, `agent/pre-step`, `agent/request`, `tools/pre-execute`, `tools/post-execute`, and `agent/turn-stopping`; the waterfalls return typed decisions, while `agent/turn-stopping` may steer another step; the `dsh-hooks-claude-code` / `dsh-hooks-codex` bridges map hook config files onto these extension points |
-| `/goal` | `ctx.goals` owns durable state, `dsh-goal-round-driver` schedules same-session rounds through the public `Agent`, and separate command/tool producers expose human/model control |
 | `/loop` | on the `turn/end` session event, `followup()` the next iteration; or force-continue |
 | Dynamic workflow | `ctx.workflowEngine` + the PTC workflow engine + the `workflow` tool; structured in-process children enforce output with scoped prompt/tool registrations, a monotonic tool guard, final `tools/result` commit (including enclosing `run_code`), and the structured-output execution's monotonic `concludeTurn()` marker |
 | Queued + steering messages | core `Agent.followup()` / `Agent.steer()` |
@@ -116,7 +115,6 @@ Every product feature maps to a listener on a documented extension point — the
 | Monotonic terminal turn policy | call `ToolExecution.concludeTurn()` from the successful terminal tool; later tool calls in the same response remain guardable, and the loop stops after the step |
 | Subprocess sandbox (landlock / sandbox-exec) | use a `ctx.sandbox` backend through `dsh-bash-sandbox`; use `tools/pre-execute` for capability-level denial |
 | Permission system / AskUserQuestion | return `ask` from `tools/pre-execute` and answer through `ctx.approval`; register a separate model-facing ask tool for ordinary user questions |
-| Plan mode | [`@deepseek-ai/dsh-plan-mode`](../../packages/plan/plan-mode/README.md) — logged `plan/mode` state, the `plan:policy` guidance section, `/plan [message]` entry, `/plan off` direct exit, and the user-reviewed `exit_plan_mode` exit; enforcement stays on the independent sandbox/approval axes |
 | Sub-agent delegation | the `ctx.subagents` provider registry (`dsh-subagent-spawn-in-process`/`dsh-subagent-fork-in-process`/`dsh-subagent-acp`/`dsh-subagent-codex`/`dsh-subagent-claude-code`/`dsh-subagent-dsh-sdk`) + `dsh-tool-subagent` exposing one configured provider to the model |
 | MCP | one plugin per server: discover tools → `ctx.tools.register()` |
 | Skills | section + tool registration; `inject()` skill content on invocation |

@@ -5,9 +5,6 @@ import type {} from '@deepseek-ai/dsh-client-modules/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-// Type-only: pulls the 'settings.agentPreset' LocaleNamespaceMap merge, whose
-// dictionaries the shipped-preset name resolution below reads.
-import type {} from '@deepseek-ai/dsh-client-ui-agent-preset/client'
 // Inline-safe shared fold: shipped ids map to dictionary keys in one home.
 import { presetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'
 import { PluginInventorySettingsTab, type PluginInventorySettingsTabInjected } from './PluginInventorySettingsTab.tsx'
@@ -41,11 +38,8 @@ export function apply(ctx: ClientContext): void {
     }
     return result.value
   }
-  // Resolved per call over ui-agent-preset's dictionaries, so a language
-  // switch re-resolves shipped names; user-authored metadata passes through.
-  const agentPresetCopy = ctx.locale.bind('settings.agentPreset')
   const presetName: PluginInventorySettingsTabInjected['presetName'] = preset =>
-    presetDisplayText(preset, agentPresetCopy).name
+    presetDisplayText(preset, t).name
   const injected = (): PluginInventorySettingsTabInjected => ({
     list, presetName,
     resolveText: text => ctx.locale.resolveText(text),

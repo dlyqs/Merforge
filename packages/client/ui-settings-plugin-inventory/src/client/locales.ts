@@ -3,6 +3,8 @@
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
   tab: '插件列表',
+  presetStandardName: '标准模式',
+  presetStandardDescription: '处理代码、文件和资料，按需使用检索、编辑和终端等工具。',
   loading: '正在读取插件…',
   clientSyncing: '正在同步本页面的插件…',
   clientSyncFailed: '本页面的插件未能完成同步；服务端的启用状态保持不变。',
@@ -50,6 +52,8 @@ export type PluginInventoryLocaleKey = keyof typeof zh
 /** English dictionary checked against the Chinese key set. */
 export const en = {
   tab: 'Plugin list',
+  presetStandardName: 'Standard mode',
+  presetStandardDescription: 'Work with code, files, and information using search, editing, and terminal tools.',
   loading: 'Reading plugins…',
   clientSyncing: 'Syncing plugins on this page…',
   clientSyncFailed: 'Some plugins could not sync on this page. Host enablement is unchanged.',

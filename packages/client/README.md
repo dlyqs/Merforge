@@ -54,7 +54,6 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-approval/`](ui-approval/README.md) | Presents approval requests and returns user decisions | — |
 | [`ui-tool/`](ui-tool/README.md) | Composes Tool call trees and keyed per-Tool views | — |
 | [`ui-workflow-run/`](ui-workflow-run/README.md) | Replays durable workflow runs as nested chat disclosures | — |
-| [`ui-goal/`](ui-goal/README.md) | Presents and manages the current goal | — |
 | [`ui-trajectory/`](ui-trajectory/README.md) | Presents alternate views of agent activity | — |
 | [`ui-commands/`](ui-commands/README.md) | Provides session-aware command discovery and dispatch | — |
 | [`ui-input-trigger/`](ui-input-trigger/README.md) | Coordinates inline command and reference suggestions | — |
@@ -65,10 +64,8 @@ The kernel packages boot and serve the page; the UI feature packages present it.
 | [`ui-schedule/`](ui-schedule/README.md) | Lists the current Session's active reminders in a read-only header catalog | — |
 | [`ui-model-selection/`](ui-model-selection/README.md) | Provides model selection in conversation surfaces | — |
 | [`ui-permission-presets/`](ui-permission-presets/README.md) | Configures default permissions and switches the current session's access | — |
-| [`ui-plan/`](ui-plan/README.md) | Presents active plan-mode status and its exit control | — |
 | [`ui-settings-plugins/`](ui-settings-plugins/README.md) | Owns the Built-in plugins settings section shell and its tab extension point | — |
 | [`ui-user-questions/`](ui-user-questions/README.md) | Presents interactive questions requested by the agent | — |
-| [`ui-agent-preset/`](ui-agent-preset/README.md) | Selects a session's agent preset and authors preset compositions | — |
 | [`ui-settings/`](ui-settings/README.md) | Hosts the settings interface and its extension areas | — |
 | [`ui-settings-general/`](ui-settings-general/README.md) | Provides the general settings section | — |
 | [`ui-settings-models/`](ui-settings-models/README.md) | Provides model-provider configuration and DeepSeek onboarding | — |

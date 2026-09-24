@@ -26,7 +26,7 @@ describe.each([false, true])('web e2e: selected blank writer held: %s', (held) =
         agentOptions: scaffold.ctx.agentDefaultModel.currentSelection(),
       })
       try {
-        handle.agent.session.append('plan/mode', { active: true })
+        handle.agent.session.append('session/title', { title: 'Saved blank', messageSeqs: [], source: { kind: 'fallback' } })
         await workspace.attachSession(sessionId)
       } finally {
         await handle.dispose()
@@ -72,7 +72,7 @@ describe.each([false, true])('web e2e: selected blank writer held: %s', (held) =
     if (!held) {
       expect(selectedId).toBe(HELD)
       const reclaimed = scaffold.ctx.agents.get(HELD)!
-      expect(scaffold.ctx.sessionProjections.stateOf(reclaimed.session, 'plan')).toMatchObject({ active: true })
+      expect(reclaimed.session.snapshotEvents().some(event => event.type === 'session/title' && event.data.title === 'Saved blank')).toBe(true)
       await expect(scaffold.ctx.sessionPersistence.open(HELD, 'write'))
         .rejects.toMatchObject({ name: 'SessionAlreadyOwnedError' })
     }

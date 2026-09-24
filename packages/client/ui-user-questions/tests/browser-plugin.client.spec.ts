@@ -12,13 +12,6 @@ import { apply, inject } from '../src/client/index.ts'
 const SESSION_ID = 'session-question' as SessionId
 const SESSION_SCOPE = Symbol('question-session-scope')
 const QUESTIONS = [{ id: 'mode', question: 'Choose a mode' }] as const
-const PLAN_QUESTIONS: PendingQuestion['questions'] = [{
-  id: 'plan',
-  question: 'Approve this plan?',
-  detail: '# Plan',
-  options: [{ label: 'Approve' }, { label: 'Keep planning' }],
-  intent: { kind: 'plan-review' as const, approve: 'Approve' },
-}]
 const ANSWER = { answers: [{ id: 'mode', selected: ['Fast'] }] }
 
 type QuestionRequest = {
@@ -159,17 +152,6 @@ describe('apply', () => {
     expect(b.slots.entries('conversation.composer')).toHaveLength(1)
   })
 
-  it('publishes a plan-review request with its distinct interaction kind', async () => {
-    const b = await bench()
-    const result = b.invoke(b.agent, { questions: PLAN_QUESTIONS }, async () => ANSWER)
-    await Promise.resolve()
-    const pending = b.pending.getSnapshot()[0]!
-
-    expect(pending.kind).toBe('plan-review')
-    await pending.answer(ANSWER)
-    await expect(result).resolves.toBe(ANSWER)
-    expect(b.pending.getSnapshot()).toEqual([])
-  })
 
   it('removes a cancelled request while preserving the stable composer', async () => {
     const b = await bench()

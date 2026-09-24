@@ -1,5 +1,5 @@
 ---
-description: "Web ask_user_question feature for the dsh web client: the composer-takeover question UI and the plan-review approval card."
+description: "Web ask_user_question feature for the dsh web client: the composer-takeover question UI."
 kind: "package-reference"
 ---
 
@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-When an agent asks a question in the Web client, this package replaces the chat composer with an interactive question surface. Users can move through questions, choose one or multiple options, enter custom answers, skip items, and submit one structured answer batch. Single-choice selections advance immediately, while drafts survive Session navigation for the lifetime of the page. A single question with a supported presentation intent can use a dedicated surface, including the plan-review card with `Request changes` and `Approve` actions.
+When an agent asks a question in the Web client, this package replaces the chat composer with an interactive question surface. Users can move through questions, choose one or multiple options, enter custom answers, skip items, and submit one structured answer batch. Single-choice selections advance immediately, while drafts survive Session navigation for the lifetime of the page.
 
 ## Table of Contents
 
@@ -29,10 +29,6 @@ When the agent asks a question, the composer becomes the question surface: answe
 
 A multi-select draft keeps its selected labels while the user opens or edits the custom answer, so its submitted item may carry both `selected` and `custom`; a single-select custom answer remains exclusive. Question detail reuses the assistant-output `MarkdownText` primitive, including its GFM rendering and untrusted-content policy. The capped card keeps its title, navigation, and submission actions fixed while long detail and choices share an internal scroll region. "Skip" retains other drafts and emits the existing blank `{ selected: [] }` result for that item, while close rejects the whole wait as `ASK_CANCELLED`.
 
-### The plan-review card
-
-A `plan-review` intent — set by `dsh-plan-mode` on the `exit_plan_mode` review — renders a compact approval card: a `Plan review` strip with a `View full plan` link, the plan title and a two-line plain-text summary, and `Request changes` / `Approve` actions. The strip uses the shared warning dot and changes it to the ongoing loader while either action settles. The complete plan opens in the sidebar through the link or its permanent Chat card. Approve answers with the asker's approval label; `Request changes` rejects the wait as `ASK_CANCELLED`, returning the composer for the user's feedback without submitting an approval. The card has no separate refusal button.
-
 ### Failure and recovery
 
 The generic question flow keeps its current page, selected labels, custom text, and explicit skips in a non-persisted Slot store scoped to the owning Session generation and keyed by the pending request's local render identity. Switching from Session A to B retires A when no other reference owns it, so returning to A starts an empty question draft; another reference that keeps A's generation alive also keeps that draft. A different request identity reads an empty draft and replaces the previous value on its first edit; a successful answer or cancellation clears the matching value. The host remains authoritative for whether the request is pending.
@@ -47,15 +43,10 @@ The generic question flow keeps its current page, selected labels, custom text, 
 
 The package is one ownership rule: rendering a question is a host UI capability, having the tool is an agent capability, so the `tool-ask-user` row belongs to the presets that want it (and to the TUI composition, which has no presets).
 
-### Intent surface election
-
-The card accepts one question declaring the intent, carrying the plan as `detail`, and offering the named approve label, with at most one alternative and no multi-select. Its secondary action returns to the composer for change requests. Larger choices and multi-select questions remain in the generic flow.
-
 ### Copy and locale
 
 Composer chrome copy (pager, buttons, placeholders, validation feedback) is bilingual: the plugin registers zh/en dictionaries under the `question` namespace of `dsh-client-locale` and hands the entry its bound translator plus the locale snapshot source through the inject face, so a locale switch re-renders a mounted composer. Question and option text arrives from the model and renders verbatim; carrier failure messages also display untranslated.
 
-A plan review exposes `conversation.plan-review.actions` with its request key, full text, and optional invocation identity. The plan plugin opens logged plans from history and unlogged reviews as temporary sidebar previews. Opening a document does not answer or dismiss the review.
 
 </details>
 
@@ -64,11 +55,10 @@ A plan review exposes `conversation.plan-review.actions` with its request key, f
 <a id="further-exploration"></a>
 ## Further Exploration
 
-These pages cover the composer host, the tool seam, and the plan-mode consumer.
+These pages cover the composer host, the tool seam, and the question consumer.
 
 - [ui-conversation](../ui-conversation/README.md) — the chat surface owning the `conversation.composer` chain.
 - [tool-ask-user](../../interaction/tool-ask-user/README.md) — the model-facing tool whose schema and answers this UI renders.
-- [ui-plan](../ui-plan/README.md) — the plan-mode surface that sets the `plan-review` intent.
 - [user-questions](../../interaction/user-questions/README.md) — the Host-side question seam and its answerer waterfall.
 
 -----

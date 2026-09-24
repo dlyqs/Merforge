@@ -1,6 +1,6 @@
 /**
  * Pure ACP transcript and session-log normalizers. They scrub session ids, run cwd, RPC ids,
- * timestamps, goal lifecycle clocks, and hook duration while preserving semantic payload values.
+ * timestamps, and hook duration while preserving semantic payload values.
  * The prompt-text and tool-schema scrubbers stay composable so one scenario per header class can
  * pin prompt and tool-schema sidecars.
  * @module @deepseek-ai/dsh-session-snapshot/normalize
@@ -333,7 +333,7 @@ export function normalizeStdout(
 /**
  * Normalize a session JSONL log into a stable expected output: the header line's
  * volatile fields (`createdAt`, `id`, `cwd`) are zeroed/scrubbed; event,
- * historical packed-row, embedded Assistant-stream, goal lifecycle, and
+ * historical packed-row, embedded Assistant-stream, and
  * catalog child-creation clocks are zeroed; and all volatile strings are
  * scrubbed. Projected inputs remain
  * projected. Packed `data.dt` gaps are normalized even when the projected row
@@ -385,11 +385,6 @@ export function normalizeSessionLog(
       if ('durationMs' in data) data.durationMs = 0
     }
     normalizeFeedbackClocks(record)
-    if (record.type === 'goal/change' && record.data !== null && typeof record.data === 'object') {
-      const data = record.data as Record<string, unknown>
-      if ('createdAt' in data) data.createdAt = 0
-      if ('updatedAt' in data) data.updatedAt = 0
-    }
     if (record.type === 'subagent/catalog' && record.data !== null && typeof record.data === 'object') {
       const data = record.data as Record<string, unknown>
       if ('childCreatedAt' in data) data.childCreatedAt = 0

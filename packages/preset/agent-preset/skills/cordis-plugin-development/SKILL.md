@@ -5,7 +5,7 @@ description: Use when authoring, installing, configuring, or debugging persisten
 
 # Persistent Harness plugins
 
-Use ordinary workspace files to author a bundle, then `plugin_manager` with `action: install_bundle` and the absolute package directory as `target` to install it in the current profile. Changes affect every session in that profile and survive restart. Load `editing-cordis-compositions` for agent preset changes.
+Use ordinary workspace files to author a bundle, then `plugin_manager` with `action: install_bundle` and the absolute package directory as `target` to install it in the current profile. Changes affect every session in that profile and survive restart. Desktop runs only the standard Agent composition.
 
 ## Deliver a working plugin first
 

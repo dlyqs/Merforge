@@ -27,10 +27,23 @@ describe('Desktop product overlay', () => {
     expect(rows.find(row => row.id === 'web-runtime')?.config).toMatchObject({ openBrowser: false, printUrl: false })
   })
 
+  it('ships standard alone with no mode-selection UI', () => {
+    const bundle = JSON.parse(readFileSync(new URL('../../../packages/bundle/web-app/package.json', import.meta.url), 'utf8')) as {
+      dsh: { bundle: { patch: string[] } }
+    }
+    expect(bundle.dsh.bundle.patch).toEqual(['./cordis.patch.yml', './presets/standard.patch.yml'])
+    const rows = composeEntries([base, web, standard, desktop].map(file => loadOverlayPatches('desktop', file)))
+    expect(rows.filter(row => row.name === '@deepseek-ai/dsh-agent-preset').map(row => row.id))
+      .toEqual(['preset-standard'])
+    expect(rows.find(row => row.id === 'agent-preset-registry')?.config).toEqual({ default: 'standard' })
+    expect(rows.find(row => row.id === 'ui-agent-preset')).toBeUndefined()
+  })
+
   it('keeps coding tools and opt-in browser and computer providers without pruned tools', () => {
     const rows = composeEntries([base, web, standard, desktop].map(file => loadOverlayPatches('desktop', file)))
     const removed = ['plugin-manager', 'tool-plugin-manager', 'open-in-app', 'ui-open-in-app',
       'ui-plugin-manager', 'ui-cordis', 'office-to-pdf', 'ui-workflow-run', 'ui-schedule',
+      'goal', 'goal-round-driver', 'command-goal', 'tool-goal', 'plan-mode', 'ui-goal', 'ui-plan',
       'ptc-runtime', 'workflow-ptc', 'tool-workflow', 'tool-ralph', 'cordis-inspect-providers']
     for (const id of removed) expect(rows.find(row => row.id === id), id).toBeUndefined()
     for (const id of ['ui-sidebar-browser', 'ui-sidebar-documentpreview', 'ui-sidebar-terminal',
@@ -42,10 +55,10 @@ describe('Desktop product overlay', () => {
     }
     const plugins = (rows.find(row => row.id === 'preset-standard')?.config as { plugins: { id: string }[] }).plugins
     for (const id of ['tool-bash', 'tool-pwsh', 'tool-fs', 'tool-fs-search', 'tool-jobs', 'tool-skill',
-      'tool-subagent', 'tool-subagent-fork', 'tool-ask-user', 'tool-todo', 'tool-web', 'tool-goal', 'planning']) {
+      'tool-subagent', 'tool-subagent-fork', 'tool-ask-user', 'tool-todo', 'tool-web']) {
       expect(plugins.some(row => row.id === id), id).toBe(true)
     }
-    for (const id of ['workflow-ptc', 'tool-workflow', 'tool-ralph', 'tool-cordis', 'tool-plugin-manager']) {
+    for (const id of ['command-goal', 'tool-goal', 'planning', 'plan-mode', 'workflow-ptc', 'tool-workflow', 'tool-ralph', 'tool-cordis', 'tool-plugin-manager']) {
       expect(plugins.some(row => row.id === id), id).toBe(false)
     }
     const manifest = JSON.parse(readFileSync(new URL('../../desktop-host/package.json', import.meta.url), 'utf8')) as {

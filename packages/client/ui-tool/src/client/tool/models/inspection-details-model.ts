@@ -65,8 +65,8 @@ function workflowDetails(name: string, args: Record<string, unknown>, text: stri
   const groups: NonNullable<DetailItem['groups']>[number][] = []
   if (report.nextSteps.length > 0) groups.push({ label: t('detail.report.nextSteps'), items: [{ fields: [], lines: report.nextSteps }] })
   if (typeof args.objective === 'string') groups.push({ label: t('detail.field.task'), items: [{ fields: [], description: args.objective }] })
-  const fields = rounds === undefined ? [] : [{ label: t('detail.goal.rounds'), value: rounds }]
-  if (report.blocker !== '') fields.push({ label: t('detail.goal.reason'), value: report.blocker })
+  const fields = rounds === undefined ? [] : [{ label: t('detail.field.rounds'), value: rounds }]
+  if (report.blocker !== '') fields.push({ label: t('detail.field.blocker'), value: report.blocker })
   const item = { title: report.summary, badge, fields, ...(report.evidence.length === 0 ? {} : { lines: report.evidence }), groups }
   return detailList([item], report.summary, t)
 }

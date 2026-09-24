@@ -41,9 +41,9 @@ Choose an Agent’s tools, prompt sections and skills through declarative preset
 |---|---|---|
 | `default` | required | Preset ID used when none is requested |
 
-The Web definitions come from the `dsh-web-app` bundle. Definitions are ordinary plugin rows; the registry neither scans directories nor accepts preset paths. The `selectedDefault` and `modeSelectionEnabled` volatile fields of the `agent-preset-registry` entry retain the user default and the chooser visibility; hiding the chooser uses the deployment `default`.
+The Desktop application ships only `standard` through `dsh-web-app`. The registry remains the internal owner of scoped plugin revisions and child inheritance. Desktop Session creation and resume reject other mode IDs. There is no mode chooser, saved mode preference, mode authoring page, or remote mode-switch operation.
 
-The registry writes no declarations. The `read` Remote renders one declaration’s child list back as entry-list YAML (`!!js` conditions included) so a client can show what a preset composes; nothing accepts YAML back. A new preset or an override of a shipped one is a bundle patch: an `insert` of a `@deepseek-ai/dsh-agent-preset` row, or a patch keyed by that row’s id, installed into the profile with `plugin_manager`; Creator mode authors such bundles in conversation.
+Definitions are ordinary plugin rows; the registry neither scans directories nor accepts preset paths. Its read-only `list` Remote exposes the composition roster for diagnostics.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -53,7 +53,7 @@ The registry writes no declarations. The `read` Remote renders one declaration�
 
 Each declaration eagerly creates a registry-owned scope and an in-memory Loader tree. Updating or removing a declaration retires its previous revision. Agents, children and temporary historical reads retain references; releasing the final reference disposes the retired tree. Plugin registrations inherit the preset scope, and the Agent scope’s parent link controls visibility. The Host continues to share the Agent loop.
 
-Activation auditing checks imports, missing services and globally leaked services. Import failures, activation failures and leaks reject the mount. A row waiting for a Host service stays mounted, and every read and binding re-audits it after the Host Loader tree settles, so startup order does not decide the outcome. Failure prevents new bindings to that definition. Session logs retain the preset ID and blank-session selections; recovery after restart uses the current definition of that ID and rejects a missing definition.
+Activation auditing checks imports, missing services and globally leaked services. Import failures, activation failures and leaks reject the mount. A row waiting for a Host service stays mounted, and every read and binding re-audits it after the Host Loader tree settles, so startup order does not decide the outcome. Failure prevents new bindings to that definition. Session logs retain the preset ID and historical selection events; recovery after restart uses the current definition of that ID and rejects a missing definition.
 
 | File | Responsibility |
 |---|---|

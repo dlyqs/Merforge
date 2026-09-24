@@ -27,7 +27,6 @@ describe('Turn trigger notices', () => {
     [{ kind: 'schedule' }, 'schedule', 'Scheduled task'],
     [{ kind: 'tool-jobs' }, 'job', 'Background task updated'],
     [{ kind: 'cordis-host-runner' }, 'plugin', 'Plugin status updated'],
-    [{ kind: 'goal' }, 'goal', 'Continuing goal'],
     [{ kind: 'agent-message' }, 'agent', 'Task message received'],
     [{ kind: 'team-message' }, 'team', 'Team message received'],
     [{ kind: 'subagent-settled' }, 'subagent', 'Subtask status updated'],

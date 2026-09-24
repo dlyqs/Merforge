@@ -157,10 +157,10 @@ describe('client bundle purity gate', () => {
   })
 
   it('lets exact generated Remote contributions inline without admitting their package implementation', () => {
-    expect(resolveId('@deepseek-ai/dsh-goal/remote')).toBeNull()
-    expect(() => resolveId('@deepseek-ai/dsh-goal')).toThrow(/purity/)
-    expect(() => resolveId('@deepseek-ai/dsh-goal/client')).toThrow(/purity/)
-    expect(() => resolveId('@deepseek-ai/dsh-goal/remote/nested')).toThrow(/purity/)
+    expect(resolveId('@deepseek-ai/dsh-settings/remote')).toBeNull()
+    expect(() => resolveId('@deepseek-ai/dsh-settings')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-settings/client')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-settings/remote/nested')).toThrow(/purity/)
   })
 
   it('throws on any other @deepseek-ai leak', () => {
@@ -412,16 +412,16 @@ describe('client bundle debug artifacts', () => {
   })
 
   it('maps first-party sources to their repository package paths', () => {
-    const configs = clientConfigs('@deepseek-ai/dsh-client-ui-goal')
+    const configs = clientConfigs('@deepseek-ai/dsh-client-ui-commands')
     const outputOptions = configs[0]?.outputOptions
     if (typeof outputOptions !== 'object' || outputOptions === null) throw new Error('client output options missing')
     const transform = outputOptions.sourcemapPathTransform
     if (transform === undefined) throw new Error('client sourcemap path transform missing')
 
-    const source = transform('../src/client/GoalBar.tsx', clientSourceMapPath('client/ui-goal'))
-    expect(source).toBe('../../../packages/client/ui-goal/src/client/GoalBar.tsx')
-    const resolved = new URL(source, 'https://dsh.test/plugins/@deepseek-ai/dsh-client-ui-goal/client.js.map')
-    expect(resolved.pathname).toBe('/packages/client/ui-goal/src/client/GoalBar.tsx')
+    const source = transform('../src/client/CommandMenu.tsx', clientSourceMapPath('client/ui-commands'))
+    expect(source).toBe('../../../packages/client/ui-commands/src/client/CommandMenu.tsx')
+    const resolved = new URL(source, 'https://dsh.test/plugins/@deepseek-ai/dsh-client-ui-commands/client.js.map')
+    expect(resolved.pathname).toBe('/packages/client/ui-commands/src/client/CommandMenu.tsx')
   })
 
   it('maps dual-face host sources to the host package group', () => {

@@ -140,7 +140,6 @@ describe('workspace browser rows', () => {
 
   it.each([
     ['approval', '等待审批'],
-    ['plan-review', '计划待审'],
     ['question', '等待回答'],
   ] as const)('shows %s ahead of running in search results', (pendingInteraction, label) => {
     const result: SearchResultNode = {
@@ -742,7 +741,6 @@ describe('workspace browser rows', () => {
 
   it.each([
     ['approval', '等待审批', '待审批'],
-    ['plan-review', '计划待审', '计划待审'],
     ['question', '等待回答', '待回答'],
   ] as const)('shows %s as warning and replaces the row time', (pendingInteraction, label, compactLabel) => {
     vi.useFakeTimers()
@@ -778,7 +776,6 @@ describe('workspace browser rows', () => {
 
   it.each([
     ['approval', 'Approval'],
-    ['plan-review', 'Plan review'],
     ['question', 'Answer'],
   ] as const)('uses the compact English %s row label', (pendingInteraction, compactLabel) => {
     const node: SessionNode = {

@@ -193,7 +193,7 @@ function mount(
   const seatOwners: { key: string; owner: unknown }[] = []
   const renderSlot = ((key: string, owner: object, opts?: { only?: string; fallback?: ReactNode }) => {
     slotCalls.push(key)
-    if (key === 'conversation.input.model' || key === 'conversation.input.plan') {
+    if (key === 'conversation.input.model') {
       seatOwners.push({ key, owner })
     }
     if (key === 'conversation.session.header.lineage') {
@@ -439,7 +439,6 @@ describe('ConversationRoot resident composer', () => {
     // cleared by choosing a model.
     const seat = (key: string) => b.seatOwners.filter(call => call.key === key).at(-1)?.owner
     expect(seat('conversation.input.model')).toEqual({ locked: false })
-    expect(seat('conversation.input.plan')).toEqual({ locked: true })
   })
 
   it('applies a model block to a blank Session without a directory', () => {
@@ -648,7 +647,7 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.queryByRole('button', { name: '选择工作区' })).toBeNull()
     expect(b.slotCalls).not.toContain('conversation.hero.workspace')
     expect(b.view.getByRole('textbox').getAttribute('contenteditable')).toBe('true')
-    expect(b.slotCalls).toContain('conversation.hero.agentPreset')
+    expect(b.slotCalls).not.toContain('conversation.hero.agentPreset')
   })
 
   it('prompt failure renders the promptError strip (ordinary failure, no transaction UI)', () => {

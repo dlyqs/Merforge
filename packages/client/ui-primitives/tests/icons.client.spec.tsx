@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   IconAlarmClockOutlineRegular, IconApiOutlineRegular, IconArchiveOutlineRegular, IconFolderCloseRegular,
-  IconGoalOutlineRegular, IconSendOutlineRegular,
+  IconSendOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
@@ -17,8 +17,8 @@ const icons = Object.fromEntries(
 const iconNames = Object.keys(icons)
 
 describe('product icon set', () => {
-  it('exports regular and medium variants for all 93 public glyphs', () => {
-    expect(iconNames.length).toBe(186)
+  it('exports regular and medium variants for all 92 public glyphs', () => {
+    expect(iconNames.length).toBe(184)
     expect(iconNames.some(name => /\d+$/.test(name))).toBe(false)
     const regular = iconNames.filter(name => name.endsWith('Regular')).map(name => name.slice(0, -'Regular'.length))
     const medium = iconNames.filter(name => name.endsWith('Medium')).map(name => name.slice(0, -'Medium'.length))
@@ -115,11 +115,6 @@ describe('product icon set', () => {
     expect(alarm.container.querySelector('svg')!.getAttribute('width')).toBe('16')
   })
 
-  it('renders reusable goal glyphs without document-global ids', () => {
-    const { container } = render(<><IconGoalOutlineRegular /><IconGoalOutlineRegular /></>)
-    expect(container.querySelector('[id]')).toBeNull()
-    expect(container.querySelector('[clip-path]')).toBeNull()
-  })
 })
 
 describe('FishLogo', () => {

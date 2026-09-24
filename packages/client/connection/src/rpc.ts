@@ -259,7 +259,7 @@ export interface ClientConnectionRpc {
   /**
    * Call one endpoint through an already registered logical channel.
    * @param channel - absolute logical channel such as `/api`.
-   * @param endpoint - channel-relative endpoint such as `goals/create`.
+   * @param endpoint - channel-relative endpoint such as `commands/execute`.
    * @param payload - channel-owned request payload.
    * @param signal - optional caller cancellation.
    * @returns the endpoint-owned success/error result; correlation stays inside Connection.

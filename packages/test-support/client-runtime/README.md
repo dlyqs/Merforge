@@ -59,11 +59,11 @@ Script a failure by the code the Host would answer with, and assert the same way
 ```text
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 
-remote.goals.create.mockResolvedValue({
+remote.commands.execute.mockResolvedValue({
   ok: false,
-  error: new RemoteError('goal/not-found', 'goal "g1" does not exist', { goalId: 'g1' }),
+  error: new RemoteError('commands/not-found', 'command "c1" does not exist', { commandId: 'c1' }),
 })
-expect(view.getByRole('alert')).toHaveTextContent('goal/not-found')
+expect(view.getByRole('alert')).toHaveTextContent('commands/not-found')
 ```
 
 ### Whole-client tier

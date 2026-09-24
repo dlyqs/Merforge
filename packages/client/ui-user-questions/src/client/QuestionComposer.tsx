@@ -6,12 +6,10 @@ import {
   IconEditOutlineRegular, MarkdownText,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  planReviewOf,
   type QuestionAnswer, type QuestionComposerProps,
 } from './contract/slots.ts'
 import type { PendingQuestion } from './contract/slots.ts'
 import type { QuestionDraftAnswer, QuestionDraftProgress } from './draft-store.ts'
-import { PlanReviewPanel } from './PlanReviewPanel.tsx'
 import css from './QuestionComposer.module.css'
 
 /**
@@ -100,29 +98,20 @@ function AnswerField(props: AnswerFieldProps) {
  * Session-scoped Slot store, keyed by the pending carrier, so a strict Session
  * entry remount restores the same request without exposing it to another one.
  *
- * One takeover, two presentations: a request that declares a presentation intent this
- * package renders uses that presentation (a plan review is one decision over one
- * plan, not a question set), and every other request takes the generic flow.
- * The routing lives here, at the one entry that owns the composer seat, so
- * neither presentation can claim a request the other is already rendering.
- *
  * @param props - the selector-matched pending question carrier plus the framework standard kit.
- * @returns The question flow, or the intent's own surface, for this request.
+ * @returns The question flow for this request.
  */
 export function QuestionComposer(props: QuestionComposerProps) {
   const question = props.matched
-  const review = useMemo(() => planReviewOf(question.questions), [question])
-  return review === undefined
-    ? (
-      <QuestionFlow
-        key={question.key}
-        pending={question}
-        t={props.t}
-        useStore={props.useStore}
-        actions={props.actions}
-      />
-    )
-    : <PlanReviewPanel key={question.key} pending={question} review={review} t={props.t} renderSlot={props.renderSlot} />
+  return (
+    <QuestionFlow
+      key={question.key}
+      pending={question}
+      t={props.t}
+      useStore={props.useStore}
+      actions={props.actions}
+    />
+  )
 }
 
 type QuestionFlowProps =
