@@ -1,7 +1,5 @@
 # Configure models
 
-English | [中文](providers.zh.md)
-
 This guide assumes the [Merforge desktop app](index.md) is open. Model changes take effect on the next request without restarting the Host.
 
 ## Configure DeepSeek

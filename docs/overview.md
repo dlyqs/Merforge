@@ -1,7 +1,5 @@
 # Current Engineering Overview
 
-English | [中文](overview.zh.md)
-
 This page records the current repository structure for finding code during foundation pruning and later roadmap work. The intended product is in the [product roadmap](../ai-native-work-os-product-roadmap.md); acceptance work is in the [Electron Agent foundation pruning plan](desktop-agent-foundation-pruning-plan.md). The Desktop product is Merforge. The planned personal Bot, organization service, and WorkGraph do not yet exist.
 
 ## Runtime and directories

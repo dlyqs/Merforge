@@ -5,8 +5,6 @@ kind: "package-bundle"
 
 # @deepseek-ai/dsh-base
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The Desktop Host loads `dsh-base` before its application bundle. It supplies model access, agent tools, durable Session history, and workspace safety defaults. Configure optional behavior through the Desktop profile patch; this bundle is a composition layer, not a library import.

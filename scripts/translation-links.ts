@@ -131,7 +131,11 @@ function resolveRepositoryTarget(
   const decoded = decodePath(rawPath)
   const exact = repositoryRelativePath(posix.join(posix.dirname(context.sourcePath), decoded))
   if (exact === undefined) return undefined
-  return repositoryFileExists(context, exact) ? exact : undefined
+  if (repositoryFileExists(context, exact)) return exact
+  if (exact.endsWith('.zh.md')
+    && (exact.startsWith('docs/') || posix.basename(exact) === 'README.zh.md')
+    && repositoryFileExists(context, exact.replace(/\.zh\.md$/, '.md'))) return exact
+  return undefined
 }
 
 function translationPairTarget(targetPath: string, context: TranslationLinkContext): TranslationPairTarget | undefined {

@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-llm-deepseek
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 Stream DeepSeek models through `deepseek-official` using the Messages API. Configure the endpoint, credentials, reasoning, and image handling from Cordis YAML or Web settings. Valid settings changes affect subsequent calls while in-flight calls retain their configuration. This package can run beside the [pi-ai adapter](../llm-pi-ai/README.md).

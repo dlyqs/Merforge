@@ -66,13 +66,13 @@ export function persistenceFormatFactArtifacts(root: string, formats: Persistenc
       const path = language === 'en' ? entry.document : entry.document.replace(/\.md$/u, '.zh.md')
       return replaceRegion(readFileSync(join(root, path), 'utf8'), 'schema', historicalSchema(entry, language), path)
     }
-    artifacts.push(...renderPersistencePair(root, entry.document, render('en'), render('zh')))
+    artifacts.push(...renderPersistencePair(root, entry.document, render('en'), ''))
   }
   const index = 'docs/persistence-changes/historical-formats/README.md'
   const renderIndex = (language: Language): string => {
     const path = language === 'en' ? index : index.replace(/\.md$/u, '.zh.md')
     return replaceRegion(readFileSync(join(root, path), 'utf8'), 'index', formatIndex(formats, language), path)
   }
-  artifacts.push(...renderPersistencePair(root, index, renderIndex('en'), renderIndex('zh')))
+  artifacts.push(...renderPersistencePair(root, index, renderIndex('en'), ''))
   return artifacts
 }

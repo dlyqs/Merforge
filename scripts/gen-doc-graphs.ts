@@ -972,7 +972,6 @@ function renderAppComposition(example: AppExample): string {
   const maintenance = 'hybrid: the patch row list is parsed from its `cordis.yml`; app package expansion is curated from package source'
   const lines = generatedHeader(example.title)
   lines.push(
-    'English | [中文](desktop-composition.zh.md)',
     '',
     example.summary,
     '',

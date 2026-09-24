@@ -302,7 +302,6 @@ describe('translation pairing records', () => {
 
 describe('translation scope discovery', () => {
   it.each([
-    'README.md',
     'CONTRIBUTING.md',
     'CONTRIBUTING.zh.md',
     'CONTRIBUTING.i18n.yaml',
@@ -312,21 +311,21 @@ describe('translation scope discovery', () => {
     'SAFETY.md',
     'SAFETY.zh.md',
     'SAFETY.i18n.yaml',
-    'apps/cli/README.md',
-    'future/subtree/readme.md',
-    'packages/example/README.zh.md',
-    'native/example/README.i18n.yaml',
     '.agents/notes/proposed/feature.md',
-    'docs/guide.md',
-    'python/guide.md',
-    'python/sdk-runtime/README.md',
-    'python/sdk-runtime/src/deepseek_harness_runtime/README.md',
   ])('includes %s', (file) => {
     expect(isTranslationScopeFile(file)).toBe(true)
   })
 
   it.each([
+    'README.md',
     'packages/example/guide.md',
+    'apps/cli/README.md',
+    'future/subtree/readme.md',
+    'packages/example/README.zh.md',
+    'native/example/README.i18n.yaml',
+    'docs/guide.md',
+    'python/guide.md',
+    'python/sdk-runtime/README.md',
     'packages/example/CONTRIBUTING.md',
     'packages/example/BRAND_GUIDELINES.md',
     'other/tutorial.md',

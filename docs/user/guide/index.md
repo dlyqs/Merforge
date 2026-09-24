@@ -1,7 +1,5 @@
 # Use the Desktop app
 
-English | [中文](index.zh.md)
-
 Open the installed Merforge desktop app. A new installation has no selected workspace until you add one.
 
 ## Configure a model

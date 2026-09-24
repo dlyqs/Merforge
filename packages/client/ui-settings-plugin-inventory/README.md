@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-settings-plugin-inventory
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The **Plugin list** tab lets Web users inspect plugins without changing their configuration. It lists agent presets, then the global inventory; both start collapsed and open on demand or during a search. Cards show localized titles and descriptions when available, identify instances by stable entry id, and expose enablement, source details, runtime status, disabled conditions, and discovery failures; preset-provided global entries name their presets. Search covers both groups and points to matches in other presets. The tab handles loading, empty, no-match, failure, and retry states without exposing transport details, and still shows the global inventory without a preset roster.

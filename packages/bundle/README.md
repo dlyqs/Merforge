@@ -5,8 +5,6 @@ kind: "package-group"
 
 # bundle/ — Desktop profile bundles
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The Desktop Host composes `base` and `web-app` through its private `desktop` profile. Both bundles declare their patch files in package metadata; app-boot stacks their rows before profile and Host patches.

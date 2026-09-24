@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { basename, dirname, relative, resolve, sep } from 'node:path'
 import type { Nodes } from 'mdast'
 import { markdownHeadingLines, parseMarkdown, visitMarkdown } from './markdown.ts'
 import { isArchivedAgentNotePath, uniqueRepoFiles } from './repo-files.ts'
@@ -176,7 +176,7 @@ export function findViolations(
   anchorsOf: (abs: string) => Set<string>,
   scanRoot: string = root,
 ): Violation[] {
-  const file = relative(scanRoot, absPath)
+  const file = relative(scanRoot, absPath).split(sep).join('/')
   const dir = dirname(absPath)
   const source = readFileSync(absPath, 'utf8')
   const tree = parseMarkdown(source)
@@ -187,6 +187,11 @@ export function findViolations(
     const target = pathPart(url)
     const resolved = target === '' ? absPath : resolve(dir, target)
     if (!existsSync(resolved)) {
+      // Agent Notes are frozen by user request; their old locale links remain historical.
+      const retiredTranslation = resolved.endsWith('.zh.md')
+        && (relative(scanRoot, resolved).split(sep).join('/').startsWith('docs/') || basename(resolved) === 'README.zh.md')
+        && existsSync(resolved.replace(/\.zh\.md$/, '.md'))
+      if (file.startsWith('.agents/notes/') && retiredTranslation) return
       out.push({ file, line: node.position?.start.line ?? 0, url, reason: 'target' })
       return
     }

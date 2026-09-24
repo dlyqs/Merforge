@@ -5,8 +5,6 @@ kind: "package-group"
 
 # host/ — web-GUI host half
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The `host/` group provides the Desktop GUI's authenticated HTTP server, built Client assets, and workspace-directory picking providers. The browser transport lives in [`client/`](../client/README.md); the [Desktop Host](../../apps/desktop-host/src/index.ts) boots the [`dsh-base` bundle](../bundle/base/cordis.patch.yml) and serves the internal frontend under `apps/web/`. Picker backends can replace one another behind the shared service.

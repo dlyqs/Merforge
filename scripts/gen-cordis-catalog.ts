@@ -1165,7 +1165,7 @@ export function computeOutputs(): [string, string][] {
       events.filter(e => EVENT_SCOPE_PAGE[e.scope] === page),
       CORDIS_CATALOG_POLICY,
     )
-    for (const side of [page, page.replace(/\.md$/, '.zh.md')]) {
+    for (const side of [page]) {
       const rel = `${SUBSYSTEMS_DIR}/${side}`
       const localizedRegion = localizePageRegion(region, rel)
       let current: string
@@ -1274,7 +1274,6 @@ export function main(): void {
     }
   }
   let changedPages = 0
-  let recorded = 0
   for (const [out, content] of outputs) {
     const destination = resolve(root, out)
     if (before.get(out)?.toString('utf8') === content) continue
@@ -1282,16 +1281,7 @@ export function main(): void {
     writeFileSync(destination, content)
     changedPages++
   }
-  for (const page of [...new Set([...Object.values(SERVICE_PAGE), ...Object.values(EVENT_SCOPE_PAGE)])]) {
-    const rel = `${SUBSYSTEMS_DIR}/${page}`
-    const zhRel = rel.replace(/\.md$/, '.zh.md')
-    const wroteEither = [rel, zhRel].some((side) => {
-      const previous = before.get(side)
-      return previous !== undefined && previous.toString('utf8') !== readFileSync(resolve(root, side), 'utf8')
-    })
-    if (wroteEither && maybeRecordPair(rel, before)) recorded++
-  }
-  console.log(`gen-cordis-catalog: ${outputs.length} artifact(s) computed, ${changedPages} written, ${recorded} pair record(s) refreshed.`)
+  console.log(`gen-cordis-catalog: ${outputs.length} artifact(s) computed, ${changedPages} written.`)
 }
 
 if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {

@@ -5,8 +5,6 @@ kind: "package-bundle"
 
 # @deepseek-ai/dsh-web-app
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The Desktop Host loads `dsh-web-app` after `dsh-base`. This bundle supplies authenticated local frontend transport, Client modules, and per-Session Agent presets. The Electron window consumes those assets; users configure the installed app through its Desktop profile.

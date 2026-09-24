@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-settings-account
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 Desktop Account settings display DeepSeek login state and offer browser authorization and cancellation; the sidebar account menu provides Platform sign-out.

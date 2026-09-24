@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-deepseek-account-platform
 
-English | [中文](README.zh.md)
-
 New attempts map the caller’s UI language to Platform en_US or zh_CN; active attempts retain their initial language.
 
 getPlatformSession exports the stored grant only when its issuer matches platformOrigin. This Host-only operation supports native Platform embedding without widening the model/file origin configured for resolveToken.

@@ -82,10 +82,9 @@ export interface PersistenceChangeProse {
   readonly verification: string
 }
 
-/** Explicit bilingual prose; the CLI supplies no compatibility or validation claims. */
+/** Explicit English prose; the CLI supplies no compatibility or validation claims. */
 export interface PersistenceChangeProsePair {
   readonly en: PersistenceChangeProse
-  readonly zh: PersistenceChangeProse
 }
 
 interface ReportedChange extends PersistenceTypeChange {
@@ -641,13 +640,6 @@ function readPersistenceEntries(root: string, allowIncompleteId?: string): Persi
     const snapshotName = `${change.id}.schema.json`
     if (!snapshots.delete(snapshotName)) throw new Error(`${filename}: missing schema snapshot ${snapshotName}`)
     const snapshot = parsePersistenceSnapshot(JSON.parse(readFileSync(join(directory, snapshotName), 'utf8')))
-    const translatedName = `${change.id}.zh.md`
-    if (!files.includes(translatedName)) throw new Error(`${filename}: missing Chinese counterpart`)
-    const translated = readFileSync(join(directory, translatedName), 'utf8').replaceAll('\r\n', '\n')
-    const englishBlock = source.match(/^```yaml persistence-change[^\S\n]*\n([\s\S]*?)^```[^\S\n]*$/mu)?.[1]
-    const chineseBlocks = [...translated.matchAll(/^```yaml persistence-change[^\S\n]*\n([\s\S]*?)^```[^\S\n]*$/gmu)]
-    if (chineseBlocks.length !== 1 || chineseBlocks[0]?.[1] !== englishBlock) throw new Error(`${filename}: bilingual machine records differ`)
-    if (!allowIncomplete && (translated.includes(EXPLANATION_PLACEHOLDER) || translated.includes(EVIDENCE_PLACEHOLDER))) throw new Error(`${translatedName}: complete compatibility and verification prose`)
     return { record: change, snapshot }
   })
   if (snapshots.size !== 0) throw new Error(`unreferenced persistence schema snapshot: ${[...snapshots].join(', ')}`)
@@ -746,7 +738,7 @@ function scaffold(change: PersistenceChangeRecord, chinese: boolean, prose?: Per
   const compatibility = chinese ? '兼容性' : 'Compatibility'
   const verification = chinese ? '验证' : 'Verification'
   return ['---', `description: ${JSON.stringify(chinese ? '记录持久化类型更改及其兼容性确认。' : 'Records a persistence type transition and its compatibility acknowledgement.')}`, 'kind: persistence-change', '---', '',
-    `# ${change.id}`, '', chinese ? `[English](${change.id}.md) | 中文` : `English | [中文](${change.id}.zh.md)`, '',
+    `# ${change.id}`, '', ...(chinese ? [`[English](${change.id}.md) | 中文`, ''] : []),
     `## ${summary}`, '', prose?.summary ?? EXPLANATION_PLACEHOLDER, '', '## ' + (chinese ? '目录' : 'Table of Contents'), '',
     `- [${chinese ? '声明' : 'Declaration'}](#declaration)`, `- [${compatibility}](#compatibility)`, `- [${verification}](#verification)`, `- [${chinese ? '开发备注' : 'Dev Note'}](#dev-note)`, '',
     '<a id="declaration"></a>', `## ${chinese ? '声明' : 'Declaration'}`, '', machineBlock(change), '',
@@ -756,12 +748,12 @@ function scaffold(change: PersistenceChangeRecord, chinese: boolean, prose?: Per
 
 /** Parse explicit authored prose without supplying compatibility or validation claims.
  * @param value - decoded JSON supplied through --prose.
- * @returns complete English and Chinese section text.
+ * @returns complete English section text.
  */
 export function parsePersistenceProse(value: unknown): PersistenceChangeProsePair {
   const pair = record(value, 'persistence prose')
-  keys(pair, ['en', 'zh'], 'persistence prose')
-  for (const locale of ['en', 'zh']) {
+  keys(pair, ['en'], 'persistence prose', ['zh'])
+  for (const locale of ['en']) {
     const sections = record(pair[locale], `persistence prose ${locale}`)
     keys(sections, ['summary', 'compatibility', 'verification'], `persistence prose ${locale}`)
     for (const [name, value] of Object.entries(sections)) {
@@ -851,17 +843,11 @@ function executeCommand(
   })) }
   const snapshot: PersistenceSchemaInventory = { formatVersion: current.formatVersion, roots, types: [] }
   validatePersistenceHistory([...prior, { record: change, snapshot }])
-  const document = (chinese: boolean): string => {
-    const supplied = chinese ? prose?.zh : prose?.en
-    return existing === undefined ? scaffold(change, chinese, supplied)
-      : updateDocument(readFileSync(join(directory, `${id}${chinese ? '.zh' : ''}.md`), 'utf8'), change, chinese, supplied)
-  }
-  const english = document(false)
-  const chinese = document(true)
+  const english = existing === undefined ? scaffold(change, false, prose?.en)
+    : updateDocument(readFileSync(join(directory, `${id}.md`), 'utf8'), change, false, prose?.en)
   parseDocument(english, `${id}.md`, prose === undefined && existing === undefined)
-  parseDocument(chinese, `${id}.md`, prose === undefined && existing === undefined)
   const recordFiles = [
-    ...renderPersistencePair(root, `${HISTORY_DIRECTORY}/${id}.md`, english, chinese),
+    ...renderPersistencePair(root, `${HISTORY_DIRECTORY}/${id}.md`, english, ''),
     { path: `${HISTORY_DIRECTORY}/${id}.schema.json`, content: JSON.stringify(snapshot, null, 2) + '\n' },
   ]
   if (!update && recordFiles.some(file => existsSync(join(root, file.path)))) throw new Error(`${id}: acknowledgement file already exists`)
@@ -869,11 +855,11 @@ function executeCommand(
   for (const file of outputs) mkdirSync(resolve(root, file.path, '..'), { recursive: true })
   for (const file of outputs) writeFileSync(resolve(root, file.path), file.content, { flag: recordFiles.includes(file) && !update ? 'wx' : 'w' })
   const completion = baseline
-    ? 'Complete both record documents and refresh their translation pairing.'
+    ? 'Complete the record document.'
     : `Complete the compatibility and verification prose with --update ${id} --prose FILE.`
   const message = existing === undefined && prose === undefined
-    ? `Created ${HISTORY_DIRECTORY}/${id}.md and paired schema files. ${completion}`
-    : `${update ? 'Updated' : 'Created'} ${HISTORY_DIRECTORY}/${id}.md; schema artifacts and bilingual pairing are current.`
+    ? `Created ${HISTORY_DIRECTORY}/${id}.md and its schema file. ${completion}`
+    : `${update ? 'Updated' : 'Created'} ${HISTORY_DIRECTORY}/${id}.md; schema artifacts are current.`
   return { schemaVersion: 1, ok: true, operation, recordId: id, message,
     changes: differences,
     roots: rootTransitions(history, current), files: outputs.map(file => file.path) }

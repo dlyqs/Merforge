@@ -1,7 +1,5 @@
 # Translation rules
 
-English | [中文](translation-rules.zh.md)
-
 How to translate between the two sides of a documentation pair in this repo. Both languages carry equal authority ([README.md](README.md)): a change is authored in either language, and that side is the source for that update — these rules govern producing or updating the counterpart. They bind humans and agents equally. Routine agent work translates the changed content directly in one terminology-guided pass; the extended [.agents/skills/dsh-translate-docs](../../.agents/skills/dsh-translate-docs/SKILL.md) workflow runs only when the user explicitly invokes it. Rule levels follow RFC 2119 usage: **MUST** / **MUST NOT** are gate- or review-blocking; **SHOULD** needs a stated reason to deviate; **MAY** is discretionary.
 
 ## Faithfulness
@@ -28,7 +26,7 @@ The pairing gate checks heading depths, fenced code blocks, table row and column
 - tables (same columns, same row order; header cells translated per terminology),
 - fenced code blocks — **byte-identical, including comments**; the pairing signature compares their info strings and contents, and ` ```ts ` blocks compile under `doc-typecheck`,
 - inline code spans (commands, flags, config keys, file paths, event names, API names, version numbers) — verbatim, never translated or reformatted,
-- links and anchors: every relative document link MUST keep the same semantic target and exact query/fragment suffix. When the target belongs to the active bilingual corpus, the English side uses its `.md` path and the Chinese side uses its `.zh.md` path; a missing counterpart in that corpus is an error, while targets outside it keep the original path. External URLs, images, and pure in-page fragments stay unchanged. The language switcher remains the explicit cross-locale exception, and a README rendered outside GitHub MAY use the canonical public repository URL to its exact counterpart as documented in [README.md](README.md). Link TEXT is translated.
+- links and anchors: every relative document link MUST keep the same semantic target and exact query/fragment suffix. When the target belongs to the active bilingual corpus, the English side uses its `.md` path and the Chinese side uses its `.zh.md` path; a missing counterpart in that corpus is an error, while targets outside it keep the original path. External URLs, images, and pure in-page fragments stay unchanged. The language switcher remains the explicit cross-locale exception. Link TEXT is translated.
 
 The repo's Markdown conventions apply to `.zh.md` files unchanged: one physical line per paragraph (`verify-md-wrap`), resolving relative links (`verify-md-links`), exactly one trailing newline.
 

@@ -106,6 +106,15 @@ describe('documentAnchors', () => {
 })
 
 describe('findViolations fragments', () => {
+  it('keeps checking notes while accepting links to retired Chinese docs with an English source', () => {
+    const root = layout({
+      '.agents/notes/implemented/example.zh.md': '[old](../../../docs/guide.zh.md) [missing](../../../docs/gone.zh.md)\n',
+      'docs/guide.md': '# Guide\n',
+    })
+    expect(violationsIn(root, '.agents/notes/implemented/example.zh.md'))
+      .toEqual([{ url: '../../../docs/gone.zh.md', reason: 'target' }])
+  })
+
   it('accepts resolving same-file and cross-file fragments, non-md fragments, and externals', () => {
     const root = layout({
       'a.md': '# A\n\n## Deferred work\n\n[self](#deferred-work) [b](b.md#part-two) [code](x.ts#L10) [ext](https://x.example/#frag)\n',

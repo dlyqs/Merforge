@@ -1,8 +1,6 @@
 # Electron Agent Development Foundation Pruning Plan
 
-English | [中文](desktop-agent-foundation-pruning-plan.zh.md)
-
-This plan cleans the development foundation before the [product roadmap](../ai-native-work-os-product-roadmap.md). On a later “continue” or “execute Phase X”, read this file and its Chinese counterpart first, then use the single phase status table. This plan covers foundation pruning only; it does not implement the roadmap's Bot, organization service, or WorkGraph.
+This plan cleans the development foundation before the [product roadmap](../ai-native-work-os-product-roadmap.md). On a later “continue” or “execute Phase X”, read this file first, then use the single phase status table. This plan covers foundation pruning only; it does not implement the roadmap's Bot, organization service, or WorkGraph.
 
 ## Goal and feasibility
 

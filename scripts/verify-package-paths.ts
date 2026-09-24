@@ -6,7 +6,7 @@
  */
 
 import { existsSync, globSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { historicalSchemaRegion } from './historical-schema-region.ts'
 import {
@@ -84,13 +84,18 @@ function isDriftedPackageReference(repoRoot: string, packageNames: ReadonlySet<s
  * @returns missing references naming a live package, with original source line numbers.
  */
 export function findPackagePathViolations(repoRoot: string, absPath: string, packageNames: ReadonlySet<string>): Violation[] {
+  const source = relative(repoRoot, absPath).split(sep).join('/')
   return findReferenceViolations(
     repoRoot,
     absPath,
     PKG_REF,
     // Remove trailing separators or sentence punctuation matched greedily.
     ref => ref.replace(/[./]+$/, ''),
-    ref => isDriftedPackageReference(repoRoot, packageNames, ref),
+    (ref) => {
+      if (source.startsWith('.agents/notes/') && ref.endsWith('/README.zh.md')
+        && existsSync(resolve(repoRoot, ref.replace(/\.zh\.md$/, '.md')))) return false
+      return isDriftedPackageReference(repoRoot, packageNames, ref)
+    },
     historicalSchemaRegion,
   )
 }

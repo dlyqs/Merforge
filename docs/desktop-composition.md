@@ -3,7 +3,6 @@
 
 # Desktop Composition
 
-English | [中文](desktop-composition.zh.md)
 
 The Desktop Host patch owns product restrictions and optional browser and computer-use providers after the base and web-app bundles load.
 
