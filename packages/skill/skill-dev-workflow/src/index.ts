@@ -19,6 +19,10 @@ const candidate: SkillCandidate = {
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
+    /** Exact selected-task definition, owner, evidence and authorization in model history. */
+    'personal-workflow-execution': { kind: 'personal-workflow-execution' }
+    /** Authorized continuation of the same selected task. */
+    'personal-workflow-continue': { kind: 'personal-workflow-continue' }
     /** Mode and managed method recorded by the ordinary user-message pipeline. */
     'personal-workflow-method': { kind: 'personal-workflow-method'; modeRevision: number; methodVersion: number }
   }
@@ -38,9 +42,13 @@ export function apply(ctx: Context): void {
     list: () => Promise.resolve([candidate]),
     get: async () => ({ ...candidate, content: await readFile(bodyURL, 'utf8') }),
   }))
+  installExecution(ctx)
   ctx.on('agent/created', ({ agent }) => {
     agent.ctx.inject(['tools'], (scoped) => {
       scoped.tools.filterVisible((tool) => {
+        if (ctx.personalWorkflow.execution.forSession(agent.session.id) !== null
+          && ctx.personalWorkflow.execution.limits.blockedTools.includes(tool)) return false
+        if (tool === 'workflow_complete') return ctx.personalWorkflow.execution.forSession(agent.session.id)?.sessionId === agent.session.id
         if (tool !== 'workflow_assess' && tool !== 'workflow_propose') return true
         return ctx.personalWorkflow.selectedMode(agent.session).enabled
           && ctx.personalProjects.allowsSkill(agent.session, 'dev-workflow')
@@ -50,7 +58,10 @@ export function apply(ctx: Context): void {
   ctx.on('agent/pre-step', async ({ agent, signal }, next) => {
     const decision = await next()
     if (decision.kind === 'reject') return decision
-    if (!decision.messages.some(message => message.source.kind === 'user')) return decision
+    await ctx.personalWorkflow.execution.checkAccess(agent.session)
+    if (!decision.messages.some(message => message.source.kind === 'user' || message.source.kind === 'personal-workflow-continue')) return decision
+    const execution = await ctx.personalWorkflow.execution.enterTurn(agent.session)
+    if (execution !== null) return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'personal-workflow-execution' }, content: [{ type: 'text', text: execution }] })] }
     const mode = await ctx.personalWorkflow.mode(agent.session)
     if (!mode.enabled && mode.revision === 0) return decision
     signal.throwIfAborted()
@@ -119,5 +130,56 @@ export function apply(ctx: Context): void {
       return JSON.stringify(await ctx.personalWorkflow.propose(exec.agent.session, modeRevision, proposal))
     },
     presentCall(args) { return { card: 'generic', title: 'Propose task plan', kind: 'edit', rawInput: JSON.stringify(args.definition) } },
+  }))
+}
+
+function installExecution(ctx: Context): void {
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (status !== 'idle') return
+    void ctx.personalWorkflow.execution.interrupt(agent.session).catch(() => {
+      ctx.logger.warn(`personal-workflow sessionId=${agent.session.id} decisionCode=idle-reconciliation result=failed`)
+    })
+  })
+  ctx.on('tools/pre-execute', async (exec, next) => {
+    const decision = await next()
+    if (exec.agent !== undefined) await ctx.personalWorkflow.execution.checkAccess(exec.agent.session)
+    return decision
+  })
+  ctx.tools.guard(exec => exec.agent === undefined ? undefined : ctx.personalWorkflow.execution.denial(exec.agent.session, exec.name))
+  ctx.on('tools/execute', async (exec, next) => {
+    if (exec.agent === undefined || exec.name === 'workflow_complete') return next()
+    const runId = await ctx.personalWorkflow.execution.beginAction(exec.agent.session, exec.callId, exec.name)
+    if (runId === null) return next()
+    let succeeded = false
+    try {
+      const denial = ctx.personalWorkflow.execution.denial(exec.agent.session, exec.name)
+      if (denial !== undefined) throw new Error(denial)
+      const result = await next()
+      succeeded = !result.isError
+      return result
+    } finally { await ctx.personalWorkflow.execution.settleAction(runId, exec.callId, succeeded) }
+  })
+  ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
+    if (await ctx.personalWorkflow.execution.endTurn(agent.session)) {
+      signal.throwIfAborted()
+      agent.steer(createUserMessage({ source: { kind: 'personal-workflow-continue' }, content: [{ type: 'text', text: 'Continue only the selected task within its remaining authorization. Verify acceptance and record evidence with workflow_complete; do not select or start another task.' }] }))
+    }
+  })
+  ctx.tools.register(defineTool({
+    name: 'workflow_complete',
+    description: 'Finish only the selected task after checking every acceptance criterion. Supply actual successful tool call IDs and one verification result per criterion. The host independently reads declared artifacts and refuses missing files or unresolved actions.',
+    parameters: {
+      summary: { type: 'string', required: true },
+      acceptance: { type: 'array', items: { type: 'string' }, required: true },
+      callIds: { type: 'array', items: { type: 'string' }, required: true },
+    },
+    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+    async execute(args, exec) {
+      if (exec.agent === undefined) throw new Error('workflow_complete requires an execution conversation')
+      const result = await ctx.personalWorkflow.execution.complete(exec.agent.session, args)
+      exec.concludeTurn()
+      return JSON.stringify(result)
+    },
+    presentCall(args) { return { card: 'generic', title: 'Verify task completion', kind: 'read', rawInput: args.summary } },
   }))
 }

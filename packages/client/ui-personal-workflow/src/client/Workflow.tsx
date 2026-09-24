@@ -149,9 +149,16 @@ export function Workflow(props: WorkflowProps) {
                 <input type="checkbox" checked={task.dependsOn.includes(item.id)} onChange={(event) => { update({ dependsOn: event.target.checked ? [...task.dependsOn, item.id] : task.dependsOn.filter(id => id !== item.id) }) }} />{item.goal}
               </label>)}</fieldset>
             </fieldset>}
-            <p>{t('noEvidence')}</p>
+            {(view.runs ?? []).filter(run => run.taskId === task.id).map(run => <div key={run.id}>
+              <p>{t('revision', { revision: run.planRevision })} · {t(run.status)}</p>
+              {run.evidence.map((evidence, index) => <div key={index}><p>{evidence.summary}</p>
+                <ul>{evidence.files.map(file => <li key={file.path}>{file.path}: {file.sha256}</li>)}</ul>
+              </div>)}
+            </div>)}
+            {!(view.runs ?? []).some(run => run.taskId === task.id && run.evidence.length) && <p>{t('noEvidence')}</p>}
             {overlappingArtifacts(definition.tasks, task).length > 0 && <p>{t('overlap', { paths: overlappingArtifacts(definition.tasks, task).join(', ') })}</p>}
             <h4>{t('sessions')}</h4>
+            {(view.runs ?? []).filter(run => run.taskId === task.id).flatMap(run => run.sessions).map(id => <Button key={id} variant="ghost" onClick={() => { props.openSession(id) }}>{sessions.byId[id]?.displayTitle ?? id}</Button>)}
             {view.snapshot.sessionId === null ? <p>{t('noSessions')}</p> : <Button variant="ghost" onClick={() => {
               if (view.snapshot.sessionId !== null) props.openSession(view.snapshot.sessionId)
             }}>{sessions.byId[view.snapshot.sessionId]?.displayTitle ?? view.snapshot.sessionId}</Button>}

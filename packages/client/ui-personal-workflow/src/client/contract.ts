@@ -32,3 +32,17 @@ export interface ModeActions {
 }
 /** Composer mode toggle with the standard Session binding. */
 export type ModeProps = PropsRuntime<'conversation.input.left'> & PropsLocale<'personalWorkflow'> & ModeActions
+
+/** Explicit execution controls exposed only through user actions. */
+export interface ExecutionActions {
+  candidates(sessionId: SessionId): Promise<PlanView[]>
+  readRun(sessionId: SessionId): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun | null>
+  limits(): Promise<{ maxActions: number; maxTurns: number; maxDurationMs: number }>
+  claim(request: import('@deepseek-ai/dsh-personal-workflow/types').ClaimTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
+  stop(request: import('@deepseek-ai/dsh-personal-workflow/types').ControlTaskRequest, cancel: boolean): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
+  resume(request: import('@deepseek-ai/dsh-personal-workflow/types').ResumeTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
+  handoff(request: import('@deepseek-ai/dsh-personal-workflow/types').HandoffTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
+  openSession(id: SessionId): void
+}
+/** Composer execution selector and owner controls. */
+export type ExecutionProps = PropsRuntime<'conversation.input.left'> & PropsLocale<'personalWorkflow'> & ExecutionActions

@@ -66,9 +66,9 @@
 | Phase 2 | 任务数据与持久计划 | 实现任务结构、版本、审核及读写接口 | completed | `personal-workflow`、Session Remote、持久化与测试 | Phase 3 可开始；既有全仓门禁问题见实际完成 |
 | Phase 3 | 基础任务可视化 | 查看/修改/审核任务树及并列分支 | completed | `ui-personal-workflow`、双入口、审核/修改/导出 | 可见验收待用户检查 |
 | Phase 4 | 内置任务增强模式 | 简单目标透传，复杂目标生成结构化计划 | completed | `skill-dev-workflow`、模式开关、评估/提案工具及持久日志 | 作者授权已记录；可见/真实模型验收待定 |
-| Phase 5 | 子任务对话与执行 | 用户绑定对话、并行执行与进度汇总 | pending | — | 依赖 4 |
-| Phase 6 | 同机接力与恢复 | 子任务跨会话接管及重启核对 | pending | — | 依赖 5 |
-| Phase 7 | 集成验证与收尾 | 验证拆分、并行对话、依赖汇合与接力 | pending | — | 依赖 6 |
+| Phase 5 | 子任务对话与执行 | 用户绑定对话、并行执行与进度汇总 | completed | TaskRun、领取/控制 Remote、工具约束、证据及输入框选择器 | 可见验收待用户检查 |
+| Phase 6 | 同机接力与恢复 | 子任务跨会话接管及重启核对 | completed | 持久交接、接收者幂等创建、所有权转移、恢复与故障测试 | 构建与产物测试通过；可见验收待用户检查 |
+| Phase 7 | 集成验证与收尾 | 验证拆分、并行对话、依赖汇合与接力 | completed | Desktop Host 无页面组合测试、验收剧本及文档同步 | 实现与自动化完成；可见/真实模型验收待定 |
 
 ## Phase 1：Task 架构与交互设计
 
@@ -166,17 +166,24 @@
 预期输出：TaskSession/Run、任务领取服务、上下文加载、执行 guard、控制 API、证据记录，以及 Client 输入框下拉/“＋”任务选择器和返回关联对话入口。
 
 验收清单：
-- [ ] 在输入框下拉菜单或“＋”菜单提供任务选择器（具体载体沿用现有组件定稿）；按 Phase 1 状态映射只列可执行候选，未就绪/占用/终态等不可执行任务不暴露为可选项。选择后加载目标、必要背景、确切计划版本、验收及前置产物，不复制任务实体。
-- [ ] 不同就绪子任务可由用户分别开启对话同时执行；同一子任务重复领取被拒绝或引导到当前对话，其他任务不受全局执行锁阻塞。
-- [ ] 前置未完成的任务可在任务视图查看，但不出现在输入框的可执行候选中；全部必要前置完成后才出现。两个选择器同时展示同一任务时，Host 原子领取仅允许一个成功，失败端刷新候选并反馈原因。
-- [ ] manual/auto/auto_until 只控制用户所选任务内的获准阶段，到界停止；不自动选择下一任务、领取子任务、派生 Agent 或创建对话。可执行列表更新不触发执行。
-- [ ] 工具入口核对批准、版本、任务执行者和现有权限；取消阻止新增动作，其他子任务可继续；在途结果分别记录。
-- [ ] 证据与产物归属具体 Task/Run；父任务还需自身验收/集成证据，不能因所有对话 idle 就完成。显示工作目录与声明的产物重叠，不声称自动隔离或合并文件。
-- [ ] 无目录时先明确执行目录；阶段数/时长/预算等 tunable 通过 Config 校验，不因多对话重复获得同一授权预算。
+- [x] 在输入框下拉菜单或“＋”菜单提供任务选择器（具体载体沿用现有组件定稿）；按 Phase 1 状态映射只列可执行候选，未就绪/占用/终态等不可执行任务不暴露为可选项。选择后加载目标、必要背景、确切计划版本、验收及前置产物，不复制任务实体。
+- [x] 不同就绪子任务可由用户分别开启对话同时执行；同一子任务重复领取被拒绝或引导到当前对话，其他任务不受全局执行锁阻塞。
+- [x] 前置未完成的任务可在任务视图查看，但不出现在输入框的可执行候选中；全部必要前置完成后才出现。两个选择器同时展示同一任务时，Host 原子领取仅允许一个成功，失败端刷新候选并反馈原因。
+- [x] manual/auto/auto_until 只控制用户所选任务内的获准阶段，到界停止；不自动选择下一任务、领取子任务、派生 Agent 或创建对话。可执行列表更新不触发执行。
+- [x] 工具入口核对批准、版本、任务执行者和现有权限；取消阻止新增动作，其他子任务可继续；在途结果分别记录。
+- [x] 证据与产物归属具体 Task/Run；父任务还需自身验收/集成证据，不能因所有对话 idle 就完成。显示工作目录与声明的产物重叠，不声称自动隔离或合并文件。
+- [x] 无目录时先明确执行目录；阶段数/时长/预算等 tunable 通过 Config 校验，不因多对话重复获得同一授权预算。
 
 助理验证：真实工具路径和两 Session 确定性夹具，验证任务状态与候选可见性映射、候选失效竞态、不同子任务执行区间重叠、重复领取拒绝、依赖阻塞/释放、汇合、取消隔离和停止边界；读取真实产物而非模型自述。用户检查：在两个新对话的输入框下拉/“＋”中分别选择独立子任务并运行，确认不可执行任务不出现在候选中；前置完成后汇合任务出现，由用户另行选择执行。依赖：Phase 4。
 
-实际完成：尚未开始；执行后填写。
+实际完成：2026-09-25。
+
+- `personal-workflow` 在单计划聚合内保存 TaskRun、执行会话历史、动作、证据与幂等回执；同一任务只允许一个执行者，队列仅覆盖短时事务，不持有执行期全局锁。`session-controller` 提供候选、领取、限制、状态、暂停、取消与恢复 Remote；模型没有这些用户授权入口。
+- `skill-dev-workflow` 在真实工具流水线重新核对批准/版本/归属/目录/许可，持久记录动作后才派发。当前任务的准确计划、前置证据和执行范围通过 `personal-workflow-execution` 消息进入 Session 历史。`workflow_complete` 只接受已成功且写入日志的动作，并实际读取声明文件；未知动作、缺失产物或验收项未覆盖不能完成。父任务仍需独立证据。
+- 输入框使用现有 `conversation.input.left` 承载任务下拉和授权弹窗。候选只显示就绪任务，领取失败刷新候选；manual 默认，每轮暂停；auto/auto_until 只继续所选 Task，使用其唯一 phaseId 作为停止边界。动作数、推进轮次、总时长与文件读取上限均由 Config 控制，Client 读取 Host 上限。绑定不发送消息。
+- 任务详情显示真实执行进度、证据和历史对话。工作目录采用真实路径比较，避免 macOS `/var` 与 `/private/var` 别名误判。已声明的共享产物仍由用户协调；没有自动隔离、合并或跨任务调度。
+- 验证：相关 Host/Client `tsc -b` 通过；聚焦 Vitest 46 项通过（覆盖工作流、Skill、Session Remote、Client 纯交互；其中包含为后续接力已编写的故障用例）。真实 AgentLoop + Loader 测试证实并列任务工具执行区间重叠、产物可读取、汇合任务释放及自动推进到预算停止。局部 lint 最终收尾和完整构建与 Phase 6 一并执行。
+- 未启动页面、浏览器、Playwright、GitNexus 或 subagent。Desktop 可见验收由用户完成。按用户“请自动完成 phase5-6”授权继续 Phase 6，不进入 Phase 7。
 
 ## Phase 6：同机接力与恢复
 
@@ -185,15 +192,24 @@
 预期输出：Handoff 持久记录、任务级所有权转移、Session 创建与上下文注入、恢复服务、Client 接力/恢复入口和故障注入测试。
 
 验收清单：
-- [ ] 交接含 TaskId、计划版本、定义/决定、必要前置产物、代码基线、证据、待办、授权范围及源/目标 Session。
-- [ ] 先持久化交接包，再幂等创建接收 Session；覆盖创建前、创建后未回写、移交后未唤醒崩溃，每个被移交任务最多一个有效执行者。
-- [ ] 核对版本、工作区和许可；旧执行者的在途动作收敛后移交，新增动作被拒绝。其他子任务的有效对话不因本任务移交而停止。
-- [ ] 重启不盲目重放未知副作用；关联基线或产物变化无法确认时显示待核对，提供人工恢复入口。
-- [ ] 保留原推进范围、停止位置及预算；重复接力不重复执行，到界后不创建下一条对话，历史证据仍可查。
+- [x] 交接含 TaskId、计划版本、定义/决定、必要前置产物、代码基线、证据、待办、授权范围及源/目标 Session。
+- [x] 先持久化交接包，再幂等创建接收 Session；覆盖创建前、创建后未回写、移交后未唤醒崩溃，每个被移交任务最多一个有效执行者。
+- [x] 核对版本、工作区和许可；旧执行者的在途动作收敛后移交，新增动作被拒绝。其他子任务的有效对话不因本任务移交而停止。
+- [x] 重启不盲目重放未知副作用；关联基线或产物变化无法确认时显示待核对，提供人工恢复入口。
+- [x] 保留原推进范围、停止位置及预算；重复接力不重复执行，到界后不创建下一条对话，历史证据仍可查。
 
 助理验证：真实存储/Session/工具链故障注入，核对所有者与文件效果，覆盖权限收紧、并行兄弟任务和重复恢复。用户检查：将一个子任务接力到新对话、重启并查看任务与对话关系。依赖：Phase 5。建设产品接力不等于启用本次开发任务的新任务自动接力。
 
-实际完成：尚未开始；执行后填写。
+实际完成：2026-09-25。
+
+- `personal-workflow` 的 execution types/schema/service 与 workspace-baseline 保存 TaskId、RunId、计划版本、源/目标 Session、定义快照、上下文/决定/待办、前置证据、授权和原预算。交接包先落盘，接收者身份固定后幂等创建；在途动作收敛后才转移 epoch，旧执行者不能取得新动作许可，兄弟任务所有权不受影响。
+- Session Controller 接入接收者创建和重试；`skill-dev-workflow` 记录可重建的执行输入并约束工具许可、完成证据和自动推进；Client 提供暂停、取消、核对、恢复和接力，重新挂载后可重试已经准备好的交接包。接收对话保持暂停，须显式恢复并发送消息才执行；这是避免未知副作用重放的明确实现选择，不自动唤醒或调度下一任务。
+- 重启将未完成运行标为待核对；未知动作不会重发，也不能充当成功验收证据。核对真实目录、Git HEAD/脏文件和产物指纹，非 Git 工作区要求资料/产物引用；无法归因的变化仅阻止受影响任务。移交保留开始时间、推进范围和计数，到预算边界不预留接收对话。
+- 聚焦验证：`pnpm exec vitest run packages/workspace/personal-workflow/tests packages/skill/skill-dev-workflow/tests packages/api/session-controller/tests/personal-workflow.host.spec.ts packages/client/ui-personal-workflow/tests` 通过 13 个文件、52 项测试。覆盖真实 Loader/AgentLoop 工具执行与产物、并行和汇合、权限收紧、迟到结果、Session 创建失败及重试、移交前后崩溃/重开和预算耗尽。
+- 类型检查：`pnpm exec tsc -b packages/workspace/personal-workflow packages/skill/skill-dev-workflow packages/api/session-controller/tsconfig.host.json packages/client/ui-personal-workflow --pretty false` 通过。对上述三个实现包及 Session Controller 改动文件执行局部 `scripts/run-oxlint.ts --fix`，最终无 lint 问题。
+- 门禁通过：`pnpm run verify-export-jsdoc`、`pnpm run verify-scoped-events`，以及通过 `pnpm exec tsx` 执行的 `scripts/verify-client-ui-i18n.ts`、`scripts/verify-client-packages.ts`、`scripts/verify-package-dependencies.ts`、`scripts/verify-cordis-config.ts`、`scripts/gen-persistence-catalog.ts --check`、`scripts/gen-config-catalog.ts --check`、`scripts/gen-plugin-packages.ts --check`。同步配置/持久化目录、包参考和格式说明；未新增 Session envelope 或 SQLite schema 版本。
+- 最终 `NODE_OPTIONS=--max-old-space-size=8192 pnpm run build` 通过（261 个 Client artifacts，Vite 提示大 chunk）；`node packages/workspace/personal-workflow/tests/built-smoke.mjs` 通过，覆盖真实 Loader、生成 Remote codecs、JSON/JSONL 重开、中断动作恢复、移交 codecs 和打包 Skill。`git diff --check` 通过。
+- 未启动页面、浏览器、Playwright、GitNexus 或 subagent；未执行真实模型 API 验证，Desktop 可见验收仍待用户检查。本期不实现跨设备/worktree 集成或自动任务调度。Phase 5–6 授权范围已完成，恢复 manual，停在 Phase 7 之前；下一建议阶段为 Phase 7，须另行授权。
 
 ## Phase 7：集成验证与文档收尾
 
@@ -202,16 +218,25 @@
 预期输出：`apps/desktop-host/tests` 中无页面真实组合测试、产品验收剧本、package README、`docs/personal-workflow.md`、本计划、overview 与路线图状态更新。
 
 验收清单：
-- [ ] 简单目标在模式关闭/开启时都无需任务树审核即可普通执行；普通 Project/Bot 会话不回归。
-- [ ] 复杂示例：CSV 导出目标澄清后形成“接口约定 → 导出实现与独立测试数据准备两个并列任务 → 集成验收”。树、依赖、阶段和审核版本一致。
-- [ ] 用户给两个并列任务分别开对话，通过输入框下拉/“＋”选择执行；二者可同时运行。集成任务在前置完成前不出现在候选中，完成后出现并由用户选择，不自动启动。将其中一个子任务移交第三条执行对话，旧执行者失效，另一子任务继续。
-- [ ] 到授权阶段终点后停止；独立读取最终文件及运行检查，保留 Task/Run、批准、接力和交付证据，不能以模型声明代替验收。
-- [ ] 覆盖依赖环、未就绪、重复领取、过期批准、重启、重复接力、工作区变化和迟到结果；发布组合构建及 built Host smoke 通过，Skill 无本机路径依赖。
-- [ ] 有独立观察源的运行时不变量接入实际门禁，没有则在 README 说明；真实模型有凭据时按仓库策略检查，无凭据明确未验证。
+- [x] 简单目标在模式关闭/开启时都无需任务树审核即可普通执行；普通 Project/Bot 会话不回归。
+- [x] 复杂示例：CSV 导出目标澄清后形成“接口约定 → 导出实现与独立测试数据准备两个并列任务 → 集成验收”。树、依赖、阶段和审核版本一致。
+- [x] 用户给两个并列任务分别开对话，通过输入框下拉/“＋”选择执行；二者可同时运行。集成任务在前置完成前不出现在候选中，完成后出现并由用户选择，不自动启动。将其中一个子任务移交第三条执行对话，旧执行者失效，另一子任务继续。
+- [x] 到授权阶段终点后停止；独立读取最终文件及运行检查，保留 Task/Run、批准、接力和交付证据，不能以模型声明代替验收。
+- [x] 覆盖依赖环、未就绪、重复领取、过期批准、重启、重复接力、工作区变化和迟到结果；发布组合构建及 built Host smoke 通过，Skill 无本机路径依赖。
+- [x] 有独立观察源的运行时不变量接入实际门禁，没有则在 README 说明；真实模型有凭据时按仓库策略检查，无凭据明确未验证。
 
 助理验证：相关 `pnpm exec vitest run <测试文件>`、face typecheck、局部门禁；发行路径变更后运行 `pnpm run build` 及 built Host smoke。具体命令依已有配置选定，只报告实际执行检查，不默认全仓测试或页面自动化。用户检查：上述模式分流、任务可视化、多对话并行与接力的真实 Desktop 剧本。依赖：Phase 6。缺少外部验收时分别记录实现完成与产品验收待定，不虚报全部通过。
 
-实际完成：尚未开始；执行后填写。
+实际完成：2026-09-25。用户授权“请继续完成 phase7”；本阶段实现、无页面集成验证与文档收尾完成。上列勾选指自动化及工程交付完成，不代表 Desktop 可见验收或真实模型验收通过。
+
+- 新增 `apps/desktop-host/tests/personal-workflow.spec.ts`：测试用 cordis.yml 经真实 Loader 组合服务、个人配置、Skill、AgentLoop、Session Controller/Gateway 和 JSON/JSONL 存储；仅模型响应为确定性适配器。CSV 案例包含三阶段、接口 → 两并列分支 → 集成 → 根交付，串起澄清、模型提案、准确版本审核、Remote 领取、执行区间重叠、兄弟任务在途时移交、重复移交、旧所有者拒绝、用户选择汇合、真实文件证据和存储重开。CSV 导出由独立 Node 子进程执行，再逐字节读回检查转义及换行。两个附加用例覆盖普通 Project/Bot 在模式关闭及简单目标开启时不创建 Task/Run。
+- 修复 `personal-project/tests/loader-composition.spec.ts` 的两条旧夹具：补齐当前要求的真实 JSONL provider 和空工作区列表。首次扩大回归暴露服务未加载，修复后通过；未改变产品行为。
+- 新增 [Desktop 验收剧本](personal-workflow-acceptance.md)，更新三个工作流包 README、领域文档、overview 和产品路线图。测试范围明确为无页面 Host 组件组合，并非完整 Electron 进程启动或真实模型自然语言评估。
+- 聚焦回归：`pnpm exec vitest run apps/desktop-host/tests/personal-workflow.spec.ts packages/workspace/personal-workflow/tests packages/skill/skill-dev-workflow/tests packages/api/session-controller/tests/personal-workflow.host.spec.ts packages/client/ui-personal-workflow/tests packages/workspace/personal-project/tests packages/client/ui-personal/tests` 通过 19 个文件、79 项测试。随后增强三阶段与完成后重开断言，重跑 `pnpm exec vitest run apps/desktop-host/tests/personal-workflow.spec.ts`，3 项通过。`pnpm exec vitest run packages/storage/storage-domain/tests/invariant.spec.ts` 6 项通过，确认持久/缓存独立观察关系的检查会拒绝不一致。
+- 静态检查：`pnpm exec tsc -b apps/desktop-host packages/workspace/personal-workflow packages/skill/skill-dev-workflow packages/api/session-controller/tsconfig.host.json packages/client/ui-personal-workflow --pretty false` 通过。修改的两个测试文件局部 `scripts/run-oxlint.ts` 通过；最终新增测试再次单独 lint 通过。`pnpm run verify-export-jsdoc`、`pnpm run verify-scoped-events`，以及 `pnpm exec tsx` 执行的 `scripts/verify-client-ui-i18n.ts`、`scripts/verify-cordis-config.ts`、`scripts/verify-package-dependencies.ts`、`scripts/gen-persistence-catalog.ts --check` 通过；`git diff --check` 通过。
+- 发行验证：`NODE_OPTIONS=--max-old-space-size=8192 pnpm run build` 通过，记录 261 个 Client artifacts，只有 Vite 大 chunk 提示；`node packages/workspace/personal-workflow/tests/built-smoke.mjs` 通过，覆盖发布 JS、生成 Remote codecs、JSON/JSONL 重开、中断动作恢复、接力及可移植包内 Skill。
+- 不变量：三个工作流包无第二份独立运行副本，README 已说明不发布 companion 的原因；不新增空 installer。`pnpm exec tsx scripts/verify-package-invariants.ts` 仍失败于既有 ui-personal、session-format-catalog、session-format-current、session-format 四份 README 的说明格式，未计为通过，也不以本阶段完成宣称全仓门禁全绿。
+- 待验：环境和根 `.env` 均无 `DEEPSEEK_API_KEY`，未执行真实模型 API；Desktop 可见检查由用户按剧本完成。未启动页面、浏览器、Playwright、GitNexus、subagent 或开发会话接力。产品路线图 Phase 3 的工程实施已完成，产品验收仍待定；未启动组织阶段。当前计划保持 manual，自动边界为 none。
 
 ## 关键路径可观测性
 
@@ -225,8 +250,8 @@ Phase 2 记录任务/依赖校验、计划版本提交、批准与拒绝；Phase
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- 最近授权：2026-09-25 用户明确要求“请自动完成 phase3-4”；Phase 3–4 已完成并到界停止，恢复 manual。未启用 subagent 或开发会话接力。
-- 开发流程 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`。Phase 1–2 和本次 Phase 3–4 的授权及验证记录保留在各阶段实际完成区。当前下一阶段为 Phase 5，须获得后续执行指示；产品中的多对话并行不授权开发使用 subagent。
+- 最近授权：2026-09-25 用户要求“请继续完成 phase7”；仅执行 Phase 7，现已完成工程验证与文档收尾。计划 Phase 1–7 全部实施完成，Desktop 可见/真实模型验收待定；保持 manual，不启动其他产品阶段。未启用 subagent 或开发会话接力。
+- 开发流程 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`。Phase 1–7 的授权及验证记录保留在各阶段实际完成区。本次授权终点为 Phase 7；产品中的多对话并行不授权开发使用 subagent。
 
 1. 首次计划须评审后另行指示开始。执行前读取本文、overview 和相关 AGENTS.md；“执行 Phase X”当次只运行指定阶段，不触发自动后继任务；“继续”先复核 blocked 的解除条件，再选首个 in_progress，否则首个 pending。依赖无法隔离时停止并说明。
 2. manual 完成所选阶段后更新文档、汇报并停止。用户在计划存在后明确连续授权，才可切换 auto 或 auto_until；记录原授权。auto 的两个边界为 none，推进到全部完成或真实阻塞。

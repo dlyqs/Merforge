@@ -6,7 +6,8 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
-import type { WorkflowActions, ModeActions } from './contract.ts'
+import type { WorkflowActions, ModeActions, ExecutionActions } from './contract.ts'
+import { Execution } from './Execution.tsx'
 import { Mode } from './Mode.tsx'
 import { Workflow } from './Workflow.tsx'
 import { en, zh } from './locales.ts'
@@ -41,5 +42,19 @@ export function apply(ctx: Context): void {
       setMode: async request => valueOf(await ctx.remote.session.workflowSetMode(request)),
     }),
   }, Mode))
+
+  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+    name: 'conversation.input.left', id: 'personal-workflow-execution', locale: 'personalWorkflow',
+    inject: (): ExecutionActions => ({
+      candidates: async sessionId => valueOf(await ctx.remote.session.workflowCandidates(sessionId)),
+      readRun: async sessionId => valueOf(await ctx.remote.session.workflowRun(sessionId)),
+      limits: async () => valueOf(await ctx.remote.session.workflowLimits()),
+      claim: async request => valueOf(await ctx.remote.session.workflowClaim(request)),
+      stop: async (request, cancel) => valueOf(await ctx.remote.session.workflowStop(request, cancel)),
+      resume: async request => valueOf(await ctx.remote.session.workflowResume(request)),
+      handoff: async request => valueOf(await ctx.remote.session.workflowHandoff(request)),
+      openSession: (id) => { ctx.uiWorkspace.openSession(id) },
+    }),
+  }, Execution))
 
 }

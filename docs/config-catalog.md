@@ -198,7 +198,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/api/session-controller/src/index.ts:88`](../packages/api/session-controller/src/index.ts)
+Source: [`packages/api/session-controller/src/index.ts:90`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -2069,6 +2069,30 @@ export interface Config {
 
 Source: [`packages/preset/persona/src/index.ts:30`](../packages/preset/persona/src/index.ts)
 
+<a id="deepseek-aidsh-personal-workflow"></a>
+
+## `@deepseek-ai/dsh-personal-workflow`
+
+Requires: `storageDomain` · `sessions` · `sessionPersistence` · `sessionQuery` · `personalProjects` · `sessionProjections`
+
+```ts config-catalog
+/** Deployment ceilings resolved before execution authorization is accepted. */
+export interface Config {
+  /** Maximum tool actions in one attempt, including all handoffs. */
+  maxActions?: number
+  /** Maximum user or automatic progression inputs in one attempt. */
+  maxTurns?: number
+  /** Maximum elapsed milliseconds from initial task claim. */
+  maxDurationMs?: number
+  /** Maximum total bytes read for one workspace observation. */
+  maxEvidenceBytes?: number
+  /** Tool names excluded from selected-task execution; include renamed delegation tools. */
+  blockedTools?: string[]
+}
+```
+
+Source: [`packages/workspace/personal-workflow/src/index.ts:34`](../packages/workspace/personal-workflow/src/index.ts)
+
 <a id="deepseek-aidsh-plugin-manager"></a>
 
 ## `@deepseek-ai/dsh-plugin-manager`
@@ -3006,7 +3030,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:247`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:246`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3934,6 +3958,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-open-in-app` ([`packages/client/ui-open-in-app/src/index.ts`](../packages/client/ui-open-in-app/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-permission-presets` ([`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-personal` ([`packages/client/ui-personal/src/index.ts`](../packages/client/ui-personal/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-personal-workflow` ([`packages/client/ui-personal-workflow/src/index.ts`](../packages/client/ui-personal-workflow/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-renderer` ([`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-schedule` ([`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts))
@@ -3988,6 +4013,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-session-turn-outline` — requires `sessionProjections` ([`packages/session/session-turn-outline/src/index.ts`](../packages/session/session-turn-outline/src/index.ts))
 - `@deepseek-ai/dsh-settings` — requires `configEditor` · `profileContext` ([`packages/settings/settings/src/index.ts`](../packages/settings/settings/src/index.ts))
 - `@deepseek-ai/dsh-skill-badge` — requires `skills` ([`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts))
+- `@deepseek-ai/dsh-skill-dev-workflow` — requires `skills` · `agents` · `tools` · `personalWorkflow` · `personalProjects` ([`packages/skill/skill-dev-workflow/src/index.ts`](../packages/skill/skill-dev-workflow/src/index.ts))
 - `@deepseek-ai/dsh-storage` ([`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts))
 - `@deepseek-ai/dsh-subprocess-local` ([`packages/subprocess/subprocess-local/src/index.ts`](../packages/subprocess/subprocess-local/src/index.ts))
 - `@deepseek-ai/dsh-subprocess-ssh` — requires `ssh` ([`packages/ssh/subprocess-ssh/src/index.ts`](../packages/ssh/subprocess-ssh/src/index.ts))

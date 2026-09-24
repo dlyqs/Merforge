@@ -11,6 +11,7 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime, { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { createScope, scopeTarget } from '@deepseek-ai/dsh-scope'
+import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import Storage from '@deepseek-ai/dsh-storage'
@@ -50,10 +51,11 @@ describe('personal Project product composition', () => {
     ctx.storage.mount('domain', domains)
     ctx.provide('storageDomain', domains)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(Jsonl, { root: join(directory, 'sessions'), compression: 'none' })
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    ctx.provide('workspaceRegistry', { get: () => undefined } as never)
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
     ctx.provide('sessionQuery', { listSessions: async () => [] } as never)
     ctx.provide('agents', { get: () => undefined } as never)
     await ctx.plugin(Loader)
@@ -116,6 +118,7 @@ describe('personal Project product composition', () => {
   })
 
   it('logs each live request with the current personal context and preserves older requests', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'dsh-personal-requests-'))
     const ctx = new Context()
     context = ctx
     await ctx.plugin(Storage)
@@ -125,12 +128,13 @@ describe('personal Project product composition', () => {
     ctx.provide('storageDomain', domains)
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(Jsonl, { root: join(directory, 'sessions'), compression: 'none' })
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(AgentLoop, { agents: [] })
-    ctx.provide('workspaceRegistry', { get: () => undefined } as never)
+    ctx.provide('workspaceRegistry', { get: () => undefined, list: () => [] } as never)
     ctx.provide('sessionQuery', { listSessions: async () => [] } as never)
     await ctx.plugin(PersonalProjectRegistry)
     await ctx.plugin(Runtime)

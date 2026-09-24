@@ -26,7 +26,7 @@ const request = {
   definition: {
     taskId, projectId: null, botId: null, phases: [{ id: phaseId, title: 'Review' }],
     tasks: [{ id: taskId, parentTaskId: null, phaseId, goal: 'Ship', scope: 'Local', acceptance: ['Verify output'],
-      artifacts: [], cwd: null, dependsOn: [], required: true }],
+      artifacts: ['output.txt'], cwd: null, dependsOn: [], required: true }],
   },
 }
 const contexts = []
@@ -55,7 +55,7 @@ try {
   const first = await boot()
   const result = await first.personalWorkflow.save(parsed)
   assert.deepEqual(save.result.create().parse(result), result)
-  const session = first.sessions.create(SessionId('built-workflow'))
+  const session = first.sessions.create(SessionId('built-workflow'), { meta: { cwd: root } })
   const writer = await first.sessionPersistence.create(session.header)
   await first.personalWorkflow.snapshot(session, { taskId }, '20000000-0000-4000-8000-000000000002')
   const modeRemote = TYPERT.invocations.find(row => row.namespace === 'session' && row.method === 'workflowSetMode')
@@ -69,16 +69,53 @@ try {
   assert.ok(!method.content.includes('/Users/'))
   assert.equal(method.invocation.modelInvocable, false)
   assert.ok(first.tools.get('workflow_propose'))
+  const approved = await first.personalWorkflow.approve({ taskId, expectedRevision: 1, operationId: '20000000-0000-4000-8000-000000000004' })
+  const claimRemote = TYPERT.invocations.find(row => row.namespace === 'session' && row.method === 'workflowClaim')
+  assert.ok(claimRemote)
+  const claim = claimRemote.parameters[0].codec.create().parse({
+    sessionId: session.id, planId: taskId, taskId, expectedRevision: 1, operationId: '20000000-0000-4000-8000-000000000005',
+    authorization: { mode: 'manual', stopPhaseId: phaseId, maxActions: 5, maxTurns: 3, maxDurationMs: 100000 },
+  })
+  const run = await first.personalWorkflow.execution.claim(session, claim)
+  assert.deepEqual(claimRemote.result.create().parse(run), run)
+  await first.personalWorkflow.execution.beginAction(session, 'built-action', 'write')
+  await writeFile(join(root, 'output.txt'), 'effect completed before Host exit')
+  assert.ok(first.tools.get('workflow_complete'))
   await writer.close()
   await first.fiber.dispose()
   const second = await boot()
   assert.deepEqual(await second.personalWorkflow.mode(session), { enabled: true, revision: 1 })
-  assert.deepEqual(second.personalWorkflow.read({ taskId }), result)
+  assert.deepEqual(second.personalWorkflow.read({ taskId }), approved)
+  const interrupted = second.personalWorkflow.execution.forSession(session.id)
+  assert.equal(interrupted.status, 'needs_reconciliation')
+  assert.equal(interrupted.actions[0].status, 'unknown')
+  assert.equal(interrupted.authorization.maxActions, 5)
   const reader = await second.sessionPersistence.open(session.id, 'read')
-  assert.deepEqual((await reader.read()).events[0].data.snapshot, result)
+  const saved = await reader.read()
+  assert.deepEqual(saved.events[0].data.snapshot, result)
+  const restored = second.sessions.create(session.id, { seed: saved.events, meta: { cwd: root } })
+  await second.personalWorkflow.execution.resume(restored, {
+    sessionId: session.id, runId: run.id, ownerEpoch: 1, operationId: '20000000-0000-4000-8000-000000000006',
+    reconciliation: 'Inspected the completed file effect; verify it afresh after handoff.',
+  })
+  const handoff = await second.personalWorkflow.execution.prepareHandoff(restored, {
+    sessionId: session.id, runId: run.id, ownerEpoch: 1, operationId: '20000000-0000-4000-8000-000000000007',
+    context: 'Keep the output file; verify acceptance.',
+  })
+  assert.equal(handoff.taskId, taskId)
+  assert.equal(handoff.runId, run.id)
+  const target = second.sessions.create(handoff.targetSessionId, { meta: { cwd: root } })
+  const targetWriter = await second.sessionPersistence.create(target.header)
+  const transferred = await second.personalWorkflow.execution.finishHandoff(target, run.id, handoff.id)
+  const handoffRemote = TYPERT.invocations.find(row => row.namespace === 'session' && row.method === 'workflowHandoff')
+  assert.ok(handoffRemote)
+  assert.deepEqual(handoffRemote.result.create().parse(transferred), transferred)
+  assert.equal(transferred.status, 'paused')
+  assert.equal(second.personalWorkflow.execution.denial(restored), 'execution-owner-revoked')
+  await targetWriter.close()
   await reader.close()
   assert.match(second.personalWorkflow.export({ taskId }), /Revision: 1/)
-  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, JSON and JSONL reopen, mode codec and packaged Skill)')
+  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, JSON and JSONL reopen, mode/execution codecs, interrupted-action recovery, transfer codecs and packaged Skill)')
 } finally {
   for (const ctx of contexts.reverse()) await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

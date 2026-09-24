@@ -59,6 +59,7 @@ it('loads a portable authorized method, preserves off input, records enabled con
     await entry!.fiber!.dispose()
     expect(await ctx.skills.get('dev-workflow')).toBeUndefined()
     expect(ctx.tools.get('workflow_assess')).toBeUndefined()
+    expect(ctx.tools.get('workflow_complete')).toBeUndefined()
   } finally {
     await ctx.fiber.dispose()
     await rm(root, { recursive: true, force: true })

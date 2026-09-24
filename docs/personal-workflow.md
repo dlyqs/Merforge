@@ -1,6 +1,6 @@
 # 个人任务、持久计划与执行设计
 
-本文拥有个人工作流的业务和 API 语义；施工状态见 [执行计划](personal-workflow-plan.md)。Desktop 是唯一入口。Phase 2 提供数据服务和 Remote，Phase 3 的任务视图和 Phase 4 的增强模式及模型工具已接入；Phase 5–6 的执行与接力尚未实施。
+本文拥有个人工作流的业务和 API 语义；施工状态见 [执行计划](personal-workflow-plan.md)。Desktop 是唯一入口。Phase 2 提供数据服务和 Remote，Phase 3 的任务视图和 Phase 4 的增强模式及模型工具已接入；Phase 5 的任务执行与 Phase 6 的持久接力/恢复已接入。
 
 ## 数据与完成规则
 
@@ -10,7 +10,7 @@
 
 CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口约定”（约定阶段），B“实现导出”和 C“准备独立测试数据”（开发阶段，各依赖 A），D“集成验收”（集成阶段，依赖 B、C）。A 完成后 B/C 同时就绪；两者完成才释放 D。根等待必要子任务和自身验收证据，不能因子任务全部 idle 而完成。可选子任务不阻碍父完成，但显式依赖可选任务仍须完成。
 
-Phase 2 的纯投影接受执行观察值，计算阻塞原因、并列候选、子任务完成数；尚无执行写入 API，因此实际计划只有待审核或就绪/依赖阻塞状态。Phase 5 才从持久 Run/Evidence 提供执行观察值，不能把模型传入状态当作完成证据。产物是声明，不是证据。完成必须由具体 Run 的验证结果、可重查产物位置及验证摘要支持；父任务还需自身验收。
+纯投影接受持久 Run/Evidence 的执行观察值，计算阻塞原因、并列候选和子任务完成数。模型不能直接写任务状态。产物是声明，不是证据。完成必须由具体 Run 的验证结果、可重查产物位置及验证摘要支持；父任务还需自身验收。
 
 ## 持久化、版本与审核
 
@@ -32,7 +32,7 @@ Phase 2 的纯投影接受执行观察值，计算阻塞原因、并列候选、
 
 增强模式属于当前对话、由用户显式选择，默认关闭；Project/Bot 都能进入，没有 Bot 也可使用。关闭为普通 Agent；开启时简单目标仍普通执行。复杂或不确定目标先澄清和评估，再提交未审核方案。Skill 禁用时明确失败，不绕过 Bot 权限。
 
-已实现的 Phase 3 树视图展示拆分层级，依赖视图展示前置与并列分支，详情展示范围、阶段、验收、产物、版本、审核和关联会话。两视图读取同一版本；修改后必须再次审核。输入框沿用现有“＋”菜单承载 Phase 5 的任务选择器。任务列表刷新不领取、不启动，不创建对话；关联历史对话从详情进入。
+已实现的 Phase 3 树视图展示拆分层级，依赖视图展示前置与并列分支，详情展示范围、阶段、验收、产物、版本、审核和关联会话。两视图读取同一版本；修改后必须再次审核。输入框沿用现有 `conversation.input.left` 扩展位承载任务选择弹窗，其中下拉列表只列就绪候选。任务列表刷新不领取、不启动，不创建对话；关联历史对话从详情进入。
 
 | Task 状态 | 新执行候选 | 操作 |
 | --- | --- | --- |
@@ -48,17 +48,17 @@ Phase 2 的纯投影接受执行观察值，计算阻塞原因、并列候选、
 
 草稿只存在未来编辑器本地，提交后为 pending_review；批准后按依赖投影为 ready/blocked。running → paused/completed/needs_reconciliation；取消进入 cancelled。paused 仅在用户明确恢复且 Host 复核后进入 running，不作为新执行候选。父任务有必要子任务未完成时 blocked；即使必要子任务全部完成仍需自身执行与验收。已知目录和产物重叠在视图提示，不提供自动文件隔离。
 
-## 后续执行与恢复协议
+## 执行与恢复协议
 
-Phase 5 引入 TaskSession/Run：TaskSession 保存规划/阅读/执行角色；Run 保存 taskId、planRevision、sessionId、attempt、ownerEpoch、状态及 Evidence。每个任务最多一个当前执行者，不同任务可同时持有所有权。领取在该任务原子更新内复核当前版本、批准、前置、终态及所有者，使用 expectedRevision + ownerEpoch + operationId；候选过期返回明确原因并刷新。阅读不是领取，Session 归档不算完成；运行中归档/移动、目录或权限变化暂停受影响任务，等待核对，不扩大范围。
+规划/阅读关联由 PlanRevision.sessionId 与 Session 快照保存；执行关联由 TaskRun.sessions 保存当前及历史对话。Run 保存 taskId、planRevision、品牌化 RunId、ownerEpoch、状态、动作和 Evidence。每个任务最多一个当前执行者，不同任务可同时持有所有权。领取在该任务原子更新内复核当前版本、批准、前置、终态及所有者，使用 expectedRevision + ownerEpoch + operationId；候选过期返回明确原因并刷新。阅读不是领取，Session 归档不算完成；运行中归档/移动、目录或权限变化暂停受影响任务，等待核对，不扩大范围。
 
 manual 为默认。auto/auto_until 必须单独持久保存用户授权，绑定当前任务、准确版本、含端点阶段、停止位置及 Config 验证的预算；不能选择其他任务、分配 Agent 或自动开对话。每次新工具动作核对批准/所有权/权限/预算，取消只阻止后续动作，不能回滚在途副作用。修改正在执行的任务版本须先停止并收敛在途动作；不同任务正常产物变化不自动撤销其他任务批准。
 
-Phase 6 Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、决定、证据、cwd、Git HEAD、脏文件指纹、非 Git 资料/产物指纹、预算及停止位置。先提交交接包，再幂等创建目标 Session，再待旧动作收敛或记录 unknown，最后转移 epoch 并唤醒。崩溃恢复对照交接包与 Session 引用补齐关联，不能重发未知 shell/外部动作。只允许同客户端、同工作区接力；无法归因的变化仅暂停受影响任务。
+Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、决定、证据、cwd、Git HEAD、脏文件指纹、非 Git 资料/产物指纹、预算及停止位置。先提交交接包，再幂等创建目标 Session，再待旧动作收敛或记录 unknown，最后转移 epoch；新对话保持暂停，由用户明确恢复并发送执行指令。崩溃恢复对照交接包与 Session 引用补齐关联，不能重发未知 shell/外部动作。只允许同客户端、同工作区接力；无法归因的变化仅暂停受影响任务。
 
 ## 验证与观测
 
-关键提交/校验失败记录 `personal-workflow`、taskId、planRevision、operationId、decisionCode 和 result，不记录正文或凭据。业务事实由领域记录及 Session 快照恢复。测试必须覆盖真实 JSON 重开、并列汇合、隐含完成环、版本冲突、重复批准、存储失败、Session 重试和 Remote 调用；可见验收在 Phase 3。Phase 5/6 的领取与接力协议目前为设计，不能报告为已实现。
+关键提交/校验失败记录 `personal-workflow`、taskId、planRevision、operationId、decisionCode 和 result，不记录正文或凭据。业务事实由领域记录及 Session 快照恢复。测试必须覆盖真实 JSON 重开、并列汇合、隐含完成环、版本冲突、重复批准、存储失败、Session 重试和 Remote 调用；可见验收在 Phase 3。领取与接力已有 Loader、真实 AgentLoop/工具链、Remote 和文件观察测试；Desktop 可见验收仍由用户执行。
 
 ## 内置方法与模式实现
 
@@ -69,3 +69,25 @@ Phase 6 Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上�
 模型通过 `workflow_assess` 给出 simple / clarify / infeasible / complex 及理由，保存 `personal-workflow/assessment`。前三者不创建计划；复杂目标经消歧和可行性判断后才可提案。程序不假装能从自然语言独立证明复杂度判断正确；确定性测试覆盖每个路由的许可和持久效果。提案只产生待审核版本，既不批准也不创建 Run。托管方法中的 Markdown 权威和 Codex 对话管理流程已替换为应用结构化计划、审核和工具路径。
 
 Client 全部计划入口及 Project/Bot 子入口读取同一版本投影；树和阶段分组分别显示层级与显式依赖，不由展示顺序产生依赖。编辑保存需重新审核，失败保留草稿及幂等键；导出引用显示的准确版本。可见 Desktop 验收由用户执行，助理不启动页面。
+
+## 执行授权与持久恢复细节
+
+`StoredPlan.runs` 与 `executionReceipts` 和计划版本在同一条存储记录内提交。旧记录可以省略这两个字段；有执行记录时验证 Task/版本/阶段引用、单执行者、会话唯一性、epoch、预算和证据。格式仍是 `personal_workflow` domain v1；未变更 SQLite 或 Session envelope。旧构建会拒绝不能识别的新增字段/消息来源，不能用旧构建继续写这些记录。
+
+Remote 增加 `workflowCandidates`、`workflowLimits`、`workflowRun`、`workflowClaim`、`workflowStop`、`workflowResume`、`workflowHandoff`。候选查询、绑定、恢复和接力均不提交模型输入。一个执行对话绑定一个尝试；完成后要执行另一任务，请使用另一个对话。当前 TaskDefinition 每项只属于一个阶段，因此自动范围只包含所选 Task 的 phaseId；不把父任务阶段解释为获准领取其子任务。
+
+Config 的 `maxActions`（默认 100）、`maxTurns`（20）、`maxDurationMs`（3600000）、`maxEvidenceBytes`（16777216）是部署上限，用户可以在绑定时收窄。时长从首次领取起累计，暂停和接力不重置。`maxTurns` 计用户输入或同任务自动续步的推进次数；工具返回后的普通模型续步不重复计数。`blockedTools` 默认包含标准 `subagent`、`subagent_fork`、`subagent_codex`、`subagent_claude_code` 和 `send_message` 委派工具；部署重命名委派工具时应同步此列表。已有工具审批、Bot allow list 与沙箱仍独立执行。
+
+工具调用在派发前保存 pending，派发返回后保存 succeeded/failed。取消只禁止新动作；迟到结果仍归原 Run。完成必须引用该 Run 成功动作的真实 Session tool/result，先 flush 日志，再读取声明产物并保存 SHA-256、验收摘要及时间。实际文件与成功检查是必要证据，验收摘要仍由执行模型填写，程序不宣称可自动判定任意自然语言验收语义。
+
+接力先持久化目标 SessionId、准确计划、决定/待办、证据、前置成果、基线及剩余授权，再由已有 Session 创建接口按固定 ID 创建或采用目标对话。准备期间源暂停、目标也被保留为不可执行；创建成功但提交失败时重试复用目标。必须先等待工具和已登记的 Session 活动收敛，才允许移交；转移增加 epoch，旧对话后续请求被拒绝。接收者不自动唤醒，避免崩溃后重复执行。已经到预算终点的任务不能再创建接收者。
+
+恢复保存 cwd、Git HEAD、脏文件内容指纹以及本任务/前置产物 SHA-256；非 Git 目录必须声明产物路径。读取拒绝逃逸工作目录的符号链接、循环目录和超限文件。已运行兄弟任务的已声明产物变化可以归因，不自动暂停本任务；自身关联文件、HEAD 或无法归因的脏文件变化要求人工核对。恢复不覆盖文件、不重放动作。模型失败或取消后，对话 idle 而 Task 未正常结算时也进入待核对；idle 永远不表示任务完成。重启将 running 改为 needs_reconciliation，将 pending 改为 unknown；用户核对后 unknown 变为 reconciled 并保留备注，它不能作为成功检查证据，完成需要新的真实成功检查。
+
+运行时没有第二份所有权缓存，候选、guard 和详情都从同一计划聚合派生。日志仅记录领取、停止、完成、移交、恢复等关键状态变化，不为每次成功工具调用输出排障日志。
+
+## 验证与验收
+
+无页面 Desktop Host 组件组合测试位于 `apps/desktop-host/tests/personal-workflow.spec.ts`，覆盖 Project/Bot 简单目标，以及 CSV 三阶段提案、审核、并行执行、接力、汇合、父任务证据和重开。测试通过独立 Node 子进程执行导出并读取最终文件；模型使用确定性响应，不能据此推断真实模型分类质量。包级故障测试、Client 纯交互测试与 built Host smoke 的实际命令见[施工计划 Phase 7](personal-workflow-plan.md#phase-7集成验证与文档收尾)。
+
+工程验证已完成，Desktop 可见验收和真实模型验证待定。[验收剧本](personal-workflow-acceptance.md)列出用户操作、期望状态、CSV 内容和异常恢复检查；不要求助理启动页面。

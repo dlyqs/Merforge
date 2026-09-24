@@ -315,6 +315,79 @@ export class SessionController extends TypertRemoteService {
     return this.workflow().setMode(resolved.agent.session, request)
   }
 
+  /** Read configured execution ceilings for the authorization form.
+   * @returns Deployment-specific action, turn, duration and observation limits.
+   */
+  @Remote('workflowLimits')
+  workflowLimits(): import('@deepseek-ai/dsh-personal-workflow/types').ExecutionLimits {
+    return this.workflow().execution.limits
+  }
+
+  /** Read ready task candidates for an existing conversation.
+   * @param sessionId - User-selected conversation.
+   * @returns Currently executable tasks; reading grants no ownership.
+   */
+  @Remote('workflowCandidates')
+  async workflowCandidates(sessionId: SessionId): Promise<PlanView[]> {
+    return this.workflow().execution.candidates(await this.personalSession(sessionId))
+  }
+
+  /** Read the current or historical execution binding.
+   * @param sessionId - Conversation identity.
+   * @returns Associated attempt, including any revoked ownership.
+   */
+  @Remote('workflowRun')
+  workflowRun(sessionId: SessionId): import('@deepseek-ai/dsh-personal-workflow/types').TaskRun | null {
+    return this.workflow().execution.forSession(sessionId)
+  }
+
+  /** Claim one exact-version task without submitting a prompt.
+   * @param request - User selection and separately chosen execution authorization.
+   * @returns Durable task owner.
+   */
+  @Remote('workflowClaim')
+  async workflowClaim(request: import('@deepseek-ai/dsh-personal-workflow/types').ClaimTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun> {
+    const resolved = await this.agents.resolveAgent(request.sessionId)
+    if ('error' in resolved) throw resolved.error
+    if (resolved.agent.status !== 'idle') throw new Error('select-task-in-idle-conversation')
+    return this.workflow().execution.claim(resolved.agent.session, request)
+  }
+
+  /** Pause or cancel this task without cancelling sibling tasks.
+   * @param request - Current owner and user stop gesture.
+   * @param cancel - Whether to permanently cancel this attempt.
+   * @returns Persisted stopped attempt; in-flight results remain tracked.
+   */
+  @Remote('workflowStop')
+  async workflowStop(request: import('@deepseek-ai/dsh-personal-workflow/types').ControlTaskRequest, cancel: boolean): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun> {
+    return this.workflow().execution.stop(await this.personalSession(request.sessionId), request, cancel)
+  }
+
+  /** Resume only after explicit reconciliation where required.
+   * @param request - Owner epoch and user's reconciliation note.
+   * @returns Resumed attempt with unchanged authorization budget.
+   */
+  @Remote('workflowResume')
+  async workflowResume(request: import('@deepseek-ai/dsh-personal-workflow/types').ResumeTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun> {
+    return this.workflow().execution.resume(await this.personalSession(request.sessionId), request)
+  }
+
+  /** Prepare, create or adopt, and transfer to one durable receiving conversation.
+   * @param request - Explicit same-workspace handoff gesture and context.
+   * @returns Transferred attempt; receiver waits for explicit resume and prompt.
+   */
+  @Remote('workflowHandoff')
+  async workflowHandoff(request: import('@deepseek-ai/dsh-personal-workflow/types').HandoffTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun> {
+    const source = await this.personalSession(request.sessionId)
+    const handoff = await this.workflow().execution.prepareHandoff(source, request)
+    const { projectId, botId } = handoff.snapshot.definition
+    await this.commands.create({ sessionId: handoff.targetSessionId, cwd: handoff.baseline.cwd,
+      ...(projectId === null ? {} : { projectId }), ...(botId === null ? {} : { botId }),
+      ...(source.header.agentPreset === undefined ? {} : { agentPreset: source.header.agentPreset }),
+    })
+    return this.workflow().execution.finishHandoff(await this.personalSession(handoff.targetSessionId), request.runId, handoff.id)
+  }
+
   /** List current task plans without activating execution.
    * @returns persistent plan views.
    */

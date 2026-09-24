@@ -1,4 +1,6 @@
 /** Durable task definitions, version receipts, and derived execution views. */
+import type { TaskRun, ExecutionReceipt } from './execution-types.ts'
+export type * from './execution-types.ts'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -77,6 +79,8 @@ export interface StoredPlan {
   readonly taskId: TaskId
   readonly revisions: readonly PlanRevision[]
   readonly receipts: readonly PlanReceipt[]
+  readonly runs?: readonly TaskRun[] | undefined
+  readonly executionReceipts?: readonly ExecutionReceipt[] | undefined
 }
 /** Snapshot observed by one Session; reading does not claim execution. */
 export interface WorkflowSnapshot {
@@ -111,6 +115,7 @@ export interface PlanView {
   readonly snapshot: PlanRevision
   readonly tasks: readonly TaskView[]
   readonly ready: readonly TaskId[]
+  readonly runs?: readonly TaskRun[] | undefined
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

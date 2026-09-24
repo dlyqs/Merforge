@@ -1,4 +1,6 @@
 /** Personal task plan authority over atomic storage-domain records. */
+import { z } from 'zod'
+import { WorkflowExecution } from './execution.ts'
 import { createHash } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { defineDomain, domainTable, type KvTable } from '@deepseek-ai/dsh-storage-domain'
@@ -9,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-session-query'
 import { approveSchema, operationIdSchema, readSchema, saveSchema, storedPlanSchema } from './schema.ts'
 import { workflowModeProjection, workflowModeSchema } from './mode-projection.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
-import { exportPlan, projectPlan } from './projection.ts'
+import { exportPlan } from './projection.ts'
 import type {
   ApprovePlanRequest, OperationId, PlanDefinition, PlanRevision, PlanView, ReadPlanRequest,
   SavePlanRequest, StoredPlan, TaskId, WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment,
@@ -28,14 +30,40 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+/** Deployment ceilings resolved before execution authorization is accepted. */
+export interface Config {
+  /** Maximum tool actions in one attempt, including all handoffs. */
+  maxActions?: number
+  /** Maximum user or automatic progression inputs in one attempt. */
+  maxTurns?: number
+  /** Maximum elapsed milliseconds from initial task claim. */
+  maxDurationMs?: number
+  /** Maximum total bytes read for one workspace observation. */
+  maxEvidenceBytes?: number
+  /** Tool names excluded from selected-task execution; include renamed delegation tools. */
+  blockedTools?: string[]
+}
+
 /** Sole plan writer; approvals never create execution attempts. */
 export class PersonalWorkflow extends Service {
+  static Config = z.object({
+    maxActions: z.number().int().positive().default(100),
+    maxTurns: z.number().int().positive().default(20),
+    maxDurationMs: z.number().int().positive().default(3600000),
+    maxEvidenceBytes: z.number().int().positive().default(16777216),
+    blockedTools: z.array(z.string().min(1)).default(['subagent', 'subagent_fork', 'subagent_codex', 'subagent_claude_code', 'send_message']),
+  }).prefault({})
+  /** Task execution writer sharing atomic plan transactions. */
+  readonly execution: WorkflowExecution
   static inject = ['storageDomain', 'sessions', 'sessionPersistence', 'sessionQuery', 'personalProjects', 'sessionProjections']
   private plans?: KvTable<TaskId, StoredPlan>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
 
-  constructor(ctx: Context) { super(ctx, 'personalWorkflow') }
+  constructor(ctx: Context, config: Config = {}) {
+    super(ctx, 'personalWorkflow')
+    this.execution = new WorkflowExecution(ctx, () => this.table(), work => this.enqueue(work), PersonalWorkflow.Config.parse(config))
+  }
 
   protected async [Service.init](): Promise<void> {
     this.ctx.sessionProjections.register(workflowModeProjection)
@@ -46,6 +74,7 @@ export class PersonalWorkflow extends Service {
       await this.tail
       await domain.close()
     }, 'personal-workflow.domainClose')
+    await this.execution.recover()
     const ids = new Set<TaskId>()
     for (const [key, plan] of this.plans.entries()) {
       if (key !== plan.taskId) throw new Error('personal-workflow: stored plan identity mismatch')
@@ -150,7 +179,7 @@ export class PersonalWorkflow extends Service {
    * @returns current persisted plans and computed candidates.
    */
   list(): PlanView[] {
-    return [...this.table().entries()].map(([, plan]) => projectPlan(latest(plan)))
+    return [...this.table().entries()].map(([, plan]) => this.execution.view(plan))
   }
 
   /** Read one exact version, retaining approvals on historical versions.
@@ -207,13 +236,14 @@ export class PersonalWorkflow extends Service {
         const retry = this.retry(previous, operationId, fingerprint)
         if (retry) return retry
         if ((previous?.revisions.length ?? 0) !== parsed.expectedRevision) throw new Error('revision-conflict')
+        if (previous?.runs?.some(run => run.status === 'running' || run.actions.some(action => action.status === 'pending' || action.status === 'unknown') || run.handoffs.some(handoff => handoff.status === 'prepared'))) throw new Error('stop-execution-before-editing')
         this.validateIdentity(definition, previous)
         const snapshot: PlanRevision = {
           revision: parsed.expectedRevision + 1, definition, source, sessionId,
           createdAt: Date.now(), approval: null,
         }
         const next: StoredPlan = {
-          taskId: definition.taskId, revisions: [...previous?.revisions ?? [], snapshot],
+          ...previous, taskId: definition.taskId, revisions: [...previous?.revisions ?? [], snapshot],
           receipts: [...previous?.receipts ?? [], { operationId, fingerprint, snapshot }],
         }
         if (previous) {
@@ -255,6 +285,8 @@ export class PersonalWorkflow extends Service {
   }
 
   private retry(plan: StoredPlan | undefined, operationId: OperationId, fingerprint: string): PlanRevision | undefined {
+    if (plan?.executionReceipts?.some(receipt => receipt.operationId === operationId)
+      || plan?.runs?.some(run => run.handoffs.some(handoff => handoff.operationId === operationId))) throw new Error('operation-id-conflict')
     const receipt = plan?.receipts.find(receipt => receipt.operationId === operationId)
     if (!receipt) return undefined
     if (receipt.fingerprint !== fingerprint) throw new Error('operation-id-conflict')

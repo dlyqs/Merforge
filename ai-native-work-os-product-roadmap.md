@@ -2,7 +2,7 @@
 
 > 文档版本：v0.3（沿用 v0.2 文件名）
 > 更新日期：2026-09-24
-> 状态：个人 Project/Bot 已实现；复杂任务与同机接力进入执行计划评审，组织阶段尚未实现。
+> 状态：个人 Project/Bot、复杂任务与同机接力的工程实施及无页面验证已完成；Desktop 可见/真实模型验收待定，组织阶段尚未实现。
 > 定位：以 DeepSeek Harness 为 Agent 能力基座，交付仅通过 Electron 图形界面使用的个人与组织协作应用。Paperclip 等产品只作为具体能力的设计参考。
 
 ## 一、已经确定的产品方向
@@ -115,7 +115,7 @@ AgentDelegation 记录组织、任务与计划版本、真人责任人、委托�
 
 ## 六、内置 dev-workflow-skill 与持久接力
 
-本项目将 [dev-workflow-skill](https://github.com/dlyqs/dev-workflow-skill) 作为内置复杂开发任务方法来源。已读取其当前 SKILL.md 与 conversation-relay 说明作为本版规划参考；固定版本、许可、更新方式和与 Harness 的实际集成仍由 Phase 1 核验。
+本项目将 [dev-workflow-skill](https://github.com/dlyqs/dev-workflow-skill) 作为内置复杂开发任务方法来源。个人模式已集成 managed method v1，固定源提交 `4f51803b4578139dd9de2dc690c1d2638c54decd`，作者对本项目的授权及更新约束见 `packages/skill/skill-dev-workflow/assets/NOTICE.md` 和包 README。应用内结构化记录是权威；未导入上游自动开发会话接力。
 
 | 层次 | 责任 |
 | --- | --- |
@@ -137,13 +137,13 @@ AgentDelegation 记录组织、任务与计划版本、真人责任人、委托�
 
 ## 八、施工阶段
 
-个人模式的 Phase 2 代码与自动化集成检查已完成；Desktop 可见交互和真实模型调用由用户侧检查，助理未运行。基础裁剪 Phase 1 的独立收尾仍见其[执行计划](docs/desktop-agent-foundation-pruning-plan.md)。下一步 Phase 3 见[个人复杂任务与同机接力执行计划](docs/personal-workflow-plan.md)，当前仅完成计划编写、尚未启动实现。后续组织阶段尚属规划。每个阶段结束都要有可运行、可核对的结果；Phase 8 是首个公开演示版目标。
+个人模式的 Phase 2 代码与自动化集成检查已完成；Desktop 可见交互和真实模型调用由用户侧检查，助理未运行。基础裁剪 Phase 1 的独立收尾仍见其[执行计划](docs/desktop-agent-foundation-pruning-plan.md)。Phase 3 的[个人复杂任务与同机接力执行计划](docs/personal-workflow-plan.md)内部 Phase 1–7 已完成工程实施、CSV 并行/汇合/接力的无页面 Host 组件组合测试、发行构建及 built Host smoke。Desktop 可见验收和真实模型验证仍待按[验收剧本](docs/personal-workflow-acceptance.md)完成；这不表示产品验收已全部通过。后续组织阶段尚属规划。每个阶段结束都要有可运行、可核对的结果；Phase 8 是首个公开演示版目标。
 
 | 阶段 | 交付重点 | 阶段验收 |
 | --- | --- | --- |
 | Phase 1 | 固定 Harness 基线，核验 Electron、核心能力和 dev-workflow-skill；建立产品专用组合与裁剪清单。 | 通过针对性构建和核心路径验证确认基础能力；用户已报告本地模型可正常交互，双平台安装验收不作为进入 Phase 2 的门槛。 |
 | Phase 2 | 独立于目录的个人项目、BotProfile、对话归属历史、双入口与模型配置。 | 普通项目对话无需 Bot；对话可在项目或 Bot 间移动，当前归属与历史可查，两个入口不产生两个 Session；项目和 Bot 的学习记忆为空仍可正常工作。 |
-| Phase 3 | 内置复杂任务评估、阶段计划、审核和同机跨对话接力。 | 一个开发目标经两条对话接力完成；原计划、代码基线、证据和停止位置可查。 |
+| Phase 3 | 内置复杂任务评估、阶段计划、审核和同机跨对话接力；工程实施及自动化验证完成，产品验收待定。 | 一个开发目标经两条对话接力完成；原计划、代码基线、证据和停止位置可查。 |
 | Phase 4 | Electron 内的“开启组织服务”、真实账号、Membership、组织切换及服务端资源授权。 | 三台电脑处于同一 Wi-Fi，一台在 Electron 中开启内网服务，两台桌面客户端以不同身份登录同一组织；私人资源和未经授权项目无法通过 API、搜索或事件读取。 |
 | Phase 5 | 共享项目、分层 WorkGraph、任务绑定对话与权限过滤后的任务视图。 | 领导原对话与员工下发对话分离；员工只看到获准子树及明确的验收要求。 |
 | Phase 6 | 角色化粒度、成员职责与排期信息、可解释分配建议、人工批准、责任人与委托。 | 领导批准前任务不下发或开工；员工收到准确任务；无合格成员时停在待协调状态。 |

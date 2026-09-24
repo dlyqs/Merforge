@@ -1,6 +1,6 @@
 # 当前工程概览
 
-本文记录当前代码结构，帮助开发者定位基础裁剪和后续产品阶段的实现。目标产品见[产品路线图](../ai-native-work-os-product-roadmap.md)，基础裁剪的实际状态见[基础裁剪计划](desktop-agent-foundation-pruning-plan.md)，个人模式进度见[个人项目与 Bot 开发计划](personal-project-bot-plan.md)。Desktop 产品名为 Merforge。个人 Project 与私人 Bot 的 Host 数据、运行时和双入口 Client 界面已实现；个人复杂任务与同机接力的下一步见[执行计划](personal-workflow-plan.md)，Phase 1–2 已完成：[个人工作流设计](personal-workflow.md)、持久 Task/计划版本、审核及 Remote 已实现，Phase 3 任务视图、修改、审核和导出已实现；Phase 4 的显式增强模式、内置方法、评估及结构化提案也已实现，执行与接力待后续阶段；组织服务和 WorkGraph 尚未实现。
+本文记录当前代码结构，帮助开发者定位基础裁剪和后续产品阶段的实现。目标产品见[产品路线图](../ai-native-work-os-product-roadmap.md)，基础裁剪的实际状态见[基础裁剪计划](desktop-agent-foundation-pruning-plan.md)，个人模式进度见[个人项目与 Bot 开发计划](personal-project-bot-plan.md)。Desktop 产品名为 Merforge。个人 Project 与私人 Bot 的 Host 数据、运行时和双入口 Client 界面已实现；个人复杂任务与同机接力的实施记录见[执行计划](personal-workflow-plan.md)，Phase 1–2 已完成：[个人工作流设计](personal-workflow.md)、持久 Task/计划版本、审核及 Remote 已实现，Phase 3 任务视图、修改、审核和导出已实现；Phase 4 的显式增强模式、内置方法、评估及结构化提案也已实现，Phase 5 的任务领取、输入框选择、有界执行与真实证据已实现；Phase 6 的持久接力、所有权转移和重启核对已实现；Phase 7 无页面 CSV 集成验证及文档收尾已完成，发行构建与产物测试通过，可见验收待用户检查；组织服务和 WorkGraph 尚未实现。
 
 ## 运行方式与目录
 
@@ -15,8 +15,8 @@ Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有
 | `packages/core`、`packages/session`、`packages/llm`、`packages/fs`、`packages/shell` | Agent loop、工具、事件日志、持久化、模型和本地执行。 |
 | `packages/client`、`packages/api`、`packages/host` | Client 插件、Remote/API、Web Host 和资源传输。 |
 | `packages/workspace/personal-project` | 独立个人 Project、Bot Profile、Session 归属事件投影及当前运行时配置。 |
-| `packages/workspace/personal-workflow` | 持久 Task、独立父子树/依赖图、原子计划版本与审核、幂等回执、Session 快照和 Markdown 导出。 |
-| `packages/client/ui-personal-workflow` | 任务树、阶段并列分支、详情编辑、准确版本审核、导出及输入框模式开关。 |
+| `packages/workspace/personal-workflow` | 持久 Task、独立父子树/依赖图、原子计划版本与审核、幂等回执、Session 快照、Markdown 导出、任务领取、执行预算、证据和同机接力恢复。 |
+| `packages/client/ui-personal-workflow` | 任务树、阶段并列分支、详情编辑、准确版本审核、导出、输入框模式开关、任务选择与授权、暂停/取消/恢复和接力入口。 |
 | `packages/skill/skill-dev-workflow` | 固定版本的包内方法、模式上下文及受约束的目标评估/提案工具。 |
 | `packages/client/ui-personal` | 个人 Project/Bot 双入口、对象编辑、会话移动及归属历史。 |
 | `packages/subagent`、`packages/skill`、`packages/interaction` | 基础委派、Skill、用户问题与审批。 |
@@ -38,7 +38,9 @@ Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有
 
 `personalWorkflow` 是个人计划唯一写入者；`personal_workflow` domain 的单计划聚合原子保存定义、版本、审核和幂等回执。`projectPlan` 计算前置及必要子任务阻塞、并列就绪和父级汇总；列表顺序不制造依赖。Session Controller 的 `workflowList/Read/Save/Approve/Export` 不激活 Agent，显式 `workflowSnapshot` 可以恢复已有 Session 写入准确版本快照，flush 后重读日志确认落盘。`workflowMode/SetMode` 读写当前对话显式选择；`skill-dev-workflow` 经 Skill 注册表读取包内方法，通过标准 Session 消息日志注入当前用户请求。`workflow_assess` 区分简单、待澄清、不可行和复杂目标，`workflow_propose` 在提交处核对模式版本、当前目标评估、Bot 许可及归属，只保存待审核计划。生成计划和批准都不会启动执行，Markdown 仅为导出视图。
 
-Phase 1–4 已有聚焦测试、类型/局部 lint、完整构建和无页面 built Host smoke 证据，具体命令及范围见施工计划。既有全仓不变量 README、personal-project 包清单与已退休 unknown-cast baseline 的门禁问题记录于[施工计划](personal-workflow-plan.md)，未计为本轮通过。
+Phase 5–6 增加任务级领取、动作许可和真实证据完成检查，以及先保存交接包、再幂等创建接收者、最后转移所有权的接力。接收者保持暂停，显式恢复并发送消息后才执行；预算沿用原运行，重启后未知副作用必须核对，不自动重放。不同子任务可同时执行，系统不自动选择任务。
+
+Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 built Host smoke 证据；Phase 7 相关回归 19 个测试文件、79 项测试通过，另有 6 项 storage-domain 不变量测试通过。`apps/desktop-host/tests/personal-workflow.spec.ts` 验证 CSV 三阶段、并行对话、接力、汇合、独立 Node 文件校验和持久化重开；模型使用确定性适配器。生成接口、中断恢复和打包 Skill 的产物测试通过。用户可按[验收剧本](personal-workflow-acceptance.md)检查 Desktop。具体命令及范围见施工计划。既有全仓不变量 README、personal-project 包清单与已退休 unknown-cast baseline 的门禁问题记录于[施工计划](personal-workflow-plan.md)，未计为本轮通过。
 
 ### Client 展示与发行
 
@@ -46,4 +48,4 @@ Phase 1–4 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–4 的 Task 数据、可视化及任务增强模式已实现。下一步 Phase 5 才接入输入框下拉/“＋”的可执行任务选择、不同子任务独立执行对话；Phase 6 再提供同一子任务的同机接力。本阶段不建设自动任务或 Agent 调度，执行与接力能力仍处于计划状态。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
+本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
