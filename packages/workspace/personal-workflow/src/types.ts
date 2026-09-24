@@ -1,7 +1,7 @@
 /** Durable task definitions, version receipts, and derived execution views. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** Stable task identity; a root task also identifies its plan. */
 export type TaskId = Branded<'PersonalTaskId'>
@@ -117,5 +117,42 @@ declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /** Exact durable plan observed in this Session; it grants no execution ownership. */
     'personal-workflow/snapshot': WorkflowSnapshot
+  }
+}
+
+/** User-selected enhancement mode; revision is monotonic within one Session. */
+export interface WorkflowMode {
+  readonly enabled: boolean
+  readonly revision: number
+}
+/** Compare-and-set user gesture for the enhancement mode. */
+export interface SetWorkflowModeRequest {
+  readonly sessionId: SessionId
+  readonly enabled: boolean
+  readonly expectedRevision: number
+  readonly operationId: OperationId
+}
+/** Durable routing decision made by the model after examining the user's goal. */
+export interface WorkflowAssessment {
+  readonly modeRevision: number
+  readonly decision: 'simple' | 'clarify' | 'infeasible' | 'complex'
+  readonly explanation: string
+}
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Explicit user selection; never inferred from model text. */
+    'personal-workflow/mode': WorkflowMode & { readonly operationId: OperationId }
+    /** Model assessment grants proposal permission only for this mode revision. */
+    'personal-workflow/assessment': WorkflowAssessment
+  }
+}
+
+declare module '@deepseek-ai/dsh-session-projection/types' {
+  interface SessionProjectionStateMap {
+    personalWorkflowMode: WorkflowMode
+  }
+  interface SessionProjectionMap {
+    personalWorkflowMode: WorkflowMode
   }
 }

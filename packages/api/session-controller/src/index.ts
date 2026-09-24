@@ -1,5 +1,6 @@
 /** Session Remote owner: cold reads, explicit Agent commands, and live control state. */
 
+import type {} from '@deepseek-ai/dsh-skill'
 import { hostname } from 'node:os'
 import { resolve } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -288,6 +289,30 @@ export class SessionController extends TypertRemoteService {
     const service = this.ctx.get('personalWorkflow')
     if (service === undefined) throw new Error('personal workflow service is unavailable')
     return service
+  }
+
+  /** Read the durable user-selected task enhancement mode.
+   * @param sessionId - Existing conversation identity.
+   * @returns Current mode; initially disabled.
+   */
+  @Remote('workflowMode')
+  async workflowMode(sessionId: SessionId): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowMode> {
+    return this.workflow().mode(await this.personalSession(sessionId))
+  }
+
+  /** Select enhancement mode without submitting a prompt.
+   * @param request - Explicit user choice and expected mode revision.
+   * @returns Mode after persistence succeeds.
+   */
+  @Remote('workflowSetMode')
+  async workflowSetMode(request: import('@deepseek-ai/dsh-personal-workflow/types').SetWorkflowModeRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowMode> {
+    const resolved = await this.agents.resolveAgent(request.sessionId)
+    if ('error' in resolved) throw resolved.error
+    if (request.enabled) {
+      const skill = await this.ctx.get('skills')?.get('dev-workflow', { scope: resolved.agent, cwd: resolved.agent.session.header.cwd })
+      if (skill?.provider !== 'dev-workflow') throw new Error('personal-workflow: bundled dev-workflow Skill unavailable in this conversation')
+    }
+    return this.workflow().setMode(resolved.agent.session, request)
   }
 
   /** List current task plans without activating execution.

@@ -213,6 +213,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>}
       </div>
       {wide && open && <div className={css.groupContents}>
+        {props.renderSlot('sidebar.personal.workflow', { projectId: target.kind === 'project' ? target.id : null, botId: target.kind === 'bot' ? target.id : null })}
         {ids.map(sessionRow)}
       </div>}
     </div>
@@ -220,6 +221,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
 
   return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>
     {wide && <div className={css.body}>
+      {props.renderSlot('sidebar.personal.workflow', { projectId: null, botId: null })}
       {records.phase === 'loading' && <p>{t('loading')}</p>}
       {records.phase === 'error' && <button type="button" onClick={() => { void refresh() }}>{t('retry')}</button>}
       <div className={css.groupHeading}><span>{t('projects')}</span>

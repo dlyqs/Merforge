@@ -16,6 +16,7 @@ const rows = [
   ['storage'], ['storage-json', { root: join(root, 'data') }], ['storage-domain', { backend: 'json' }],
   ['session'], ['session-persistence-jsonl', { root: join(root, 'sessions'), compression: 'none' }],
   ['session-projection'], ['session-query'], ['workspace'], ['personal-project'], ['personal-workflow'],
+  ['system-prompt'], ['tools'], ['agent'], ['skill'], ['skill-dev-workflow'],
 ].map(([name, config]) => ({ name: `@deepseek-ai/dsh-${name}`, ...(config ? { config } : {}) }))
 await writeFile(configPath, JSON.stringify(rows))
 const taskId = '00000000-0000-4000-8000-000000000001'
@@ -35,10 +36,16 @@ async function boot() {
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
-  ctx.loader.internal = { version: 'v2', import: specifier => import(specifier) }
+  const builtEntries = new Map([
+    ['@deepseek-ai/dsh-system-prompt', new URL('../../../core/system-prompt/lib/index.js', import.meta.url).href],
+    ['@deepseek-ai/dsh-tools', new URL('../../../core/tools/lib/index.js', import.meta.url).href],
+    ['@deepseek-ai/dsh-skill', new URL('../../../skill/skill/lib/index.js', import.meta.url).href],
+    ['@deepseek-ai/dsh-skill-dev-workflow', new URL('../../../skill/skill-dev-workflow/lib/index.js', import.meta.url).href],
+  ])
+  ctx.loader.internal = { version: 'v2', import: specifier => import(builtEntries.get(specifier) ?? specifier) }
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
   await ctx.loader.await()
-  assert.equal([...ctx.loader.entries()].filter(entry => !entry.fiber && !entry.disabled).length, 0)
+  assert.deepEqual([...ctx.loader.entries()].filter(entry => !entry.fiber && !entry.disabled).map(entry => entry.options.name), [])
   return ctx
 }
 try {
@@ -51,15 +58,27 @@ try {
   const session = first.sessions.create(SessionId('built-workflow'))
   const writer = await first.sessionPersistence.create(session.header)
   await first.personalWorkflow.snapshot(session, { taskId }, '20000000-0000-4000-8000-000000000002')
+  const modeRemote = TYPERT.invocations.find(row => row.namespace === 'session' && row.method === 'workflowSetMode')
+  assert.ok(modeRemote)
+  const modeRequest = modeRemote.parameters[0].codec.create().parse({
+    sessionId: session.id, enabled: true, expectedRevision: 0, operationId: '20000000-0000-4000-8000-000000000003',
+  })
+  assert.deepEqual(await first.personalWorkflow.setMode(session, modeRequest), { enabled: true, revision: 1 })
+  const method = await first.skills.get('dev-workflow')
+  assert.match(method.content, /managed method v1/)
+  assert.ok(!method.content.includes('/Users/'))
+  assert.equal(method.invocation.modelInvocable, false)
+  assert.ok(first.tools.get('workflow_propose'))
   await writer.close()
   await first.fiber.dispose()
   const second = await boot()
+  assert.deepEqual(await second.personalWorkflow.mode(session), { enabled: true, revision: 1 })
   assert.deepEqual(second.personalWorkflow.read({ taskId }), result)
   const reader = await second.sessionPersistence.open(session.id, 'read')
   assert.deepEqual((await reader.read()).events[0].data.snapshot, result)
   await reader.close()
   assert.match(second.personalWorkflow.export({ taskId }), /Revision: 1/)
-  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, JSON and JSONL reopen)')
+  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, JSON and JSONL reopen, mode codec and packaged Skill)')
 } finally {
   for (const ctx of contexts.reverse()) await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

@@ -33,6 +33,8 @@
             name: '@deepseek-ai/dsh-tool-jobs'
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: skill-dev-workflow
+            name: '@deepseek-ai/dsh-skill-dev-workflow'
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
           - id: compaction

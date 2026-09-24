@@ -50,6 +50,7 @@ function mount(sessionList: SessionListState = list) {
   const createProject = vi.fn(async () => {})
   const pickDirectory = vi.fn(async () => '/tmp/picked-project')
   const props: PersonalSidebarProps = {
+    renderSlot: () => null, renderSlotChain: () => null, SessionProvider: ({ children }) => children,
     wide: true, expandSidebar: vi.fn(),
     useSessions: hook(sessionList), useSessionStatus: hook(statuses), useWorkspaces: hook(workspaces),
     useSessionRetainInfo: () => undefined, useResource, usePanelInfo,

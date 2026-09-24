@@ -77,6 +77,9 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.personal', () => ctx.slots.register({
     name: 'sidebar.personal',
     locale: 'personal',
+    children: { 'sidebar.personal.workflow': { kind: 'single', scope: 'root' } },
     inject: (): PersonalInjected => ({ ...actions, hooks: { records } }),
   }, PersonalSidebar))
 }
+
+export type { PersonalSidebarProps } from './contract.ts'

@@ -28,6 +28,9 @@
     },
     {
       "path": "../../session-query/session-query"
+    },
+    {
+      "path": "../../session/session-projection"
     }
   ]
 }

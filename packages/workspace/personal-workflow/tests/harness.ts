@@ -17,19 +17,19 @@ import Workflow from '../src/index.ts'
 import { expect } from 'vitest'
 
 
-export async function createWorkflowHarness(root: string) {
+export async function createWorkflowHarness(root: string, extras: readonly (readonly [string, unknown])[] = []) {
   const ctx = new Context()
   ctx.baseUrl = pathToFileURL(root).href + '/'
   const modules = new Map<string, unknown>([
     ['storage', Storage], ['json', JsonStorage], ['domain', Domain], ['sessions', SessionStore],
     ['jsonl', Jsonl], ['projections', Projections], ['query', Query], ['workspace', Workspace],
-    ['personal', Personal], ['workflow', Workflow],
+    ['personal', Personal], ['workflow', Workflow], ...extras,
   ])
   const config = [
     { name: 'storage' }, { name: 'json', config: { root: join(root, 'data') } },
     { name: 'domain', config: { backend: 'json' } }, { name: 'sessions' },
     { name: 'jsonl', config: { root: join(root, 'sessions'), compression: 'none' } },
-    { name: 'projections' }, { name: 'query' }, { name: 'workspace' }, { name: 'personal' }, { name: 'workflow' },
+    { name: 'projections' }, { name: 'query' }, { name: 'workspace' }, { name: 'personal' }, { name: 'workflow' }, ...extras.map(([name]) => ({ name })),
   ]
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, JSON.stringify(config))

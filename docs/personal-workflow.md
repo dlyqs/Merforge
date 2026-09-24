@@ -1,6 +1,6 @@
 # 个人任务、持久计划与执行设计
 
-本文拥有个人工作流的业务和 API 语义；施工状态见 [执行计划](personal-workflow-plan.md)。Desktop 是唯一入口。Phase 2 提供数据服务和 Remote，Phase 3 增加视图，Phase 4 接入模式及模型工具，Phase 5–6 实现执行与接力。
+本文拥有个人工作流的业务和 API 语义；施工状态见 [执行计划](personal-workflow-plan.md)。Desktop 是唯一入口。Phase 2 提供数据服务和 Remote，Phase 3 的任务视图和 Phase 4 的增强模式及模型工具已接入；Phase 5–6 的执行与接力尚未实施。
 
 ## 数据与完成规则
 
@@ -16,13 +16,13 @@ Phase 2 的纯投影接受执行观察值，计算阻塞原因、并列候选、
 
 使用现有 `storageDomain`，域 `personal_workflow` version 1，`plans` 表一条记录保存一个根目标的全部不可变版本和操作回执。Desktop 沿用 `storage-json` 路由，单记录写入经现有原子文件替换提交；不新增 SQLite 表，不改变 SQLite SCHEMA_VERSION。未知存储格式/损坏记录拒绝加载，不自动跳过。`KvTable.update` 在存储队列内比较 expectedRevision 并提交；创建也由服务队列串行比较，关闭先拒绝新操作、排空已接收操作再关闭域。锁只覆盖计划提交，不能作为执行期独占锁。
 
-提案/用户编辑均创建新版本；同一版本保存准确任务树、依赖、阶段和审核状态。首版采用全版本审核：任意定义变更令新版本所有批准失效，旧版本及批准保留用于历史展示。批准只接受当前准确版本，单独的用户 Remote 操作不启动执行、不授予工具权限。模型提案接口不能接受 approval、运行状态或自动执行授权。每个写请求包含 operationId；相同键和相同规范化请求返回原回执，相同键不同请求拒绝，即使期间产生新版也不重复写入。不同幂等键的过期版本请求拒绝，不能覆盖新版本。
+提案/用户编辑均创建新版本；同一版本保存准确任务树、依赖、阶段和审核状态。首版采用全版本审核：任意定义变更令新版本所有批准失效，旧版本及批准保留用于历史展示。批准只接受当前准确版本，单独的用户 Remote 操作不启动执行、不授予工具权限。模型提案接口不能接受 approval、运行状态或自动执行授权。托管 `propose` 在提交队列内核对模式版本、复杂目标评估、Bot Skill 许可和当前对话归属。每个写请求包含 operationId；相同键和相同规范化请求返回原回执，相同键不同请求拒绝，即使期间产生新版也不重复写入。不同幂等键的过期版本请求拒绝，不能覆盖新版本。
 
 根目标的 Project/Bot 归属在首次提案时固定；Session 移动不会更改任务归属。删除对象不删除任务或历史引用，视图显示失效归属；后续执行必须重新核对。编辑旧目标的归属需要未来明确的任务重归属动作，本轮不暴露隐式修改。
 
 ## Remote、模型与 Session
 
-`sessionController` 增加 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`。保存/批准为用户动作；提案服务入口 `propose(session, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。Phase 2 不向普通 Agent 添加工具，不提前启用增强模式。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
+`sessionController` 提供 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`、`workflowMode` 和 `workflowSetMode`。保存/批准为用户动作；提案服务入口 `propose(session, modeRevision, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。标准 preset 的 `skill-dev-workflow` 提供模式适配和 `workflow_assess` / `workflow_propose`；模式默认关闭，此时隐藏工作流工具且不注入方法。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
 
 `workflowSnapshot` 和模型提案把准确版本/批准状态/完整定义记入 `personal-workflow/snapshot`，包括 taskId、operationId 和 Session 的稳定引用。提交顺序：先提交领域记录，再追加 Session 快照，再 flush Session，全部成功才返回。Session 写失败时领域提交不回滚，调用方收到失败；用原 operationId 重试会复用领域回执，补写/flush 快照。快照以 sessionId + operationId 判重，事件内容必须相同；模型可见文本来自已 flush 的快照，未来工具结果由现有工具流水线记录，不能临时读取最新版本替代历史快照。审核本身无须跨存储写入；下次读取记录当时实际批准状态。Session 引用是阅读/规划关联，不授予执行所有权。
 
@@ -32,7 +32,7 @@ Phase 2 的纯投影接受执行观察值，计算阻塞原因、并列候选、
 
 增强模式属于当前对话、由用户显式选择，默认关闭；Project/Bot 都能进入，没有 Bot 也可使用。关闭为普通 Agent；开启时简单目标仍普通执行。复杂或不确定目标先澄清和评估，再提交未审核方案。Skill 禁用时明确失败，不绕过 Bot 权限。
 
-Phase 3 树视图展示拆分层级，依赖视图展示前置与并列分支，详情展示范围、阶段、验收、产物、版本、审核和关联会话。两视图读取同一版本；修改后必须再次审核。输入框沿用现有“＋”菜单承载 Phase 5 的任务选择器。任务列表刷新不领取、不启动，不创建对话；关联历史对话从详情进入。
+已实现的 Phase 3 树视图展示拆分层级，依赖视图展示前置与并列分支，详情展示范围、阶段、验收、产物、版本、审核和关联会话。两视图读取同一版本；修改后必须再次审核。输入框沿用现有“＋”菜单承载 Phase 5 的任务选择器。任务列表刷新不领取、不启动，不创建对话；关联历史对话从详情进入。
 
 | Task 状态 | 新执行候选 | 操作 |
 | --- | --- | --- |
@@ -59,3 +59,13 @@ Phase 6 Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上�
 ## 验证与观测
 
 关键提交/校验失败记录 `personal-workflow`、taskId、planRevision、operationId、decisionCode 和 result，不记录正文或凭据。业务事实由领域记录及 Session 快照恢复。测试必须覆盖真实 JSON 重开、并列汇合、隐含完成环、版本冲突、重复批准、存储失败、Session 重试和 Remote 调用；可见验收在 Phase 3。Phase 5/6 的领取与接力协议目前为设计，不能报告为已实现。
+
+## 内置方法与模式实现
+
+`packages/skill/skill-dev-workflow/assets/source.json` 固定上游 dlyqs/dev-workflow-skill 提交 `4f51803b4578139dd9de2dc690c1d2638c54decd` 和 SHA-256；`NOTICE.md` 记录作者在本任务中的身份确认及内置授权，不声明上游已有公开许可证。运行时只加载包内托管方法 v1，不依赖作者机器路径；上游源码作为来源记录保留，未引入自动接力引用资源。
+
+输入框中的显式模式开关保存 `personal-workflow/mode`，含单调版本及幂等操作 ID。读取以真实持久日志为准，flush 失败不能启用提案；模式选择的同步投影只用于工具可见性。Bot 禁用 Skill、缺少包内 Skill、模式过期或关闭时明确拒绝。对话的每次用户输入在 pre-step 加入准确方法及模式信息，由普通 `user/message` 日志保存；工具后续步骤不重复注入。关闭后的下一次用户输入记录取代旧方法的关闭说明。
+
+模型通过 `workflow_assess` 给出 simple / clarify / infeasible / complex 及理由，保存 `personal-workflow/assessment`。前三者不创建计划；复杂目标经消歧和可行性判断后才可提案。程序不假装能从自然语言独立证明复杂度判断正确；确定性测试覆盖每个路由的许可和持久效果。提案只产生待审核版本，既不批准也不创建 Run。托管方法中的 Markdown 权威和 Codex 对话管理流程已替换为应用结构化计划、审核和工具路径。
+
+Client 全部计划入口及 Project/Bot 子入口读取同一版本投影；树和阶段分组分别显示层级与显式依赖，不由展示顺序产生依赖。编辑保存需重新审核，失败保留草稿及幂等键；导出引用显示的准确版本。可见 Desktop 验收由用户执行，助理不启动页面。

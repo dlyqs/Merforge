@@ -29,6 +29,7 @@
     { "path": "../../util/workspace-path" },
     { "path": "../../workspace/workspace" },
     { "path": "../../workspace/personal-project" },
+    { "path": "../../workspace/personal-workflow" },
     { "path": "../../typert/protocol" },
     { "path": "../../util/native-command" }
   ]

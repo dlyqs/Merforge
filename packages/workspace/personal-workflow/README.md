@@ -8,12 +8,12 @@
 
 ## Model Experience
 
-Phase 2 adds no tools or prompt sections to ordinary Agents and changes no token or KV-cache usage in ordinary conversations. The model proposal service returns the exact persisted snapshot to its future tool consumer; that consumer must use the standard logged tool-result path. Session snapshots retain definitions for replay without pulling a newer version into historical context.
+This service adds no tools or prompt sections itself. The standard preset’s skill-dev-workflow plugin consumes mode and proposal operations and records its method context and tool results through the ordinary Session pipeline. `setMode` persists an explicit user selection; `assess` records model routing; `propose` requires an enabled exact mode revision, current Bot Skill permission, a complex assessment, and matching conversation affiliation at the serialized commit. Session snapshots retain definitions for replay without pulling a newer version into historical context.
 
 The built Host smoke runs with `node packages/workspace/personal-workflow/tests/built-smoke.mjs` after `pnpm run build`; it uses plain Node, Loader and real JSON/JSONL storage without a page.
 
 ## Known Limitations and Deferred Work
 
-The task view, enhanced-mode Skill, execution claims, Run/Evidence writes and handoffs belong to Phases 3–6. Approvals cover the complete revision; editing any definition requires reviewing the new revision. Retained revisions and operation receipts are not pruned. The service serializes commits within one Desktop Host; it does not support multiple processes writing the same storage root.
+The task view and managed Skill are implemented in their Client and Skill packages. Execution claims, Run/Evidence writes and handoffs remain in Phases 5–6. Approvals cover the complete revision; editing any definition requires reviewing the new revision. Retained revisions and operation receipts are not pruned. The service serializes commits within one Desktop Host; it does not support multiple processes writing the same storage root.
 
 No invariant companion is published: task readiness is a pure projection of validated plan data, and the storage-domain provider already checks its durable/cache relationship. There is no independently maintained execution state in this phase.

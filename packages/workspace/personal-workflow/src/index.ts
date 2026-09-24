@@ -7,10 +7,12 @@ import type {} from '@deepseek-ai/dsh-personal-project'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-session-query'
 import { approveSchema, operationIdSchema, readSchema, saveSchema, storedPlanSchema } from './schema.ts'
+import { workflowModeProjection, workflowModeSchema } from './mode-projection.ts'
+import type {} from '@deepseek-ai/dsh-session-projection'
 import { exportPlan, projectPlan } from './projection.ts'
 import type {
   ApprovePlanRequest, OperationId, PlanDefinition, PlanRevision, PlanView, ReadPlanRequest,
-  SavePlanRequest, StoredPlan, TaskId, WorkflowSnapshot,
+  SavePlanRequest, StoredPlan, TaskId, WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment,
 } from './types.ts'
 export type * from './types.ts'
 export { exportPlan, projectPlan } from './projection.ts'
@@ -28,7 +30,7 @@ declare module '@deepseek-ai/cordis' {
 
 /** Sole plan writer; approvals never create execution attempts. */
 export class PersonalWorkflow extends Service {
-  static inject = ['storageDomain', 'sessions', 'sessionPersistence', 'sessionQuery', 'personalProjects']
+  static inject = ['storageDomain', 'sessions', 'sessionPersistence', 'sessionQuery', 'personalProjects', 'sessionProjections']
   private plans?: KvTable<TaskId, StoredPlan>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
@@ -36,6 +38,7 @@ export class PersonalWorkflow extends Service {
   constructor(ctx: Context) { super(ctx, 'personalWorkflow') }
 
   protected async [Service.init](): Promise<void> {
+    this.ctx.sessionProjections.register(workflowModeProjection)
     const domain = await this.ctx.storageDomain.open(domainSpec)
     this.plans = domain.table('plans')
     this.ctx.effect(() => async () => {
@@ -66,6 +69,83 @@ export class PersonalWorkflow extends Service {
     return result
   }
 
+  /** Read the Session-log projection for tool visibility; this grants no operation permission.
+   * @param session - Session whose current mode selection is displayed.
+   * @returns Log-derived mode selection.
+   */
+  selectedMode(session: Session): WorkflowMode {
+    const mode = this.ctx.sessionProjections.stateOf(session, 'personalWorkflowMode')
+    if (mode === undefined) throw new Error('personal-workflow: mode projection unavailable')
+    return mode
+  }
+
+  /** Read only the persisted mode, so a failed flush never enables planning.
+   * @param session - Session selected by the user.
+   * @returns Latest durable selection, initially disabled.
+   */
+  async mode(session: Session): Promise<WorkflowMode> {
+    await using handle = await this.ctx.sessionPersistence.open(session.id, 'read')
+    const { events } = await handle.read()
+    const event = events.findLast(item => item.type === 'personal-workflow/mode')
+    return event?.type === 'personal-workflow/mode'
+      ? workflowModeSchema.parse({ enabled: event.data.enabled, revision: event.data.revision }) : { enabled: false, revision: 0 }
+  }
+
+  /** Persist an explicit user mode selection without creating a plan or starting work.
+   * @param session - Existing Session receiving the selection.
+   * @param request - Compare-and-set gesture with retry identity.
+   * @returns Committed mode after durable flush.
+   */
+  setMode(session: Session, request: SetWorkflowModeRequest): Promise<WorkflowMode> {
+    return this.enqueue(async () => {
+      operationIdSchema.parse(request.operationId)
+      if (request.sessionId !== session.id || !Number.isInteger(request.expectedRevision) || request.expectedRevision < 0) throw new Error('invalid-mode-request')
+      if (request.enabled && !this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')) throw new Error('dev-workflow Skill is disabled by the current Bot')
+      using observation = await this.ctx.sessionQuery.observeSession(session.id, { projectionMode: 'none' })
+      const existing = observation.events.find(event => event.type === 'personal-workflow/mode' && event.data.operationId === request.operationId)
+      if (existing?.type === 'personal-workflow/mode') {
+        if (existing.data.enabled !== request.enabled || existing.data.revision !== request.expectedRevision + 1) throw new Error('operation-id-conflict')
+      } else {
+        const current = await this.mode(session)
+        if (this.selectedMode(session).revision !== current.revision) throw new Error('personal-workflow: retry the pending mode operation before another choice')
+        if (current.revision !== request.expectedRevision) throw new Error('mode-revision-conflict')
+        session.append('personal-workflow/mode', { enabled: request.enabled, revision: current.revision + 1, operationId: request.operationId })
+      }
+      if (!await this.ctx.sessions.flush(session)) throw new Error('personal-workflow: Session has no durability listener')
+      const committed = await this.mode(session)
+      if (committed.revision < request.expectedRevision + 1) throw new Error('personal-workflow: mode was not persisted')
+      this.ctx.logger.info(`personal-workflow sessionId=${session.id} decisionCode=mode-selection result=committed`)
+      return committed
+    })
+  }
+
+  /** Record model routing independently of proposal creation.
+   * @param session - Calling model's Session.
+   * @param assessment - Goal classification and reason, with the observed mode version.
+   * @returns Durable routing decision; never an execution authorization.
+   */
+  assess(session: Session, assessment: WorkflowAssessment): Promise<WorkflowAssessment> {
+    return this.enqueue(async () => {
+      await this.requireMode(session, assessment.modeRevision)
+      session.append('personal-workflow/assessment', assessment)
+      if (!await this.ctx.sessions.flush(session)) throw new Error('personal-workflow: Session has no durability listener')
+      this.ctx.logger.info(`personal-workflow sessionId=${session.id} decisionCode=${assessment.decision} result=assessed`)
+      return assessment
+    })
+  }
+
+  /** Check current mode and Skill permission at the operation that consumes them.
+   * @param session - Calling Session.
+   * @param revision - Exact mode version observed by the model.
+   * @returns Resolved enabled mode or a rejection.
+   */
+  async requireMode(session: Session, revision: number): Promise<WorkflowMode> {
+    const mode = await this.mode(session)
+    if (!mode.enabled || mode.revision !== revision) throw new Error('personal-workflow: enhancement mode is off or changed')
+    if (!this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')) throw new Error('dev-workflow Skill is disabled by the current Bot')
+    return mode
+  }
+
   /** Read all current plan views; this does not bind or start a Session.
    * @returns current persisted plans and computed candidates.
    */
@@ -93,19 +173,32 @@ export class PersonalWorkflow extends Service {
     return this.commitProposal(request, 'user', null)
   }
 
-  /** Submit a model proposal and durably record what its Session observed.
-   * @param session - initiating Agent's Session.
-   * @param request - complete proposal; cannot carry an approval or execution status.
-   * @returns the committed snapshot after Session persistence succeeds.
+  /** Submit an assessed complex goal through the enabled-mode model path.
+   * @param session - Calling Agent's Session.
+   * @param modeRevision - Mode version observed during assessment.
+   * @param request - Unapproved structured proposal.
+   * @returns Persisted plan and Session snapshot.
    */
-  async propose(session: Session, request: SavePlanRequest): Promise<WorkflowSnapshot> {
-    const revision = await this.commitProposal(request, 'model', session.id)
-    return this.recordSnapshot(session, request.operationId, revision)
+  async propose(session: Session, modeRevision: number, request: unknown): Promise<WorkflowSnapshot> {
+    const parsed = saveSchema.parse(request)
+    const revision = await this.commitProposal(parsed, 'model', session.id, { session, modeRevision })
+    return this.recordSnapshot(session, parsed.operationId, revision)
   }
 
-  private commitProposal(request: SavePlanRequest, source: 'user' | 'model', sessionId: SessionId | null): Promise<PlanRevision> {
+  private commitProposal(request: SavePlanRequest, source: 'user' | 'model', sessionId: SessionId | null, enhancement?: { session: Session; modeRevision: number }): Promise<PlanRevision> {
     return this.enqueue(async () => {
       try {
+        if (enhancement !== undefined) {
+          await this.requireMode(enhancement.session, enhancement.modeRevision)
+          await using handle = await this.ctx.sessionPersistence.open(enhancement.session.id, 'read')
+          const { events } = await handle.read()
+          const assessment = events.findLast(event => event.type === 'personal-workflow/assessment')
+          if (assessment?.type !== 'personal-workflow/assessment' || assessment.data.modeRevision !== enhancement.modeRevision || assessment.data.decision !== 'complex') throw new Error('personal-workflow: clarify and assess a complex goal before proposing')
+          const goal = events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
+          if (goal !== undefined && assessment.seq < goal.seq) throw new Error('personal-workflow: assess the current goal before proposing')
+          const affiliation = this.ctx.personalProjects.affiliation(enhancement.session).current
+          if (request.definition.projectId !== (affiliation.projectId ?? null) || request.definition.botId !== (affiliation.botId ?? null)) throw new Error('personal-workflow: proposal affiliation differs from its conversation')
+        }
         const parsed = saveSchema.parse(request)
         const { definition, operationId } = parsed
         const fingerprint = digest({ kind: 'save', source, sessionId, ...parsed })

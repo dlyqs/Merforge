@@ -5,6 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { definition, ids, operation, proposal } from './fixture.ts'
+import type { PersonalWorkflow } from '../src/index.ts'
 import { createWorkflowHarness } from './harness.ts'
 
 const contexts: Context[] = []
@@ -24,17 +25,23 @@ async function boot(root?: string) {
   return harness
 }
 
+async function enablePlanning(service: PersonalWorkflow, session: Session): Promise<void> {
+  await service.setMode(session, { sessionId: session.id, enabled: true, expectedRevision: 0, operationId: operation(20) })
+  await service.assess(session, { modeRevision: 1, decision: 'complex', explanation: 'Validated test plan' })
+}
+
 describe('durable personal workflow through Loader', () => {
   it('reopens real JSON plans and JSONL Session snapshots with stable retry receipts', async () => {
     const first = await boot()
     const session = first.ctx.sessions.create(SessionId('planning'))
     const writer = await first.ctx.sessionPersistence.create(session.header)
-    const proposed = await first.service.propose(session, proposal())
+    await enablePlanning(first.service, session)
+    const proposed = await first.service.propose(session, 1, proposal())
     const approved = await first.service.approve({ taskId: ids[0]!, operationId: operation(2), expectedRevision: 1 })
     expect(approved.approval).not.toBeNull()
     await first.service.save(proposal(3, 1))
     expect(first.service.read({ taskId: ids[0]! }).approval).toBeNull()
-    expect(await first.service.propose(session, proposal())).toEqual(proposed)
+    expect(await first.service.propose(session, 1, proposal())).toEqual(proposed)
     await writer.close()
     await first.ctx.fiber.dispose()
     const second = await boot(first.root)
@@ -44,7 +51,7 @@ describe('durable personal workflow through Loader', () => {
     const events = (await reader.read()).events
     const replay = Session.create(session.id, events)
     expect(replay.snapshotEvents().filter(event => event.type === 'personal-workflow/snapshot')).toHaveLength(1)
-    expect(replay.snapshotEvents()[0]?.data).toEqual(proposed)
+    expect(replay.snapshotEvents().find(event => event.type === 'personal-workflow/snapshot')?.data).toEqual(proposed)
     expect(await second.service.approve({ taskId: ids[0]!, operationId: operation(2), expectedRevision: 1 })).toEqual(approved)
     await expect(second.service.approve({ taskId: ids[0]!, operationId: operation(4), expectedRevision: 1 })).rejects.toThrow('revision-conflict')
   })
@@ -81,12 +88,13 @@ describe('durable personal workflow through Loader', () => {
     const { ctx, service } = await boot()
     const session = ctx.sessions.create(SessionId('retry'))
     await using _writer = await ctx.sessionPersistence.create(session.header)
+    await enablePlanning(service, session)
     const failure = vi.spyOn(ctx.sessions, 'flush').mockRejectedValueOnce(new Error('flush failed'))
-    await expect(service.propose(session, proposal())).rejects.toThrow('flush failed')
+    await expect(service.propose(session, 1, proposal())).rejects.toThrow('flush failed')
     expect(service.read({ taskId: ids[0]! }).revision).toBe(1)
     failure.mockRestore()
-    await service.propose(session, proposal())
-    expect(session.snapshotEvents()).toHaveLength(1)
+    await service.propose(session, 1, proposal())
+    expect(session.snapshotEvents().filter(event => event.type === 'personal-workflow/snapshot')).toHaveLength(1)
     const reader = await ctx.sessionPersistence.open(session.id, 'read')
     expect((await reader.read()).events).toEqual(session.snapshotEvents())
     await reader.close()
@@ -96,13 +104,14 @@ describe('durable personal workflow through Loader', () => {
     const { ctx, service } = await boot()
     const session = ctx.sessions.create(SessionId('append-retry'))
     await using _writer = await ctx.sessionPersistence.create(session.header)
+    await enablePlanning(service, session)
     const append = vi.spyOn(session, 'append').mockImplementationOnce(() => { throw new Error('append failed') })
-    await expect(service.propose(session, proposal())).rejects.toThrow('append failed')
+    await expect(service.propose(session, 1, proposal())).rejects.toThrow('append failed')
     expect(service.read({ taskId: ids[0]! }).revision).toBe(1)
-    expect(session.snapshotEvents()).toHaveLength(0)
+    expect(session.snapshotEvents().filter(event => event.type === 'personal-workflow/snapshot')).toHaveLength(0)
     append.mockRestore()
-    await service.propose(session, proposal())
-    expect(session.snapshotEvents()).toHaveLength(1)
+    await service.propose(session, 1, proposal())
+    expect(session.snapshotEvents().filter(event => event.type === 'personal-workflow/snapshot')).toHaveLength(1)
     expect(service.list()).toHaveLength(1)
   })
 
