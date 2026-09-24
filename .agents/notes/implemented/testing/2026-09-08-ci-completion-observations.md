@@ -10,7 +10,7 @@ The reference CI run (run 34206953049) reports a webhook-created Session absent 
 
 ## Decision
 
-The [GitHub review browser test](../../../../apps/web/tests/github-ready-review.e2e.ts) holds real Workspace creation after HTTP 202, verifies that neither the Agent nor the model request exists, then releases creation and awaits the matching Session's `turn/end`. Cleanup releases the barrier, restores the method, and removes the event listener even when the test times out. Workspace membership, request counts, prompt content, and browser expectations retain their original assertions.
+The GitHub review browser test (`../../../../apps/web/tests/github-ready-review.e2e.ts`) holds real Workspace creation after HTTP 202, verifies that neither the Agent nor the model request exists, then releases creation and awaits the matching Session's `turn/end`. Cleanup releases the barrier, restores the method, and removes the event listener even when the test times out. Workspace membership, request counts, prompt content, and browser expectations retain their original assertions.
 
 The [PowerShell executor tests](../../../../packages/shell/pwsh-local/tests/executor.spec.ts) hold startup and consuming reads at private file barriers. The test controls when later output becomes available; final stdin/environment output is read after `done`. Polling uses the active test budget, and every constructed Context is registered before plugin initialization. Teardown captures Contexts and directories before awaiting disposal and removes directories only after that disposal completes.
 

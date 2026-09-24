@@ -8,6 +8,7 @@ import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
+import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import {
   boot,
   createRuntimeResolution,
@@ -18,7 +19,7 @@ import {
   type ProfileLayer,
 } from '@deepseek-ai/dsh-app-boot'
 
-const installAnchor = fileURLToPath(new URL('../../../../../apps/cli/package.json', import.meta.url))
+const installAnchor = fileURLToPath(new URL('../../../../../apps/desktop-host/package.json', import.meta.url))
 
 function insertedPluginNames(entries: readonly EntryOptions[]): string[] {
   return entries.flatMap((entry) => {
@@ -78,7 +79,9 @@ export async function bootProductionProfile(options: ProductionProfileOptions): 
       throw new Error(`${options.binName}: test overlay path must end in .patch.yml: ${path}`)
     }
   }
-  const profile = loadProfile(options.binName, options.profile, installAnchor, undefined, { userLayer: false })
+  const loadedProfile = loadProfile(options.binName, options.profile, installAnchor, undefined, { userLayer: false })
+  const profile = { ...loadedProfile, layers: loadedProfile.layers.filter(layer => layer.packageName === '@deepseek-ai/dsh-base') }
+  if (profile.layers.length !== 1) throw new Error(`${options.binName}: expected one Desktop base bundle`)
   const rootConfig = join(profile.dir, 'cordis.yml')
   await writeFile(rootConfig, '[]\n')
 
@@ -92,11 +95,14 @@ export async function bootProductionProfile(options: ProductionProfileOptions): 
     installAnchor,
     profile: { ...profile, layers: [...profile.layers, ...moduleLayers] },
   })
-  return boot(
+  let ready = false
+  const readyListeners = new Set<() => void>()
+  const ctx = await boot(
     options.binName,
     rootConfig,
     [
       ...profile.layers.flatMap(layer => layer.patches),
+      { id: 'hmr', disabled: true },
       ...overlays.flat(),
     ],
     async (ctx) => {
@@ -109,7 +115,20 @@ export async function bootProductionProfile(options: ProductionProfileOptions): 
       }
       ctx.provide('profileContext', profileContext)
       await ctx.plugin(PluginPackages, { resolution })
+      provideCmdline(ctx, {
+        args: [],
+        exit: (code) => { process.exitCode = code },
+        ready: { onReady(listener) {
+          if (ready) { listener(); return () => {} }
+          readyListeners.add(listener)
+          return () => { readyListeners.delete(listener) }
+        } },
+      })
       await options.prepare?.(ctx)
     },
   )
+  ready = true
+  for (const listener of readyListeners) listener()
+  readyListeners.clear()
+  return ctx
 }

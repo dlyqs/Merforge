@@ -14,43 +14,35 @@ There is no privileged core to patch: you extend dsh by mounting a plugin beside
 
 ## Profiles and bundles
 
-A running `dsh` is a plugin tree composed at boot from ordered layers.
+A running Desktop Host is a plugin tree composed at boot from ordered layers.
 
-A **profile** is a named composition stored in the Harness home. It lists the bundles it stacks, holds any out-of-tree plugins it installs, and keeps the user's own `cordis.patch.yml`. `web`, `headless`, `sdk`, `sdk-minimal`, and `acp` ship as templates.
+A **profile** is a named composition stored in the Merforge home. It lists its bundles, holds any out-of-tree plugins, and keeps the user's `cordis.patch.yml`. Desktop ships one `desktop` profile template.
 
 A **bundle** is a distribution format for Cordis config rows and the code they mount, so whatever it inserts stays patchable by the layers above it.
 
 Each declares itself in its own `package.json` under a `dsh` field: `dsh.profile` lists a profile's bundles, and `dsh.bundle` points at a bundle's patch file.
 
-[`dsh-base`](../packages/bundle/base/README.md) supplies model adapters, tools, persistence, permissions, settings, and credentials to `web`, `headless`, `sdk`, and `acp`. [`dsh-official-services`](../packages/bundle/official-services/README.md) adds legacy account, feedback, telemetry, and branding. [`dsh-web-app`](../packages/bundle/web-app/README.md) supplies the browser application; [`dsh-headless`](../packages/bundle/headless/README.md), [`dsh-sdk-app`](../packages/bundle/sdk-app/README.md), and [`dsh-acp-app`](../packages/bundle/acp-app/README.md) supply their respective runners. [`dsh-sdk-minimal`](../packages/bundle/sdk-minimal/README.md) owns its complete SDK tree without `dsh-base`.
+[`dsh-base`](../packages/bundle/base/README.md) supplies model adapters, tools, persistence, permissions, settings, and credentials. [`dsh-web-app`](../packages/bundle/web-app/README.md) supplies the internal Client application. The [Desktop Host patch](desktop-composition.md) adds product restrictions and optional browser and computer-use providers.
 
-Layers apply to an empty entry list in this order: each bundle in the profile's listed order, then the profile's `cordis.patch.yml`, then the home-level one, then any `--patch` overlay. A patch targets a row by id and replaces its whole config, or inserts new rows.
+Layers apply to an empty entry list in this order: each bundle in the profile's listed order, then the profile's `cordis.patch.yml`, then the home-level patch, then the Desktop Host patch. A patch targets a row by id and replaces its whole config, or inserts new rows.
 
-YAML controls HMR: base enables config-only `dsh-hmr`; headless, SDK and ACP disable it; `sdk-minimal` omits it. Profile patches override these defaults. HMR coordinates watching and reloads; the launcher provides profile data and readiness.
+YAML controls config-only `dsh-hmr`. The Desktop Host provides profile data and readiness while the Host owns process startup and shutdown.
 
-To see the tree your machine boots:
-
-```sh
-dsh --profile web --dump-config
-```
-
-Any row it prints can be replaced by a patch of your own.
+The profile and home patches can replace rows or add plugins; the Desktop Host patch applies product-owned restrictions afterward.
 
 Composition mechanics are in [app-boot](../packages/boot/app-boot/README.md#profiles); config fields are in the generated [config catalog](config-catalog.md).
 
 ## Application launch
 
-Supported Node applications launch through named `dsh` profiles. The shipped profiles are `web`, `headless`, `sdk`, `sdk-minimal`, and `acp`, selected with `dsh --profile <name>` or `dsh <name>`. `plugin` names the management command; a profile with that name requires `--profile plugin`. The TypeScript SDK resolves its same-version `dsh` dependency and selects `sdk`; custom plugin composition remains a profile plus ordered patch files, not another executable or inline application tree. `sdk-minimal` is a repository-owned standalone bundle behind the same launcher, not a caller-supplied Cordis tree.
+The Electron shell launches the private Desktop Host through its internal profile boot API. The Host loads the `desktop` profile and serves the Client through authenticated loopback transport. No public Node application launcher or protocol server ships.
 
-Vendored CLIs, build-only and test-only executables, direct in-process plugin mounting, and the private browser WebWorker preview are not Harness application launchers. [`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts) keeps every package bin, executable source, root demo, and the root `start:web` and `dev:web` scripts in an explicit class and rejects a Node application path that bypasses `dsh`.
-
-The Python SDK follows the same application architecture. Its runtime wheel packages the normal `dsh` CLI as `deepseek-harness-sdk-runtime-<platform>-<arch>`, and the client launches `dsh --profile sdk` with an explicit Harness home by default. The minimal example selects the shipped `sdk-minimal` profile. Python exposes profile selection and ordered patch files rather than a complete Cordis tree; persistent external plugins are installed through `dsh plugin`. The removed private direct-config carrier has no compatibility bin or fallback parser.
+Vendored CLIs, build-only and test-only executables, and the private browser WebWorker preview are outside the product launch path. [`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts) rejects unsupported application entries.
 
 ## Desktop application
 
-The [Electron desktop application](../apps/desktop/README.md) carries its production runtime in signed resources and owns `profiles/desktop` under the Merforge home (`~/.merforge` or `MERFORGE_HOME`). Shared profile helpers initialize files and resolve dependencies without replacing pnpm-owned packages. The legacy Harness home remains untouched; the public CLI cannot manage Desktop’s profile.
+The [Electron desktop application](../apps/desktop/README.md) carries its production runtime in signed resources and owns `profiles/desktop` under the Merforge home (`~/.merforge` or `MERFORGE_HOME`). Shared profile helpers initialize files and resolve dependencies without replacing pnpm-owned packages. The legacy Harness home remains untouched.
 
-Electron starts the private Desktop Host in Electron Node mode. The Host boots its own profile through app-boot and the internal Web application. The window loads packaged Web assets and activates client plugins after boot injection. Web owns RPC and streams; the desktop carrier connects the page to the authenticated Host. Node IPC carries boot injection, readiness, errors, and shutdown. Profile configuration can override the default port `19387`. Shell UI runs plugin transactions through bundled pnpm. Desktop omits official-services, Platform account IPC, default Session upload, Office conversion, and the plugin marketplace; Desktop Host roots the packaged dependency closure. The Browser sidebar keeps Electron guests, while Agent browser and computer-use providers are present in the closure as disabled profile entries until the user enables them under their browser and OS permission prerequisites.
+Electron starts the private Desktop Host in Electron Node mode. The Host boots its profile through app-boot and the internal Web application. The window loads packaged Web assets and activates client plugins after boot injection. Web owns RPC and streams; the desktop carrier connects the page to the authenticated Host. Node IPC carries boot injection, readiness, errors, and shutdown. Profile configuration can override the default port `19387`. Desktop omits Platform account IPC, default Session upload, Office conversion, and the plugin marketplace; Desktop Host roots the packaged dependency closure. The Browser sidebar keeps Electron guests, while Agent browser and computer-use providers are present in the closure as disabled profile entries until the user enables them under their browser and OS permission prerequisites.
 
 ## Core packages
 

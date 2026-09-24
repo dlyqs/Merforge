@@ -12,7 +12,7 @@ Profile 启动需要一种适用于自定义名称的简洁写法，同时不能
 
 CLI 在解析前，将开头非选项且非 `plugin` 的参数展开为 `--profile <name>`。两种写法使用相同的启动器 flag、应用参数透传和 profile 校验。`plugin` 仅在首个参数位置保持命令优先级；`dsh --profile plugin` 显式选择同名 profile。选定 profile 后，`plugin` 作为应用参数透传。应用参数开始之前，重复选择 profile 会被拒绝。
 
-本决策取代[统一 dsh 应用启动器](../architecture/2026-08-22-single-dsh-application-launcher.zh.md)中仅为 Web 提供简写的机制；该 Note 继续负责应用组合与生命周期的所有权。
+本决策取代[统一 dsh 应用启动器](../../archived/architecture/2026-08-22-single-dsh-application-launcher.md)中仅为 Web 提供简写的机制；该 Note 继续负责应用组合与生命周期的所有权。
 
 ## Alternatives considered
 

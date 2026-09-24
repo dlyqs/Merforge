@@ -45,7 +45,7 @@ const result = await runLoaderSmoke({
 
 ### 测试交付 profile
 
-Profile 集成 driver 使用仅限仓库内部的 `tests/fixtures/production-profile.ts` helper。它通过 `loadProfile` 加载指定的已交付 profile 及其组合包 patch，计算 runtime resolution，并通过 `PluginPackages` 安装它，然后把组合包 patch 与测试 `*.patch.yml` 文件依次交给 `boot` 挂载的根 `cordis:include`。这些 patch 应只包含测试提供方或模型、隔离持久化路径及被测对象专用变更。只需要 agent loop 而不测试 profile 集成的包级单元测试改为在本地挂载 `dsh-agent-loop-testkit`。
+Profile 集成 driver 使用仅限仓库内部的 `tests/fixtures/production-profile.ts` helper。它通过 `loadProfile` 加载 Desktop profile 的 base 组合包，不加载 GUI 组合包，计算 runtime resolution，再通过 `PluginPackages` 安装，并提供启动器的空参数与就绪信号。base patch 与测试 `*.patch.yml` 文件随后由 `boot` 挂载。测试 patch 只包含被测提供方或模型、隔离持久化路径与必需的变更。只需要 agent loop 而不测试 profile 集成的包级单元测试改为在本地挂载 `dsh-agent-loop-testkit`。
 
 ### 驱动 fixture 轮次
 

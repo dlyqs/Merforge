@@ -47,8 +47,7 @@ permissions:
   contents: read
 
 env:
-  # CI runs must never report to the production telemetry endpoint baked
-  # into apps/cli/cordis.yml (AppCLIEntry disables the row when set).
+  # Keep legacy telemetry explicitly disabled in CI.
   DSH_TELEMETRY_DISABLED: '1'
 
 jobs:
@@ -107,7 +106,7 @@ jobs:
       # the built artifact under plain Node, resolving plugins through real package
       # exports — the shape a real consumer runs. That requires a prior build.
       - name: Build (lib for the e2e example bins)
-        run: pnpm run build:official
+        run: pnpm run build
 
       - name: Prepare Office runtime
         run: pnpm run prepare:primary-runtime --target linux-x64 --output .cache/e2e-office

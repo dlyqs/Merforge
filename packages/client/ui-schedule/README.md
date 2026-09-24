@@ -25,13 +25,9 @@ This package renders a read-only catalog of the current Session's active Schedul
 <a id="use-this-package"></a>
 ## Use this package
 
-Enable the Schedule overlay before starting the Web Session that should expose reminders:
+The default Desktop composition does not mount this presentation. An optional composition must enable `ui-schedule` and `@deepseek-ai/dsh-schedule` before starting the Session that should expose reminders.
 
-```sh
-dsh web --patch apps/cli/config/examples/schedule/cordis.yml
-```
-
-The shipped Web graph already resolves `@deepseek-ai/dsh-client-ui-schedule` through a disabled `ui-schedule` row; the overlay enables that row together with `@deepseek-ai/dsh-schedule`. The trigger appears only while the Session is successfully open and the projection contains at least one active record. Opening it shows overdue rows first, then future rows by target time, with exact ties preserving the projection's creation order.
+When enabled, the trigger appears only while the Session is successfully open and the projection contains at least one active record. Opening it shows overdue rows first, then future rows by target time, with exact ties preserving the projection's creation order.
 
 ### Read and dismiss the catalog
 

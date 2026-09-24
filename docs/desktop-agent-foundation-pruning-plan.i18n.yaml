@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/desktop-agent-foundation-pruning-plan.md
-desktop-agent-foundation-pruning-plan.md: 97410c8a036189095d664ec074211f7fe6f16bb2
-desktop-agent-foundation-pruning-plan.zh.md: 2dbb9688b271a2b20d9cd544f6da37d53b7c6b2b
+desktop-agent-foundation-pruning-plan.md: 82a4b1f055a1c4f71b2654970b473d91efb991df
+desktop-agent-foundation-pruning-plan.zh.md: 2d381ef7b2868d70ad75fa13195b69070ae68e12

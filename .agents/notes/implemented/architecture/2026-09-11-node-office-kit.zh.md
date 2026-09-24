@@ -30,7 +30,7 @@ Office 响应使用 Typert 二进制结果投影和 Connection multipart 封装�
 
 选择使用转换提供方的消费者安装 kit 及目标引擎。Worker 路径与可执行权限仍按普通包文件处理。Desktop 打包闭包不包含 kit。
 
-[Python 可执行分发](2026-07-10-single-file-executable-sdk-runtime-distribution.zh.md)将 kit、目标引擎及其依赖闭包保留在可执行文件旁。安装后的 wheel 冒烟测试会迁移载荷，要求仅存在目标后端，并通过该引擎转换一次 DOCX。各平台的打包与发布限制由[平台引擎决策](2026-09-15-platform-office-engines.zh.md)说明。
+[Python 可执行分发](../../archived/architecture/2026-07-10-single-file-executable-sdk-runtime-distribution.md)将 kit、目标引擎及其依赖闭包保留在可执行文件旁。安装后的 wheel 冒烟测试会迁移载荷，要求仅存在目标后端，并通过该引擎转换一次 DOCX。各平台的打包与发布限制由[平台引擎决策](2026-09-15-platform-office-engines.zh.md)说明。
 
 声明检查仅放行精确的 API 与引擎包名及 MPL-2.0 条款，继续拒绝无关 MPL 包或变更后的非宽松条款。每位接收者都必须保有访问 kit 对应 LibreOffice 源码版本、补丁、构建说明与许可证声明的权限；引擎包保留各自的第三方声明。向组织外部分发受覆盖的可执行文件时，须满足 [MPL 源码可用性要求](https://www.mozilla.org/en-US/MPL/2.0/FAQ/)。
 

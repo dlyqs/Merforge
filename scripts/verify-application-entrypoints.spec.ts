@@ -1,4 +1,4 @@
-/** Application-entrypoint classification and dsh-launch enforcement. */
+/** Application-entrypoint classification and Desktop-launch enforcement. */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -34,7 +34,7 @@ describe('application entrypoints', () => {
     write(root, 'packages/example/app/package.json', JSON.stringify({ bin: { app: 'lib/bin.js' } }))
 
     expect(applicationEntrypointViolations(root)).toEqual([
-      'packages/example/app/package.json: package bin bypasses the dsh launcher; applications use apps/cli profiles',
+      'packages/example/app/package.json: package bin creates a non-Desktop application launcher',
     ])
   })
 
@@ -93,43 +93,38 @@ describe('application entrypoints', () => {
     ])
   })
 
-  it('rejects a classified demo wrapper that launches a package entry', () => {
+  it('rejects a standalone demo script', () => {
     const root = fixture()
     write(root, 'package.json', JSON.stringify({ scripts: { 'demo:ptc': 'node scripts/demo-ptc.mjs' } }))
-    write(root, 'scripts/demo-ptc.mjs', "spawn('node', ['packages/example/app/src/bin.ts'])\n")
-
     expect(applicationEntrypointViolations(root)).toEqual([
-      'scripts/demo-ptc.mjs: application launcher wrapper must launch apps/cli/src/bin.ts',
-      'scripts/demo-ptc.mjs: application launcher wrapper must not launch a package entry directly',
+      'package.json scripts.demo:ptc: standalone application launcher is unsupported',
     ])
   })
 
-  it('rejects a start:web script that bypasses the dsh launcher', () => {
+  it('rejects a standalone Web script', () => {
     const root = fixture()
     write(root, 'package.json', JSON.stringify({ scripts: { 'start:web': 'node packages/example/app/src/bin.ts web' } }))
 
     expect(applicationEntrypointViolations(root)).toEqual([
-      'package.json scripts.start:web: application launcher script must launch apps/cli/src/bin.ts',
-      'package.json scripts.start:web: application launcher script must not launch a package entry directly',
+      'package.json scripts.start:web: standalone application launcher is unsupported',
     ])
   })
 
-  it('rejects a dev:web wrapper that serves without the dsh launcher', () => {
+  it('rejects a Desktop script that bypasses the Electron package', () => {
     const root = fixture()
-    write(root, 'package.json', JSON.stringify({ scripts: { 'dev:web': 'tsx scripts/dev-web.ts --poll' } }))
-    write(root, 'scripts/dev-web.ts', "execa('vite', ['build', '--watch'])\n")
+    write(root, 'package.json', JSON.stringify({ scripts: { 'dev:desktop': 'tsx scripts/dev-web.ts --poll' } }))
 
     expect(applicationEntrypointViolations(root)).toEqual([
-      'scripts/dev-web.ts: application launcher wrapper must launch apps/cli/src/bin.ts',
+      'package.json scripts.dev:desktop: Desktop launcher must select @deepseek-ai/dsh-desktop',
     ])
   })
 
   it('rejects a new root demo until its launch role is classified', () => {
     const root = fixture()
-    write(root, 'package.json', JSON.stringify({ scripts: { 'demo:new-app': 'dsh --profile new-app' } }))
+    write(root, 'package.json', JSON.stringify({ scripts: { 'demo:new-app': 'node new-app.js' } }))
 
     expect(applicationEntrypointViolations(root)).toEqual([
-      'package.json scripts.demo:new-app: demo launcher has no explicit dsh or in-process classification',
+      'package.json scripts.demo:new-app: standalone application launcher is unsupported',
     ])
   })
 })

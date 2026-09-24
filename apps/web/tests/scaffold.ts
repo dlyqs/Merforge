@@ -200,7 +200,7 @@ const BASE_PATCH_PATH = join(REPO_ROOT, 'packages/bundle/base/cordis.patch.yml')
 const WEB_BUNDLE_DIR = join(REPO_ROOT, 'packages/bundle/web-app')
 const WEB_BUNDLE_PATCH = (JSON.parse(readFileSync(join(WEB_BUNDLE_DIR, 'package.json'), 'utf8')) as { dsh: { bundle: { patch: string[] } } }).dsh.bundle
 /** The installation anchor whose dependency surface the runtime resolution mirrors. */
-const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
+const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/desktop-host/package.json')
 
 // Replay publishes the provider catalog the gateway routes to (providers
 // mode, never catch-all: with both direct adapters disabled no adapter exists, so a

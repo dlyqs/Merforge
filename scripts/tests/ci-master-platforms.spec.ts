@@ -8,7 +8,6 @@ import { gatesForMode } from '../run-gates.ts'
 
 const root = resolve(import.meta.dirname, '../..')
 const masterPush = "github.event_name == 'push' && github.ref == 'refs/heads/master'"
-const runtimeBuilder = './.github/workflows/build-exe-for-python-sdk.yml'
 
 interface Job {
   if?: string | boolean
@@ -72,18 +71,14 @@ describe('master-only platform scheduling', () => {
     expect(evaluateCondition(workflow('ci.yml').jobs['all-checks-passed']!.if as string, true, ['success'])).toBe(false)
   })
 
-  it('keeps only Linux and Windows x64 runtimes in required PR CI', () => {
+  it('keeps the PR aggregate scoped to existing jobs', () => {
     const pr = workflow('ci.yml')
     expect(Object.keys(pr.on)).toEqual(['pull_request'])
-    expect(pr.jobs['python-runtime']).toMatchObject({
-      if: "github.event_name == 'pull_request'",
-      uses: runtimeBuilder,
-      with: { ci: true, targets: 'node24-linux-x64,node24-win-x64' },
-    })
+    expect(pr.jobs['python-runtime']).toBeUndefined()
     expect(pr.jobs.windows).toBeUndefined()
     expect(JSON.stringify(pr.jobs)).not.toMatch(/wine-windows-gates|check:windows-wine/)
     const aggregate = pr.jobs['all-checks-passed']!
-    expect(aggregate.needs).toContain('python-runtime')
+    expect(aggregate.needs).not.toContain('python-runtime')
     expect(aggregate.needs).not.toContain('windows')
     expect(aggregate.needs!.every(id => id in pr.jobs)).toBe(true)
     expect(aggregate.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' }}")
@@ -92,30 +87,11 @@ describe('master-only platform scheduling', () => {
     }))
   })
 
-  it('runs all three deferred carriers on master pushes with fail-loud API credentials', () => {
+  it('keeps the removed Python runtime lane out of master CI', () => {
     const master = workflow('ci-master.yml')
     expect(master.on.push).toEqual({ branches: ['master'] })
     expect(Object.keys(master.on).sort()).toEqual(['push', 'workflow_dispatch'])
-    const runtime = master.jobs['python-runtime']!
-    expect(runtime).toMatchObject({
-      if: masterPush,
-      uses: runtimeBuilder,
-      with: { ci: true, targets: 'node24-linux-arm64,node24-macos-arm64,node24-macos-x64' },
-      secrets: { DEEPSEEK_API_KEY_EXTERNAL: '${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}' },
-    })
-    expect(runtime.needs).toBeUndefined()
-    expect(runtime['continue-on-error']).toBeUndefined()
-    const builder = workflow('build-exe-for-python-sdk.yml')
-    expect(builder.concurrency?.['cancel-in-progress']).toBe(
-      '${{ !inputs.release }}',
-    )
-    const build = builder.jobs.build!
-    const preflight = build.steps!.find(step => step.name === 'Preflight installed-wheel real API test (POSIX)')!
-    expect(preflight.if).toContain('inputs.ci')
-    expect(preflight.if).toContain("github.event_name != 'pull_request'")
-    expect(preflight.if).toContain('github.event.pull_request.head.repo.fork')
-    expect(preflight.if).toContain("github.event.pull_request.user.login == 'dependabot[bot]'")
-    expect(preflight.run).toContain('exit 1')
+    expect(master.jobs['python-runtime']).toBeUndefined()
   })
 
   it('runs Wine once on hosted master CI and seeds its own apt cache', () => {
@@ -146,13 +122,4 @@ describe('master-only platform scheduling', () => {
     expect(process.env.npm_execpath).toBe(previous)
   })
 
-  it('retains the complete release matrix independently of CI scheduling', () => {
-    const release = workflow('python-release.yml')
-    const calls = Object.values(release.jobs).filter(job => job.uses === runtimeBuilder)
-    expect(calls).toHaveLength(1)
-    expect(calls[0]!.with).toMatchObject({
-      release: true,
-      targets: 'node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-macos-x64,node24-win-x64',
-    })
-  })
 })

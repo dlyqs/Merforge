@@ -10,7 +10,7 @@ if (configPath === undefined) throw new Error('time-context driver requires a co
 
 const ctx = await bootProductionProfile({
   binName: 'time-context-e2e',
-  profile: 'headless',
+  profile: 'desktop',
   overlayPaths: [resolveConfigPath(configPath, undefined)],
 })
 try {

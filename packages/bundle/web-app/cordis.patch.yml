@@ -303,19 +303,16 @@
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:
-# its tools, its prompt sections, its delegation backends. The base keeps them
-# for the TUI, which is single-session and composes its agent process-wide; the
-# Web surface disables them here and lets each session mount a preset instead.
+# its tools, its prompt sections, its delegation backends. The base retains
+# them for compositions without session presets; Desktop disables them here
+# and lets each session mount a preset instead.
 #
 # Disabling rather than deleting is deliberate: the base is shared, and a row
 # absent from a surface overlay would silently reappear the day someone reorders
 # the composition.
 
-# `shell-env` STAYS in the host plane: `apps/cli/src/web.ts` injects it to
-# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
-# the criterion for host-plane ownership — injection resolves before any session
-# exists, so there is no agent to key by. Behind a preset realm those variables
-# would never reach the model's shell at all.
+# `shell-env` stays in the host plane because it injects a process-wide service
+# before any Session exists. A preset realm cannot provide it to the Host.
 
 - id: tool-bash
   disabled: true

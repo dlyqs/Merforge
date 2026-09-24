@@ -560,9 +560,6 @@ describe('auditStartupEntries', () => {
     'webserver',
     'modules',
     'connection',
-    'headless-runner',
-    'acp',
-    'sdk-jsonrpc-server',
   ]
 
   interface FakeEntry {
@@ -816,10 +813,10 @@ describe('auditStartupEntries', () => {
 
   it('rejects a required entry pending on an injected service', async () => {
     await expect(auditStartupEntries(ctxWith([{
-      fiber: fiber(0, undefined, { headlessStartup: {} }),
-      options: { id: 'headless-runner', name: '@deepseek-ai/dsh-headless' },
+      fiber: fiber(0, undefined, { model: {} }),
+      options: { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop' },
     }]), NAME, vi.fn())).rejects.toThrow(
-      'headless-runner (required)  headlessStartup',
+      'agent-loop (required)  model',
     )
   })
 })

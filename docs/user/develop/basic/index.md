@@ -45,7 +45,7 @@ export function apply(ctx: Context) {
 
 ## Register it in cordis.yml
 
-Run `pwd` from the repository root, then create `scratch-plugin/cordis.yml` as a Web overlay that inserts the local plugin. Replace `/absolute/path/to/deepseek-harness` below with the printed path:
+Run `pwd` from the repository root, then add this row to the Desktop profile patch at `~/.merforge/profiles/desktop/cordis.patch.yml` (or under `MERFORGE_HOME`). Replace `/absolute/path/to/deepseek-harness` below with the printed path:
 
 ```yaml
 - insert:
@@ -53,15 +53,7 @@ Run `pwd` from the repository root, then create `scratch-plugin/cordis.yml` as a
       name: '/absolute/path/to/deepseek-harness/scratch-plugin/src/my-plugin.ts'
 ```
 
-The plugin path must be absolute. A patch file contributes configuration but does not change the profile directory from which the loader resolves module paths.
-
-Start the Web UI with that overlay:
-
-```sh
-pnpm dsh web --patch ./scratch-plugin/cordis.yml
-```
-
-Open `http://127.0.0.1:3080`. The terminal prints `[hello-plugin] plugin loaded!` during startup.
+The plugin path must be absolute. Merge the `insert` row into an existing patch instead of replacing its other entries. Restart the Desktop Host after changing the profile patch; the startup log should print `[hello-plugin] plugin loaded!`.
 
 ## Automatic cleanup
 

@@ -6,8 +6,8 @@
  * every mount decision, against the loader context). Every other entry
  * metadata field stays static, so an expression there remains truthy data and
  * silently changes composition. Shipped and test-only dsh overlays resolve
- * named plugins from the CLI application's owning manifest; package-owned
- * Loader fixtures resolve from their package manifest.
+ * named plugins from each bundle's manifest; package-owned Loader fixtures
+ * resolve from their package manifest.
  */
 
 import { globSync, readFileSync } from 'node:fs'
@@ -33,11 +33,6 @@ export interface PluginReference {
 }
 
 const root = resolve(import.meta.dirname, '..')
-// These overlays are consumed by the built dsh app, so their bare specifiers
-// resolve from apps/cli.
-const appOverlayFiles = new Set([
-  ...globSync('apps/cli/config/examples/**/*.yml', { cwd: root }),
-])
 const metadataFields = ['id', 'name', 'group', 'inject', 'intercept', 'isolate'] as const
 
 /** The adaptive directory-picker chooser package (mounts a backend row at boot). */
@@ -240,31 +235,6 @@ function recordPlugin(entry: Record<string, unknown>, file: string): void {
 function validateAppResolution(): string[] {
   const violations: string[] = []
   const bundleManifests = bundleManifestPaths()
-  // App overlays (and any config left under apps/cli/config) resolve from the
-  // dsh app's own dependency surface — the runtime resolution mirrors it.
-  const appManifest = readManifest('apps/cli/package.json')
-  const appDependencies = {
-    ...appManifest.dependencies,
-    // Runtime resolution includes every in-box bundle's own dependencies.
-    // Optional Profile bundles stay outside the app installation until that
-    // Profile installs them.
-    ...Object.fromEntries(globSync('packages/bundle/*/package.json', { cwd: root })
-      .flatMap(file => Object.entries(readManifest(file).dependencies ?? {}))),
-  }
-  const shipped = new Set(globSync('*.cordis.yml', { cwd: resolve(root, 'apps/cli/config') })
-    .map(file => `apps/cli/config/${file}`))
-  const appReferences = pluginReferences.filter(reference => shipped.has(reference.file) || appOverlayFiles.has(reference.file))
-  violations.push(...missingPluginDependencies(
-    appReferences,
-    appDependencies,
-    'apps/cli/package.json dependencies or a bundle manifest',
-  ))
-  const appTestReferences = pluginReferences.filter(reference => reference.file.startsWith('apps/cli/tests/'))
-  violations.push(...missingPluginDependencies(
-    appTestReferences,
-    { ...appManifest.dependencies, ...appManifest.devDependencies },
-    'apps/cli/package.json dependencies or devDependencies',
-  ))
   // Each bundle's patch rows must resolve from that bundle's own dependencies:
   // per-layer resolution anchors on the bundle package directory.
   for (const manifestPath of bundleManifests) {

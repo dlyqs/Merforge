@@ -46,20 +46,7 @@ Choose this backend when the child must run with its own runtime, model, and too
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-subagent-acp) is the exhaustive source for every accepted field and its JSDoc.
 
-A DeepSeek Harness child uses the product launcher and an explicit absolute `DSH_HOME`. The isolated home prevents a nested runtime from discovering the launching person's profiles or credentials; the generic ACP provider does not impose this requirement on non-DSH agents.
-
-```yaml
-- id: subagent-acp
-  name: '@deepseek-ai/dsh-subagent-acp'
-  config:
-    providerName: acp
-    command: dsh
-    args: ['--profile', 'acp', '--patch', '/absolute/path/to/acp.patch.yml']
-    permission: reject
-    env:
-      DSH_HOME: /absolute/path/to/isolated-child-home
-      DEEPSEEK_API_KEY: !!js process.env.DEEPSEEK_API_KEY
-```
+Set `command` and `args` to an installed ACP agent's startup command. Give a child that needs credentials only the explicit `env` entries it requires; the provider removes credential-shaped ambient variables before merging them.
 
 ### What you get
 
@@ -112,7 +99,6 @@ Read these pages when the package-level contract is not enough. They move from t
 
 - [Subagent subsystem](../../../docs/subsystems/subagent.md) — the service contract, provider contract, and terminal result semantics.
 - [dsh-subagent seam](../subagent/README.md) — the registry and start API this provider registers on.
-- [Agent Client Protocol automation server](../../acp/acp/README.md) — the automation-only server this provider drives as a client.
 - [dsh-subprocess seam](../../subprocess/subprocess/README.md) — the process-spawn and teardown machinery behind each run.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-subagent-acp) — every accepted config field and its source declaration.
 

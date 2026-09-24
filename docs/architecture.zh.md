@@ -14,43 +14,35 @@
 
 ## Profile 与组合包
 
-运行中的 `dsh` 是一棵插件树，由启动时按序叠加的各层组合而成。
+运行中的 Desktop Host 是一棵插件树，由启动时按序叠加的各层组合而成。
 
-**profile** 是存放在 Harness home 中的具名组装。它列出自己叠放的组合包，存放自己安装的树外插件，并保存用户自己的 `cordis.patch.yml`。`web`、`headless`、`sdk`、`sdk-minimal` 和 `acp` 作为模板随发行版交付。
+**profile** 是存放在 Merforge 主目录中的具名组装。它列出组合包、保存树外插件和用户的 `cordis.patch.yml`。Desktop 只随附 `desktop` profile 模板。
 
 **组合包**是 Cordis 配置项及其挂载代码的分发格式，因此它插入的内容始终可被其上各层 patch。
 
 两者都在各自的 `package.json` 中通过 `dsh` 字段声明自己：`dsh.profile` 列出一个 profile 的组合包，`dsh.bundle` 指向一个组合包的 patch 文件。
 
-[`dsh-base`](../packages/bundle/base/README.zh.md) 向 `web`、`headless`、`sdk` 和 `acp` 提供模型适配器、工具、持久化、权限、设置与凭据。[`dsh-official-services`](../packages/bundle/official-services/README.zh.md) 添加旧版账号、反馈、遥测和品牌配置。[`dsh-web-app`](../packages/bundle/web-app/README.zh.md) 提供浏览器应用；[`dsh-headless`](../packages/bundle/headless/README.zh.md)、[`dsh-sdk-app`](../packages/bundle/sdk-app/README.zh.md) 和 [`dsh-acp-app`](../packages/bundle/acp-app/README.zh.md) 分别提供运行入口。[`dsh-sdk-minimal`](../packages/bundle/sdk-minimal/README.zh.md) 独立拥有完整 SDK 树，不应用 `dsh-base`。
+[`dsh-base`](../packages/bundle/base/README.zh.md) 提供模型适配器、工具、持久化、权限、设置与凭据。[`dsh-web-app`](../packages/bundle/web-app/README.zh.md) 提供内部客户端应用。[Desktop Host patch](desktop-composition.zh.md) 添加产品约束以及可选的浏览器操作和 computer use 提供方。
 
-各层按此顺序应用在空条目列表之上：先按 profile 列出的顺序应用每个组合包，然后是 profile 的 `cordis.patch.yml`，然后是 home 级的那份，最后是任意 `--patch` overlay。一条 patch 按 id 定位某个条目并替换其整个 config，或插入新条目。
+各层按此顺序应用在空条目列表之上：先按 profile 列出的顺序应用每个组合包，然后是 profile 的 `cordis.patch.yml`、home 级 patch，最后是 Desktop Host patch。一条 patch 按 id 定位某个条目并替换其整个 config，或插入新条目。
 
-YAML 控制 HMR：base 启用仅监视配置的 `dsh-hmr`；Headless、SDK 和 ACP 禁用它；`sdk-minimal` 不包含它。Profile patch 覆盖这些默认值。HMR 协调监听和重载；启动器提供 profile 数据和就绪信号。
+YAML 控制仅监视配置的 `dsh-hmr`。Desktop Host 提供 profile 数据与就绪信号，并负责进程启动和关闭。
 
-要查看你的机器启动的配置树：
-
-```sh
-dsh --profile web --dump-config
-```
-
-它打印出的任何条目，都可以由你自己的 patch 替换。
+Profile 与 home patch 可以替换条目或添加插件；Desktop Host patch 随后应用产品自有约束。
 
 组装机制见 [app-boot](../packages/boot/app-boot/README.zh.md#profiles)；配置字段见生成的[配置目录](config-catalog.zh.md)。
 
 ## 应用启动
 
-受支持的 Node 应用通过具名 `dsh` profile 启动。随附 profile 为 `web`、`headless`、`sdk`、`sdk-minimal` 和 `acp`，可通过 `dsh --profile <name>` 或 `dsh <name>` 选择。`plugin` 表示管理命令；同名 profile 必须用 `--profile plugin` 选择。TypeScript SDK 会解析其同版本 `dsh` 依赖并选择 `sdk`；自定义插件组合继续由 profile 与有序 patch 文件表达，而不是另一个可执行文件或内联应用树。`sdk-minimal` 是位于同一 launcher 后的仓库自有独立组合包，而不是由调用方提供的 Cordis 配置树。
+Electron 壳通过内部 profile boot API 启动私有 Desktop Host。Host 加载 `desktop` profile，并通过已认证的 loopback 传输提供客户端。发行版不提供公开的 Node 应用启动器或协议服务端。
 
-Vendored CLI、仅用于构建和测试的可执行文件、进程内直接挂载插件以及私有浏览器 WebWorker 预览都不属于 Harness 应用启动器。[`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts)将每个包 bin、可执行源码、根 demo 以及根脚本 `start:web` 与 `dev:web` 归入显式类别，并拒绝任何绕过 `dsh` 的 Node 应用路径。
-
-Python SDK 遵循相同的应用架构。其运行时 wheel 把普通 `dsh` CLI 打包为 `deepseek-harness-sdk-runtime-<platform>-<arch>`，客户端默认以显式 Harness home 启动 `dsh --profile sdk`。极简示例选择随附的 `sdk-minimal` profile。Python 暴露 profile 选择与有序 patch 文件，而不是完整 Cordis 树；持久外部插件通过 `dsh plugin` 安装。已删除的私有直读配置载体没有兼容 bin 或回退 parser。
+Vendored CLI、仅用于构建和测试的可执行文件以及私有浏览器 WebWorker 预览都不属于产品启动路径。[`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts)拒绝不受支持的应用入口。
 
 ## 桌面应用
 
-[Electron 桌面应用](../apps/desktop/README.zh.md)在签名资源中携带生产运行时，独占 Merforge 主目录（`~/.merforge` 或 `MERFORGE_HOME`）下的 `profiles/desktop`。共享 profile helper 初始化文件、解析依赖，不替换 pnpm 拥有的包。旧版 Harness 主目录不受影响；公开 CLI 不能管理 Desktop profile。
+[Electron 桌面应用](../apps/desktop/README.zh.md)在签名资源中携带生产运行时，独占 Merforge 主目录（`~/.merforge` 或 `MERFORGE_HOME`）下的 `profiles/desktop`。共享 profile helper 初始化文件、解析依赖，不替换 pnpm 拥有的包。旧版 Harness 主目录不受影响。
 
-Electron 使用 Electron Node 模式启动私有 Desktop Host。Host 通过 app-boot 启动专用 profile 和内部 Web 应用。窗口加载打包 Web 资源，在启动注入后激活客户端插件。Web 负责 RPC 与流；桌面载体将页面连接到已认证的 Host。Node IPC 承载启动注入、就绪、错误与关闭。profile 配置可以覆盖默认端口 `19387`。壳 UI 通过内置 pnpm 执行插件事务。Desktop 不加载 official-services、Platform 账号 IPC、默认 Session 上送、Office 转换或插件商店；Desktop Host 是打包依赖闭包的根。Browser 侧栏保留 Electron guest；Agent 浏览器和 computer-use 提供方位于闭包内，但 profile 条目默认禁用，用户满足浏览器和系统权限条件后可启用。
+Electron 使用 Electron Node 模式启动私有 Desktop Host。Host 通过 app-boot 启动专用 profile 和内部 Web 应用。窗口加载打包 Web 资源，在启动注入后激活客户端插件。Web 负责 RPC 与流；桌面载体将页面连接到已认证的 Host。Node IPC 承载启动注入、就绪、错误与关闭。profile 配置可以覆盖默认端口 `19387`。Desktop 不加载 Platform 账号 IPC、默认 Session 上送、Office 转换或插件商店；Desktop Host 是打包依赖闭包的根。Browser 侧栏保留 Electron guest；Agent 浏览器和 computer-use 提供方位于闭包内，但 profile 条目默认禁用，用户满足浏览器和系统权限条件后可启用。
 
 ## 核心包
 

@@ -169,7 +169,7 @@ manifest 的写法与 harness 自身的包相同：需要与宿主共享实例�
 - 同一文件内的 linked root 用例：`<profile>/node_modules` 的软链接指向树外仓库，仓库 `node_modules` 里放同名 devDependency 副本；包名取声明为 peer 的 installation 条目、声明为 dependency 的 installation 条目、仓库自己的第三方 dependency、未声明的包名，importer 取仓库自身文件与仓库内传递依赖；断言四种解析方式一致、devDependency 副本不被读到，以及改写 `peerDependencies` 后下一次解析立即按新声明进行。
 - [差分矩阵](../../../../packages/boot/app-boot/tests/linked-resolution-matrix.spec.ts)构造独立的原生、拦截与参考目录。只有参考副本把合格 peer 位置替换为运行时包的链接，再让 Node 解析文件。单包与 pnpm monorepo 用例对比入口、文件、目录、import/require、`import.meta.resolve` 与显式路径的结果，覆盖 manifest 缺失、`node_modules` 缺失、错误 peer 声明、React、作用域外 helper 和旧式子路径继续查询。断言比较选包、现存路径、错误码与模块实例；显式 paths 使用未投射的原生参考。
 - 同一文件内的专项用例覆盖表 1 各行：有无 `exports` 的裸包名与子路径、`#alias`、显式 `paths`、包自引用、命中 runtime resolution 后 CommonJS 子路径缺失时跳过 ③ 直接到 ④，以及树外 profile 的拦截位置。
-- [CLI 真启动测试](../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts)覆盖 src 与 lib 启动、普通与 npm-link 布局，以及指向无 manifest 的 `src` 目录且其父目录声明 peer 的链接。测试检查 Tools/AgentLoop 共享实例、原生显式路径选中开发者副本、依赖沿真实路径解析，以及文件和链接目标保持不变。源码模式的 CommonJS 检查使用具备现存 JavaScript 入口的 fixture 包；安装中真实的 CommonJS 入口需要相应构建产物。
+- CLI 真启动测试 (`../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts`)覆盖 src 与 lib 启动、普通与 npm-link 布局，以及指向无 manifest 的 `src` 目录且其父目录声明 peer 的链接。测试检查 Tools/AgentLoop 共享实例、原生显式路径选中开发者副本、依赖沿真实路径解析，以及文件和链接目标保持不变。源码模式的 CommonJS 检查使用具备现存 JavaScript 入口的 fixture 包；安装中真实的 CommonJS 入口需要相应构建产物。
 
 ## Consequences
 

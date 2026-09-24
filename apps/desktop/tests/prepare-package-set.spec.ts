@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   assertDesktopHostPackageFiles,
+  desktopWorkspacePackageDirectories,
   selectDesktopPackageClosure,
   type PackedDesktopPackage,
 } from '../scripts/prepare-package-set.ts'
@@ -19,6 +20,18 @@ describe('desktop package-set selection', () => {
     vi.stubEnv('DSH_DESKTOP_TARGET_ARCH', 'x64')
     vi.resetModules()
     await expect(import('../scripts/prepare-package-set.ts')).resolves.toHaveProperty('prepareDesktopPackageSet')
+  })
+
+  it('packs only the Desktop Host workspace closure', () => {
+    const directories = desktopWorkspacePackageDirectories()
+    expect(directories).toContain('apps/desktop-host')
+    expect(directories).toContain('packages/bundle/web-app')
+    expect(directories).toContain('apps/web')
+    expect(directories).not.toContain('apps/cli')
+    expect(directories).not.toContain('packages/bundle/headless')
+    expect(directories).not.toContain('packages/bundle/sdk-app')
+    expect(directories).not.toContain('packages/bundle/acp-app')
+    expect(directories).not.toContain('packages/bundle/official-services')
   })
 
   it('includes only the available internal production closure', () => {

@@ -2,30 +2,29 @@
 
 [English](overview.md) | 中文
 
-本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，剩余源码清理见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。Desktop 产品现名为 Merforge；仓库仍保留旧版 DeepSeek Harness 发行入口。计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
+本页记录当前仓库的实际结构，供后续基座裁剪与路线图建设查找代码。目标产品见 [产品路线图](../ai-native-work-os-product-roadmap.md)，验收工作见 [Electron Agent 基座裁剪计划](desktop-agent-foundation-pruning-plan.zh.md)。Desktop 产品现名为 Merforge。计划中的个人 Bot、组织服务和 WorkGraph 尚不存在。
 
 ## 运行与目录
 
-当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的 Web 前端；Host 通过 app-boot 独立启动自身 profile，仍使用内部 Web bundle、本机 Webserver 和认证连接。现有仓库也发行 Web、headless、SDK、ACP 等独立入口；这些是裁剪计划的目标，不能与 Desktop 内部传输混淆。 Desktop bundle 不包含 Office 转换与创建、麦克风处理、插件商店与调试、Open in App、Schedule、PTC workflow 和 Ralph；其 standard Agent preset 保留文件、Shell、Skill、子 Agent、后台任务、Plan Mode、Goal 和 Todo。Electron 内的浏览器 guest 仍在；Agent 浏览器和 computer-use 提供方作为默认禁用的 Desktop 条目随包分发，满足运行条件后可启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出当前 Desktop 包集合。
+当前系统以 Cordis 插件组成 Agent 运行时。Desktop 是 Electron 壳，启动 Desktop Host，并在窗口里加载打包的前端资源；Host 通过 app-boot 独立启动自身 profile，仍使用内部 Web bundle、本机 Webserver 和认证连接。独立 Web、CLI、headless、SDK、ACP 与 Python 发行入口已移除。Desktop bundle 不包含 Office 转换与创建、麦克风处理、插件商店与调试、Open in App、Schedule、PTC workflow 和 Ralph；其 standard Agent preset 保留文件、Shell、Skill、子 Agent、后台任务、Plan Mode、Goal 和 Todo。Electron 内的浏览器 guest 仍在；Agent 浏览器和 computer-use 提供方作为默认禁用的 Desktop 条目随包分发，满足运行条件后可启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出当前 Desktop 包集合。
 
 | 目录 | 当前职责 |
 | --- | --- |
 | apps/desktop | Electron 主进程、窗口、原生交互、恢复、更新与跨平台打包。 |
 | apps/desktop-host | Desktop 的私有 Node 进程，启动 profile 并向 Electron 提供认证 URL 与启动注入。 |
-| apps/web | Desktop 与独立 Web 共用的前端构建入口和前端测试。 |
-| apps/cli | 公开 dsh 命令和旧版 profile 启动器；Desktop Host 使用自身的 profile boot。 |
-| packages/bundle | base、web-app、official-services 及其他运行组合；Desktop 选择 base 和 web-app，不加载 official-services。 |
+| apps/web | Desktop 的内部前端构建入口和前端测试。 |
+| packages/bundle | 运行组合；Desktop 选择 base 与 web-app。 |
 | packages/core、packages/session、packages/llm、packages/fs、packages/shell | Agent loop、工具、事件日志、持久化、模型与本机执行。 |
 | packages/client、packages/api、packages/host | 客户端插件、Remote/API、Web Host 和资源传输。 |
 | packages/subagent、packages/skill、packages/interaction | 基础委托、Skill 与用户提问/审批。 |
-| python、packages/acp、packages/sdk、website | 非 Desktop 的 SDK、协议与文档网站；是否删除按裁剪计划的依赖核验决定。 |
+| website | 文档网站源码与投影，不再具有独立应用发布入口。 |
 | docs、scripts、snapshots | 架构与包文档、构建/静态门禁、Session 驱动的预期输出。 |
 
 ## 关键链路
 
 ### Desktop 启动和连接
 
-apps/desktop/src/project-manager.ts 持有 Desktop bundle 清单；apps/desktop-host/src/profile-boot.ts 不依赖公开 CLI，独立启动 profile。Electron 加载前端资源后使用 Host 返回的认证地址和注入数据。apps/desktop/scripts/prepare-package-set.ts 以 Desktop Host 为根收集发行依赖。修改 profile、CLI 内核或 Web bundle 前，应沿这条链路查消费者和打包闭包。
+apps/desktop/src/project-manager.ts 持有 Desktop bundle 清单；apps/desktop-host/src/profile-boot.ts 直接启动 profile。Electron 加载前端资源后使用 Host 返回的认证地址和注入数据。apps/desktop/scripts/prepare-package-set.ts 以 Desktop Host 为根收集发行依赖。修改 profile 或 Web bundle 前，应沿这条链路查消费者和打包闭包。
 
 ### Agent 执行和恢复
 

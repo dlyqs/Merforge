@@ -16,7 +16,7 @@ Wine 作为独立的托管 Ubuntu master 作业运行一次。其现有的按镜
 
 [被取代 CI 的取消策略](2026-09-09-cancel-superseded-ci.zh.md) 适用于父工作流与可复用运行时工作流：更新的 master 推送或手动运行会取消同一工作流/引用组内的旧验证，而发布所属的构建仍受保护。master 推送会调度全部三个选定载体，但不保证每个中间提交都得到结果。
 
-本决策部分取代[安装后 wheel 包验证](../testing/2026-08-23-installed-python-wheel-black-box-ci.zh.md)、[原生 Windows CI](2026-08-08-native-windows-pull-request-ci.zh.md)、[串行参考](2026-07-21-serial-cross-platform-ci-reference.zh.md)和[故障切换手册](2026-07-26-ci-failover-runbook.zh.md)中的调度策略。这些记录仍保留产物来源、平台保真度、串行完整性与信任规则的决策价值。
+本决策部分取代[安装后 wheel 包验证](../../archived/testing/2026-08-23-installed-python-wheel-black-box-ci.md)、[原生 Windows CI](2026-08-08-native-windows-pull-request-ci.zh.md)、[串行参考](2026-07-21-serial-cross-platform-ci-reference.zh.md)和[故障切换手册](2026-07-26-ci-failover-runbook.zh.md)中的调度策略。这些记录仍保留产物来源、平台保真度、串行完整性与信任规则的决策价值。
 
 ## Alternatives considered
 

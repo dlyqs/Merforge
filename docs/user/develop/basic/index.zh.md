@@ -45,7 +45,7 @@ export function apply(ctx: Context) {
 
 ## 注册到 cordis.yml
 
-在仓库根目录运行 `pwd`，然后创建 `scratch-plugin/cordis.yml`，作为插入本地插件的 Web 覆盖层。请将下文的 `/absolute/path/to/deepseek-harness` 替换为命令打印的路径：
+在仓库根目录运行 `pwd`，然后将此条目加入 Desktop profile patch `~/.merforge/profiles/desktop/cordis.patch.yml`（或 `MERFORGE_HOME` 下的对应文件）。请将下文的 `/absolute/path/to/deepseek-harness` 替换为命令打印的路径：
 
 ```yaml
 - insert:
@@ -53,15 +53,7 @@ export function apply(ctx: Context) {
       name: '/absolute/path/to/deepseek-harness/scratch-plugin/src/my-plugin.ts'
 ```
 
-插件路径必须是绝对路径。patch 文件只贡献配置，不会改变 loader 解析模块路径时使用的 profile 目录。
-
-使用该覆盖层启动 Web UI：
-
-```sh
-pnpm dsh web --patch ./scratch-plugin/cordis.yml
-```
-
-打开 `http://127.0.0.1:3080`。启动期间，终端会打印 `[hello-plugin] plugin loaded!`。
+插件路径必须是绝对路径。请将 `insert` 条目合并进现有 patch，不要替换其他配置。修改 profile patch 后重启 Desktop Host；启动日志应打印 `[hello-plugin] plugin loaded!`。
 
 ## 自动清理
 

@@ -27,11 +27,11 @@ async function jsonlFiles(dir: string): Promise<string[]> {
   return paths.flat()
 }
 
-describe('time-context through the production headless profile', () => {
+describe('time-context through the Desktop base profile', () => {
   it('uses the process zone and persists one ordered context event per request', async () => {
     let events: SessionEvent[] = []
     const { stderr } = await runLoaderSmoke({
-      label: 'time-context headless smoke',
+      label: 'time-context Desktop base smoke',
       tempDirPrefix: 'time-context-e2e-',
       binScript: driver,
       libBinScript: driver,

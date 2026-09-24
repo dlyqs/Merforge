@@ -12,7 +12,7 @@ export const DIST_INDEX = fileURLToPath(new URL('../dist/index.html', import.met
 
 export const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
-const installationRequire = createRequire(join(REPO_ROOT, 'apps/cli/package.json'))
+const installationRequire = createRequire(join(REPO_ROOT, 'apps/desktop-host/package.json'))
 
 /**
  * The built copy of a workspace package, as the dsh installation resolves it.

@@ -306,7 +306,6 @@ export function gatesForMode(selected: Mode): Gate[] {
       return nodeCompatGates()
     case 'check-all':
       return [
-        pnpmScript('runtime-closure', 'verify-runtime-closure', { label: 'runtime closure' }),
         pnpmScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
         pnpmScript('client-domain-graph', 'verify-client-domain-graph', { label: 'client domain graph' }),
         pnpmScript('test', 'test'),
@@ -314,7 +313,6 @@ export function gatesForMode(selected: Mode): Gate[] {
         pnpmScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
         pnpmScript('duplication', 'duplication'),
         snapshotGate(),
-        expectedOutputGate(),
         pnpmScript('build', 'build'),
         pnpmScript('build:web', 'build:web'),
         ...hygieneLeafGates({ artifactNeeds: ['build'] }),
@@ -329,7 +327,6 @@ export function gatesForMode(selected: Mode): Gate[] {
       return [
         ...hygieneLeafGates(),
         pnpmScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
-        pnpmScript('runtime-closure', 'verify-runtime-closure', { label: 'runtime closure' }),
       ]
     case 'doc-sync':
       return docSyncLeafGates()
@@ -340,7 +337,6 @@ export function gatesForMode(selected: Mode): Gate[] {
 
 function ciSharedStaticGates(): Gate[] {
   return [
-    pnpmScript('runtime-closure', 'verify-runtime-closure', { label: 'runtime closure' }),
     pnpmScript('default-product-isolation', 'verify-default-product-isolation', { label: 'default product isolation' }),
     pnpmScript('application-entrypoints', 'verify-application-entrypoints', { label: 'application entrypoints' }),
     pnpmScript('constraints', 'constraints'),
@@ -413,11 +409,11 @@ function nodeCompatGates(): Gate[] {
       label: 'Web frontend build',
       needs: ['build'],
     }),
-    ...nodeCompatSmokeGates({ cliSmoke: true }),
+    ...nodeCompatSmokeGates(),
   ]
 }
 
-function nodeCompatSmokeGates(options: { cliSmoke?: boolean } = {}): Gate[] {
+function nodeCompatSmokeGates(): Gate[] {
   const gates: Gate[] = [
     pnpmExec('source-worker-smoke', [
       'vitest',
@@ -429,11 +425,6 @@ function nodeCompatSmokeGates(options: { cliSmoke?: boolean } = {}): Gate[] {
       'run',
       'packages/session/session-persistence-jsonl/tests/zstd.compat.spec.ts',
     ], { label: 'JSONL Zstandard smoke' }),
-    pnpmExec('dsh-source-launch-smoke', [
-      'vitest',
-      'run',
-      'apps/cli/tests/source-launch.compat.spec.ts',
-    ], { label: 'dsh source-launch smoke' }),
     pnpmExec('vitest-jsdom-smoke', [
       'vitest',
       'run',
@@ -447,19 +438,6 @@ function nodeCompatSmokeGates(options: { cliSmoke?: boolean } = {}): Gate[] {
       'packages/boot/app-boot/tests/profile-resolution-worker-bootstrap.spec.ts',
     ], { label: 'profile resolution smoke' }),
   ]
-  if (options.cliSmoke) {
-    gates.push(
-      pnpmExec('cli-lazy-search-startup-smoke', [
-        'vitest',
-        'run',
-        'apps/cli/tests/lazy-search-startup.compat.spec.ts',
-      ], {
-        label: 'CLI lazy-search startup smoke',
-        env: { DSH_REQUIRE_BUILT_CLI_SMOKE: '1' },
-        needs: ['build:web'],
-      }),
-    )
-  }
   return gates
 }
 
@@ -532,7 +510,6 @@ function ciConsumerGates(): Gate[] {
       needs: validatedBuild,
     }),
     snapshotGate(validatedBuild),
-    expectedOutputGate(validatedBuild),
     webSnapshotGate(validatedBuild, buildArtifactReaders),
     pnpmScript('doc-typecheck', 'doc-typecheck:contracts-ready', {
       needs: validatedBuild,
@@ -714,15 +691,6 @@ function snapshotGate(needs: string[] = ['build']): Gate {
   })
 }
 
-// Owner-local process expectations consume built package exports without entering
-// the recorded-session corpus or the credentialed provider lane.
-function expectedOutputGate(needs: string[] = ['build']): Gate {
-  return pnpmScript('expected-output', 'test:expected', {
-    env: { DSH_EXAMPLE_MODE: 'lib' },
-    needs,
-  })
-}
-
 function builtPackageInvariantsGate(needs?: string[]): Gate {
   return pnpmScript('built-package-invariants', 'verify-built-package-invariants', {
     label: 'built package invariants',
@@ -852,11 +820,7 @@ function builtBinSmokeGate(needs: string[] = ['build']): Gate {
     'run',
     '--config',
     'vitest.e2e.config.ts',
-    'apps/cli/tests/profiles/headless/tests/keyless-smoke.e2e.ts',
-    'apps/cli/tests/profiles/headless/tests/source-tool.built.e2e.ts',
-    'apps/cli/tests/built-bin.e2e.ts',
     'packages/host/directory-picker-native/tests/built-worker.e2e.ts',
-    'packages/sdk/server/tests/built-scope-carrier.e2e.ts',
     'packages/deliverables/tool-present/tests/built-errors.e2e.ts',
     'packages/subprocess/subprocess-local/tests/spawn-runner-built.e2e.ts',
     'packages/subagent/subagent-codex/tests/loader-composition.e2e.ts',

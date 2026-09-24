@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-19-config-only-hmr.md
-2026-09-19-config-only-hmr.md: a5f447a8a426e9f2831a1292cae1132acab99023
-2026-09-19-config-only-hmr.zh.md: 24651aa310994b3fec4d925a84fe5d88ae6a5851
+2026-09-19-config-only-hmr.md: 0f637b970ac30ecac27a7167870d0a10f61643c8
+2026-09-19-config-only-hmr.zh.md: dd07057b49a95b2f82818f6d5fe75edaebebe505

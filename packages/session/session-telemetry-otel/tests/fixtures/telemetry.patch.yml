@@ -1,13 +1,4 @@
-# Test-only patch over the shipped headless profile. The driver points the
-# production telemetry row at its mock collector through the public env vars.
-- id: session-telemetry-otel
-  disabled: false
-
-- id: headless-startup
-  disabled: true
-
-- id: headless-runner
-  disabled: true
+# Test-only Desktop base composition with an explicit loopback collector.
 
 - id: agent-loop
   config:
@@ -23,6 +14,21 @@
     compression: none
 
 - insert:
+    - id: session-telemetry-otel
+      name: '@deepseek-ai/dsh-session-telemetry-otel'
+      config:
+        mode: !!js process.env.DSH_TELEMETRY_MODE || 'FEEDBACK_ONLY'
+        shutdownTimeoutMillis: 3000
+        exporter:
+          url: !!js process.env.DSH_TELEMETRY_OTLP_URL
+          compression: gzip
+          timeoutMillis: 1000
+        processor:
+          scheduledDelayMillis: 10000
+          maxQueueSize: 2048
+          maxExportBatchSize: 2048
+          exportTimeoutMillis: 1500
+
     - id: logger-console
       name: '@deepseek-ai/cordis-plugin-logger-console'
       config:

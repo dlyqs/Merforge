@@ -37,13 +37,7 @@ export function apply(ctx: Context) {
 
 ## Run and call the tool
 
-Restart the development command if it is not running:
-
-```sh
-pnpm dsh web --patch ./scratch-plugin/cordis.yml
-```
-
-Open `http://127.0.0.1:3080` and ask: `Use the greet tool to greet Ada.` The model can call `greet` and receives `Hello, Ada!` as the tool result.
+Restart the Desktop Host after editing the profile patch, then ask in the Desktop app: `Use the greet tool to greet Ada.` The model can call `greet` and receives `Hello, Ada!` as the tool result.
 
 ## Next steps
 

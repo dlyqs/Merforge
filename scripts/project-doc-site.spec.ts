@@ -391,7 +391,6 @@ describe('docsPages locale routes', () => {
   it('projects the audited tutorial entry links from explicit locale index pages', () => {
     const entries = [
       ['docs/user/develop/basic/config.md', '../framework/index.md'],
-      ['docs/user/develop/basic/publish.md', '../framework/index.md'],
       ['docs/user/develop/basic/tool.md', './index.md'],
       ['docs/user/develop/basic/tool.md', '../practice/index.md'],
       ['docs/user/develop/framework/events.md', '../practice/index.md'],

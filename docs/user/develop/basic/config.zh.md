@@ -101,6 +101,5 @@ export interface Config {
 
 ## 下一步
 
-- [打包与安装插件](./publish.zh.md) — 把插件以可安装包的形式交付
 - [插件与生命周期](../framework/index.zh.md) — 深入了解插件的完整生命周期
 - [服务与依赖](../framework/service.zh.md) — 让你的插件对外提供服务

@@ -28,7 +28,7 @@ The profile-scope entries of the runtime resolution remain necessary for depende
 
 ### Ordinary and linked package examples
 
-In both layouts below, the profile selects `my-bundle`, whose manifest declares `bridge`; only `bridge` declares `leaf`. Neither the installation nor the profile's direct packages supplies `leaf`, and `bridge` has no private `node_modules/leaf`. The paths illustrate the two layouts exercised by the [shared CLI profile tests](../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts).
+In both layouts below, the profile selects `my-bundle`, whose manifest declares `bridge`; only `bridge` declares `leaf`. Neither the installation nor the profile's direct packages supplies `leaf`, and `bridge` has no private `node_modules/leaf`. The paths illustrate the two layouts exercised by the shared CLI profile tests (`../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts`).
 
 With ordinary installed directories, `bridge` searches its containing bundle's `node_modules` and finds version 1.0.0. The unrelated version 2.0.0 is not on that search path:
 
@@ -143,7 +143,7 @@ Behavior tests exercise root order, transitive and peer dependencies, local and 
 
 - One eager computation supplies the runtime resolution; startup neither writes nor retires module-resolution data.
 - [Generation tests](../../../../packages/boot/app-boot/tests/profile-resolution.spec.ts) cover installation and selected-bundle graphs with ordinary directories and recursive symlinks, including different dependency versions beside logical and real anchors. They also cover linked-root removal, same-target restoration, overlapping roots, native misses, new requests from loaded modules, and relink rejection after removal.
-- [Source-launch tests](../../../../apps/cli/tests/source-launch.compat.spec.ts) and [built-bin tests](../../../../apps/cli/tests/built-bin.e2e.ts) run both profile layouts through the real CLI. They assert ESM/CJS versions, loaded paths, per-format dependency identity, and consistent Tools/AgentLoop module instances with an accessible scheduler key.
+- Source-launch tests (`../../../../apps/cli/tests/source-launch.compat.spec.ts`) and built-bin tests (`../../../../apps/cli/tests/built-bin.e2e.ts`) run both profile layouts through the real CLI. They assert ESM/CJS versions, loaded paths, per-format dependency identity, and consistent Tools/AgentLoop module instances with an accessible scheduler key.
 - Pkg and Electron carriers select runtime resolution; Electron executes its Host in Node mode from the ASAR-backed dsh tree while native executable entries remain unpacked.
 - ESM and CommonJS adapters share one router and delegate final resolution to Node without `module.registerHooks` or `_findPath` replacement.
 - Production metadata lookup does not record Loader import results or wrap Entry, registry, tree, or HMR methods.

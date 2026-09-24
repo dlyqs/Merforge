@@ -26,7 +26,7 @@ try {
   if (address === null || typeof address === 'string') throw new Error('collector has no port')
   process.env.DSH_APP_VERSION = 'synthetic-release'
   process.env.DSH_PRODUCT_TELEMETRY_TEST_ENDPOINT = `http://127.0.0.1:${address.port}/v1/logs`
-  const ctx = await bootProductionProfile({ binName: 'product-telemetry-test', profile: 'headless', overlayPaths: [configPath] })
+  const ctx = await bootProductionProfile({ binName: 'product-telemetry-test', profile: 'desktop', overlayPaths: [configPath] })
   try {
     const telemetry = ctx.get('productTelemetry')
     if (telemetry === undefined) throw new Error('product telemetry did not activate')

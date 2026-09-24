@@ -956,12 +956,12 @@ function stripYamlScalar(value: string): string {
 
 const APP_EXAMPLES = [
   {
-    id: 'dsh_base',
-    rel: 'apps/cli/composition.md',
-    title: 'DSH Base Composition',
-    label: 'packages/bundle/base/cordis.patch.yml',
-    config: 'packages/bundle/base/cordis.patch.yml',
-    summary: 'The dsh-base bundle patch shared by the web, headless, sdk, and acp profiles; their mode bundles and user layers patch over it, while sdk-minimal owns a separate standalone tree.',
+    id: 'desktop',
+    rel: 'docs/desktop-composition.md',
+    title: 'Desktop Composition',
+    label: 'apps/desktop-host/desktop.patch.yml',
+    config: 'apps/desktop-host/desktop.patch.yml',
+    summary: 'The Desktop Host patch owns product restrictions and optional browser and computer-use providers after the base and web-app bundles load.',
   },
 ]
 
@@ -972,6 +972,8 @@ function renderAppComposition(example: AppExample): string {
   const maintenance = 'hybrid: the patch row list is parsed from its `cordis.yml`; app package expansion is curated from package source'
   const lines = generatedHeader(example.title)
   lines.push(
+    'English | [中文](desktop-composition.zh.md)',
+    '',
     example.summary,
     '',
     '```mermaid',
@@ -1623,14 +1625,14 @@ function renderDocs(): GraphDoc[] {
 function renderIndex(docs: GraphDoc[]): string {
   const labels: Record<string, string> = {
     'docs/capability-seams.md': 'capability seams and core services',
-    'apps/cli/composition.md': 'dsh shared base composition',
+    'docs/desktop-composition.md': 'Desktop Host composition',
     'docs/event-producer-consumer.md': 'event producer/consumer matrix',
     'docs/agent-lifecycle.md': 'agent turn and step lifecycle',
     'docs/tool-execution-pipeline.md': 'tool execution pipeline',
   }
   const modes: Record<string, string> = {
     'docs/capability-seams.md': 'hybrid generated',
-    'apps/cli/composition.md': 'hybrid generated',
+    'docs/desktop-composition.md': 'hybrid generated',
     'docs/event-producer-consumer.md': 'hybrid generated',
     'docs/agent-lifecycle.md': 'curated',
     'docs/tool-execution-pipeline.md': 'curated',

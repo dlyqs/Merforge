@@ -96,7 +96,7 @@ logger 会先触发：`tools/result` 在结果物化过程中发出，发生在 
 
 ## 从这里走向完整 agent（智能体）
 
-真实 agent 就是这套组合再加上更多插件：LLM（大语言模型）适配器、agent loop（智能体循环）、持久化和应用入口。对照 [base profile 层](../../packages/bundle/base/cordis.patch.yml)与 [headless 层](../../packages/bundle/headless/cordis.patch.yml)，你现在已经可以读懂其中各项。通过一个小型 `--patch` overlay 加入 `greet-tool.ts` 即可。
+真实 agent 就是这套组合再加上更多插件：LLM（大语言模型）适配器、agent loop（智能体循环）、持久化和应用入口。对照 [base profile 层](../../packages/bundle/base/cordis.patch.yml)与 [Desktop Host patch](../../apps/desktop-host/desktop.patch.yml)，再通过 Desktop profile patch 加入 `greet-tool.ts`。
 
 后续可以阅读：
 

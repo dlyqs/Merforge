@@ -108,6 +108,7 @@ dsh --profile <name>
 | [`src/index.ts`](src/index.ts) | 插件入口：config schema、提供方注册 |
 | [`src/run.ts`](src/run.ts) | 运行生命周期、轮次执行、结果选择与诊断 |
 | [`src/wire.ts`](src/wire.ts) | 最小的 app-server JSON-RPC 协议实现 |
+| [`src/jsonrpc.ts`](src/jsonrpc.ts) | 按行分帧的 JSON-RPC 传输、请求关联与错误响应 |
 | [`cordis.patch.yml`](cordis.patch.yml) | 注册休眠提供方的 Profile patch 层 |
 
 ### 运行流程

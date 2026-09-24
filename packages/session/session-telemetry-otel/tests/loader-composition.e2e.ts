@@ -72,8 +72,8 @@ function eventTypes(captures: OtlpCapture[]): string[] {
         : []) ?? [])
 }
 
-describe('session-telemetry-otel through the production headless profile', () => {
-  it('continues the headless task without telemetry when FULL is rejected', async () => {
+describe('session-telemetry-otel through the Desktop base profile', () => {
+  it('continues the fixture task without telemetry when FULL is rejected', async () => {
     const { stdout, stderr } = await runLoaderSmoke({
       label: 'session-telemetry-otel rejected FULL loader smoke',
       tempDirPrefix: 'telemetry-otel-full-e2e-',

@@ -33,11 +33,7 @@ Schedule 让你向模型请求持久提醒；提醒会作为普通 follow-up 消
 
 ### 启用 Schedule
 
-把 Schedule overlay 添加到 `dsh web` 会话；提醒工具随即出现在会话中，模型可以立即使用它们：
-
-```sh
-dsh web --patch apps/cli/config/examples/schedule/cordis.yml
-```
+默认 Desktop 组合不包含 Schedule。可选的 profile patch 必须在 Session 启动前挂载本插件和 time-context；随后提醒工具才会出现在该 Session 中。
 
 成功的样子如下：让模型「10 分钟后提醒我审阅 PR」，它会回复提醒的 id、目标时间与 `scheduled` 状态。如果那一刻存储无法确认，工具会报告 `persistence_uncertain` 并建议重新列出，而不是声称成功。
 
@@ -140,7 +136,6 @@ owner 把长等待拆分为有界的 timer 段，并在每次唤醒后重新读�
 - [对话式交付决策](../../../.agents/notes/archived/simplification/2026-08-09-conversational-schedule-delivery.md)——无回执边界与 follow-up 交付。
 - [显式时区边界](../../../.agents/notes/implemented/simplification/2026-08-09-explicit-schedule-time-zone.zh.md)——为什么模型必须始终传入显式时区。
 - [有界固定速率 Schedule](../../../.agents/notes/archived/simplification/2026-08-09-bounded-fixed-rate-schedule.md)——重复调度范围：只追赶最新一次与批次交付。
-- [Schedule 用户指南](../../../docs/user/guide/schedule.zh.md)——挂载本包与 time-context 的官方配置路径。
 
 -----
 

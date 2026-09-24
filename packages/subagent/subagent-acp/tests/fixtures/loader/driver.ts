@@ -10,7 +10,7 @@ if (configPath === undefined) throw new Error('acp-subagent cwd driver requires 
 
 const ctx = await bootProductionProfile({
   binName: 'acp-subagent-cwd-e2e',
-  profile: 'headless',
+  profile: 'desktop',
   overlayPaths: [resolveConfigPath(configPath, undefined)],
 })
 try {

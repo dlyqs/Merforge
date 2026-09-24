@@ -8,7 +8,7 @@ Status: proposed
 
 [DSH HMR](../../../../packages/boot/hmr/src/index.ts) 同时拥有串行 profile 配置刷新和运行中的 JavaScript 模块替换。模块替换增加了 Node loader 内部接口、依赖遍历、缓存备份、新旧插件 fiber、回滚、模块监听与导入错误格式化。[基础组合](../../../../packages/bundle/base/cordis.patch.yml) 使用 `root: []`；其他随产品发布的 profile 禁用或省略 HMR（热模块替换）。默认产品需要配置刷新，而源码替换服务于自定义 profile 的显式启用。
 
-该选项是真实受支持的行为：[profile 测试](../../../../apps/cli/tests/profile-hmr.spec.ts)、模块测试和[构建后 CLI 测试](../../../../apps/cli/tests/built-bin.e2e.ts) 都覆盖它，生成的检查 API 也展示其方法和事件。本提案以开发连续性换取更小的维护子系统，并不将代码判定为不可达。
+该选项是真实受支持的行为：profile 测试 (`../../../../apps/cli/tests/profile-hmr.spec.ts`)、模块测试和构建后 CLI 测试 (`../../../../apps/cli/tests/built-bin.e2e.ts`) 都覆盖它，生成的检查 API 也展示其方法和事件。本提案以开发连续性换取更小的维护子系统，并不将代码判定为不可达。
 
 ## 提案
 
@@ -16,7 +16,7 @@ Status: proposed
 
 删除模块监听与分发、依赖图分析、模块缓存/fiber 替换与恢复、仅供模块使用的状态/选项、`baseDir`、`getOuterStack`、`getLinked` 及 `hmr/change`/`hmr/reload`。删除[导入错误格式化器](../../../../packages/boot/hmr/src/error.ts)、仅供模块使用的依赖和模块/错误专用测试。保留 Chokidar 及[精确监听](../../../../packages/boot/hmr/src/watch-config.ts) 实际使用的配置监听选项。已定位约 400 行源码和 372 行专用测试属于可删除模块路径；实现时必须单独计算保留的配置代码和混合测试。
 
-仅修改[profile 管理决策](../../implemented/architecture/2026-09-14-current-profile-plugin-management.zh.md) 与[单一启动器决策](../../implemented/architecture/2026-08-22-single-dsh-application-launcher.zh.md) 中承诺模块替换及其协调的部分。其配置、安装与启动器职责保留。[非事务式 Loader 决策](../../implemented/simplification/2026-09-09-nontransactional-loader.zh.md) 为避免重复回滚提供理由，但尚未授权撤回源码 HMR。
+仅修改[profile 管理决策](../../implemented/architecture/2026-09-14-current-profile-plugin-management.zh.md) 与[单一启动器决策](../../archived/architecture/2026-08-22-single-dsh-application-launcher.md) 中承诺模块替换及其协调的部分。其配置、安装与启动器职责保留。[非事务式 Loader 决策](../../implemented/simplification/2026-09-09-nontransactional-loader.zh.md) 为避免重复回滚提供理由，但尚未授权撤回源码 HMR。
 
 ## 考虑过的替代方案
 

@@ -23,8 +23,8 @@ import {
   parseDesktopCorePackageSet,
   type DesktopCorePackageRecord,
 } from '../src/core-package-set.ts'
-import { capture } from '../../../scripts/release/process.ts'
-import { tarballFiles } from '../../../scripts/release/tarball.ts'
+import { capture } from '../../../scripts/process.ts'
+import { tarballFiles } from '../../../scripts/tarball.ts'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 
 const ROOT_PACKAGES = [DESKTOP_HOST_PACKAGE] as const
@@ -71,6 +71,40 @@ const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 
 const REQUIRED_DEPENDENCY_SECTIONS = ['dependencies', 'peerDependencies'] as const
 const OPTIONAL_DEPENDENCY_SECTION = 'optionalDependencies'
+
+/**
+ * Select first-party package directories needed by the private Desktop Host.
+ * Vendored and native dependencies are packed by their own build steps.
+ * @param root - Workspace root containing pnpm-workspace.yaml.
+ * @returns Repository-relative package directories sorted by package name.
+ */
+export function desktopWorkspacePackageDirectories(root: string = REPOSITORY_ROOT): string[] {
+  const workspace = yaml.load(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
+  const manifests = new Map<string, { directory: string; manifest: Readonly<Record<string, unknown>> }>()
+  for (const path of globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: root })) {
+    const manifest = JSON.parse(readFileSync(join(root, path), 'utf8')) as Record<string, unknown>
+    if (typeof manifest.name !== 'string') throw new Error(`desktop package set: ${path} has no package name`)
+    manifests.set(manifest.name, { directory: path.slice(0, -'/package.json'.length), manifest })
+  }
+  const selected = new Set<string>()
+  const visit = (name: string): void => {
+    if (selected.has(name)) return
+    const entry = manifests.get(name)
+    if (entry === undefined) throw new Error(`desktop package set: workspace omits ${name}`)
+    selected.add(name)
+    for (const section of [...REQUIRED_DEPENDENCY_SECTIONS, OPTIONAL_DEPENDENCY_SECTION]) {
+      for (const dependency of dependencyNames(entry.manifest, section)) {
+        if (manifests.has(dependency)) visit(dependency)
+      }
+    }
+  }
+  visit(DESKTOP_HOST_PACKAGE)
+  return [...selected].sort().flatMap((name) => {
+    const directory = manifests.get(name)?.directory
+    return directory !== undefined && !directory.startsWith('vendor/') && !directory.startsWith('native/')
+      ? [directory] : []
+  })
+}
 
 /** Packed package information needed to form the local Desktop closure. */
 export interface PackedDesktopPackage {

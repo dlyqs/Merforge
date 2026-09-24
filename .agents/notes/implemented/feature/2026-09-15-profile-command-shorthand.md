@@ -12,7 +12,7 @@ Profile launch needs a concise spelling that works for custom names without maki
 
 The CLI expands a leading non-option argument other than `plugin` into `--profile <name>` before parsing. Both spellings use the same launcher flags, app-argument forwarding, and profile validation. `plugin` retains command priority only as the first argument; `dsh --profile plugin` selects the same-named profile explicitly. After profile selection, `plugin` is forwarded as an app argument. Repeated profile selection before app arguments is rejected.
 
-This decision supersedes the Web-only shorthand mechanism in [one dsh application launcher](../architecture/2026-08-22-single-dsh-application-launcher.md); that note retains authority over application composition and lifecycle ownership.
+This decision supersedes the Web-only shorthand mechanism in [one dsh application launcher](../../archived/architecture/2026-08-22-single-dsh-application-launcher.md); that note retains authority over application composition and lifecycle ownership.
 
 ## Alternatives considered
 

@@ -1,5 +1,5 @@
 /**
- * Minimal Codex app-server 0.153.4 protocol adapter. The shared JSON-RPC
+ * Minimal Codex app-server 0.153.4 protocol adapter. The local JSON-RPC
  * transport owns framing and request correlation; this module owns only the
  * product methods, current thread/turn association, unattended approval
  * responses, and terminal-answer selection.
@@ -10,7 +10,7 @@
 import type { Readable, Writable } from 'node:stream'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SubagentResult } from '@deepseek-ai/dsh-subagent'
-import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { JsonRpcLineTransport } from './jsonrpc.ts'
 import type { CodexPermissionMode } from './run.ts'
 
 type JsonObject = Record<string, unknown>

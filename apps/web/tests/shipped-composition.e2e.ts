@@ -30,7 +30,8 @@ const FILE_REFERENCE_PROMPT = fileURLToPath(new URL(
   './expected/web-runtime-context/file-reference-prompt.expected.md', import.meta.url,
 ))
 const BASE_PATCH_PATH = join(REPO_ROOT, 'packages/bundle/base/cordis.patch.yml')
-const HEADLESS_PATCH_PATH = join(REPO_ROOT, 'packages/bundle/headless/cordis.patch.yml')
+const WEB_PATCH_PATH = join(REPO_ROOT, 'packages/bundle/web-app/cordis.patch.yml')
+const DESKTOP_PATCH_PATH = join(REPO_ROOT, 'apps/desktop-host/desktop.patch.yml')
 const AUTO_CHILD_OVERLAY_PATH = join(REPO_ROOT, 'apps/web/tests/auto-review-child.overlay.yml')
 const AUTO_PROVIDER = 'shipped-auto-review-test'
 const AUTO_MODEL = 'same-route'
@@ -624,11 +625,12 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
     'workspace-write',
     'danger-full-access',
   ])
-  const headlessRows = composeEntries([
-    loadOverlayPatches('shipped headless composition', BASE_PATCH_PATH),
-    loadOverlayPatches('shipped headless composition', HEADLESS_PATCH_PATH),
+  const desktopRows = composeEntries([
+    loadOverlayPatches('shipped Desktop composition', BASE_PATCH_PATH),
+    loadOverlayPatches('shipped Desktop composition', WEB_PATCH_PATH),
+    loadOverlayPatches('shipped Desktop composition', DESKTOP_PATCH_PATH),
   ])
-  expect(headlessRows.some(row => row.id === 'auto-review')).toBe(false)
+  expect(desktopRows.some(row => row.id === 'auto-review')).toBe(false)
 
   const commandHandle = await scaffold.ctx.agents.create({
     sessionId: SessionId('shipped-command-catalog'),

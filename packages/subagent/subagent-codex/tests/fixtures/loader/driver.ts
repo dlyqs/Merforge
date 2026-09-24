@@ -15,7 +15,7 @@ if (configPath === undefined || bundlePatchPath === undefined) {
 let starts = 0
 const ctx = await bootProductionProfile({
   binName: 'subagent-codex-loader-composition',
-  profile: 'headless',
+  profile: 'desktop',
   overlayPaths: [
     resolveConfigPath(bundlePatchPath, undefined),
     resolveConfigPath(configPath, undefined),

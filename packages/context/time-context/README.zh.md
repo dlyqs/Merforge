@@ -88,7 +88,6 @@ kind: "package-reference"
 
 包级约定不够用时阅读以下页面。它们从设计决策进入挂载本插件的组合与穷尽式配置。
 
-- [Schedule 用户指南](../../../docs/user/guide/schedule.zh.md)——挂载本插件的官方配置路径。
 - [context 组地图](../README.zh.md)——相邻的请求上下文包。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-time-context)——每个受支持配置字段及其源声明。
 

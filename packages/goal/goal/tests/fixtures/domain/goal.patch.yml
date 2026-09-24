@@ -1,10 +1,5 @@
-# Test-only patch over the shipped headless profile. The real base bundle
-# supplies the goal domain, model tools, and agent runtime.
-- id: headless-startup
-  disabled: true
-
-- id: headless-runner
-  disabled: true
+# Test-only patch over the Desktop base bundle, which supplies the goal domain,
+# model tools, and agent runtime.
 
 - id: goal
   config:

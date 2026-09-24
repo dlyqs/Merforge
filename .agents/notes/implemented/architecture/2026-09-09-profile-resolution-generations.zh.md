@@ -28,7 +28,7 @@ profile 本地和插件私有 `node_modules` 条目优先于 runtime resolution 
 
 ### 普通安装与软链接示例
 
-下面两种布局中，profile 都选中 `my-bundle`，其 manifest 声明 `bridge`；只有 `bridge` 声明 `leaf`。安装包集合和 profile 的直接包都不提供 `leaf`，`bridge` 也没有私有 `node_modules/leaf`。这些路径示意了[共享 CLI（命令行界面）profile 测试](../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts)覆盖的两种布局。
+下面两种布局中，profile 都选中 `my-bundle`，其 manifest 声明 `bridge`；只有 `bridge` 声明 `leaf`。安装包集合和 profile 的直接包都不提供 `leaf`，`bridge` 也没有私有 `node_modules/leaf`。这些路径示意了共享 CLI（命令行界面）profile 测试 (`../../../../apps/cli/tests/profiles/headless/tests/profile-resolution.ts`)覆盖的两种布局。
 
 普通安装目录中，`bridge` 向上查找所属 bundle 的 `node_modules`，找到版本 1.0.0。另一个版本 2.0.0 不在这条查找路径上：
 
@@ -143,7 +143,7 @@ generation 构造发生在启动或显式更新阶段，不属于单次 resolve�
 
 - 一次 eager 计算供应 runtime resolution；启动既不写入也不退休模块解析数据。
 - [Generation 测试](../../../../packages/boot/app-boot/tests/profile-resolution.spec.ts)覆盖普通目录和递归软链接下的安装图与所选 bundle 图，包括逻辑锚点和真实锚点旁存在不同依赖版本的情况。测试还覆盖 linked root 移除、同目标恢复、重叠 root、原生缺包、已加载模块的新请求，以及移除后重新链接不同目标时的拒绝。
-- [源码启动测试](../../../../apps/cli/tests/source-launch.compat.spec.ts)与[构建入口测试](../../../../apps/cli/tests/built-bin.e2e.ts)通过真实 CLI 运行两种 profile 布局，断言 ESM/CJS 版本、加载路径、各模块格式内的依赖身份，以及一致的 Tools/AgentLoop 模块实例和可访问的 scheduler 键。
+- 源码启动测试 (`../../../../apps/cli/tests/source-launch.compat.spec.ts`)与构建入口测试 (`../../../../apps/cli/tests/built-bin.e2e.ts`)通过真实 CLI 运行两种 profile 布局，断言 ESM/CJS 版本、加载路径、各模块格式内的依赖身份，以及一致的 Tools/AgentLoop 模块实例和可访问的 scheduler 键。
 - pkg 与 Electron 载体选择 runtime 解析；Electron 以 Node 模式从 ASAR 承载的 dsh 依赖树执行 Host，原生可执行条目保持 unpacked。
 - ESM 与 CommonJS 适配器共享同一个路由器，并把最终解析委托给 Node，不使用 `module.registerHooks` 或替换 `_findPath`。
 - 生产 package metadata 查询不记录 Loader import 结果，也不包装 Entry、registry、tree 或 HMR 方法。

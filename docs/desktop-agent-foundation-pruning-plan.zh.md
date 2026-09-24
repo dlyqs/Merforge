@@ -45,12 +45,12 @@
 | Phase 3 | 官方服务解耦 | 清除 DeepSeek 官方账号、上送、品牌和更新源耦合 | 助手已完成 | official-services bundle、Merforge 品牌与 API key 入口、禁用网络更新 | 品牌 GUI 核验待用户手动完成；公开 profile 继续保留官方服务 |
 | Phase 4 | 可选桌面功能 | 移除语音、Office、插件商店与调试等非目标功能 | 助手完成 | 移除 Desktop Office/语音及商店/调试，保留所选 provider 链路 | 实际 provider 操作与 GUI 待人工核验 |
 | Phase 5 | Agent 工具瘦身 | 裁掉 PTC/Ralph/实验团队等非目标执行入口 | 助手完成 | 缩减 Desktop 工具目录与打包闭包，保留非 Desktop 快照 | 真实模型编码待 API key 验证 |
-| Phase 6 | 非 Desktop 发行 | 删除独立 Web/CLI/headless/SDK/ACP/Python 入口与发布链 | pending | — | 先核对所有 Desktop 内部消费者 |
-| Phase 7 | 闭包与双平台验收 | 清理孤立包、构建和文档，验证正式基座 | pending | — | macOS/Windows 人工 GUI 核验是完成条件 |
+| Phase 6 | 非 Desktop 发行 | 删除独立 Web/CLI/headless/SDK/ACP/Python 入口与发布链 | assistant complete | 已移除产品入口、专属源码、发布工作流与过时快照执行器；验证 Desktop 专用构建和 218 包闭包 | 不声称完成安装版 GUI 核验 |
+| Phase 7 | 闭包与双平台验收 | 清理孤立包、构建和文档，验证正式基座 | in_progress | Desktop 构建与 218 包闭包、Host 重启冒烟、四项无浏览器快照、聚焦测试、hygiene、typecheck、lint 及 doc-sync 已通过 | macOS/Windows 安装版 GUI 核验仍是硬完成条件 |
 
 ## 分阶段执行内容
 
-Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。base bundle 提供 Agent loop、模型和工具服务、权限预设及 JSONL Session 持久化；web-app 提供经认证的 Session API 和客户端模块。`apps/desktop/src/browser-guests.ts` 将客户端浏览器侧栏连接到 Electron guest。浏览器操作和 computer use 的模型工具使用 `packages/experimental/` 下单独配置的 provider。Desktop bundle 保留 Chrome DevTools MCP 与原生 Cua Driver 链路；两者默认禁用，满足浏览器与系统前置条件后再启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出原始和当前包集合；当前第一方压缩 tarball 合计 12,797,593 字节。桌面 profile 仍支持动态插件，Session 快照沿用现有持久化链路，Windows 安装器与更新消费者留待 Phase 7 验证。
+Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。base bundle 提供 Agent loop、模型和工具服务、权限预设及 JSONL Session 持久化；web-app 提供经认证的 Session API 和客户端模块。`apps/desktop/src/browser-guests.ts` 将客户端浏览器侧栏连接到 Electron guest。浏览器操作和 computer use 的模型工具使用 `packages/experimental/` 下单独配置的 provider。Desktop bundle 保留 Chrome DevTools MCP 与原生 Cua Driver 链路；两者默认禁用，满足浏览器与系统前置条件后再启用。[闭包记录](desktop-agent-foundation-pruning-closure.json)列出原始和当前包集合；当前第一方压缩 tarball 合计 12,791,765 字节。桌面 profile 仍支持动态插件，Session 快照沿用现有持久化链路，Windows 安装器与更新消费者留待 Phase 7 验证。
 
 ### Phase 1：基线与数据隔离
 
@@ -130,12 +130,12 @@ Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。ba
 
 预计区域：apps/cli 的公开 bin/profile、packages/bundle/headless、sdk-app、sdk-minimal、acp-app、packages/acp、packages/sdk、python/、独立 Web 启动、scripts/release、.github/workflows、根 package.json、测试与文档。
 
-- [ ] 移除独立 Web、CLI、headless、SDK、ACP、Python 的公开启动与产品发行定义；不因名称误删 Desktop 用的 Web 前端或 profile loader。
-- [ ] 检查 subagent-dsh-sdk、动态插件安装、Office 工具与测试支持对 SDK/CLI 的真实调用；迁移所需消费者后才删除其实现。
-- [ ] 删除或改写独立 npm/Python 发布与 CI 入口；Desktop Mac/Win 构建、签名、安装完整性和恢复验证仍有责任人。
-- [ ] Desktop package set 不再含非 Desktop 独占包；安装包减量由打包闭包而非禁用行证明。
+- [x] 移除独立 Web、CLI、headless、SDK、ACP、Python 的公开启动与产品发行定义；不因名称误删 Desktop 用的 Web 前端或 profile loader。
+- [x] 检查 subagent-dsh-sdk、动态插件安装、Office 工具与测试支持对 SDK/CLI 的真实调用；迁移所需消费者后才删除其实现。
+- [x] 删除或改写独立 npm/Python 发布与 CI 入口；Desktop Mac/Win 构建、签名、安装完整性和恢复验证仍有责任人。
+- [x] Desktop package set 不再含非 Desktop 独占包；安装包减量由打包闭包而非禁用行证明。
 
-助手侧检查：运行时依赖闭包、package metadata、application entrypoint、built Desktop Host smoke、hygiene、typecheck 与相关无浏览器快照。用户侧核验：无；实际安装检查在 Phase 7。依赖：Phase 5。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：运行时依赖闭包、package metadata、application entrypoint、built Desktop Host smoke、hygiene、typecheck 与相关无浏览器快照。用户侧核验：无；实际安装检查在 Phase 7。依赖：Phase 5。实际完成记录：已移除公开 CLI 与独立 Web 启动器、Headless/SDK/ACP/Python 发行、专属 bundle 与包、发布工作流及过时快照执行器，同时保留已提交的 Session fixture。Desktop Host 现在只构建并打包所选 workspace 闭包，不再构建已移除的产品入口。通用 JSON-RPC 传输类从 SDK 协议包移入 Codex 子 Agent 消费方。准备好的 Desktop 包集合为 218 包、第一方压缩大小 12,791,765 字节；包成员与 Phase 5 相同，因此 Phase 6 不声称额外缩小安装包。包约束、hygiene、typecheck、聚焦 CI/打包测试、已构建 Host 重启冒烟及四项无浏览器快照通过。未运行安装版 GUI 或真实模型任务。下一步：Phase 7 自动闭包核验与用户侧双平台验收。
 
 ### Phase 7：闭包与双平台验收
 
@@ -146,13 +146,13 @@ Phase 1 链路从桌面壳启动带专用 profile 的 `desktop-host` 开始。ba
 - [ ] 打包闭包、默认工具目录、外部网络目标和独立入口均与本计划清单一致；旧 DSH_HOME 数据未变动。
 - [ ] macOS 与 Windows 安装后的桌面 GUI 能用 API key 真实完成代码任务；按记录的 provider 前置条件验证浏览器操作和 computer use 可用、Session 重启恢复，且受限目录外动作被拦截。
 - [ ] 两端启动、认证连接、关闭、崩溃恢复和安装完整性通过；不支持的平台与功能如实标注。
-- [ ] 单元、类型、lint、文档、打包闭包及适用的无浏览器快照通过；未做的人工视觉核验列明，不声称完成。
+- [x] 单元、类型、lint、文档、打包闭包及适用的无浏览器快照通过；未做的人工视觉核验列明，不声称完成。
 
-助手侧检查：聚焦测试、built smoke、构建、hygiene、doc-sync、lint、git diff --check 及打包闭包对照；只在有环境时做真实 API 测试。用户侧核验：macOS/Windows 两端真实启动、可见 UI、文件与终端操作、浏览器操作、computer use，以及用户确认的任务结果；此项是 Phase 7 完成的硬条件。依赖：Phase 6。实际完成记录：未开始；执行后填写具体文件、命令、偏差和下一阶段。
+助手侧检查：聚焦测试、built smoke、构建、hygiene、doc-sync、lint、git diff --check 及打包闭包对照；只在有环境时做真实 API 测试。用户侧核验：macOS/Windows 两端真实启动、可见 UI、文件与终端操作、浏览器操作、computer use，以及用户确认的任务结果；此项是 Phase 7 完成的硬条件。依赖：Phase 6。实际进展：Desktop 包构建与准备通过，包含 218 包、第一方压缩 tarball 共 12,791,765 字节；包成员与 Phase 5 相同。已构建 Host 的认证、API key 持久化及重启冒烟通过。四项选定的无浏览器 Session 快照及聚焦 CI/打包测试通过；清除过时 Headless overlay 条目后，五个 Loader e2e 文件的九项测试通过。已移除失效的独立启动测试与用户指南；app-boot 的 82 项、Client 插件管理的 49 项以及 time-context 的一项 e2e 测试通过。hygiene 的 17/17 项、doc-sync 的 42/42 项及 typecheck、lint、diff 空白检查通过。环境未设置 `DEEPSEEK_API_KEY`，因此未执行真实模型编码任务。用户目前没有 macOS 或 Windows 安装版验收结果。两端安装版的编码、浏览器操作、computer use、Session 恢复、越界目录拒绝、生命周期及安装完整性均待核验。Phase 7 在这些检查通过前保持进行中；之后才制定路线图计划。
 
 ## 后续执行规则
 
-执行模式：manual。自动开始阶段：none。自动停止阶段：none。对话接力：off；当前不创建专用执行 Skill。只有计划写成后用户再次明确授权，才能改为 auto 或 auto_until，并在本表记录授权与有效范围。
+执行模式：auto_until。自动开始阶段：Phase 6。自动停止阶段：Phase 7。对话接力：off；不创建专用执行 Skill。用户于 2026-09-24 授权自动完成剩余阶段；Phase 7 的 macOS 和 Windows 已安装 GUI 核验仍是完成硬条件。
 
 - 收到“执行 Phase X”只执行该阶段；收到“继续”先读取本计划，选第一个 in_progress，否则第一个 pending；若依赖未完成且不能安全隔离则停止。
 - manual 每完成一个阶段就更新本计划唯一状态表、该阶段实际完成记录与 docs/overview.md，然后报告并停止。auto 在明确授权范围内连续推进；auto_until 仅执行记录的含首尾阶段范围，完成全部范围并核实交付后恢复 manual。

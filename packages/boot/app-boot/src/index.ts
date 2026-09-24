@@ -746,9 +746,6 @@ const requiredStartupEntryIds = new Set<string>([
   'webserver',
   'modules',
   'connection',
-  'headless-runner',
-  'acp',
-  'sdk-jsonrpc-server',
 ])
 
 /** Render plugin stacks, nested causes, and aggregate member failures once per error. */

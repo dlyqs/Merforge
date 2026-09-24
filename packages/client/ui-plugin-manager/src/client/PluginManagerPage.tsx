@@ -64,10 +64,6 @@ const HIGHLIGHT_MS = 2_400
 const BUILTIN_PROFILE_BUNDLES = new Set([
   '@deepseek-ai/dsh-base',
   '@deepseek-ai/dsh-web-app',
-  '@deepseek-ai/dsh-headless',
-  '@deepseek-ai/dsh-sdk-app',
-  '@deepseek-ai/dsh-acp-app',
-  '@deepseek-ai/dsh-sdk-minimal',
 ])
 
 /** How long a toast holds: long enough to read a failure that names what broke. */

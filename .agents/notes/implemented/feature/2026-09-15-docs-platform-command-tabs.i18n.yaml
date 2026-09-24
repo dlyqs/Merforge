@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-15-docs-platform-command-tabs.md
-2026-09-15-docs-platform-command-tabs.md: 4d44d1191a7ffc1601e15aa4d9f119a90e06b0dd
-2026-09-15-docs-platform-command-tabs.zh.md: 450765b52d1507fa9b9e6a20a1854e6861655838
+2026-09-15-docs-platform-command-tabs.md: e4e804a110bc5ab368f98be84d28f486cd9f3ed5
+2026-09-15-docs-platform-command-tabs.zh.md: 43695d8d86bc98ca1c8ff2b1e99e95e7f4174584

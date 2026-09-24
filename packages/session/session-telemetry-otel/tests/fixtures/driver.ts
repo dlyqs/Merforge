@@ -40,7 +40,7 @@ process.env.DSH_TELEMETRY_MODE = process.env.DSH_TELEMETRY_E2E_MODE ?? 'FEEDBACK
 try {
   const ctx = await bootProductionProfile({
     binName: 'telemetry-otel-e2e',
-    profile: 'headless',
+    profile: 'desktop',
     overlayPaths: [resolveConfigPath(configPath, undefined)],
   })
   try {

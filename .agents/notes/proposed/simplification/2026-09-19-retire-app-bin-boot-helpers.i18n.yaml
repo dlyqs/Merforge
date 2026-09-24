@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-19-retire-app-bin-boot-helpers.md
-2026-09-19-retire-app-bin-boot-helpers.md: c67013bfae8569d0f750b3c8be5e56c57a2a66aa
-2026-09-19-retire-app-bin-boot-helpers.zh.md: 5ef68ff3d8666e8b74d36c50eacbcf5048a4438a
+2026-09-19-retire-app-bin-boot-helpers.md: 4135acb9fe44f81f44398d98f85fc8d2a687cce6
+2026-09-19-retire-app-bin-boot-helpers.zh.md: af6a7b17a1d6d909fa3b8b103d025ade1c58c0be

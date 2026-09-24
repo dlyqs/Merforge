@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-[Python SDK 指南](../../../../docs/user/guide/python-sdk.zh.md)分别提供 POSIX shell 和 Windows PowerShell 命令。连续显示两个版本使读者在每一步都要跳过另一平台，也容易把二选一的命令理解为需要依次执行。
+Python SDK 指南 (`../../../../docs/user/guide/python-sdk.zh.md`)分别提供 POSIX shell 和 Windows PowerShell 命令。连续显示两个版本使读者在每一步都要跳过另一平台，也容易把二选一的命令理解为需要依次执行。
 
 ## 决策
 
