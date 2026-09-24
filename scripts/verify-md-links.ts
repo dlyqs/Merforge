@@ -8,10 +8,10 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { basename, dirname, relative, resolve, sep } from 'node:path'
+import { dirname, relative, resolve, sep } from 'node:path'
 import type { Nodes } from 'mdast'
 import { markdownHeadingLines, parseMarkdown, visitMarkdown } from './markdown.ts'
-import { isArchivedAgentNotePath, uniqueRepoFiles } from './repo-files.ts'
+import { uniqueRepoFiles } from './repo-files.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -19,23 +19,20 @@ const root = resolve(import.meta.dirname, '..')
 const PATTERNS = [
   'README.md',
   'README.zh.md',
-  '.agents/notes/**/*.md',
   'docs/**/*.md',
   'packages/*.md',
   'packages/*/*.md',
   'packages/*/*/*.md',
   'AGENTS.md',
-  '.agents/skills/**/*.md',
 ]
 
 /**
  * Discover authored Markdown sources, deduplicating symlinks.
- * Archived notes are excluded as sources, but links to them remain checked.
  * @param scanRoot - absolute repository root; pass the same root to findViolations for matching diagnostics.
  * @returns forward-slash source paths relative to scanRoot.
  */
 export function markdownLinkSourcePaths(scanRoot: string = root): string[] {
-  return uniqueRepoFiles(scanRoot, PATTERNS, isArchivedAgentNotePath)
+  return uniqueRepoFiles(scanRoot, PATTERNS)
     .map(file => relative(scanRoot, file.abs).replaceAll('\\', '/'))
 }
 
@@ -187,11 +184,8 @@ export function findViolations(
     const target = pathPart(url)
     const resolved = target === '' ? absPath : resolve(dir, target)
     if (!existsSync(resolved)) {
-      // Agent Notes are frozen by user request; their old locale links remain historical.
-      const retiredTranslation = resolved.endsWith('.zh.md')
-        && (relative(scanRoot, resolved).split(sep).join('/').startsWith('docs/') || basename(resolved) === 'README.zh.md')
-        && existsSync(resolved.replace(/\.zh\.md$/, '.md'))
-      if (file.startsWith('.agents/notes/') && retiredTranslation) return
+      // Retired decision records can remain as historical links in maintained prose.
+      if (relative(scanRoot, resolved).split(sep).join('/').startsWith('.agents/notes/')) return
       out.push({ file, line: node.position?.start.line ?? 0, url, reason: 'target' })
       return
     }

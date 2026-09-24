@@ -15,7 +15,6 @@ Cordis plugins compose the Agent runtime. Desktop is an Electron shell that star
 | packages/core, packages/session, packages/llm, packages/fs, packages/shell | Agent loop, tools, event log, persistence, models, and local execution. |
 | packages/client, packages/api, packages/host | Client plugins, Remote/API, Web Host, and resource transport. |
 | packages/subagent, packages/skill, packages/interaction | Basic delegation, Skills, and user questions/approval. |
-| website | Documentation website source and projection, without an independent application release entry. |
 | docs, scripts, snapshots | Architecture and package docs, build/static gates, and Session-driven expected output. |
 
 ## Critical paths

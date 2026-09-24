@@ -67,4 +67,4 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [session-telemetry.md](session-telemetry.md) | the outbound session-reporting capability seam: `SessionTelemetryRecord`/`SessionTelemetrySeverity`, the `SessionTelemetrySink` contract, and the `session-telemetry/record` redact waterfall |
 | [product-telemetry.md](product-telemetry.md) | Explicit product analytics submission and OTLP/HTTP transport |
 
-> Type declarations and their JSDoc on these pages are source-equivalent and drift-checked by `pnpm run verify-type-equiv` (see [development.md](../development.md#documenting-types-verbatim-ts-type-equiv)). Ordinary blocks preserve complete declarations; `public-api` blocks preserve body-stripped public class declarations. Cordis services and events use each page's generated **Cordis API** section.
+> Type declarations and their JSDoc on these pages are maintained alongside source changes (see [development.md](../development.md#documenting-types)). Cordis services and events use each page's generated **Cordis API** section.

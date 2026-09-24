@@ -1,12 +1,10 @@
 # AGENTS.md
 
-DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
+DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`.
 
 ## Pre-stable APIs and released Session data
 
-Public APIs are pre-stable; update every consumer. Follow [version/status](docs/session-format-status.md) and [type acknowledgements](docs/cookbook/reviewing-persistence-type-changes.md). [Adjacent migration](.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md) may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
-
-Acknowledge [declared persistence-type changes](docs/cookbook/reviewing-persistence-type-changes.md).
+Public APIs are pre-stable; update every consumer. Session migration may add a version-named successor but never move, overwrite, or delete committed generations; predecessors imply neither fallback nor downgrade support. SQLite uses monotonic `SCHEMA_VERSION`.
 
 **Application launch.** Desktop is the only supported application entry; its private Host boots the profile. Package bins and standalone Web, CLI, SDK, ACP, and Python launchers are forbidden ([rule](docs/architecture.md#application-launch)).
 
@@ -67,11 +65,9 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   runtime-diagnostics/  runtime invariants
   util/                 zero-dependency utilities
 native/      @deepseek-ai/node-addon-system source (native/README.md)
-benchmarks/  performance gates
 .agents/     Agent workflows/notes
 docs/        Documentation (docs/AGENTS.md)
 scripts/     gates and generators
-website/     VitePress documentation projection
 ```
 
 Package groups: [packages/README.md](packages/README.md).
@@ -93,9 +89,6 @@ pnpm run duplication    # cross-file TypeScript clone detection
 pnpm run build          # tsc emits lib/types, tsdown bundles runtime
 pnpm run hygiene        # publint + workspace/package/dependency checks + NodeNext consumer check
 pnpm run check:windows-wine  # ONLY when diagnosing a known Windows failure (needs wine); CI owns this signal
-pnpm run doc-sync       # documentation gates (scripts/run-gates.ts)
-pnpm run test:docs      # quick documentation checks (no build; doc-quick aggregate)
-pnpm run website:build  # VitePress build (doubles as dead-link check)
 pnpm run dev:desktop       # build, then launch Desktop
 pnpm run start:desktop     # launch already-built Desktop
 make desktop|dev-desktop|build  # equivalent shortcuts
@@ -107,9 +100,9 @@ If a required `gh`, `pnpm`, build, test, or generator command fails because the 
 
 ### Run relevant checks locally
 
-Before pushing, follow [dsh-pre-push-checks](.agents/skills/dsh-pre-push-checks/SKILL.md); report only commands run. After `gh stack sync`, validate immediately; do not merge before checks pass.
+Before pushing, run checks relevant to the changed code and report only commands run. After `gh stack sync`, validate immediately; do not merge before checks pass.
 
-- Match evidence to the surface: focused behavior tests, model/user-output snapshots, `doc-sync` for docs, built smokes for published paths, and real-API e2e for providers.
+- Match evidence to the surface: focused behavior tests, model/user-output snapshots, built smokes for published paths, and real-API e2e for providers.
 - Never default to the full suite or repeat a passing check for commit or push. CI owns exhaustive coverage and the platform matrix; rehearse all locally only by explicit request, for CI diagnosis, or for an irreducibly repository-wide change.
 - `test:coverage`, not `test`, is the CI coverage gate ([why](docs/testing.md)).
 - **Frontend verification:** use static checks, builds, and pure-logic tests for requested frontend changes; user-side Desktop checks own visible acceptance.
@@ -146,7 +139,6 @@ Real-API tests/demos read `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, and 
 - **Ban `prove` + `nance`** ([rule](.agents/notes/implemented/process/2026-08-26-ban-ambiguous-origin-label.md)).
 - **Prefer symmetry for parallel values**; unexplained asymmetry usually signals a missed extraction.
 - **Tests describe behavior, not correctness.** Change obsolete behavior with its tests; explain why in the PR.
-- **Create Agent Notes only for durable decision rationale;** mechanical/local edits are exempt, including local UI changes ([scope](.agents/notes/README.md#when-to-write-one)). Archived notes are frozen: never edit or treat them as current authority ([archive policy](.agents/notes/README.md#archiving-and-deletion)).
 - **Client UI copy is locale-owned.** Route product text through typed dictionaries and `t` or localized primitive props; `verify-client-ui-i18n` rejects hardcoded copy ([decision](.agents/notes/implemented/architecture/2026-08-23-locale-owned-client-ui-copy.md)).
 - **Testing policy** — [docs/testing.md](docs/testing.md). Every non-trivial model- or product-user-visible change updates a keyless recorded-session snapshot; [snapshot ownership](snapshots/AGENTS.md) reserves the top-level tree for session-driven cases and keeps other expected output owner-local. Fixtures replay on macOS/Linux; fix fixtures, not normalizers.
 - **Design each tool's UI presentation up front.** Host presenters stay pure; Web cards derive from raw events and persisted result metadata ([cookbook](docs/cookbook/adding-a-tool.md)).
@@ -165,13 +157,13 @@ Read [docs/defensive-patterns.md](docs/defensive-patterns.md) before lifecycle, 
 
 Everything compiles under `strict: true` with `noImplicitAny`; every remaining `any` explains why narrowing is infeasible. Every module and export has concise JSDoc for its non-obvious contract; function-like exports include `@param`/`@returns`, as enforced by `verify-export-jsdoc`. Heritage-declared members, plugin-protocol slots, and constructors keep their docs at the declaring Service Definition, protocol, or class.
 
-Comments and docs state complete contracts and context, not reasoning transcripts. Use direct, concrete terms. Do not use metaphors. Before writing `contract`, `boundary`, or `shape`, ask whether a more exact term names the subject: write `response fields`, `JSON validation`, or `ESM exports` instead of `response shape`, `validation boundary`, or `module shape`. Keep `contract` for preconditions, postconditions, invariants, compatibility promises, and other obligations that callers, callees, implementers, providers, producers, or consumers rely on. Keep a literal process, wire, security, transaction, or lifecycle boundary. Do not narrate control flow or tests, preserve review history, or restate code. Keep behavior, failure, timing, ownership, and safe-use facts; link the rationale. Use [dsh-prose-standard](.agents/skills/dsh-prose-standard/SKILL.md) for decisions. Wire mechanically checkable invariants into an executed top-level gate and prove each changed acceptance path rejects an invalid case. Use narrow, justified exceptions instead of disabling a rule globally.
+Comments and docs state complete contracts and context, not reasoning transcripts. Use direct, concrete terms. Do not use metaphors. Before writing `contract`, `boundary`, or `shape`, ask whether a more exact term names the subject: write `response fields`, `JSON validation`, or `ESM exports` instead of `response shape`, `validation boundary`, or `module shape`. Keep `contract` for preconditions, postconditions, invariants, compatibility promises, and other obligations that callers, callees, implementers, providers, producers, or consumers rely on. Keep a literal process, wire, security, transaction, or lifecycle boundary. Do not narrate control flow or tests, preserve review history, or restate code. Keep behavior, failure, timing, ownership, and safe-use facts. Wire mechanically checkable runtime invariants into an executed top-level gate and verify changed acceptance paths reject invalid cases.
 
-Docs accompany every code change: update affected README and JSDoc contracts together. `docs/` and READMEs are English-only; active Agent Notes and the root policy documents retain their [bilingual pairing](docs/i18n/README.md). Only explicit user invocation may run `dsh-translate-docs`. Current-state prose, one physical line per paragraph, one home per fact, and word budgets live in [docs/AGENTS.md](docs/AGENTS.md).
+Update documentation when a public interface or developer procedure changes. `docs/` and READMEs are English-only; keep current-state facts in their owning page.
 
 ## Editing these instructions
 
-`CLAUDE.md` symlinks `AGENTS.md` at root and `packages/`; edit the real file. Keep each rule self-contained while linking high-level docs. Condense when clarity survives; raise a `verify-doc-budgets` ceiling when the required content genuinely needs more space.
+`CLAUDE.md` symlinks `AGENTS.md` at root and `packages/`; edit the real file. Keep each rule self-contained while linking high-level docs.
 
 ## Vendoring policy
 

@@ -7,9 +7,6 @@ packages:
   - native/system/packages/*
   # Product assemblies over the package tier.
   - apps/*
-  # Private package owning repository-level benchmark dependencies.
-  - benchmarks
-  - website
 
 overrides:
   'extract-zip>yauzl': '3.4.0'

@@ -17,7 +17,6 @@ packages/<group>/<pkg>/
   README.md        # service API, events, extension points, design notes,
                    # + gated Model Experience context blocks or short form
                    # + the gated "Known Limitations and Deferred Work" section
-                   # (or a whitelist entry in scripts/verify-package-readme-limitations.ts)
 ```
 
 Choose an existing group when one matches the package's role (`core`, `llm`, `shell`, `compaction`, `subagent`, `todo`, `session`, `client`/`host`, `util`, or `test-support`). A new group is allowed, but it is a pure container: no `package.json`, no source files, and packages still sit exactly one level below it.
@@ -105,7 +104,7 @@ Append-only, prefix-stable, replacing, or independent behavior, including the ex
 
 Fill Model Experience from the implementation. Use one H3 per direct, conditional, capped, lifetime, or auxiliary model-context entry, with the three ordered H4 fields shown above and one prose paragraph under each. Quote stable text owned by the package: system-prompt prose goes in a titled H5 plus `markdown` fence under the field that introduces it—normally `What the model sees`—other short literals stay inline with named placeholders, and other long literals use the same nested form. Summarize only data-dependent or provider-owned text. A tool-schema entry links its anchored section in the generated [tool catalog](../tool-catalog.md) and states only deltas absent there. Keep prompt and schema entries separate when scoping can hide one without the other. In `KV Cache effect`, distinguish append-only growth, a stable repeated prefix, replacement of earlier request tokens, and an independent model request, then name the package-owned changes that can invalidate reuse. “Does not invalidate” means the package preserves an already-reusable prefix; provider cache availability and eviction remain outside the package contract. The [prose standard](../../.agents/skills/dsh-prose-standard/SKILL.md) governs completeness and ownership; the verifier enforces the required section structure.
 
-A package with no context effect or one consumer-owned path uses the audited `None, as ` or `Indirectly, through ` sentence in [`SENTENCE_MODEL_EXPERIENCE`](../../scripts/verify-package-readme-model-experience.ts), followed by a `KV Cache effect` H4 and one non-empty paragraph; a model-agnostic generic package may instead join `NO_MODEL_EXPERIENCE_SECTION`. Do not expand either case into a description of another package's work. The limitations [allowlist](../../scripts/verify-package-readme-limitations.ts) is independent. The [Model Experience Agent Note](../../.agents/notes/implemented/process/2026-07-12-package-model-experience-contract.md) records the rationale.
+A package with no context effect can state that directly. Do not expand that case into a description of another package's work.
 
 <a id="plugin-display-metadata"></a>
 

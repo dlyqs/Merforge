@@ -89,9 +89,6 @@
   "apps/web/tests/workspace-management.e2e.ts": {
     "326597b335539db945b2e3b7c86638d40849d2077c0a5670d064e45486f4e407": 2
   },
-  "benchmarks/conversation-fold/conversation-fold.worker.client.ts": {
-    "1bce926682b8c613226bdbcf2bc75b369dcb9b9e94172f1e1a5a48f72736095a": 1
-  },
   "packages/api/gateway/src/index.ts": {
     "099e513016a77c37185ffa1b5b7aab222118f08bcbcfe677d149d9fae4d4b62e": 1,
     "1b6933acdc52143e31b5f49ed1344cc78e6e407ac200f7e12487b35d3cbccec0": 1
@@ -2139,11 +2136,5 @@
   },
   "scripts/test-invariants.spec.ts": {
     "1d25e54371f9bac32d21541bfe094eb3eb3bfc39e010982c9f25bb8b0f3bea14": 1
-  },
-  "website/tests/page-markdown-actions.spec.ts": {
-    "ea14e4cf19829fb573c9f3378cdf4333aedbedb0675596d8c873d284036ba9a5": 1
-  },
-  "website/tests/raw-markdown.spec.ts": {
-    "016337c62f55ffcdfc006da693aaf9bb20c3bb49260939c0d50191117c48934e": 1
   }
 }

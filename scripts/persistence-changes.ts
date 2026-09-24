@@ -9,7 +9,7 @@ import { matchingSourceCompatibility, sourceKindGroups, validSourceCompatibility
 import type { CanonicalSchema, PersistenceRoot, PersistenceSchemaInventory, SchemaNode, SchemaTupleElement } from './persistence-schema-model.ts'
 import { extractPersistenceSchema } from './persistence-schema.ts'
 import { persistenceCatalogArtifacts } from './gen-persistence-catalog.ts'
-import { renderPersistencePair } from './persistence-artifacts.ts'
+import { renderPersistenceDocument } from './persistence-artifacts.ts'
 import { loadPersistenceFinalization } from './persistence-finalization.ts'
 import type { PersistenceArtifact } from './persistence-artifacts.ts'
 
@@ -847,7 +847,7 @@ function executeCommand(
     : updateDocument(readFileSync(join(directory, `${id}.md`), 'utf8'), change, false, prose?.en)
   parseDocument(english, `${id}.md`, prose === undefined && existing === undefined)
   const recordFiles = [
-    ...renderPersistencePair(root, `${HISTORY_DIRECTORY}/${id}.md`, english, ''),
+    ...renderPersistenceDocument(`${HISTORY_DIRECTORY}/${id}.md`, english),
     { path: `${HISTORY_DIRECTORY}/${id}.schema.json`, content: JSON.stringify(snapshot, null, 2) + '\n' },
   ]
   if (!update && recordFiles.some(file => existsSync(join(root, file.path)))) throw new Error(`${id}: acknowledgement file already exists`)

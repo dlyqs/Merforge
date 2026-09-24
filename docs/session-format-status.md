@@ -51,8 +51,6 @@ Evidence: published product tag `dsh-v0.1.5-alpha.1`; tagged writer: `packages/c
 
 When a structural writer change is implemented, update the code constant and adjacent catalog together; do not advance this release record before publication. When a product release first publishes a higher Session format, confirm publication and its tagged writer, then advance this record and the evidence tag and tagged writer path in the same update. Later product releases carrying the same format do not require changing the record. Never lower it on the development trunk.
 
-The [documentation-standard test](../scripts/doc-standard.spec.ts) checks record structure, evidence-tag and writer-path consistency, and that the documented release does not exceed the checkout writer. This keyless check does not query GitHub or prove that the record is up to date; publication verification remains part of the release update.
-
 Use “current format” and “next adjacent version” for general behavior. Keep explicit numbers for fixed migration inputs and outputs, wire schemas, historical evidence, and tests of those particular versions. The [format-version cookbook](cookbook/adding-a-session-format-version.md) uses N for the latest finalized or released format and N+1 for its successor.
 
 <a id="dev-note"></a>
