@@ -9,3 +9,5 @@ The Desktop application creates and reopens Sessions written in the current form
 When changing the current format, update the writer, reader, catalog, and affected consumers together.
 
 Goal and plan mode are no longer supported. Logs containing their required `goal/change` or `plan/mode` events are refused by the unknown-event check; existing generations are left intact.
+
+Personal task plans use the separate `personal_workflow` domain version 1. The required `personal-workflow/snapshot` Session event records an exact plan definition and review state. Readers without that event refuse the log; this adds no Session envelope change and does not bump `SESSION_FORMAT_VERSION`.

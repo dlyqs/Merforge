@@ -48,6 +48,9 @@
     - id: personal-project
       name: '@deepseek-ai/dsh-personal-project'
 
+    - id: personal-workflow
+      name: '@deepseek-ai/dsh-personal-workflow'
+
     - id: personal-project-runtime
       name: '@deepseek-ai/dsh-personal-project/runtime'
 

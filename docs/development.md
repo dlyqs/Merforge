@@ -98,13 +98,9 @@ DEEPSEEK_BASE_URL=https://... # optional
 
 ### Git integrations
 
-lefthook is configured in `lefthook.yml` as a fast local checkpoint:
+`lefthook.yml` has no automatic pre-commit jobs. Commits do not run staged lint, whitespace validation, or the vendor manifest guard. Installing dependencies preserves this configuration.
 
-- `pre-commit` validates staged files with the project-free `.oxlintrc.staged.json` profile, checks the staged diff for whitespace errors, and runs the vendor manifest guard.
-
-The vendor manifest guard checks that changes under `vendor/*/src` are staged with the matching `vendor/README.md` manifest update. See `vendor/README.md` before editing vendored code.
-
-The hooks do not run tests, snapshots, builds, or full typechecks. Run [checks relevant to the changed behavior](../AGENTS.md#run-relevant-checks-locally) once. Regenerate third-party notices when dependencies or bundled inputs change and verify them before packaging a release.
+Run [checks relevant to the changed behavior](../AGENTS.md#run-relevant-checks-locally) explicitly. Use `git diff --cached --check` for staged whitespace and `scripts/check-vendor-manifest.sh` for vendored source changes. See `vendor/README.md` before editing vendored code. Regenerate third-party notices when dependencies or bundled inputs change and verify them before packaging a release.
 
 ### Daily commands
 

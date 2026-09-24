@@ -22,6 +22,7 @@ The workspace family lets a host product keep an ordered list of named projects 
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`personal-workflow`](personal-workflow/README.md) | Versioned personal task plans and exact-version approval | `ctx.personalWorkflow` |
 | [`workspace`](workspace/README.md) | Provides named, ordered projects with the sessions that ran in each directory | `ctx.workspaceRegistry` |
 
 -----
@@ -29,6 +30,7 @@ The workspace family lets a host product keep an ordered list of named projects 
 <a id="related-documentation"></a>
 ## Related documentation
 
+- [Personal workflow](../../docs/personal-workflow.md) — personal task definitions, approval and execution design.
 - [Workspace subsystem](../../docs/subsystems/workspace.md) — the authoritative feature contract for projects and their sessions.
 - [domain KV storage Agent Note](../../.agents/notes/proposed/architecture/2026-07-24-domain-kv-storage-and-workspace.md) — the storage design behind project records.
 - [Workspace UI product-flow Agent Note](../../.agents/notes/archived/feature/2026-07-25-workspace-ui-product-flow.md) — how the first start builds projects from session history and how the GUI orders them.

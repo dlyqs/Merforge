@@ -111,6 +111,7 @@
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/dsh-persona": "workspace:*",
     "@deepseek-ai/dsh-personal-project": "workspace:*",
+    "@deepseek-ai/dsh-personal-workflow": "workspace:*",
     "@deepseek-ai/dsh-session-log-export": "workspace:*",
     "@deepseek-ai/dsh-session-reference": "workspace:*",
     "@deepseek-ai/dsh-session-stats": "workspace:*",

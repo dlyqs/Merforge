@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { ReasoningEffortId, errorChain } from '@deepseek-ai/dsh-llm'
+import type { PersonalWorkflow, SavePlanRequest, ApprovePlanRequest, ReadPlanRequest, SnapshotPlanRequest, PlanRevision, PlanView, WorkflowSnapshot } from '@deepseek-ai/dsh-personal-workflow'
 import { PersonalProjectRegistry } from '@deepseek-ai/dsh-personal-project'
 import type { BotId, BotModel, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
@@ -281,6 +282,58 @@ export class SessionController extends TypertRemoteService {
   @Remote('create')
   create(request: SessionCreateRequest): Promise<SessionCreateValue> {
     return this.commands.create(request)
+  }
+
+  private workflow(): PersonalWorkflow {
+    const service = this.ctx.get('personalWorkflow')
+    if (service === undefined) throw new Error('personal workflow service is unavailable')
+    return service
+  }
+
+  /** List current task plans without activating execution.
+   * @returns persistent plan views.
+   */
+  @Remote('workflowList')
+  workflowList(): PlanView[] { return this.workflow().list() }
+
+  /** Read an exact structured plan version.
+   * @param request - root task and optional version.
+   * @returns persistent version.
+   */
+  @Remote('workflowRead')
+  workflowRead(request: ReadPlanRequest): PlanRevision { return this.workflow().read(request) }
+
+  /** Save a user proposal or edit without approval.
+   * @param request - complete proposal and compare-and-save version.
+   * @returns committed version or original retry receipt.
+   */
+  @Remote('workflowSave')
+  workflowSave(request: SavePlanRequest): Promise<PlanRevision> { return this.workflow().save(request) }
+
+  /** Approve the current exact version without starting execution.
+   * @param request - human review and expected version.
+   * @returns committed approval.
+   */
+  @Remote('workflowApprove')
+  workflowApprove(request: ApprovePlanRequest): Promise<PlanRevision> { return this.workflow().approve(request) }
+
+  /** Export the same structured version displayed by task views.
+   * @param request - root task and optional version.
+   * @returns read-only Markdown.
+   */
+  @Remote('workflowExport')
+  workflowExport(request: ReadPlanRequest): string { return this.workflow().export(request) }
+
+  /** Record an exact plan snapshot in an existing Session.
+   * @param request - Session, task, version and retry identity.
+   * @returns snapshot after Session flush.
+   */
+  @Remote('workflowSnapshot')
+  async workflowSnapshot(request: SnapshotPlanRequest): Promise<WorkflowSnapshot> {
+    const session = await this.personalSession(request.sessionId)
+    return this.workflow().snapshot(session, {
+      taskId: request.taskId, ...(request.revision === undefined ? {} : { revision: request.revision }),
+    }, request.operationId)
   }
 
   private personal(): PersonalProjectRegistry {
