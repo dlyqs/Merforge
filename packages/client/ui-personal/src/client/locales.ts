@@ -1,5 +1,8 @@
 /** Personal sidebar product copy. */
 export const zh = {
+  settingsTitle: '任务、项目与 Bot',
+  settingsDescription: '集中管理任务计划、项目目录与 Bot 配置。',
+  tasks: '任务',
   'section': '个人项目与 Bot',
   'expand': '展开个人项目与 Bot',
   'collapse': '收起个人项目与 Bot',
@@ -63,6 +66,9 @@ export type PersonalKey = keyof typeof zh
 
 /** English translations complete for every key. */
 export const en = {
+  settingsTitle: 'Tasks, Projects & Bots',
+  settingsDescription: 'Manage task plans, project directories and Bot configuration.',
+  tasks: 'Tasks',
   section: 'Personal projects and Bots',
   expand: 'Expand personal projects and Bots',
   collapse: 'Collapse personal projects and Bots',

@@ -12,3 +12,6 @@
 .editor input, .editor textarea, .editor select { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); border: 0.5px solid var(--dsw-alias-border-l3); padding: 8px; border-radius: 6px; }
 .editor textarea { min-height: 72px; resize: vertical; }
 @media (max-width: 640px) { .columns { grid-template-columns: 1fr; } }
+
+.testing { padding: 16px; margin: 16px 0; border: 1px solid var(--dsw-alias-border-l3); border-radius: 10px; }
+.testing p { line-height: 1.5; color: var(--dsw-alias-label-secondary); }

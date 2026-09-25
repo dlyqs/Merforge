@@ -6675,7 +6675,7 @@ Sources: [`packages/core/session/src/types.ts:191`](../packages/core/session/src
 
 SHA-256: `0287b2afbfe6bc2ece47fa584aeb33f39e33ab04d360007cd2b65bacc552f5ad`
 
-Sources: [`packages/skill/skill-dev-workflow/src/index.ts:25`](../packages/skill/skill-dev-workflow/src/index.ts)
+Sources: [`packages/skill/skill-dev-workflow/src/index.ts:26`](../packages/skill/skill-dev-workflow/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6687,7 +6687,7 @@ Sources: [`packages/skill/skill-dev-workflow/src/index.ts:25`](../packages/skill
 
 SHA-256: `e23c0135821c9d96c3345043c23e36b79b075604e715190c68d398f12b9476f5`
 
-Sources: [`packages/skill/skill-dev-workflow/src/index.ts:23`](../packages/skill/skill-dev-workflow/src/index.ts)
+Sources: [`packages/skill/skill-dev-workflow/src/index.ts:24`](../packages/skill/skill-dev-workflow/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6699,7 +6699,7 @@ Sources: [`packages/skill/skill-dev-workflow/src/index.ts:23`](../packages/skill
 
 SHA-256: `ebd7835960eba048b42de4e3f9bd3bbc487f4ae8842dbd11f97d47406c66958a`
 
-Sources: [`packages/skill/skill-dev-workflow/src/index.ts:27`](../packages/skill/skill-dev-workflow/src/index.ts)
+Sources: [`packages/skill/skill-dev-workflow/src/index.ts:28`](../packages/skill/skill-dev-workflow/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|

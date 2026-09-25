@@ -55,6 +55,7 @@ it('executes parallel task tools concurrently, logs selected context, verifies f
       ctx.llm.registerAdapter([`mock${index}`], adapter)
     }
     await ctx.plugin(AgentLoop, { agents: [] })
+    await service.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
     await service.save(proposal()); await service.approve({ taskId: ids[0]!, expectedRevision: 1, operationId: operation(2) })
     const create = async (index: number) => {
       const agent = await ctx.agentLoop.create(SessionId(`worker-${index}`), { provider: `mock${index}`, model: 'mock' }, { cwd })

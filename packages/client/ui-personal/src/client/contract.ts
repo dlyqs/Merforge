@@ -1,5 +1,5 @@
 /** Sidebar personal entry props and Host actions. */
-import type { PropsHooks, PropsLocale, PropsRuntime, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
@@ -51,16 +51,25 @@ export interface PersonalInjected extends PersonalActions {
 }
 
 /** Component props for the sidebar's personal seat. */
-export type PersonalSidebarProps = PropsRuntime<'sidebar.personal'>
-  & PropsLocale<'personal'>
-  & PropsRenderSlots<'sidebar.personal.workflow'>
-  & Omit<PersonalInjected, 'hooks'>
-  & PropsHooks<PersonalInjected['hooks']>
+export type PersonalSidebarProps = Omit<FactoryComponentPropsOf<'personal.manager'>, 'useFactorySlot' | 'renderFactorySlot'>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotFactoryMap {
+    /** Shared Project/Bot management used by sidebar and settings. */
+    'personal.manager': {
+      scope: 'root'
+      props: { wide: boolean; expandSidebar: () => void; management?: boolean }
+      children: { 'personal.manager.workflow': { kind: 'single'; scope: 'root' } }
+      inject: PersonalInjected
+      locale: 'personal'
+    }
+  }
   interface SlotMap {
+    /** Temporary personal workflow test controls within settings. */
+    'settings.personal.testing': { kind: 'single'; scope: 'root'; owner: object }
+
     /** Task plans associated with the expanded personal entrance. */
-    'sidebar.personal.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null } }
+    'personal.manager.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null } }
   }
   interface LocaleNamespaceMap {
     /** Personal Project and Bot navigation copy. */

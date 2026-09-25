@@ -49,3 +49,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 ## 维护说明
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
+
+## 个人管理设置
+
+设置 →“任务、项目与 Bot”集中提供计划查看/修改/审核、项目目录和 Bot 配置，侧栏与设置页复用 `ui-personal` 的 `personal.manager` Factory，任务插件占用 `personal.manager.workflow`。临时“每次任务强制拆分”开关默认关闭，保存到本机 `personal_workflow_testing` domain；开启后未绑定任务的新目标也必须拆分为至少两个必要子任务，已绑定执行任务不重复拆分。关闭恢复对话原模式；审批和显式领取保持独立。实现位于 `packages/client/ui-personal/src/client/PersonalSettings.tsx`、`packages/client/ui-personal-workflow/src/client/TestingPreferences.tsx`、personal-workflow 与 skill-dev-workflow；完整规则见[个人工作流](personal-workflow.md#集中设置与临时强制拆分)。

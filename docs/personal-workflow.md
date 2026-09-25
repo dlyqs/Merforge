@@ -91,3 +91,13 @@ Config 的 `maxActions`（默认 100）、`maxTurns`（20）、`maxDurationMs`�
 无页面 Desktop Host 组件组合测试位于 `apps/desktop-host/tests/personal-workflow.spec.ts`，覆盖 Project/Bot 简单目标，以及 CSV 三阶段提案、审核、并行执行、接力、汇合、父任务证据和重开。测试通过独立 Node 子进程执行导出并读取最终文件；模型使用确定性响应，不能据此推断真实模型分类质量。包级故障测试、Client 纯交互测试与 built Host smoke 的实际命令见[施工计划 Phase 7](personal-workflow-plan.md#phase-7集成验证与文档收尾)。
 
 工程验证已完成，Desktop 可见验收和真实模型验证待定。[验收剧本](personal-workflow-acceptance.md)列出用户操作、期望状态、CSV 内容和异常恢复检查；不要求助理启动页面。
+
+## 集中设置与临时强制拆分
+
+设置中的“任务、项目与 Bot”页面提供任务计划查看/修改/审核入口、项目名称/说明/目录及 Bot 身份/工作方向/模型/工具和 Skill 许可管理。设置页与侧栏共用 `personal.manager`，任务视图通过 `personal.manager.workflow` 接入，读取同一批 Host 记录。
+
+“临时测试 → 每次任务强制拆分”默认关闭。用户开启后，本机未绑定执行任务的对话即使关闭了增强模式，也会要求每个新目标走澄清（必要时）、复杂任务评估和结构化拆分。Host 拒绝 simple 分类和少于两个必要子任务的模型提案；未绑定执行任务时，仅允许评估、提案与提问工具，不能绕过拆分直接执行。不可行目标仍可说明条件，不编造可执行计划。已选子任务按原授权执行，不递归拆分。
+
+开关由 `workflowTestingPreferences` / `workflowSetTestingPreferences` 用户 Remote 读写，存入独立 `personal_workflow_testing` domain 的 global，字段为 `forceDecomposition` 和单调 `revision`，初始 false/0。写入失败不显示成功，版本冲突须刷新；重启保留选择。模型不能修改该开关。原对话模式不变，关闭临时开关后恢复原模式；覆盖和撤销指令通过现有 `personal-workflow-method` 消息进入日志，历史模型输入可重建。计划审核、执行领取、Bot 许可与预算没有被此开关授权。
+
+相关验证包含设置注册、共享管理入口、失败写入反馈、Gateway 版本冲突、强制拆分与关闭恢复、已绑定任务执行和持久重开。此临时选项服务于个人流程测试，不代表真实模型总能产出合格计划；Desktop 可见验收仍由用户执行。

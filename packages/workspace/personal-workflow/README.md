@@ -21,3 +21,9 @@ No invariant companion is published: task readiness is a pure projection of vali
 ## Integration acceptance
 
 The no-page Desktop Host component test is `apps/desktop-host/tests/personal-workflow.spec.ts`. It covers ordinary Project/Bot routing and a reviewed CSV fork/join delivery with concurrent tools, a user-requested handoff, independently checked files and durable reopen. It uses deterministic model responses; Desktop interaction and real-model acceptance remain pending. See the [Desktop acceptance script](../../../../docs/personal-workflow-acceptance.md) for user steps and evidence requirements.
+
+## Local testing preferences
+
+`testingPreferences` and `setTestingPreferences` own a separate `personal_workflow_testing` storage domain (version 1, global `{ forceDecomposition: boolean, revision: number }`, default false/0). Writes compare the exact revision, serialize with workflow mutations, and return only after persistence. The existing plan domain and Session event formats are unchanged. Only user Remote methods expose mutation; model tools cannot change this preference.
+
+When enabled, `requireMode` accepts the unchanged conversation selection under the explicit global testing override, while still checking Bot Skill permission. Assessment rejects `simple`, and model proposals require at least two required non-root tasks. Clarification and infeasibility remain available. The Skill adapter logs the effective instruction through `personal-workflow-method` and restricts unbound conversations to assessment, proposal and clarification tools. Neither a proposal nor the testing override approves or starts execution.

@@ -31,3 +31,7 @@ Selected-task execution adds logged `personal-workflow-execution` context. Autom
 ## Integration acceptance
 
 The no-page Desktop Host component test is `apps/desktop-host/tests/personal-workflow.spec.ts`. It covers ordinary Project/Bot routing and a reviewed CSV fork/join delivery with concurrent tools, a user-requested handoff, independently checked files and durable reopen. It uses deterministic model responses; Desktop interaction and real-model acceptance remain pending. See the [Desktop acceptance script](../../../../docs/personal-workflow-acceptance.md) for user steps and evidence requirements.
+
+## Temporary forced decomposition
+
+The user-owned local testing preference can enable planning even when a conversation mode is off. Each new unbound goal receives a logged instruction requiring at least two necessary subtasks; Host validation rejects the simple route and smaller proposals. Until the user selects an execution task, the tool guard admits only `workflow_assess`, `workflow_propose` and `ask_user_question`. Bot Skill/tool restrictions still apply. Bound execution keeps its original task and authorization, so the override does not recursively split execution work. Turning the override off logs a superseding instruction and restores the conversation’s own simple/complex routing; it never silently changes that selection. Natural-language plan quality remains a model responsibility.

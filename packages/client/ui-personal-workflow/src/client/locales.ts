@@ -1,5 +1,8 @@
 /** Task plan labels owned by the Client locale. */
 export const zh = {
+  testingTitle: '临时测试',
+  forceDecomposition: '每次任务强制拆分',
+  forceDecompositionHint: '仅用于测试任务流程，默认关闭。开启后，本机未绑定执行任务的对话会对每个新目标生成至少两个必要子任务，即使未开启对话增强模式。已选子任务不再拆分；仍需审核和手动选择执行。关闭后恢复原来的对话模式。',
   selectTask: '执行任务', chooseReadyTask: '请选择已批准且前置满足的任务', conversationDirectory: '使用当前对话目录',
   sharedWorkspace: '共享目录中的文件不会自动隔离或合并，请协调任务间重叠产物。', executionMode: '推进方式',
   manual: '手动（每轮结束暂停）', auto: '自动（仅当前任务）', auto_until: '自动至当前任务阶段终点',
@@ -27,6 +30,9 @@ export const zh = {
 export type WorkflowKey = keyof typeof zh
 /** Complete English task plan copy. */
 export const en = {
+  testingTitle: 'Temporary testing',
+  forceDecomposition: 'Always decompose tasks',
+  forceDecompositionHint: 'For workflow testing; off by default. New goals in unbound conversations on this device require at least two necessary subtasks, even with conversation enhancement off. Selected tasks execute normally. Review and explicit task selection are still required. Turning this off restores each conversation’s mode.',
   selectTask: 'Execute task', chooseReadyTask: 'Choose an approved task with completed prerequisites', conversationDirectory: 'Use conversation directory',
   sharedWorkspace: 'Shared files are not isolated or merged automatically. Coordinate overlapping artifacts.', executionMode: 'Progression',
   manual: 'Manual (pause after each turn)', auto: 'Automatic (selected task only)', auto_until: 'Automatic through selected task phase',

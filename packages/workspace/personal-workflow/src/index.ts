@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { WorkflowExecution } from './execution.ts'
 import { createHash } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { defineDomain, domainTable, type KvTable } from '@deepseek-ai/dsh-storage-domain'
+import { defineDomain, domainTable, type KvTable, type DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-personal-project'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -14,7 +14,8 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 import { exportPlan } from './projection.ts'
 import type {
   ApprovePlanRequest, OperationId, PlanDefinition, PlanRevision, PlanView, ReadPlanRequest,
-  SavePlanRequest, StoredPlan, TaskId, WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment,
+  WorkflowTestingPreferences, SetWorkflowTestingPreferencesRequest, SavePlanRequest, StoredPlan, TaskId,
+  WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment,
 } from './types.ts'
 export type * from './types.ts'
 export { exportPlan, projectPlan } from './projection.ts'
@@ -22,6 +23,14 @@ export { exportPlan, projectPlan } from './projection.ts'
 const domainSpec = defineDomain({
   name: 'personal_workflow', version: 1,
   tables: { plans: domainTable<TaskId, StoredPlan>(storedPlanSchema) },
+})
+
+const testingPreferencesSpec = defineDomain({
+  name: 'personal_workflow_testing', version: 1, tables: {},
+  global: {
+    schema: z.object({ forceDecomposition: z.boolean(), revision: z.number().int().nonnegative() }).strict(),
+    initial: { forceDecomposition: false, revision: 0 },
+  },
 })
 
 declare module '@deepseek-ai/cordis' {
@@ -56,6 +65,7 @@ export class PersonalWorkflow extends Service {
   /** Task execution writer sharing atomic plan transactions. */
   readonly execution: WorkflowExecution
   static inject = ['storageDomain', 'sessions', 'sessionPersistence', 'sessionQuery', 'personalProjects', 'sessionProjections']
+  private testing?: DomainGlobal<WorkflowTestingPreferences>
   private plans?: KvTable<TaskId, StoredPlan>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
@@ -74,6 +84,13 @@ export class PersonalWorkflow extends Service {
       await this.tail
       await domain.close()
     }, 'personal-workflow.domainClose')
+    const testing = await this.ctx.storageDomain.open(testingPreferencesSpec)
+    this.testing = testing.global
+    this.ctx.effect(() => async () => {
+      this.closing = true
+      await this.tail
+      await testing.close()
+    }, 'personal-workflow.testingClose')
     await this.execution.recover()
     const ids = new Set<TaskId>()
     for (const [key, plan] of this.plans.entries()) {
@@ -96,6 +113,30 @@ export class PersonalWorkflow extends Service {
     const result = this.tail.then(work)
     this.tail = result.then(() => undefined, () => undefined)
     return result
+  }
+
+  /** Read the local testing override; it never authorizes task execution.
+   * @returns Persisted switch and compare-and-set revision.
+   */
+  testingPreferences(): WorkflowTestingPreferences {
+    if (this.testing === undefined) throw new Error('personal-workflow: testing preferences unavailable')
+    return this.testing.get()
+  }
+
+  /** Persist the user's temporary override without changing conversation selections.
+   * @param request - Desired switch and observed settings revision.
+   * @returns Committed settings; stale writes are refused.
+   */
+  setTestingPreferences(request: SetWorkflowTestingPreferencesRequest): Promise<WorkflowTestingPreferences> {
+    const parsed = z.object({ forceDecomposition: z.boolean(), expectedRevision: z.number().int().nonnegative() }).strict().parse(request)
+    return this.enqueue(async () => {
+      const current = this.testingPreferences()
+      if (parsed.expectedRevision !== current.revision) throw new Error('testing-preferences-revision-conflict')
+      const next = { forceDecomposition: parsed.forceDecomposition, revision: current.revision + 1 }
+      if (this.testing === undefined) throw new Error('personal-workflow: testing preferences unavailable')
+      await this.testing.set(next)
+      return next
+    })
   }
 
   /** Read the Session-log projection for tool visibility; this grants no operation permission.
@@ -156,6 +197,7 @@ export class PersonalWorkflow extends Service {
   assess(session: Session, assessment: WorkflowAssessment): Promise<WorkflowAssessment> {
     return this.enqueue(async () => {
       await this.requireMode(session, assessment.modeRevision)
+      if (this.testingPreferences().forceDecomposition && assessment.decision === 'simple') throw new Error('personal-workflow: testing requires decomposition; clarify or assess complex before proposing')
       session.append('personal-workflow/assessment', assessment)
       if (!await this.ctx.sessions.flush(session)) throw new Error('personal-workflow: Session has no durability listener')
       this.ctx.logger.info(`personal-workflow sessionId=${session.id} decisionCode=${assessment.decision} result=assessed`)
@@ -166,11 +208,11 @@ export class PersonalWorkflow extends Service {
   /** Check current mode and Skill permission at the operation that consumes them.
    * @param session - Calling Session.
    * @param revision - Exact mode version observed by the model.
-   * @returns Resolved enabled mode or a rejection.
+   * @returns Validated conversation selection, or a rejection; the testing override can admit a disabled selection.
    */
   async requireMode(session: Session, revision: number): Promise<WorkflowMode> {
     const mode = await this.mode(session)
-    if (!mode.enabled || mode.revision !== revision) throw new Error('personal-workflow: enhancement mode is off or changed')
+    if ((!mode.enabled && !this.testingPreferences().forceDecomposition) || mode.revision !== revision) throw new Error('personal-workflow: enhancement mode is off or changed')
     if (!this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')) throw new Error('dev-workflow Skill is disabled by the current Bot')
     return mode
   }
@@ -219,6 +261,7 @@ export class PersonalWorkflow extends Service {
       try {
         if (enhancement !== undefined) {
           await this.requireMode(enhancement.session, enhancement.modeRevision)
+          if (this.testingPreferences().forceDecomposition && request.definition.tasks.filter(task => task.parentTaskId !== null && task.required).length < 2) throw new Error('personal-workflow: testing requires at least two required subtasks')
           await using handle = await this.ctx.sessionPersistence.open(enhancement.session.id, 'read')
           const { events } = await handle.read()
           const assessment = events.findLast(event => event.type === 'personal-workflow/assessment')

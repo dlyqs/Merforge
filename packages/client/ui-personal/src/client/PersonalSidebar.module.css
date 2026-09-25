@@ -320,3 +320,6 @@
     pointer-events: auto;
   }
 }
+
+.settings { max-width: 960px; padding: 24px; color: var(--dsw-alias-label-primary); }
+.settings > p { color: var(--dsw-alias-label-secondary); line-height: 1.5; }

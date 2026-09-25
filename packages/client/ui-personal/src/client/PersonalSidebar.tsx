@@ -35,7 +35,7 @@ function allowlist(value: string): string[] | undefined {
 /** Sidebar Project/Bot browser and editor. */
 export function PersonalSidebar(props: PersonalSidebarProps) {
   const {
-    wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
+    management = false, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
     refresh, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
     createSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
@@ -208,20 +208,21 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
               { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
             ]}
             onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
-          <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
-            disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>
+          {!management && <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
+            disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
         </div>}
       </div>
       {wide && open && <div className={css.groupContents}>
-        {props.renderSlot('sidebar.personal.workflow', { projectId: target.kind === 'project' ? target.id : null, botId: target.kind === 'bot' ? target.id : null })}
-        {ids.map(sessionRow)}
+        {props.renderSlot('personal.manager.workflow', { projectId: target.kind === 'project' ? target.id : null, botId: target.kind === 'bot' ? target.id : null })}
+        {!management && ids.map(sessionRow)}
       </div>}
     </div>
   }
 
   return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>
     {wide && <div className={css.body}>
-      {props.renderSlot('sidebar.personal.workflow', { projectId: null, botId: null })}
+      {management && <h3>{t('tasks')}</h3>}
+      {props.renderSlot('personal.manager.workflow', { projectId: null, botId: null })}
       {records.phase === 'loading' && <p>{t('loading')}</p>}
       {records.phase === 'error' && <button type="button" onClick={() => { void refresh() }}>{t('retry')}</button>}
       <div className={css.groupHeading}><span>{t('projects')}</span>
@@ -240,7 +241,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>
       </div>
       {(sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects).map(project => groupRow({ kind: 'project', id: project.id }, project.name, () => { setDraft(projectDraft(project)) }))}
-      {unassigned.length > 0 && <div className={css.group}>
+      {!management && unassigned.length > 0 && <div className={css.group}>
         <div className={css.groupRow}>
           <button type="button" className={css.groupButton} aria-expanded={showUnassigned}
             onClick={() => { setShowUnassigned(value => !value) }}>

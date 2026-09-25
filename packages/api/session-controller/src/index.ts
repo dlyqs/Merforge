@@ -315,6 +315,23 @@ export class SessionController extends TypertRemoteService {
     return this.workflow().setMode(resolved.agent.session, request)
   }
 
+  /** Read local workflow testing preferences.
+   * @returns User-owned switch and revision.
+   */
+  @Remote('workflowTestingPreferences')
+  workflowTestingPreferences(): import('@deepseek-ai/dsh-personal-workflow/types').WorkflowTestingPreferences {
+    return this.workflow().testingPreferences()
+  }
+
+  /** Set the temporary decomposition override without granting execution permission.
+   * @param request - Explicit user gesture with the observed revision.
+   * @returns Persisted testing preference.
+   */
+  @Remote('workflowSetTestingPreferences')
+  workflowSetTestingPreferences(request: import('@deepseek-ai/dsh-personal-workflow/types').SetWorkflowTestingPreferencesRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowTestingPreferences> {
+    return this.workflow().setTestingPreferences(request)
+  }
+
   /** Read configured execution ceilings for the authorization form.
    * @returns Deployment-specific action, turn, duration and observation limits.
    */

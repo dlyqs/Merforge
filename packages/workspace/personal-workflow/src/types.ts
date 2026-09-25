@@ -161,3 +161,14 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     personalWorkflowMode: WorkflowMode
   }
 }
+
+/** User-owned temporary workflow testing preference, persisted on this device. */
+export interface WorkflowTestingPreferences {
+  readonly forceDecomposition: boolean
+  readonly revision: number
+}
+/** Compare-and-set user gesture; not exposed to model tools. */
+export interface SetWorkflowTestingPreferencesRequest {
+  readonly forceDecomposition: boolean
+  readonly expectedRevision: number
+}

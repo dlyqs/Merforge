@@ -9,6 +9,8 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { PersonalSidebarEntry, PersonalSettings } from './PersonalSettings.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-personal-project/types'
 import type { PersonalActions, PersonalInjected, PersonalRecordsState } from './contract.ts'
@@ -74,12 +76,17 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.on('connection/reset', () => {
     if (records.getSnapshot().phase !== 'loading') void refresh()
   }), 'ui-personal: reconnect records')
-  ctx.slots.inject('sidebar.personal', () => ctx.slots.register({
-    name: 'sidebar.personal',
-    locale: 'personal',
-    children: { 'sidebar.personal.workflow': { kind: 'single', scope: 'root' } },
+  ctx.slots.registerFactory({
+    name: 'personal.manager', scope: 'root', locale: 'personal',
+    children: { 'personal.manager.workflow': { kind: 'single', scope: 'root' } },
     inject: (): PersonalInjected => ({ ...actions, hooks: { records } }),
-  }, PersonalSidebar))
+  }, PersonalSidebar)
+  ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal' }, PersonalSidebarEntry))
+  const t = ctx.locale.bind('personal')
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section', id: 'personal', order: 25, locale: 'personal', label: () => t('settingsTitle'),
+    children: { 'settings.personal.testing': { kind: 'single', scope: 'root' } },
+  }, PersonalSettings))
 }
 
 export type { PersonalSidebarProps } from './contract.ts'

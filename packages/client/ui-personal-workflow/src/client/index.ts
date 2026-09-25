@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { WorkflowActions, ModeActions, ExecutionActions } from './contract.ts'
+import { TestingPreferences, type TestingPreferencesActions } from './TestingPreferences.tsx'
 import { Execution } from './Execution.tsx'
 import { Mode } from './Mode.tsx'
 import { Workflow } from './Workflow.tsx'
@@ -25,8 +26,15 @@ function valueOf<T>(result: RemoteResult<T>): T {
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register('personalWorkflow', { zh, en }), 'personal-workflow: dictionaries')
-  ctx.slots.inject('sidebar.personal.workflow', () => ctx.slots.register({
-    name: 'sidebar.personal.workflow', locale: 'personalWorkflow',
+  ctx.slots.inject('settings.personal.testing', () => ctx.slots.register({
+    name: 'settings.personal.testing', locale: 'personalWorkflow',
+    inject: (): TestingPreferencesActions => ({
+      readPreferences: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
+      setPreferences: async request => valueOf(await ctx.remote.session.workflowSetTestingPreferences(request)),
+    }),
+  }, TestingPreferences))
+  ctx.slots.inject('personal.manager.workflow', () => ctx.slots.register({
+    name: 'personal.manager.workflow', locale: 'personalWorkflow',
     inject: (): WorkflowActions => ({
       list: async () => valueOf(await ctx.remote.session.workflowList()),
       save: async request => valueOf(await ctx.remote.session.workflowSave(request)),

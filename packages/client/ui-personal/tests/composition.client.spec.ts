@@ -5,8 +5,7 @@ import { ok } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { SESSION_FORMAT_VERSION, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionFollowFrame } from '@deepseek-ai/dsh-api-session-controller/types'
-import type { PersonalInjected } from '../src/client/contract.ts'
-import { PersonalSidebar } from '../src/client/PersonalSidebar.tsx'
+import { PersonalSidebarEntry, PersonalSettings } from '../src/client/PersonalSettings.tsx'
 
 const it = createClientTest({ roster: webApp })
 
@@ -23,12 +22,8 @@ it('loads personal records through the registered sidebar seat', async ({ mock, 
   })
   const c = await start()
   const entry = c.ctx.slots.entries('sidebar.personal')[0]
-  expect(entry?.component).toBe(PersonalSidebar)
-  expect(entry?.locale).toBe('personal')
-  expect(entry?.inject).toBeDefined()
-  const face = entry!.inject!() as Partial<PersonalInjected>
-  expect(face.hooks?.records.getSnapshot().phase).toBe('loading')
-  mock.remote.session.personalList.mockResolvedValue(ok({ projects: [], bots: [] }))
-  await face.refresh?.()
-  expect(face.hooks?.records.getSnapshot()).toEqual({ phase: 'ready', projects: [], bots: [] })
+  expect(entry?.component).toBe(PersonalSidebarEntry)
+  expect(c.ctx.slots.entries('settings.section').find(item => item.options.id === 'personal')?.component).toBe(PersonalSettings)
+  expect(JSON.stringify(c.ctx.slots.snapshot('factory:personal.manager'))).toContain('personal.manager.workflow')
+  expect(c.ctx.slots.entries('settings.personal.testing')).toHaveLength(1)
 }, 60_000)

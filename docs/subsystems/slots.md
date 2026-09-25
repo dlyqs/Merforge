@@ -191,3 +191,7 @@ The generated Client inspect catalog is the exhaustive contract for each key: ca
 - Keep observable source and snapshot identities stable between changes. Republish through the same source whenever its value changes.
 - Pass JSON-compatible data and callbacks between UI domains. The `hooks` compartment is the sole exception for bare observables; React content travels through slots.
 - Treat `single` and an occupied keyed cell as replacement points. Use list ids or an unoccupied key for additive extensions.
+
+## Personal management factory
+
+`ui-personal` registers the root-scoped `personal.manager` Factory for independent sidebar and settings occurrences. It owns `personal.manager.workflow`, occupied by ui-personal-workflow, and shares its records observable and mutation callbacks across occurrences. The personal settings section separately declares `settings.personal.testing` for user-only testing controls. The sidebar and settings do not declare duplicate copies of the workflow slot.

@@ -16,7 +16,7 @@ export interface WorkflowActions {
   openSession(id: SessionId): void
 }
 /** Derived slot props and user operations. */
-export type WorkflowProps = PropsRuntime<'sidebar.personal.workflow'> & PropsLocale<'personalWorkflow'> & WorkflowActions
+export type WorkflowProps = PropsRuntime<'personal.manager.workflow'> & PropsLocale<'personalWorkflow'> & WorkflowActions
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {

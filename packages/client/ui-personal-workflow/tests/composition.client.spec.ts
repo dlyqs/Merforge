@@ -22,7 +22,7 @@ it('loads personal records through the registered sidebar seat', async ({ mock, 
     } satisfies SessionFollowFrame)
   })
   const c = await start()
-  const entry = c.ctx.slots.entries('sidebar.personal.workflow')[0]
+  const entry = c.ctx.slots.entries('personal.manager.workflow')[0]
   expect(entry?.component).toBe(Workflow)
   expect(entry?.locale).toBe('personalWorkflow')
   expect(entry?.inject).toBeDefined()

@@ -5,6 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-personal-workflow'
 import type {} from '@deepseek-ai/dsh-personal-project'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import { BUNDLED_SKILL_RANK, type SkillCandidate, renderSkillContent } from '@deepseek-ai/dsh-skill'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -31,7 +32,7 @@ declare module '@deepseek-ai/dsh-llm' {
 /** Cordis plugin identity. */
 export const name = 'skill-dev-workflow'
 /** Services used by managed mode and model operations. */
-export const inject = ['skills', 'agents', 'tools', 'personalWorkflow', 'personalProjects']
+export const inject = ['skills', 'agents', 'tools', 'personalWorkflow', 'personalProjects', 'sessionPersistence']
 
 /** Register the bundled method, logged context and guarded proposal tools.
  * @param ctx - Agent-preset plugin context.
@@ -50,7 +51,7 @@ export function apply(ctx: Context): void {
           && ctx.personalWorkflow.execution.limits.blockedTools.includes(tool)) return false
         if (tool === 'workflow_complete') return ctx.personalWorkflow.execution.forSession(agent.session.id)?.sessionId === agent.session.id
         if (tool !== 'workflow_assess' && tool !== 'workflow_propose') return true
-        return ctx.personalWorkflow.selectedMode(agent.session).enabled
+        return (ctx.personalWorkflow.selectedMode(agent.session).enabled || ctx.personalWorkflow.testingPreferences().forceDecomposition)
           && ctx.personalProjects.allowsSkill(agent.session, 'dev-workflow')
       })
     })
@@ -63,10 +64,15 @@ export function apply(ctx: Context): void {
     const execution = await ctx.personalWorkflow.execution.enterTurn(agent.session)
     if (execution !== null) return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'personal-workflow-execution' }, content: [{ type: 'text', text: execution }] })] }
     const mode = await ctx.personalWorkflow.mode(agent.session)
-    if (!mode.enabled && mode.revision === 0) return decision
+    const forced = ctx.personalWorkflow.testingPreferences().forceDecomposition
+    if (!mode.enabled && !forced && mode.revision === 0) {
+      await using handle = await ctx.sessionPersistence.open(agent.session.id, 'read')
+      const { events } = await handle.read()
+      if (!events.some(event => event.type === 'user/message' && event.data.source.kind === 'personal-workflow-method')) return decision
+    }
     signal.throwIfAborted()
     let text = 'Task enhancement is now disabled. Ignore earlier enhancement instructions and continue ordinary assistance. Do not submit task assessments or proposals.'
-    if (mode.enabled) {
+    if (mode.enabled || forced) {
       await ctx.personalWorkflow.requireMode(agent.session, mode.revision)
       if (ctx.tools.get('workflow_assess', agent) === undefined || ctx.tools.get('workflow_propose', agent) === undefined) {
         throw new Error('personal-workflow: workflow tools are unavailable under the current tool permissions')
@@ -75,6 +81,8 @@ export function apply(ctx: Context): void {
       if (skill === undefined || skill.provider !== candidate.provider) throw new Error('personal-workflow: bundled dev-workflow Skill unavailable')
       const affiliation = ctx.personalProjects.affiliation(agent.session).current
       text = `Task enhancement is enabled. Mode revision: ${mode.revision}. Conversation affiliation: ${JSON.stringify({ projectId: affiliation.projectId ?? null, botId: affiliation.botId ?? null })}\n${renderSkillContent(skill)}`
+      if (forced) text += '\nTemporary testing override is ON for this device. For every new goal, including simple goals, clarify only if needed, then assess complex and propose a plan with at least two required subtasks. Do not take the simple route or perform the requested work directly. Await user review and explicit task selection; never approve or start tasks yourself. This overrides the ordinary simple-goal routing above.'
+      else text += '\nTemporary testing override is OFF. Ignore earlier temporary forced-decomposition instructions; use the managed method’s normal simple/complex routing.'
       ctx.logger.info(`personal-workflow sessionId=${agent.session.id} decisionCode=method-loaded result=ready`)
     }
     return { ...decision, messages: [...decision.messages, createUserMessage({
@@ -145,7 +153,15 @@ function installExecution(ctx: Context): void {
     if (exec.agent !== undefined) await ctx.personalWorkflow.execution.checkAccess(exec.agent.session)
     return decision
   })
-  ctx.tools.guard(exec => exec.agent === undefined ? undefined : ctx.personalWorkflow.execution.denial(exec.agent.session, exec.name))
+  ctx.tools.guard((exec) => {
+    if (exec.agent === undefined) return undefined
+    if (ctx.personalWorkflow.testingPreferences().forceDecomposition
+      && ctx.personalWorkflow.execution.forSession(exec.agent.session.id) === null
+      && !['workflow_assess', 'workflow_propose', 'ask_user_question'].includes(exec.name)) {
+      return 'Temporary workflow testing requires a decomposed plan, user review and explicit task selection before executing work.'
+    }
+    return ctx.personalWorkflow.execution.denial(exec.agent.session, exec.name)
+  })
   ctx.on('tools/execute', async (exec, next) => {
     if (exec.agent === undefined || exec.name === 'workflow_complete') return next()
     const runId = await ctx.personalWorkflow.execution.beginAction(exec.agent.session, exec.callId, exec.name)
