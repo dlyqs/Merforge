@@ -48,6 +48,8 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
+下一产品阶段是路线图 Phase 4 的组织服务、真实账号与资源授权，计划入口为[组织基础实施计划](organization-foundation-plan.md)。计划内部 Phase 1–7 尚未执行，模式为 `manual`，待评审后开始。组织服务拟由 Electron 管理独立私有进程；现有 loopback Host 的单操作者认证不能直接作为多成员认证。组织包、内网 API 和 UI 仍未实现；这一计划不包含完整 WorkGraph、任务分派或组织执行。
+
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 
 ## 个人管理设置

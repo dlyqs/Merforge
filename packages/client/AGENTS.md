@@ -153,4 +153,3 @@ Bringing up a new `packages/client/<name>` plugin package (ui-workspace is a com
 4. Component tests feed props directly (`createXXXStore().create()` for the store data; plain stubs for framework hooks) and assert behavior without render machinery.
 5. Tokens only in CSS; product copy follows the localization rule above; English comments.
 6. `pnpm run test:gui` green; if the component changes visible assembled output, also run `DSH_SNAPSHOT=replay pnpm run test:web`.
-7. Non-trivial change? It needs an Agent Note in the same PR (repo-wide rule) — the GUI notes above are the precedents to extend.

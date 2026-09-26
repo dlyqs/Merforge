@@ -1,6 +1,6 @@
 /** Explicit local testing override; failed writes never appear enabled. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Switch, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkflowTestingPreferences, SetWorkflowTestingPreferencesRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import css from './Workflow.module.css'
@@ -37,15 +37,15 @@ export function TestingPreferences(props: PropsRuntime<'settings.personal.testin
     } finally { lock.current = false; setBusy(false) }
   }
   return <section className={css.testing}>
-    <h3>{props.t('testingTitle')}</h3>
-    <div className={css.actions}>
+    <div className={css.sectionHeading}><h3>{props.t('testingTitle')}</h3><span className={css.testTag}>{props.t('testingBadge')}</span></div>
+    <div className={css.settingRow}>
+      <span className={css.settingIcon}><IconBranchOutlineRegular size={20} /></span>
+      <div className={css.settingCopy}><strong>{props.t('forceDecomposition')}</strong><p>{props.t('forceDecompositionHint')}</p></div>
       <Switch label={props.t('forceDecomposition')} checked={value?.forceDecomposition ?? false} disabled={busy || value === null || error !== null}
         onChange={(enabled) => { void change(enabled) }} />
-      <span>{props.t('forceDecomposition')}</span>
-      {busy && <span role="status">{props.t('loading')}</span>}
     </div>
-    <p>{props.t('forceDecompositionHint')}</p>
-    {error !== null && <><p role="alert">{props.t('error', { message: error })}</p>
+    {(busy || (value === null && error === null)) && <p className={css.hint} role="status">{props.t('savingPreferences')}</p>}
+    {error !== null && <><p className={css.error} role="alert">{props.t('error', { message: error })}</p>
       <Button variant="outline" disabled={busy} onClick={() => { setReload(current => current + 1) }}>{props.t('refresh')}</Button></>}
   </section>
 }

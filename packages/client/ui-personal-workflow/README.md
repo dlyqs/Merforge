@@ -8,6 +8,8 @@ Personal plan review in the Project/Bot sidebar. Both entrances query the same H
 
 The web-app bundle registers this plugin in `personal.manager.workflow`, declared by ui-personal’s shared manager. Select a plan and a task to inspect its scope, acceptance criteria, declared artifacts, directory, and proposing conversation. Edit task fields, parent, prerequisites, stage assignment, or stage titles; save creates a new unapproved revision. The Host rejects invalid graphs and stale revisions. Failed saves retain the draft and retry identity. Approval targets the displayed revision and never starts execution. Markdown downloads target that same revision.
 
+The review dialog separates the plan picker, revision actions, task outline with stage groups, and selected-task details. Task rows and stage entries share the selected state; status labels accompany their color indicators. Details group acceptance criteria, artifact declarations, execution evidence, and deduplicated conversation links. The layout stacks on narrow windows, uses shared light/dark theme tokens, and keeps controls reachable through keyboard focus. Execution selection groups the task summary, authorization budgets, and run controls; loading, empty, and failure states use localized copy.
+
 The conversation composer provides an explicit task enhancement switch backed by `workflowMode` and `workflowSetMode`. The choice persists separately from submitting a goal; failed writes remain off and expose retry/refresh actions. Current conversations provide the Session identity through the standard scope adapter.
 
 ## Model Experience

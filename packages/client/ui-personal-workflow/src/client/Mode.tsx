@@ -1,7 +1,7 @@
 /** Explicit per-conversation enhancement mode control. */
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { useEffect, useRef, useState } from 'react'
-import { Button, Switch, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Switch, Tooltip, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkflowMode, OperationId, SetWorkflowModeRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import css from './Workflow.module.css'
 import type { ModeProps } from './contract.ts'
@@ -37,11 +37,11 @@ export function Mode(props: ModeProps) {
     } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { lock.current = false; setBusy(false) }
   }
-  return <div>
+  return <div className={css.modeControl}>
     {mode === null ? <Button variant="ghost" disabled={error === null} onClick={() => { setReload(value => value + 1) }}>{props.t(error === null ? 'modeLoading' : 'refresh')}</Button>
-      : <Tooltip label={props.t('modeHint')}><span className={css.actions}>{props.t('mode')}<Switch label={props.t('mode')} checked={mode.enabled} disabled={busy || running}
+      : <Tooltip label={props.t('modeHint')}><span className={css.modePill} data-enabled={mode.enabled}><IconBranchOutlineRegular size={14} />{props.t('mode')}<Switch label={props.t('mode')} checked={mode.enabled} disabled={busy || running}
         onChange={(enabled) => { void select(enabled) }} /></span></Tooltip>}
-    {error !== null && <><p role="alert">{props.t('error', { message: error })}</p>
+    {error !== null && <><p className={css.error} role="alert">{props.t('error', { message: error })}</p>
       <Button variant="ghost" disabled={busy} onClick={() => {
         pending.current = null; setMode(null); setReload(value => value + 1)
       }}>{props.t('refresh')}</Button></>}

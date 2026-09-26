@@ -1,6 +1,15 @@
 /** Task plan labels owned by the Client locale. */
 export const zh = {
-  testingTitle: '临时测试',
+  plansHint: '查看任务拆分，审核计划并跟进执行进度。',
+  emptyHint: '开启任务增强模式并描述目标，生成的计划会显示在这里。',
+  selectPlan: '选择一个任务计划', selectPlanHint: '查看任务结构、阶段依赖和验收要求。',
+  taskDetail: '任务详情', acceptanceTitle: '验收条件', artifactsTitle: '预期产物', evidenceTitle: '执行记录与证据',
+  executionHint: '选择已就绪的任务，设置本次执行的范围与预算。', loadingExecution: '正在更新执行信息…',
+  noReadyTasks: '暂无可执行任务', readyTasksHint: '任务需要先通过计划审核，并完成所有前置任务。',
+  executionSettings: '执行设置', currentExecution: '当前执行', pendingActions: '待核对动作',
+  handoffHistory: '接力记录', actionUnknown: '结果未知', actionPending: '待完成',
+  testingBadge: '测试选项', savingPreferences: '正在同步设置…',
+  testingTitle: '任务拆分测试',
   forceDecomposition: '每次任务强制拆分',
   forceDecompositionHint: '仅用于测试任务流程，默认关闭。开启后，本机未绑定执行任务的对话会对每个新目标生成至少两个必要子任务，即使未开启对话增强模式。已选子任务不再拆分；仍需审核和手动选择执行。关闭后恢复原来的对话模式。',
   selectTask: '执行任务', chooseReadyTask: '请选择已批准且前置满足的任务', conversationDirectory: '使用当前对话目录',
@@ -22,7 +31,7 @@ export const zh = {
   parent: '父任务', phase: '阶段', prerequisites: '前置任务', blockers: '等待完成', none: '无', required: '必要子任务',
   progress: '必要子任务：{done}/{total}', phaseProgress: '完成：{done}/{total}', sessions: '关联对话', noSessions: '暂无关联对话',
   noEvidence: '产物仅为声明，尚无执行证据。', overlap: '与其他任务声明的产物相同，请协调共享文件：{paths}',
-  reviewAgain: '修改保存后需要重新审核。非法依赖由 Host 拒绝，失败时保留草稿。',
+  reviewAgain: '保存后将生成新版本，并需要重新审核。保存失败时会保留你的修改。',
   draft: '草稿', pending_review: '待审核', blocked: '依赖阻塞', ready: '可执行', running: '正在执行',
   paused: '已暂停', needs_reconciliation: '待核对', completed: '已完成', cancelled: '已取消',
 } satisfies Record<string, string>
@@ -30,7 +39,16 @@ export const zh = {
 export type WorkflowKey = keyof typeof zh
 /** Complete English task plan copy. */
 export const en = {
-  testingTitle: 'Temporary testing',
+  plansHint: 'Review task breakdowns, approve plans, and follow execution progress.',
+  emptyHint: 'Enable task enhancement and describe a goal to create a plan here.',
+  selectPlan: 'Select a task plan', selectPlanHint: 'Explore the task structure, dependencies, and acceptance criteria.',
+  taskDetail: 'Task details', acceptanceTitle: 'Acceptance criteria', artifactsTitle: 'Expected artifacts', evidenceTitle: 'Execution records and evidence',
+  executionHint: 'Choose a ready task and set the scope and budget for its execution.', loadingExecution: 'Updating execution details…',
+  noReadyTasks: 'No ready tasks yet', readyTasksHint: 'Tasks need an approved plan and completed prerequisites before execution.',
+  executionSettings: 'Execution settings', currentExecution: 'Current execution', pendingActions: 'Actions to reconcile',
+  handoffHistory: 'Handoff history', actionUnknown: 'Unknown result', actionPending: 'Pending',
+  testingBadge: 'Testing option', savingPreferences: 'Syncing preferences…',
+  testingTitle: 'Task decomposition testing',
   forceDecomposition: 'Always decompose tasks',
   forceDecompositionHint: 'For workflow testing; off by default. New goals in unbound conversations on this device require at least two necessary subtasks, even with conversation enhancement off. Selected tasks execute normally. Review and explicit task selection are still required. Turning this off restores each conversation’s mode.',
   selectTask: 'Execute task', chooseReadyTask: 'Choose an approved task with completed prerequisites', conversationDirectory: 'Use conversation directory',
@@ -52,7 +70,7 @@ export const en = {
   parent: 'Parent task', phase: 'Stage', prerequisites: 'Prerequisites', blockers: 'Waiting for completion', none: 'None', required: 'Required subtask',
   progress: 'Required children: {done}/{total}', phaseProgress: 'Completed: {done}/{total}', sessions: 'Linked conversations', noSessions: 'No linked conversations',
   noEvidence: 'Artifacts are declarations; no execution evidence is recorded yet.', overlap: 'Artifacts also declared by other tasks; coordinate shared files: {paths}',
-  reviewAgain: 'Saved changes need review again. The Host rejects invalid dependencies; failed saves retain the draft.',
+  reviewAgain: 'Saving creates a new revision that needs review. Your edits are retained if saving fails.',
   draft: 'Draft', pending_review: 'Awaiting review', blocked: 'Blocked', ready: 'Ready', running: 'Running',
   paused: 'Paused', needs_reconciliation: 'Needs reconciliation', completed: 'Completed', cancelled: 'Cancelled',
 } satisfies Record<WorkflowKey, string>

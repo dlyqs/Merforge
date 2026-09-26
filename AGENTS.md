@@ -155,6 +155,8 @@ Comments and docs state complete contracts and context, not reasoning transcript
 
 Update documentation when a public interface or developer procedure changes; keep current-state facts in their owning page. Use the language requested for the relevant document, without a repository-wide language restriction.
 
+**Agent Notes are opt-in.** Do not automatically create or update files under `.agents/notes/` or `.agent/notes/` for code changes, reviews, or PRs, regardless of change size. Write Agent Notes only when the user explicitly requests them. Keep required public-interface and developer-procedure updates in the relevant README or documentation page.
+
 ## Editing these instructions
 
 `CLAUDE.md` symlinks `AGENTS.md` at root and `packages/`; edit the real file. Keep each rule self-contained while linking high-level docs.
