@@ -17,7 +17,7 @@
 
 可行性：现有 Electron、Cordis、Node、Client 插件和持久化经验足够支撑小规模局域网 MVP；这是横跨进程、账号、数据与 UI 的大型目标。主要风险在身份混用、撤权后的在途事件、跨记录提交和后台进程恢复，不在普通登录表单。现有 Session/Agent loop 不需要改成多租户服务器。
 
-歧义检查：路线图已确定三机拓扑、Electron 唯一入口和个人数据隔离；用户本次要求分析并制定计划，没有授权实现。下面将路线图留给 Phase 4 的技术选择列为明确的首版方案建议，供计划评审；若执行时发现必须改变产品行为，先更新方案并澄清，不默默扩大范围。
+歧义检查：路线图已确定三机拓扑、Electron 唯一入口和个人数据隔离；用户最初要求分析并制定计划；本轮已明确授权自动完成 Phase 1–2，见执行规则。下面将路线图留给 Phase 4 的技术选择列为明确的首版方案建议，供计划评审；若执行时发现必须改变产品行为，先更新方案并澄清，不默默扩大范围。
 
 ## 范围与首版方案建议
 
@@ -38,7 +38,7 @@
 | 权限粒度 | 管理权限与资源读取权限分离；每个请求检查账号、Membership、组织和资源动作 | 管理员角色不自动等于读取所有项目内容；项目显式授权，不从岗位/汇报关系推导可见性 |
 | 备份与恢复 | GUI 手动停服备份，恢复前停服、校验格式并保留当前数据副本 | 备份仅组织数据与必要服务身份材料，按敏感文件保护；恢复后失效所有旧登录会话并要求重新登录，防止回滚复活旧令牌 |
 
-上述选择不声称已完成实现。Phase 1 定稿具体 schema、接口、依赖许可证及证书生成/有效期/轮换方案；必须先解决可行性问题再推进依赖阶段。没有需要用户先补充才能写计划的重大语义缺口。
+Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、依赖许可证及证书生成/有效期/轮换方案。Phase 2 已实现领域身份权威；表中进程、TLS、UI、项目授权与备份仍属于后续阶段。没有需要用户先补充才能写计划的重大语义缺口。
 
 ## 数据与实现职责
 
@@ -73,8 +73,8 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 协议与隔离设计 | 定稿身份、事务、进程及 GUI 流程 | pending | — | 全部实现的前置 |
-| Phase 2 | 账号与组织持久化 | 真实认证、成员资格与原子状态 | pending | — | 依赖 Phase 1 |
+| Phase 1 | 协议与隔离设计 | 定稿身份、事务、进程及 GUI 流程 | completed | [定稿设计](organization-foundation.md) | 2026-09-26；源码、SQLite/Node 与证书库元数据核验 |
+| Phase 2 | 账号与组织持久化 | 真实认证、成员资格与原子状态 | completed | `workspace/organization`；16 项测试、类型/lint、局部构建和产物 smoke | 2026-09-26；未挂载个人默认组合 |
 | Phase 3 | 私有组织服务与 TLS | 独立 HTTPS 服务及 Desktop 生命周期 | pending | — | 依赖 Phase 2 |
 | Phase 4 | 资源授权与事件同步 | 最小项目授权、搜索、撤权及重连 | pending | — | 依赖 Phase 3 |
 | Phase 5 | 客户端组织入口 | 服务设置、入组登录与组织切换 | pending | — | 依赖 Phase 4 |
@@ -89,18 +89,18 @@
 
 验收清单：
 
-- [ ] 给出个人客户端、服务机、内网 API 与数据目录关系；明确唯一进程所有者和关闭/崩溃收敛顺序。
-- [ ] 定义初始化、邀请、登录/退出、改密、成员停用、组织切换的输入/输出、版本与失败码；明确定义最后一个管理员不能被普通操作移除及本机恢复流程。
-- [ ] 权限矩阵覆盖无登录、失效登录、正常成员、非项目成员、跨组织成员及组织管理员；明确管理权与内容读取权的分别授权。
-- [ ] 定稿 SQLite 事务实现，业务更新/回执/事件原子提交及崩溃重开语义；核验现有库可复用范围，不给 KV 层凭空增加事务承诺。
-- [ ] 定稿 HTTPS 库及许可证、证书绑定和变更流程、服务发现方式（首版手填地址）、密码算法、令牌保存与恢复后失效策略。
-- [ ] 列出真实消费者、内网路由允许清单、私有入口检查调整、发行依赖；UI 流程包含服务启用、邀请、登录、模式切换、离线与撤权。
+- [x] 给出个人客户端、服务机、内网 API 与数据目录关系；明确唯一进程所有者和关闭/崩溃收敛顺序。
+- [x] 定义初始化、邀请、登录/退出、改密、成员停用、组织切换的输入/输出、版本与失败码；明确定义最后一个管理员不能被普通操作移除及本机恢复流程。
+- [x] 权限矩阵覆盖无登录、失效登录、正常成员、非项目成员、跨组织成员及组织管理员；明确管理权与内容读取权的分别授权。
+- [x] 定稿 SQLite 事务实现，业务更新/回执/事件原子提交及崩溃重开语义；核验现有库可复用范围，不给 KV 层凭空增加事务承诺。
+- [x] 定稿 HTTPS 库及许可证、证书绑定和变更流程、服务发现方式（首版手填地址）、密码算法、令牌保存与恢复后失效策略。
+- [x] 列出真实消费者、内网路由允许清单、私有入口检查调整、发行依赖；UI 流程包含服务启用、邀请、登录、模式切换、离线与撤权。
 
 助理验证：逐项对照现有 source、编译/打包脚本与库的受支持接口；推演两账号、两组织、猜测资源 ID、撤权和事务失败。不写仅验证类型必然成立的测试。
 
 用户检查：审阅账号邀请、证书核验和退出停服的产品行为；只有新的重大决策才请求澄清。依赖：无；旧个人验收不阻塞设计。
 
-实际完成：尚未开始。
+实际完成：2026-09-26 创建 `docs/organization-foundation.md`，核对现有 Desktop/Host 入口、依赖闭包、SQLite 和 KV 实现、包编译面与入口 gate；通过 npm 元数据确认 selfsigned 5.5.0 的许可证及依赖。组织管理与资源读取分离，独立恢复凭证及最后管理员约束已定稿。TLS/GUI 的实现与真实产物验证属于后续阶段。仓库引用的 `.agents/skills/dsh-prose-standard/SKILL.md` 不存在，搜索未找到；按现存 AGENTS/JSDoc/README 规则执行，不因此阻塞实现。
 
 ## Phase 2：账号与组织持久化
 
@@ -110,18 +110,27 @@
 
 验收清单：
 
-- [ ] 初始化只能成功一次；并发重复初始化不能创建第二套管理员或破坏现有数据。
-- [ ] 邀请消费、账号建立和 Membership 写入原子完成；过期/已消费邀请、重复用户名和并发冲突产生明确结果。
-- [ ] 密码不明文持久化；错误密码拒绝；登录限流/到期/退出撤销可测试；同一账号的其他登录是否受改密影响按 Phase 1 定稿执行。
-- [ ] 账号禁用和某一组织的成员停用独立；不能修改自己无权管理的成员；最后管理员约束及账户恢复不能绕过正常授权。
-- [ ] 事务故障不会留下无成员账号、已生效但无事件的权限修改，或已返回成功但未持久的操作；重试返回同一回执。
-- [ ] 私人存储路径、匿名安装标识及模型凭据没有成为账号来源或被拷贝。
+- [x] 初始化只能成功一次；并发重复初始化不能创建第二套管理员或破坏现有数据。
+- [x] 邀请消费、账号建立和 Membership 写入原子完成；过期/已消费邀请、重复用户名和并发冲突产生明确结果。
+- [x] 密码不明文持久化；错误密码拒绝；登录限流/到期/退出撤销可测试；同一账号的其他登录是否受改密影响按 Phase 1 定稿执行。
+- [x] 账号禁用和某一组织的成员停用独立；不能修改自己无权管理的成员；最后管理员约束及账户恢复不能绕过正常授权。
+- [x] 事务故障不会留下无成员账号、已生效但无事件的权限修改，或已返回成功但未持久的操作；重试返回同一回执。
+- [x] 私人存储路径、匿名安装标识及模型凭据没有成为账号来源或被拷贝。
 
 助理验证：真实 SQLite 临时目录/重开、故障回滚、并发一次性邀请、过期登录和管理越权测试；局部类型/lint/JSDoc/存储版本检查。密码校验使用真实算法，时间可控。
 
 用户检查：本阶段无页面操作要求。依赖：Phase 1。
 
-实际完成：尚未开始。
+实际完成：2026-09-26。
+
+- 新增 `packages/workspace/organization`：Host 编译面、`ctx.organization`、STRICT SQLite 独立库（application ID + schema v1）、一次初始化、真实 scrypt、带限流和到期的登录/撤销、一次邀请、组织和成员管理、最后管理员保护、独立恢复凭证、严格请求/持久字段解析。
+- 业务记录、版本、审计事件与幂等回执同事务提交；包含密码的回执指纹同样使用 scrypt，避免持久化便宜的密码校验值。身份/权限在同步 SQL 事务内重查，普通回执重放也检查当前权限。
+- 16 项聚焦测试通过（最终 20.95s）：真实 Loader 配置启动、两连接初始化/邀请竞争、SQLite 触发器造成的注册/撤权失败回滚、COMMIT 外键失败、进程突然退出后重开、跨组织/管理越权、限流重开/到期、改密多登录撤销、成员与账号停用分离、最后管理员、恢复凭证轮换、未知版本/字段拒绝及私人数据不导入。
+- 通过命令：`pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts`；`pnpm exec tsc -b packages/workspace/organization --pretty false`；`pnpm exec tsx scripts/run-oxlint.ts packages/workspace/organization --fix`；`pnpm exec tsdown --filter @deepseek-ai/dsh-organization --env.DSH_BUILD_FACE host --logLevel warn`；`node packages/workspace/organization/tests/built-smoke.mjs`。产物 smoke 用普通 Node 验证公开 ESM 入口、真实初始化/登录/重开/回执/撤销，不启动应用或监听端口。
+- 通过门禁：`pnpm exec tsx scripts/verify-export-jsdoc.ts`、`verify-application-entrypoints.ts`、`verify-package-dependencies.ts`、`verify-package-meta.ts`；`pnpm exec tsx scripts/gen-tsconfig-paths.ts --check`；`git diff --check`。运行 `gen-tsconfig-paths.ts` 更新源路径，pnpm 自动登记新 workspace 并仅新增该包 lockfile importer。
+- `pnpm exec publint packages/workspace/organization` 无错误，保留仓库既有 `./src/*` 声明未随产物发布的警告。`pnpm exec tsx scripts/check-workspace-constraints.ts` 报既有 `personal-project/package.json files` 不匹配；`pnpm exec tsx scripts/verify-package-invariants.ts` 报既有 `ui-personal`、`session-format-catalog`、`session-format-current`、`session-format` README 缺少不变量省略说明。新增包未出现在这些失败中，未扩大范围修复。
+- 更新包 README、workspace 分组、架构入口说明与 `docs/overview.md`。无 Agent loop、个人存储、Session 格式或前端改动；未运行页面、浏览器、GitNexus、全仓测试/构建或真实模型调用。
+- 边界：本阶段只有领域权威，尚无内网 API、TLS、Desktop 组织进程、UI、项目授权和备份；后续网络 consumer 必须执行有界入队及专用路由。完成授权范围后恢复 manual 并停止，Phase 3 保持 pending。
 
 ## Phase 3：私有组织服务与 TLS
 
@@ -248,7 +257,7 @@
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 执行授权：无。2026-09-26 用户只要求查看下一产品阶段并制定实施计划。
+- 执行授权：2026-09-26 用户明确要求“请自动完成 phase1-2”；自动范围包含 Phase 1 和 Phase 2；两阶段已完成并核验交付，现已恢复 manual，不进入 Phase 3。
 
 1. 本文是开发执行入口及阶段状态唯一来源。创建计划不授权实施。依据 [dev-goal-workflow-meta-skill](/Users/git_local/dev-workflow-skill/SKILL.md)：“creating the staged plan does **not** authorize immediate phase execution by itself”。计划评审后收到明确阶段指令才开始。
 2. 明确“执行 Phase X”只执行该阶段，即使持久模式为自动也按本轮单阶段限制执行，不创建接力任务；不改变持久模式，除非用户同时要求切换。“继续”先复查相关 `blocked` 的解除条件，再选择第一个 `in_progress`，否则第一个 `pending`；未完成依赖无法隔离时停止并说明。
