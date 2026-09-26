@@ -376,3 +376,7 @@ An unpackaged Electron process uses `.desktop-build/development/project` under i
 ## Dev Note
 
 Pre-launch CDN and capacity decisions are tracked in the [Desktop update proposal](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.md#cdn-and-capacity-qualification).
+
+## Private organization service
+
+`DesktopOrganizationProcess` is independent of the personal Host and defaults to disabled. The owned product renderer has private IPC status/start/stop/initialize/recover handlers; the settings/preload UI is Phase 5. Only explicit start boots `dsh-desktop-host/lib/organization.js` with a scrubbed environment. No standalone launcher or bin is provided. `organization.yml` loads only the dedicated SQLite authority and HTTPS API. Full app exit and update installation await organization shutdown; parent IPC loss also drains the child. Public status exposes certificate fingerprint/expiry, never the key. See the [organization design](../../docs/organization-foundation.md).

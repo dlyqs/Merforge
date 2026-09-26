@@ -9,6 +9,8 @@ packages:
   - apps/*
 
 overrides:
+  # X.509 serializers and their decorated classes must share one ASN.1 schema registry.
+  '@peculiar/x509>@peculiar/asn1-schema': '2.9.5'
   'extract-zip>yauzl': '3.4.0'
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'

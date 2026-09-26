@@ -32,7 +32,7 @@ Composition mechanics are in [app-boot](../packages/boot/app-boot/README.md#prof
 
 ## Application launch
 
-The Electron shell launches the private Desktop Host through its internal profile boot API. The Host loads the `desktop` profile and serves the Client through authenticated loopback transport. No public Node application launcher or protocol server ships. The [organization design](organization-foundation.md) reserves a separate Electron-owned private organization process and restricted LAN API; Phase 2 supplies its identity authority only, without launching a listener or loading the personal profile.
+The Electron shell launches the private Desktop Host through its internal profile boot API. The Host loads the `desktop` profile and serves the Client through authenticated loopback transport. No public Node application launcher or protocol server ships. Electron can explicitly start a separate private organization process (`apps/desktop-host/lib/organization.js`) over parent IPC. Its dedicated `organization.yml` loads only the organization authority and restricted HTTPS API; it never loads the personal profile. The service defaults to disabled, has no standalone launcher or bin, and stops when Electron exits or parent IPC disconnects. The [organization design](organization-foundation.md) owns TLS and account isolation.
 
 Vendored CLIs, build-only and test-only executables, and the private browser WebWorker preview are outside the product launch path. [`verify-application-entrypoints`](../scripts/verify-application-entrypoints.ts) rejects unsupported application entries.
 

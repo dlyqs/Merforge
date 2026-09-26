@@ -38,6 +38,7 @@ export interface Receipt {
   organizationId?: OrganizationId | undefined
   membershipId?: MembershipId | undefined
   invitationId?: InvitationId | undefined
+  projectId?: OrganizationProjectId | undefined
 }
 /** Successful login; the token is delivered once and held by the local Host. */
 export interface LoginResult {
@@ -68,4 +69,46 @@ export interface MemberView {
 export type OrganizationErrorCode = 'invalid-input' | 'incompatible-store' | 'closed'
   | 'already-initialized' | 'not-initialized' | 'invalid-credentials' | 'rate-limited'
   | 'unauthenticated' | 'forbidden' | 'invalid-invitation' | 'username-taken'
-  | 'already-member' | 'version-conflict' | 'last-admin' | 'operation-conflict' | 'invalid-recovery'
+  | 'snapshot-required' | 'already-member' | 'version-conflict' | 'last-admin' | 'operation-conflict' | 'invalid-recovery'
+
+/** Organization-owned project identity, unrelated to personal projects and paths. */
+export type OrganizationProjectId = Branded<'OrganizationProjectId'>
+/** Authenticated event cursor scoped to the service lifetime, account and organization. */
+export type OrganizationCursor = Branded<'OrganizationCursor'>
+/** Explicit project actions; administration alone grants neither action. */
+export type ProjectAction = 'read' | 'write'
+/** Minimal authorized project view; no filesystem or personal Session fields. */
+export interface OrganizationProjectView {
+  id: OrganizationProjectId
+  organizationId: OrganizationId
+  name: string
+  version: number
+}
+/** One current-authority page with its atomic event handoff cursor. */
+export interface OrganizationProjectPage {
+  items: OrganizationProjectView[]
+  total: number
+  offset: number
+  revision: number
+  cursor: OrganizationCursor
+}
+/** Resource invalidation, without historical project names or content. */
+export interface OrganizationResourceEvent {
+  revision: number
+  projectId: OrganizationProjectId
+}
+/** Continuous cursor range; only currently readable project invalidations are included. */
+export interface OrganizationEventBatch {
+  from: OrganizationCursor
+  cursor: OrganizationCursor
+  revision: number
+  events: OrganizationResourceEvent[]
+}
+
+/** Administrative grant metadata contains no project name or content. */
+export interface ResourceGrantView {
+  membershipId: MembershipId
+  projectId: OrganizationProjectId
+  actions: ProjectAction[]
+  version: number
+}

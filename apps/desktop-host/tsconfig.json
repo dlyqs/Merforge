@@ -46,6 +46,18 @@
     },
     {
       "path": "../../packages/host/webserver"
+    },
+    {
+      "path": "../../packages/workspace/organization"
+    },
+    {
+      "path": "../../packages/api/organization-api"
+    },
+    {
+      "path": "../../vendor/loader"
+    },
+    {
+      "path": "../../vendor/include"
     }
   ]
 }

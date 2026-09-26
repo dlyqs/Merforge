@@ -1,13 +1,16 @@
 /** Transactional organization identity authority, independent of personal Host services. */
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { openOrganizationDatabase, transaction } from './database.ts'
 import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
+import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema } from './resource-schema.ts'
+import { authorizedProject, visibleProjects, visibleEvents, accessVersion, createCursor, readCursor } from './resources.ts'
+import type { OrganizationProjectPage, OrganizationProjectView, OrganizationEventBatch, ResourceGrantView, ProjectAction } from './types.ts'
 import type { AccountId, LoginResult, LoginToken, MemberView, OperationId, OrganizationAction, OrganizationId, OrganizationView, Principal, Receipt } from './types.ts'
 
 export type * from './types.ts'
@@ -23,6 +26,14 @@ type Membership = z.output<typeof membershipSchema>
 type ResultIds = Omit<Receipt, 'operationId' | 'revision'>
 
 declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A durable mutation committed; consumers re-read authority before delivering data.
+     * @param revision - Committed event position, without credentials or project content.
+     * @mode parallel
+     */
+    'organization/committed'(revision: number): void
+  }
   interface Context {
     organization: OrganizationService
   }
@@ -41,6 +52,7 @@ export class OrganizationService extends Service {
   private db: DatabaseSync | undefined
   private tail: Promise<void> = Promise.resolve()
   private closing = false
+  private readonly cursorSecret = randomBytes(32)
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'organization')
@@ -70,6 +82,14 @@ export class OrganizationService extends Service {
   }
 
   private metadata(db: DatabaseSync) { return metadataSchema.parse(db.prepare('SELECT * FROM metadata').get()) }
+
+  /**
+   * Read the immutable service instance identifier.
+   * @returns Public service identity without account, credential or profile data.
+   */
+  identity(): Promise<{ serverId: import('./types.ts').ServerId; protocolVersion: 1 }> {
+    return this.enqueue('identity', db => ({ serverId: this.metadata(db).serverId, protocolVersion: 1 }))
+  }
 
   private account(db: DatabaseSync, accountId: AccountId): Account {
     const row = db.prepare('SELECT * FROM accounts WHERE id=?').get(accountId)
@@ -123,7 +143,14 @@ export class OrganizationService extends Service {
 
   private recordCommit(receipt: Receipt): Receipt {
     this.ctx.logger.info('organization operationId=%s revision=%s result=committed', receipt.operationId, receipt.revision)
+    this.publishCommit(receipt.revision)
     return receipt
+  }
+
+  private publishCommit(revision: number): void {
+    void this.ctx.parallel('organization/committed', revision).catch(() => {
+      this.ctx.logger.warn('organization component=events result=listener-failed')
+    })
   }
 
   private assertUsernameAvailable(db: DatabaseSync, username: string): void {
@@ -278,7 +305,7 @@ export class OrganizationService extends Service {
       const session = sessionSchema.parse(row)
       db.prepare('DELETE FROM login_sessions WHERE tokenHash=?').run(session.tokenHash)
       this.event(db, 'logout', session.accountId, null)
-    }) })
+    }); this.publishCommit(this.head(db)) })
   }
 
   /**
@@ -420,6 +447,175 @@ export class OrganizationService extends Service {
       }
       default: return assertNever(command)
     }
+  }
+
+  private head(db: DatabaseSync): number {
+    return Number(db.prepare('SELECT coalesce(max(revision),0) AS revision FROM organization_events').get()?.revision)
+  }
+
+  /**
+   * Create or rename a project using management or explicit write permission respectively.
+   * @param token - Current organization bearer credential.
+   * @param input - Strict project command with optimistic version and operation identifier.
+   * @returns Committed receipt; creation does not grant its administrator any content action.
+   */
+  projectCommand(token: LoginToken, input: unknown): Promise<Receipt> {
+    return this.resourceCommand(token, parse(projectCommandSchema, input))
+  }
+
+  /**
+   * Grant or revoke explicit project actions, retaining the grant version even when empty.
+   * @param token - Current organization administrator credential.
+   * @param input - Strict grant command; expectedVersion zero denotes no existing grant.
+   * @returns Committed receipt after the target member and project are checked in the same organization.
+   */
+  grant(token: LoginToken, input: unknown): Promise<Receipt> {
+    return this.resourceCommand(token, parse(grantCommandSchema, input))
+  }
+
+  private resourceCommand(
+    token: LoginToken, command: z.output<typeof projectCommandSchema> | z.output<typeof grantCommandSchema>,
+  ): Promise<Receipt> {
+    return this.enqueue(command.kind, async (db) => {
+      const authorize = () => {
+        const principal = this.principal(db, token, command.organizationId,
+          command.kind === 'rename-project' ? 'member' : 'manage')
+        if (command.kind === 'rename-project') authorizedProject(db, principal, command.projectId, 'write')
+        return principal
+      }
+      const principal = authorize()
+      const scope = `account:${principal.accountId}`
+      const fingerprint = await requestFingerprint(scope, command, false)
+      return this.recordCommit(transaction(db, () => {
+        const current = authorize()
+        const previous = this.previous(db, scope, command.operationId, fingerprint)
+        if (previous) return previous
+        return this.mutate(db, scope, command, command.kind, current.accountId, command.organizationId, fingerprint, (revision) => {
+          let projectId: import('./types.ts').OrganizationProjectId
+          switch (command.kind) {
+            case 'create-project':
+              projectId = projectSchema.shape.id.parse(randomUUID())
+              db.prepare('INSERT INTO organization_projects VALUES (?,?,?,?)').run(projectId, command.organizationId, command.name, revision)
+              break
+            case 'rename-project': {
+              const project = authorizedProject(db, current, command.projectId, 'write')
+              if (project.version !== command.expectedVersion) throw new OrganizationError('version-conflict')
+              projectId = project.id
+              db.prepare('UPDATE organization_projects SET name=?,version=? WHERE id=?').run(command.name, revision, projectId)
+              break
+            }
+            case 'set-grant': {
+              const project = db.prepare('SELECT id FROM organization_projects WHERE id=? AND organizationId=?').get(command.projectId, command.organizationId)
+              const member = db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(command.membershipId, command.organizationId)
+              if (!project || !member) throw new OrganizationError('forbidden')
+              const row = db.prepare('SELECT * FROM resource_grants WHERE projectId=? AND membershipId=?').get(command.projectId, command.membershipId)
+              const version = row ? grantSchema.parse(row).version : 0
+              if (version !== command.expectedVersion) throw new OrganizationError('version-conflict')
+              projectId = command.projectId
+              db.prepare(`INSERT INTO resource_grants VALUES (?,?,?,?,?) ON CONFLICT(projectId,membershipId)
+                DO UPDATE SET canRead=excluded.canRead,canWrite=excluded.canWrite,version=excluded.version`)
+                .run(projectId, command.membershipId, Number(command.actions.includes('read')), Number(command.actions.includes('write')), revision)
+              break
+            }
+            default: return assertNever(command)
+          }
+          db.prepare('INSERT INTO resource_events VALUES (?,?)').run(revision, projectId)
+          return { organizationId: command.organizationId, projectId }
+        })
+      }))
+    })
+  }
+
+  /**
+   * Deliver one authorized list/search page with an atomic snapshot-to-event cursor.
+   * @param token - Current bearer credential.
+   * @param input - Organization, literal name search, offset and optional first-page cursor.
+   * @param deliver - Synchronous transport handoff; must not defer or retain sensitive payloads.
+   * @returns Completion after the current-authority page has been handed off.
+   */
+  readProjects(token: LoginToken, input: unknown, deliver: (page: OrganizationProjectPage) => void): Promise<void> {
+    return this.enqueue('projects', (db) => {
+      const query = parse(projectQuerySchema, input)
+      const page = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        const revision = this.head(db)
+        const version = accessVersion(db, principal)
+        if (query.offset > 0 && query.cursor === undefined) throw new OrganizationError('snapshot-required')
+        if (query.cursor !== undefined
+          && readCursor(this.cursorSecret, query.cursor, principal, version, revision, this.config.eventReplayWindow) !== revision) {
+          throw new OrganizationError('snapshot-required')
+        }
+        return { ...visibleProjects(db, principal, query.search, query.offset, this.config.pageSize), offset: query.offset, revision,
+          cursor: createCursor(this.cursorSecret, principal, version, revision) }
+      })
+      deliver(page)
+    })
+  }
+
+  /**
+   * Deliver a current project only after explicit read authorization.
+   * @param token - Current bearer credential.
+   * @param input - Project and organization identifiers; mismatches are forbidden.
+   * @param deliver - Synchronous transport handoff, without a later asynchronous send.
+   * @returns Completion after delivery or current permission denial.
+   */
+  readProject(token: LoginToken, input: unknown, deliver: (project: OrganizationProjectView) => void): Promise<void> {
+    return this.enqueue('project', (db) => {
+      const query = parse(projectReadSchema, input)
+      const project = transaction(db, () => authorizedProject(db, this.principal(db, token, query.organizationId), query.projectId, 'read'))
+      deliver(project)
+    })
+  }
+
+  /**
+   * Read grant versions for a known project without granting its administrator content access.
+   * @param token - Current organization administrator credential.
+   * @param input - Explicit organization and project identifiers.
+   * @param deliver - Synchronous handoff of safe management metadata.
+   * @returns Completion after the grant metadata is delivered under current management authority.
+   */
+  readGrants(token: LoginToken, input: unknown, deliver: (grants: ResourceGrantView[]) => void): Promise<void> {
+    return this.enqueue('grants', (db) => {
+      const query = parse(projectReadSchema, input)
+      const grants = transaction(db, () => {
+        this.principal(db, token, query.organizationId, 'manage')
+        if (!db.prepare('SELECT id FROM organization_projects WHERE id=? AND organizationId=?').get(query.projectId, query.organizationId)) {
+          throw new OrganizationError('forbidden')
+        }
+        return db.prepare('SELECT * FROM resource_grants WHERE projectId=? ORDER BY membershipId').all(query.projectId).map((row) => {
+          const grant = grantSchema.parse(row)
+          const actions: ProjectAction[] = []
+          if (grant.canRead) actions.push('read')
+          if (grant.canWrite) actions.push('write')
+          return { projectId: grant.projectId, membershipId: grant.membershipId, actions, version: grant.version }
+        })
+      })
+      deliver(grants)
+    })
+  }
+
+  /**
+   * Deliver bounded persisted invalidations under current permissions, never cached historical authority.
+   * @param token - Current bearer credential, checked again for each batch and stream poll.
+   * @param input - Organization and previous snapshot/event cursor.
+   * @param deliver - Synchronous callback; slow transports must close instead of buffering more batches.
+   * @returns Completion after a committed range is delivered; stale authority requires a new snapshot.
+   */
+  readProjectEvents(token: LoginToken, input: unknown, deliver: (batch: OrganizationEventBatch) => void): Promise<void> {
+    return this.enqueue('events', (db) => {
+      const query = parse(eventQuerySchema, input)
+      const batch = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        const head = this.head(db)
+        const version = accessVersion(db, principal)
+        const after = readCursor(this.cursorSecret, query.cursor, principal, version, head, this.config.eventReplayWindow)
+        const revision = Math.min(head, after + this.config.eventBatchSize)
+        return { from: brandString<import('./types.ts').OrganizationCursor>(query.cursor),
+          cursor: createCursor(this.cursorSecret, principal, version, revision), revision,
+          events: visibleEvents(db, principal, after, revision) }
+      })
+      deliver(batch)
+    })
   }
 
   /**

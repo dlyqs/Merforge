@@ -8,7 +8,10 @@
   "main": "lib/index.js",
   "files": [
     "lib/index.js",
-    "desktop.patch.yml"
+    "desktop.patch.yml",
+    "lib/organization.js",
+    "lib/organization-boot.js",
+    "organization.yml"
   ],
   "dependencies": {
     "@deepseek-ai/cordis": "workspace:~",
@@ -27,6 +30,11 @@
     "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/dsh-tool-workspace-dependencies": "workspace:*",
-    "@deepseek-ai/dsh-web-app": "workspace:*"
+    "@deepseek-ai/dsh-web-app": "workspace:*",
+    "@deepseek-ai/dsh-organization": "workspace:*",
+    "@deepseek-ai/dsh-organization-api": "workspace:*",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "zod": "^4.4.3"
   }
 }

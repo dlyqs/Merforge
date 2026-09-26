@@ -3,11 +3,12 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, openSync, closeSync } from 'node:fs'
 import { dirname, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { projectSchema, grantSchema, resourceEventSchema } from './resource-schema.ts'
 import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 1
+export const ORGANIZATION_SCHEMA_VERSION = 2
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -27,6 +28,14 @@ CREATE TABLE organization_events (revision INTEGER PRIMARY KEY AUTOINCREMENT, ki
   organizationId TEXT REFERENCES organizations(id) DEFERRABLE INITIALLY DEFERRED, at INTEGER NOT NULL) STRICT;
 CREATE TABLE operation_receipts (scope TEXT NOT NULL, operationId TEXT NOT NULL, fingerprint TEXT NOT NULL, response TEXT NOT NULL,
   PRIMARY KEY(scope,operationId)) STRICT;
+`
+
+const resourceDdl = `
+CREATE TABLE organization_projects (id TEXT PRIMARY KEY, organizationId TEXT NOT NULL REFERENCES organizations(id), name TEXT NOT NULL, version INTEGER NOT NULL) STRICT;
+CREATE TABLE resource_grants (projectId TEXT NOT NULL REFERENCES organization_projects(id), membershipId TEXT NOT NULL REFERENCES memberships(id),
+  canRead INTEGER NOT NULL CHECK(canRead IN (0,1)), canWrite INTEGER NOT NULL CHECK(canWrite IN (0,1)), version INTEGER NOT NULL,
+  PRIMARY KEY(projectId,membershipId)) STRICT;
+CREATE TABLE resource_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision), projectId TEXT NOT NULL REFERENCES organization_projects(id)) STRICT;
 `
 
 /**
@@ -68,9 +77,13 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
-        db.exec(ddl)
+        db.exec(ddl + resourceDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
+      } else if (stamp === 1 && app === applicationId) {
+        validateDatabase(db, false)
+        db.exec(resourceDdl)
+        db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
       }
@@ -84,8 +97,18 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
   }
 }
 
-function validateDatabase(db: DatabaseSync): void {
+function validateDatabase(db: DatabaseSync, resources = true): void {
   try {
+    if (resources) {
+      for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)
+      for (const row of db.prepare('SELECT * FROM resource_grants').all()) grantSchema.parse(row)
+      for (const row of db.prepare('SELECT * FROM resource_events').all()) resourceEventSchema.parse(row)
+      if (db.prepare(`SELECT 1 FROM resource_events r JOIN organization_events e ON e.revision=r.revision
+        JOIN organization_projects p ON p.id=r.projectId WHERE e.organizationId<>p.organizationId
+        OR e.kind NOT IN ('create-project','rename-project','set-grant') LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
+      if (db.prepare(`SELECT 1 FROM resource_grants g JOIN organization_projects p ON p.id=g.projectId
+        JOIN memberships m ON m.id=g.membershipId WHERE p.organizationId<>m.organizationId LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
+    }
     const metadata = metadataSchema.strict().parse(db.prepare('SELECT * FROM metadata').get())
     for (const row of db.prepare('SELECT * FROM accounts').all()) accountSchema.strict().parse(row)
     for (const row of db.prepare('SELECT * FROM organizations').all()) organizationSchema.strict().parse(row)

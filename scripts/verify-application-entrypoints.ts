@@ -127,6 +127,15 @@ function rootLauncherViolations(root: string): string[] {
   return failures
 }
 
+function privateOrganizationEntryViolations(root: string): string[] {
+  const path = 'apps/desktop-host/src/organization.ts'
+  const target = resolve(root, path)
+  if (!existsSync(target)) return []
+  const source = readFileSync(target, 'utf8')
+  return source.includes("if (!process.connected || !process.send) throw new Error('organization-parent-ipc-required')")
+    ? [] : [`${path}: private organization entry must reject launch without parent IPC`]
+}
+
 /**
  * Find unsupported application entrypoints below a repository root.
  * @param root - repository or test-fixture root.
@@ -137,6 +146,7 @@ export function applicationEntrypointViolations(root: string): string[] {
     ...manifestBinViolations(root),
     ...executableSourceViolations(root),
     ...rootLauncherViolations(root),
+    ...privateOrganizationEntryViolations(root),
   ]
 }
 

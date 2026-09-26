@@ -24,6 +24,7 @@ The packages below provide the Remote layer; the package READMEs own the exhaust
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`organization-api/`](organization-api/README.md) | Separate organization HTTPS allow list, certificate provisioning and pinned transport; no personal Remote forwarding. | `ctx.organizationApi` |
 | [`remotes/`](remotes/README.md) | Chooses which Host capabilities and events the Client can consume. | — |
 | [`gateway/`](gateway/README.md) | Carries typed unary calls, multiplexed streams with their Client uplinks, and forwarded Host events. | `ctx.typertGateway` / `ctx.remote` |
 | [`job-controller/`](job-controller/README.md) | Streams one background job's observation record to the Client. | `ctx.jobController` / `ctx.remote.job` |

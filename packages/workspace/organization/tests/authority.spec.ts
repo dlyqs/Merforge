@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { createOrganizationToken, type LoginToken, type OrganizationId } from '../src/index.ts'
-import { openOrganizationDatabase, transaction } from '../src/database.ts'
+import { openOrganizationDatabase, transaction, ORGANIZATION_SCHEMA_VERSION } from '../src/database.ts'
 import { addMember, initialize, invite, openHarness, operationId, password } from './harness.ts'
 
 const roots: string[] = []
@@ -276,17 +276,40 @@ describe('organization identity authority', () => {
 })
 
 describe('organization schema and transactions', () => {
+  it('keeps committed mutations successful and notifies other listeners after a listener throws', async () => {
+    const h = await harness()
+    const owner = await initialize(h.service)
+    const revisions: number[] = []
+    h.ctx.on('organization/committed', () => { throw new Error('subscriber fault') })
+    h.ctx.on('organization/committed', (revision) => { revisions.push(revision) })
+    const project = await h.service.projectCommand(owner.token, { operationId: operationId(), kind: 'create-project', organizationId: owner.organizationId, name: 'Committed' })
+    expect(revisions).toEqual([project.revision])
+    inspect(h.path, (db) =>{  expect(db.prepare('SELECT name FROM organization_projects WHERE id=?').get(project.projectId!)?.name).toBe('Committed') })
+  })
+
+  it('upgrades the known v1 identity database atomically without changing accounts or memberships', async () => {
+    const h = await harness()
+    const owner = await initialize(h.service)
+    await h.close()
+    inspect(h.path, (db) =>{  db.exec('DROP TABLE resource_events; DROP TABLE resource_grants; DROP TABLE organization_projects; PRAGMA user_version=1') })
+    const current = await reopen(h.root)
+    expect((await current.service.organizations(owner.token))[0]?.id).toBe(owner.organizationId)
+    const project = await current.service.projectCommand(owner.token, { operationId: operationId(), kind: 'create-project', organizationId: owner.organizationId, name: 'Upgraded' })
+    expect(project.projectId).toBeDefined()
+    inspect(h.path, (db) =>{  expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION) })
+  })
+
   it('refuses unknown versions, other database identities, unstamped nonempty databases and invalid durable rows', async () => {
     const h = await harness()
     await initialize(h.service)
     await h.close()
-    inspect(h.path, (db) =>{  db.exec('PRAGMA user_version=2') })
+    inspect(h.path, (db) =>{  db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION + 1}`) })
     expect(() => openOrganizationDatabase(h.path, 1000)).toThrow('incompatible-store')
-    inspect(h.path, (db) =>{  db.exec('PRAGMA user_version=1; PRAGMA application_id=0') })
+    inspect(h.path, (db) =>{  db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=0`) })
     expect(() => openOrganizationDatabase(h.path, 1000)).toThrow('incompatible-store')
     inspect(h.path, (db) =>{  db.exec('PRAGMA user_version=0') })
     expect(() => openOrganizationDatabase(h.path, 1000)).toThrow('incompatible-store')
-    inspect(h.path, (db) =>{  db.exec("PRAGMA user_version=1; PRAGMA application_id=1296453458; UPDATE accounts SET passwordHash='plaintext'") })
+    inspect(h.path, (db) =>{  db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=1296453458; UPDATE accounts SET passwordHash='plaintext'`) })
     expect(() => openOrganizationDatabase(h.path, 1000)).toThrow('incompatible-store')
   })
 

@@ -17,7 +17,7 @@
 
 可行性：现有 Electron、Cordis、Node、Client 插件和持久化经验足够支撑小规模局域网 MVP；这是横跨进程、账号、数据与 UI 的大型目标。主要风险在身份混用、撤权后的在途事件、跨记录提交和后台进程恢复，不在普通登录表单。现有 Session/Agent loop 不需要改成多租户服务器。
 
-歧义检查：路线图已确定三机拓扑、Electron 唯一入口和个人数据隔离；用户最初要求分析并制定计划；本轮已明确授权自动完成 Phase 1–2，见执行规则。下面将路线图留给 Phase 4 的技术选择列为明确的首版方案建议，供计划评审；若执行时发现必须改变产品行为，先更新方案并澄清，不默默扩大范围。
+歧义检查：路线图已确定三机拓扑、Electron 唯一入口和个人数据隔离；用户最初要求分析并制定计划；Phase 1–2 已完成；本轮已明确授权自动完成 Phase 3–4，见执行规则。下面将路线图留给 Phase 4 的技术选择列为明确的首版方案建议，供计划评审；若执行时发现必须改变产品行为，先更新方案并澄清，不默默扩大范围。
 
 ## 范围与首版方案建议
 
@@ -38,7 +38,7 @@
 | 权限粒度 | 管理权限与资源读取权限分离；每个请求检查账号、Membership、组织和资源动作 | 管理员角色不自动等于读取所有项目内容；项目显式授权，不从岗位/汇报关系推导可见性 |
 | 备份与恢复 | GUI 手动停服备份，恢复前停服、校验格式并保留当前数据副本 | 备份仅组织数据与必要服务身份材料，按敏感文件保护；恢复后失效所有旧登录会话并要求重新登录，防止回滚复活旧令牌 |
 
-Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、依赖许可证及证书生成/有效期/轮换方案。Phase 2 已实现领域身份权威；表中进程、TLS、UI、项目授权与备份仍属于后续阶段。没有需要用户先补充才能写计划的重大语义缺口。
+Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、依赖许可证及证书生成/有效期/轮换方案。Phase 2 已实现领域身份权威；Phase 3–4 已接入私有进程、TLS、项目授权与事件同步，UI 与备份仍属于后续阶段。没有需要用户先补充才能写计划的重大语义缺口。
 
 ## 数据与实现职责
 
@@ -75,8 +75,8 @@ Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、
 | --- | --- | --- | --- | --- | --- |
 | Phase 1 | 协议与隔离设计 | 定稿身份、事务、进程及 GUI 流程 | completed | [定稿设计](organization-foundation.md) | 2026-09-26；源码、SQLite/Node 与证书库元数据核验 |
 | Phase 2 | 账号与组织持久化 | 真实认证、成员资格与原子状态 | completed | `workspace/organization`；16 项测试、类型/lint、局部构建和产物 smoke | 2026-09-26；未挂载个人默认组合 |
-| Phase 3 | 私有组织服务与 TLS | 独立 HTTPS 服务及 Desktop 生命周期 | pending | — | 依赖 Phase 2 |
-| Phase 4 | 资源授权与事件同步 | 最小项目授权、搜索、撤权及重连 | pending | — | 依赖 Phase 3 |
+| Phase 3 | 私有组织服务与 TLS | 独立 HTTPS 服务及 Desktop 生命周期 | completed | 私有进程、HTTPS、证书绑定及 Node/Electron 产物 smoke | 2026-09-26；GUI 留 Phase 5 |
+| Phase 4 | 资源授权与事件同步 | 最小项目授权、搜索、撤权及重连 | completed | 项目授权、SQLite v2、快照/事件/SSE与重连校验 | 2026-09-27；34项组织测试及产物验证 |
 | Phase 5 | 客户端组织入口 | 服务设置、入组登录与组织切换 | pending | — | 依赖 Phase 4 |
 | Phase 6 | 故障恢复与备份 | 退出/异常/恢复一致性及手动备份 | pending | — | 依赖 Phase 5 |
 | Phase 7 | 集成验证与交付记录 | 无页面闭环、发行验证和三机剧本 | pending | — | 依赖 Phase 6；真实三机检查单列 |
@@ -140,18 +140,24 @@ Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、
 
 验收清单：
 
-- [ ] 服务默认关闭；显式启用后才绑定指定接口和端口，TLS/数据库/路由均 ready 后才报告可连接。
-- [ ] 初始化和启停控制只由服务机的私有通道调用；内网用户不能初始化管理员、停服、读取密钥或修改证书。
-- [ ] HTTPS 登录经过真实认证；无效请求和无效会话被拒绝；私有 Host 的启动 token/cookie 不能登录组织 API。
-- [ ] 证书首次核验、已信任连接、证书变更拒绝均有无页面测试；不关闭证书验证或跟随携带凭据的跨服务重定向。
-- [ ] 端口占用、坏配置、证书失效、数据库打开失败均给出确定错误；取消启动和退出等到子进程/连接收敛，无孤儿服务。
-- [ ] 组织组合不包含个人 Agent/工具、个人 Remote、Session 搜索、附件/文件或模型凭据路由；打包私有入口可启动且没有新增公开 bin。
+- [x] 服务默认关闭；显式启用后才绑定指定接口和端口，TLS/数据库/路由均 ready 后才报告可连接。
+- [x] 初始化和启停控制只由服务机的私有通道调用；内网用户不能初始化管理员、停服、读取密钥或修改证书。
+- [x] HTTPS 登录经过真实认证；无效请求和无效会话被拒绝；私有 Host 的启动 token/cookie 不能登录组织 API。
+- [x] 证书首次核验、已信任连接、证书变更拒绝均有无页面测试；不关闭证书验证或跟随携带凭据的跨服务重定向。
+- [x] 端口占用、坏配置、证书失效、数据库打开失败均给出确定错误；取消启动和退出等到子进程/连接收敛，无孤儿服务。
+- [x] 组织组合不包含个人 Agent/工具、个人 Remote、Session 搜索、附件/文件或模型凭据路由；打包私有入口可启动且没有新增公开 bin。
 
 助理验证：Loader 真实组合、两个 HTTP 客户端、真实 TLS 和私有子进程 smoke；构建相关产物后通过内置启动函数测试 built 入口，不新增产品 CLI。
 
 用户检查：完整启停 GUI 留到 Phase 5/7。依赖：Phase 2。
 
-实际完成：尚未开始。
+实际完成：2026-09-26。
+
+- 新增 `api/organization-api`、专用 `organization.yml`、`organization-boot.ts` / 私有 `organization.ts` 入口、Electron `organization-process.ts` 及受产品 renderer 身份检查的本机控制 handlers。默认不启动；退出/更新和父 IPC 断开等待释放进程与监听。GUI/preload 入口仍属 Phase 5。
+- HTTPS 白名单、真实账号认证、请求/响应/连接/队列上限、秘密不回传、证书生成与核验、指纹绑定请求、不跟随重定向已接入。证书生成使用 selfsigned 5.5.0；实际发现 x509 的 ASN.1 schema 重复版本会破坏注册表，以精确子依赖 override 统一至 2.9.5，真实 Node/Electron 生成通过。第三方 notices 已更新。
+- 6 项真实 Loader/SQLite/TLS 测试通过；入口 gate 和 Desktop 启动回归 95 项通过。`organization-built-smoke.mjs` 通过普通 Node 及 Electron Node mode 的初始化、登录、TLS、重开、停服、取消启动、坏配置、父 IPC 断开和无父 IPC 拒绝；不启动窗口。
+- 已运行相关 `tsc -b`、局部 `tsdown`、JSDoc、入口、依赖及 package-meta 门禁；局部 lint 后修复发现的问题。状态、TLS/数据库和启动错误均不把 SQL、私钥或凭据发到 LAN。发行完整集成保留 Phase 7，当前验证私有构建产物和 manifest 闭包。
+- 按授权继续 Phase 4，不进入 GUI、备份或真实三机验收。
 
 ## Phase 4：资源授权与事件同步
 
@@ -161,18 +167,28 @@ Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、
 
 验收清单：
 
-- [ ] 管理端可以登记最小项目并显式授予成员动作；成员只能读取被授权项目；组织管理员也按对应资源授权读取。
-- [ ] 详情、列表、分页总数、名称检索和事件交付使用同一授权判断；不能靠枚举 ID 或篡改 orgId 越权。
-- [ ] 私人项目/Session/附件的 ID 或本机路径不能经组织 API 读取；不支持的内容路由明确拒绝，不回退到个人接口。
-- [ ] 撤权与业务写入使用有效版本判定；撤权生效后拒绝新读取/写入、后续流事件和历史补发，处置已经排队的敏感事件。
-- [ ] 重连以当前权限获取快照/事件；重复、迟到、乱序与失效游标不能覆盖新状态或重放变更；补发与实时订阅之间不漏事件。
-- [ ] 事件只在事务成功后发布；断线不丢权威记录，权限变更不依赖客户端收到某个通知才生效。
+- [x] 管理端可以登记最小项目并显式授予成员动作；成员只能读取被授权项目；组织管理员也按对应资源授权读取。
+- [x] 详情、列表、分页总数、名称检索和事件交付使用同一授权判断；不能靠枚举 ID 或篡改 orgId 越权。
+- [x] 私人项目/Session/附件的 ID 或本机路径不能经组织 API 读取；不支持的内容路由明确拒绝，不回退到个人接口。
+- [x] 撤权与业务写入使用有效版本判定；撤权生效后拒绝新读取/写入、后续流事件和历史补发，处置已经排队的敏感事件。
+- [x] 重连以当前权限获取快照/事件；重复、迟到、乱序与失效游标不能覆盖新状态或重放变更；补发与实时订阅之间不漏事件。
+- [x] 事件只在事务成功后发布；断线不丢权威记录，权限变更不依赖客户端收到某个通知才生效。
 
 助理验证：真实 API + SQLite + 两账号/两组织矩阵；主动访问禁读 ID、搜索分页、撤权前建立的事件流、旧游标补发、提交与断线竞态。授权测试必须经过生产 service/路由执行路径。
 
 用户检查：可见项目列表随授权变化在 Phase 7 验收。依赖：Phase 3。
 
-实际完成：尚未开始。
+实际完成：2026-09-27。
+
+- `workspace/organization` 增加项目登记/重命名、显式 read/write grant、管理用授权版本查询和共享可见性 SQL；管理员无隐式读取权。项目/授权版本、业务记录、审计事件、资源失效通知和幂等回执同事务提交；已撤权写入者不能重放旧回执。SQLite schema v2 支持对已知 v1 身份库的事务升级，个人 Session 格式未改变。
+- API 接入列表、详情、分页总数、字面名称搜索和持久事件批次/SSE。快照与游标同事务获取；HMAC 游标绑定账号、组织和当前访问版本，权限变化、重启、伪造、跨身份或过度落后要求新快照。事件仅携带当前可读项目的失效 ID，不包含历史名称；每次交付同步重验权限，慢连接关闭，不保留待发敏感批次。
+- `followOrganizationEvents` 使用绑定证书的真实 HTTPS，验证帧大小、游标连续性与递增版本；重复批次丢弃、乱序拒绝、支持取消。GUI 缓存与模式代次仍归 Phase 5，本轮不提前交付界面。增加管理专用 `GET /projects/:id/grants?organizationId=…`，用于重连后读取 expectedVersion；只返回授权元数据，不扩张内容读取权。
+- 最终组织测试：`pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts packages/api/organization-api/tests/https.spec.ts packages/api/organization-api/tests/resources.spec.ts`，34 项通过（18 领域 + 6 TLS + 10 授权/同步）。覆盖两账号/两组织、猜测 ID、管理员无读取权、分页/搜索隔离、写入/撤权竞争、SQL 故障回滚、旧库升级、监听器异常、旧游标/重连、快照到实时无缺口、已有流撤权、成员/登录失效及重复/乱序批次。
+- 相关回归：`apps/desktop/tests/main-startup.spec.ts` 与 `scripts/verify-application-entrypoints.spec.ts` 共95项通过；`apps/desktop/tests/prepare-package-set.spec.ts` 与 `apps/desktop/tests/runtime-file-policy.spec.ts` 共15项通过。通过真实依赖闭包函数核对 organization 与 organization-api 均进入 Desktop runtime；manifest 包含私有入口、组织 boot 和专用 YAML。
+- 类型/构建：`pnpm exec tsc -b apps/desktop-host apps/desktop/tsconfig.host.json --pretty false`；`pnpm exec tsdown --filter @deepseek-ai/dsh-organization --filter @deepseek-ai/dsh-organization-api --filter @deepseek-ai/dsh-desktop-host --filter @deepseek-ai/dsh-desktop --env.DSH_BUILD_FACE host --logLevel warn`。`node apps/desktop-host/tests/organization-built-smoke.mjs` 在普通 Node 和 Electron Node mode 验证真实 TLS、账号、项目授权、事件补发、撤权、重开/停服、取消、坏配置和父 IPC 断开；`node packages/workspace/organization/tests/built-smoke.mjs` 通过。
+- 门禁：变更包及私有进程源文件局部 oxlint；`verify-export-jsdoc`、`verify-application-entrypoints`、`verify-package-dependencies`、`verify-package-meta`、`verify-cordis-config`、`pnpm run verify-scoped-events`、`gen-tsconfig-paths --check`、`gen-third-party-notices --check` 与 `git diff --check` 通过。两个组织包 publint 无错误，保留仓库既有 `./src/*` 未发布源码警告。曾按旧名称调用不存在的 `scripts/verify-scoped-events.ts`，已改用仓库实际的 `pnpm run verify-scoped-events` 并通过。
+- `verify-package-invariants` 仍因 Phase 2 已记录的 ui-personal、session-format-catalog、session-format-current、session-format 四处 README 省略说明缺失失败；新增/改动组织包无违规，未把该全仓门禁记为通过。未执行全仓测试/构建、页面、浏览器自动化、GitNexus、安装或真实三机验收。
+- 更新本计划、概览、设计、架构、包 README、Desktop 文档及第三方 notices。未拆分阶段、未新增 Agent Notes、未修改 Agent loop。授权 Phase 3–4 已核验交付，恢复 manual；下一阶段 Phase 5 保持 pending，产品 Phase 4 三机验收待定。
 
 ## Phase 5：客户端组织入口
 
@@ -257,7 +273,7 @@ Phase 1 已在 `docs/organization-foundation.md` 定稿具体 schema、接口、
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 执行授权：2026-09-26 用户明确要求“请自动完成 phase1-2”；自动范围包含 Phase 1 和 Phase 2；两阶段已完成并核验交付，现已恢复 manual，不进入 Phase 3。
+- 执行授权：2026-09-26 用户明确要求“请自动完成 phase3-4”；自动范围包含 Phase 3 和 Phase 4，依赖 Phase 1–2 已完成；2026-09-27 两阶段实现和验证完成，已恢复 manual，不进入 Phase 5。
 
 1. 本文是开发执行入口及阶段状态唯一来源。创建计划不授权实施。依据 [dev-goal-workflow-meta-skill](/Users/git_local/dev-workflow-skill/SKILL.md)：“creating the staged plan does **not** authorize immediate phase execution by itself”。计划评审后收到明确阶段指令才开始。
 2. 明确“执行 Phase X”只执行该阶段，即使持久模式为自动也按本轮单阶段限制执行，不创建接力任务；不改变持久模式，除非用户同时要求切换。“继续”先复查相关 `blocked` 的解除条件，再选择第一个 `in_progress`，否则第一个 `pending`；未完成依赖无法隔离时停止并说明。

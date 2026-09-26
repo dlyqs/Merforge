@@ -25,6 +25,21 @@ function write(root: string, path: string, content: string): void {
 }
 
 describe('application entrypoints', () => {
+  it('rejects a private organization entry that lost the IPC launch guard', () => {
+    const root = fixture()
+    write(root, 'apps/desktop-host/src/organization.ts', 'startNetworkServer()')
+    expect(applicationEntrypointViolations(root)).toEqual([
+      'apps/desktop-host/src/organization.ts: private organization entry must reject launch without parent IPC',
+    ])
+  })
+
+  it('does not allow an organization server bin or root launcher', () => {
+    const root = fixture()
+    write(root, 'apps/desktop-host/package.json', JSON.stringify({ bin: { organization: 'lib/organization.js' } }))
+    write(root, 'package.json', JSON.stringify({ scripts: { 'start:organization': 'node apps/desktop-host/lib/organization.js' } }))
+    expect(applicationEntrypointViolations(root)).toHaveLength(2)
+  })
+
   it('accepts the repository launcher inventory', () => {
     expect(applicationEntrypointViolations(resolve(import.meta.dirname, '..'))).toEqual([])
   })

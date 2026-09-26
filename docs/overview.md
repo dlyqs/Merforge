@@ -49,7 +49,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-下一产品阶段是路线图 Phase 4 的组织服务、真实账号与资源授权，计划入口为[组织基础实施计划](organization-foundation-plan.md)。计划内部 Phase 1–2 已按用户授权完成，范围结束后恢复 `manual`；Phase 3–7 保持 pending。[定稿设计](organization-foundation.md)明确独立进程、TLS 证书核验、协议白名单、管理与读取权限分离及 GUI 流程。`workspace/organization` 已实现独立 SQLite 身份权威，16 项真实 Loader/SQLite 聚焦测试、类型/lint、局部构建和普通 Node 产物 smoke 通过。组织服务仍待 Electron 私有进程和内网 API 接入，UI、项目授权、备份及三机验收尚未实现；现有 loopback 单操作者认证没有被复用为成员认证。已有 package files 和 README 不变量门禁失败在组织计划 Phase 2 中单列，不计为通过；这一计划不包含完整 WorkGraph、任务分派或组织执行。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)推进。内部 Phase 1–4 已完成，用户本轮授权的 Phase 3–4 结束后已恢复 `manual`，Phase 5–7 保持 pending。`workspace/organization` 提供独立 SQLite v2 账号与项目权威、显式 read/write grant、共享授权查询和事务内回执/事件；管理员无隐式内容读取权。`api/organization-api` 与 Desktop 私有 `organization.yml` 组合提供受限 HTTPS、证书绑定、父 IPC 生命周期、快照/事件补发和 SSE 撤权处理。34项组织测试、110项相关 Desktop/入口/打包回归、相关类型/局部构建及普通 Node/Electron Node mode 真实产物 smoke 通过。服务默认关闭；设置 GUI、本机连接/缓存状态、备份和真实三机验收仍待后续阶段。既有四处 README 不变量门禁缺项见计划完成记录，未计为通过；不复用个人 loopback cookie、不暴露个人 profile、不增加组织执行或 WorkGraph。
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 

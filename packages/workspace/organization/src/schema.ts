@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { AccountId, InvitationId, MembershipId, OperationId, OrganizationId, ServerId } from './types.ts'
+import type { AccountId, InvitationId, MembershipId, OperationId, OrganizationId, OrganizationProjectId, ServerId } from './types.ts'
 
 function id<T extends Branded<string>>() { return z.uuid().transform(value => brandString<T>(value)) }
 const version = z.number().int().nonnegative()
@@ -23,6 +23,9 @@ export const configSchema = z.object({
   loginWindowMs: z.number().int().min(1000).max(86400000).default(900000),
   loginMaxAttempts: z.number().int().min(1).max(1000).default(5),
   loginGlobalMaxAttempts: z.number().int().min(1).max(100000).default(100),
+  pageSize: z.number().int().min(1).max(200).default(50),
+  eventBatchSize: z.number().int().min(1).max(1000).default(100),
+  eventReplayWindow: z.number().int().min(1).max(1000000).default(10000),
   busyTimeoutMs: z.number().int().min(1).max(60000).default(5000),
 }).strict()
 /** Input validator for the private initialization channel. */
@@ -84,6 +87,7 @@ export const receiptSchema = z.object({
   organizationId: id<OrganizationId>().optional(),
   membershipId: id<MembershipId>().optional(),
   invitationId: id<InvitationId>().optional(),
+  projectId: id<OrganizationProjectId>().optional(),
 }).strict()
 /** Rate-window persistence parser. */
 export const attemptSchema = z.object({
@@ -92,7 +96,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })
