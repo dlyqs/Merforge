@@ -14,7 +14,7 @@ afterEach(async () => { for (const close of cleanups.splice(0).reverse()) await 
 const password = 'correct horse battery staple'
 async function directory() {
   const path = await mkdtemp(join(tmpdir(), 'organization-https-'))
-  cleanups.push(() => rm(path, { recursive: true, force: true }))
+  cleanups.push(async () => { await rm(path, { recursive: true, force: true }); await rm(`${path}.owner.sqlite`, { force: true }) })
   return path
 }
 async function setup() {

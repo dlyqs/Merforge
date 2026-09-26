@@ -91,6 +91,30 @@ export class OrganizationService extends Service {
     return this.enqueue('identity', db => ({ serverId: this.metadata(db).serverId, protocolVersion: 1 }))
   }
 
+  /**
+   * Resolve an uncertain native-client write without replaying its side effect.
+   * @param token - Current login; only this account's receipts can be queried.
+   * @param operationId - Previously issued mutation ID.
+   * @returns Receipt metadata when currently authorized, or null if not committed.
+   */
+  receipt(token: LoginToken, operationId: string): Promise<Receipt | null> {
+    return this.enqueue('receipt', db => transaction(db, () => {
+      const principal = this.principal(db, token)
+      const id = parse(z.uuid(), operationId)
+      const row = db.prepare('SELECT response FROM operation_receipts WHERE scope=? AND operationId=?').get(`account:${principal.accountId}`, id)
+      if (!row) return null
+      const receipt = receiptSchema.parse(JSON.parse(String(row.response)))
+      const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
+      if (receipt.organizationId) {
+        const manage = ['invite', 'set-membership', 'create-project', 'set-grant'].includes(String(event?.kind))
+        const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
+        if (event?.kind === 'rename-project' && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'write')
+      }
+      if (event?.kind === 'set-account' && principal.accountId !== this.metadata(db).rootAccountId) throw new OrganizationError('forbidden')
+      return receipt
+    }))
+  }
+
   private account(db: DatabaseSync, accountId: AccountId): Account {
     const row = db.prepare('SELECT * FROM accounts WHERE id=?').get(accountId)
     if (!row) throw new OrganizationError('unauthenticated')

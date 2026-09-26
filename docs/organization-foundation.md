@@ -1,17 +1,17 @@
 # 组织身份、事务与隔离设计
 
-本文保存[实施计划](organization-foundation-plan.md)的身份、隔离与协议设计，并同步 Phase 1–4 的已实现接口。账号、私有 HTTPS 进程、项目授权与事件协议已实现；GUI、本机连接状态管理与备份仍按 Phase 5–6 接入。当前不能通过设置界面启用组织服务，三机产品验收尚未执行。
+本文保存[实施计划](organization-foundation-plan.md)的身份、隔离与协议设计，并同步 Phase 1–7 的已实现接口。账号、私有 HTTPS 进程、项目授权、事件同步、GUI 与停服备份恢复已实现；真实三机产品验收尚未执行。
 
 ## 进程和数据所有权
 
 ```mermaid
 flowchart LR
-  UI[Desktop Client] --> Host[本机 loopback Host]
+  UI[Desktop Client] --> Host[本机 Electron 原生组织连接]
   Host -->|专用方法 HTTPS| Org[组织私有子进程]
   Electron[服务机 Electron] -->|私有 IPC 启停/初始化/恢复| Org
   Org --> DB[专用组织目录 organization.sqlite]
   Org --> TLS[证书和私钥]
-  Host --> Personal[本机个人 profile]
+  UI --> Personal[独立个人 loopback Host / profile]
 ```
 
 Electron 是唯一进程所有者。组织子进程从 Desktop Host 发行根解析依赖，但加载独立 Cordis 配置，不加载个人 profile、Agent、Session、工具、附件、凭据或 Remote。组织库路径必须由服务机私有控制面传入，不能从网络请求指定；默认候选目录是 Merforge home 下 `organization-server`，不复用个人 storage。网络只携带组织记录，个人文件、路径、匿名安装标识和模型凭据没有导入接口。
@@ -24,8 +24,8 @@ Electron 是唯一进程所有者。组织子进程从 Desktop Host 发行根解
 | --- | --- | --- |
 | `workspace/organization` | Host 单面 | 合并领域定义和 SQLite 实现，`ctx.organization`；Phase 2 Loader 测试消费真实持久操作，Phase 3 API/私有控制面接入 |
 | `api/organization-api`（已实现） | Host | 专用 HTTPS 白名单路由调用领域方法；无通用 RPC 转发 |
-| `host/organization-connection`（Phase 5） | Host | 本机 Host 持有登录 token 和证书信任；固定方法访问远端 |
-| `client/ui-organization`（Phase 5） | Client 插件 | typed locale 管理和模式入口，经本机 Remote 消费组织连接；不持有私钥或组织令牌 |
+| `host/organization-connection`（已实现） | Host | Electron 主进程持有连接对象、登录 token 和证书信任；固定方法访问远端 |
+| `client/ui-organization`（已实现） | Client 插件 | typed locale 管理和模式入口，经限于 Desktop 顶层窗口的 typed preload IPC 消费组织连接；不持有私钥或组织令牌 |
 | `apps/desktop`、`apps/desktop-host`（已实现） | 私有应用 | Electron 管理独立内部 Node 入口、配置、恢复和退出 |
 
 不为各表拆包，不建立无人消费的抽象 provider。组织组合不挂载到个人默认 profile，不增加 package bin。Desktop Host manifest 已增加组织依赖与私有入口产物、在打包脚本核对闭包；入口 gate 继续禁止 bin/root launcher/shebang，若新增可执行源文件仅按精确路径登记内部角色，禁止整目录豁免。同步入口 gate 的负例测试，私有入口没有有效父 IPC 时拒绝启动。
@@ -78,7 +78,7 @@ Account 含账号状态、密码摘要、版本；Membership 含组织、账号�
 | `organizations` / `members` | token / token + organizationId | 自身有效组织列表 / admin 可见成员列表，安全视图无密码 |
 | `recover` | operationId、recoveryToken、newRecoveryToken、newPassword | 仅私有 IPC，验证独立恢复凭证，恢复首账号及首组织 admin、轮换恢复凭证、撤销全实例登录 |
 
-Receipt 包含 operationId、revision 及适用实体 ID，永不含秘密。初始化时 GUI 要求保存恢复凭证；无凭证不允许本地“免认证重置”。恢复是受独立一次性凭证授权的显式本机操作，不能从网络调用，也不能靠所在电脑自动取得账号权限。恢复后邀请仍按当前成员检查；备份恢复（Phase 6）必须额外清空全部登录并轮换恢复凭证，避免回滚复活 token。
+Receipt 包含 operationId、revision 及适用实体 ID，永不含秘密。初始化时 GUI 要求保存恢复凭证；无凭证不允许本地“免认证重置”。恢复是受独立一次性凭证授权的显式本机操作，不能从网络调用，也不能靠所在电脑自动取得账号权限。恢复后邀请仍按当前成员检查；备份恢复额外清空全部登录、使旧邀请失效、清空旧回执并轮换恢复凭证，避免回滚复活 token。
 
 固定错误码：`invalid-input`、`incompatible-store`、`closed`、`already-initialized`、`not-initialized`、`invalid-credentials`、`rate-limited`、`unauthenticated`、`forbidden`、`invalid-invitation`、`username-taken`、`already-member`、`version-conflict`、`last-admin`、`operation-conflict`、`invalid-recovery`、`snapshot-required`。SQLite IO/约束异常不得直接传到网络；HTTPS 层统一映射 `unavailable` 并隐藏 SQL/路径。未知账号登录执行真实 dummy scrypt；错误、到期、消费过的邀请对外同码。
 
@@ -106,7 +106,7 @@ Phase 2 Config 必填专用数据库绝对路径；登录 TTL（默认8小时）
 
 事件采用持久失效通知 `{revision,projectId}`，不保存历史名称或正文。一次读取返回 `{from,cursor,revision,events}`；`stream=true` 是同一持久查询的 SSE 订阅，提交后唤醒并按配置轮询检查登录到期。每次交付均在领域队列中同步重验权限并写入 socket；只持有游标，不排队敏感内容，慢连接关闭。`followOrganizationEvents` 验证完整帧大小、游标链和递增事件版本；重复批次丢弃，乱序或缺口要求重新快照。
 
-游标使用服务生命周期内随机 HMAC 密钥，绑定账号、组织、访问版本与已提交 revision。账号/成员/本人 grant 变化、伪造、跨身份、超出重放窗口或服务重启均要求新快照；不允许旧游标恢复已经撤销的访问。`eventBatchSize` 默认100个提交位置，`eventReplayWindow` 默认10000个位置；均可配置。SSE 默认16个订阅、1秒权限轮询、10分钟连接生命周期，完整帧受响应字节上限控制。Phase 5 将接入模式切换、缓存代次与可见清理；当前协议通知不能抹去客户端已经保存的合法历史副本。
+游标使用服务生命周期内随机 HMAC 密钥，绑定账号、组织、访问版本与已提交 revision。账号/成员/本人 grant 变化、伪造、跨身份、超出重放窗口或服务重启均要求新快照；不允许旧游标恢复已经撤销的访问。`eventBatchSize` 默认100个提交位置，`eventReplayWindow` 默认10000个位置；均可配置。SSE 默认16个订阅、1秒权限轮询、10分钟连接生命周期，完整帧受响应字节上限控制。原生连接已接入模式切换、请求代次与可见清理；协议通知不能抹去客户端已经保存的合法历史副本。
 
 ## GUI 交互（Phase 5–6）
 
@@ -116,4 +116,16 @@ Phase 2 Config 必填专用数据库绝对路径；登录 TTL（默认8小时）
 
 ## 验证范围
 
-Phase 2 使用真实 SQLite 临时目录、重开、写入故障、并发初始化/邀请、真实 scrypt、可控时钟、跨组织管理拒绝和 Loader 配置启动。没有前端页面、模型调用或独立服务器入口。普通 Node 与 Electron Node mode 的私有构建产物已验证 TLS、真实登录、项目授权、事件补发、撤权、重开和父 IPC 生命周期；Phase 7 才可给出三机网络和 Desktop 验收结论。
+Phase 2 使用真实 SQLite 临时目录、重开、写入故障、并发初始化/邀请、真实 scrypt、可控时钟、跨组织管理拒绝和 Loader 配置启动。没有前端页面、模型调用或独立服务器入口。普通 Node 与 Electron Node mode 的私有构建产物已验证 TLS、真实登录、项目授权、事件补发、撤权、重开和父 IPC 生命周期；Phase 7 产物验证通过，真实三机网络和 Desktop 可见验收仍待用户执行。
+
+## 原生连接与维护（Phase 5–7 已实现）
+
+`OrganizationConnection` 是合并定义与实现的本机连接库，真实消费者为 Electron 主进程；设置与 sidebar 经 `OrganizationDesktopBridge` 调用固定动作。沿用已经存在的 Electron 控制入口，未为个人 Host 添加组织代理。这调整了最初“Client → 本机 Host → LAN”的建议路径，令牌仍在本机原生内存，个人 Host 保持 loopback，组织服务不加载个人组合。信任记录保存在 `organization-client-trust.json`，不保存登录令牌。退出登录、证书失效和身份/组织切换清除可见项目并取消旧代次；断线禁止写入，重连重新验证登录与成员资格。
+
+未确认的写入只持久化 server/account/operation ID。`GET /organization/v1/receipts/:operationId` 检查当前账号及相关管理/资源权限后返回其自己的回执或 null；原生 `reconcile` 只查询，不重发副作用。原生进程仍运行时可以取回暂存的邀请明文；重启后明文已丢弃，管理员在确认旧邀请提交后可另发新邀请。证书与回执日志均为本机 owner-only 文件。
+
+GUI 服务配置保存在 `organization-server-settings.json`，组织库固定在独立 `organization-server` 子目录。默认关闭，`restoreOnLaunch` 默认 false；设置保存和启动失败不影响个人 Host。服务机应将实际局域网 IP/DNS 加入证书 names。运行时持有目录旁的 `organization-server.owner.sqlite` EXCLUSIVE 锁，重复 writer 或维护者拒绝；进程强杀后由 OS 释放锁，不依赖删除 stale PID 文件。
+
+停服备份只写新目录，包含 `organization.sqlite`、`tls-identity.json`、严格版本/hash manifest。恢复先在 staging 校验文件类型、格式、hash、完整性、外键、持久记录与 TLS 密钥配对，再撤销登录与邀请、轮换恢复凭证并追加 `restore` 审计。完成后原目录保留为 `.previous-<uuid>`，最终替换失败尝试原位回滚。备份包含组织密码摘要及证书私钥，须按敏感文件保存。没有个人文件、个人 API key 或聊天迁移；不支持在线热备份、云同步或自动升级。证书轮换只能停服后通过本机显式操作触发，各客户端需重新比对指纹。
+
+[验收剧本](organization-foundation-acceptance.md)分别记录自动化工程证据和用户侧三机待验项。产品下一阶段应继续在组织领域/受限 API/连接动作/组织 UI 接入共享项目与 WorkGraph，不把个人 Agent loop 改成多租户执行器。

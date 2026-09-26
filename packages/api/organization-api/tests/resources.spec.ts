@@ -15,7 +15,7 @@ const password = 'correct horse battery staple'
 const op = () => randomUUID()
 async function setup(authority: Record<string, number> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'organization-resources-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(async () => { await rm(root, { recursive: true, force: true }); await rm(`${root}.owner.sqlite`, { force: true }) })
   const config = { api: { directory: root, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 }, authority }
   const app = await bootOrganization(config)
   cleanups.push(app.close)

@@ -24,6 +24,8 @@ import { resolveDesktopPaths, resolveMerforgeHome } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
+import { DesktopOrganizationManager } from './organization-manager.ts'
+import type { ConnectionAction, OrganizationServerAction } from '@deepseek-ai/dsh-organization-connection/types'
 import { DesktopOrganizationProcess } from './organization-process.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
@@ -344,11 +346,32 @@ async function main(): Promise<void> {
     }
   }
   const organization = new DesktopOrganizationProcess(resources.node, resources.dsh, 30000)
-  ipcMain.handle('dsh-desktop:organization-status', (event) => { assertProductSender(event); return organization.status() })
-  ipcMain.handle('dsh-desktop:organization-start', (event, config: unknown) => { assertProductSender(event); return organization.start(config) })
-  ipcMain.handle('dsh-desktop:organization-stop', (event) => { assertProductSender(event); return organization.stop() })
-  ipcMain.handle('dsh-desktop:organization-initialize', (event, input: unknown) => { assertProductSender(event); return organization.control('initialize', input) })
-  ipcMain.handle('dsh-desktop:organization-recover', (event, input: unknown) => { assertProductSender(event); return organization.control('recover', input) })
+  const organizationManager = new DesktopOrganizationManager(organization, desktopHome, async (kind) => {
+    if (kind === 'backup') {
+      const result = await dialog.showSaveDialog({ defaultPath: join(desktopHome, `organization-backup-${Date.now()}`) })
+      return result.canceled ? undefined : result.filePath
+    }
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return result.canceled ? undefined : result.filePaths[0]
+  })
+  const publishOrganization = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(DESKTOP_IPC.organizationChanged, organizationManager.snapshot())
+    }
+  }
+  organizationManager.connection.subscribe(publishOrganization)
+  ipcMain.handle(DESKTOP_IPC.organizationSnapshot, (event) => { assertProductSender(event); return organizationManager.snapshot() })
+  ipcMain.handle(DESKTOP_IPC.organizationConnection, async (event, action: ConnectionAction) => {
+    assertProductSender(event)
+    try { return await organizationManager.connection.perform(action) } finally { publishOrganization() }
+  })
+  ipcMain.handle(DESKTOP_IPC.organizationServer, async (event, action: OrganizationServerAction) => {
+    assertProductSender(event)
+    try { return await organizationManager.perform(action) } finally { publishOrganization() }
+  })
+  ipcMain.handle(DESKTOP_IPC.organizationSecret, (event) => { assertProductSender(event); return organizationManager.secret() })
+  organization.subscribe(publishOrganization)
+  void organizationManager.restoreOnLaunch().finally(publishOrganization)
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
     const window = mainWindow
@@ -440,7 +463,7 @@ async function main(): Promise<void> {
     return state
   }
 
-  stopForRecovery = async () => { await Promise.all([backend.close(), organization.stop()]) }
+  stopForRecovery = async () => { await Promise.all([backend.close(), organizationManager.close()]) }
 
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
@@ -490,7 +513,7 @@ async function main(): Promise<void> {
         mandatoryUI?.preparingRestart(stillActive)
         requireCleanStop = true
         updateStopFailure = undefined
-        await organization.stop()
+        await organizationManager.close()
         await backend.stop()
         updateStoppedHost = true
         // The backend's async cleanup callback can assign this after the reset above.
@@ -930,7 +953,8 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close(), organization.stop()])
+    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
+      backend.close(), organizationManager.close()])
       .catch((error: unknown) => { console.error(error) }).finally(() => { app.quit() })
   })
 

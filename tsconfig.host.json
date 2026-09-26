@@ -176,6 +176,7 @@
   "references": [
     { "path": "./packages/workspace/organization" },
     { "path": "./packages/api/organization-api" },
+    { "path": "./packages/host/organization-connection" },
     { "path": "./packages/experimental/speech-to-text" },
     { "path": "./packages/experimental/speech-to-text-sensevoice" },
     { "path": "./packages/experimental/api-speech-to-text" },

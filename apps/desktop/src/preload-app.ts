@@ -1,5 +1,6 @@
 /** Origin-scoped boot, native directory selection, host paths of picked files, and update presentation with native confirmation actions. */
 
+import type { OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
@@ -12,6 +13,17 @@ function createProductApi(): DshDesktopProductApi {
   return {
     protocolVersion: 1,
     browser: createDesktopBrowserBridge(),
+    organization: {
+      snapshot: () => ipcRenderer.invoke(DESKTOP_IPC.organizationSnapshot) as Promise<OrganizationDesktopSnapshot>,
+      connection: action => ipcRenderer.invoke(DESKTOP_IPC.organizationConnection, action) as Promise<ConnectionResult>,
+      server: action => ipcRenderer.invoke(DESKTOP_IPC.organizationServer, action) as Promise<{ recoveryToken?: string; path?: string }>,
+      secret: () => ipcRenderer.invoke(DESKTOP_IPC.organizationSecret) as Promise<string>,
+      subscribe(listener) {
+        const handle = (_event: Electron.IpcRendererEvent, state: OrganizationDesktopSnapshot): void => { listener(state) }
+        ipcRenderer.on(DESKTOP_IPC.organizationChanged, handle)
+        return () => { ipcRenderer.off(DESKTOP_IPC.organizationChanged, handle) }
+      },
+    },
     updates: {
       status: () => ipcRenderer.invoke(DESKTOP_IPC.updatesStatus) as Promise<DesktopUpdatePresentation>,
       open: () => ipcRenderer.invoke(DESKTOP_IPC.updatesOpen) as Promise<void>,

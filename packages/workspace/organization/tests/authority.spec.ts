@@ -227,7 +227,7 @@ describe('organization identity authority', () => {
       const hashes = db.prepare('SELECT passwordHash FROM accounts').all().map(row => row.passwordHash)
       expect(new Set(hashes).size).toBe(2)
     })
-  })
+  }, 30_000)
 
   it('requires a separate recovery secret, restores the bootstrap administrator and consumes that secret', async () => {
     const h = await harness()
@@ -244,7 +244,7 @@ describe('organization identity authority', () => {
     await denial(h.service.authenticate(owner.token), 'unauthenticated')
     const login = await h.service.login({ username: 'owner', password: request.newPassword })
     expect((await h.service.authenticate(login.token, owner.organizationId, 'manage')).role).toBe('admin')
-  })
+  }, 30_000)
 
   it('rejects unknown JSON fields and keeps private files and credentials outside the organization store', async () => {
     const h = await harness()

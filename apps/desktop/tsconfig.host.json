@@ -22,6 +22,15 @@
     },
     {
       "path": "../../packages/client/ui-sidebar-browser/tsconfig.host.json"
+    },
+    {
+      "path": "../../packages/host/organization-connection"
+    },
+    {
+      "path": "../../packages/workspace/organization"
+    },
+    {
+      "path": "../../packages/api/organization-api"
     }
   ]
 }

@@ -56,16 +56,17 @@ export async function probeOrganizationCertificate(origin: string, timeoutMs: nu
  * @param path - Organization route; no absolute URL or redirect target is accepted.
  * @param body - Optional JSON request.
  * @param token - Organization bearer credential only.
+ * @param signal - Native owner cancellation when the selected identity changes.
  * @returns Status and parsed JSON; redirects reject before any second request.
  */
-export async function organizationRequest(trust: OrganizationTrust, method: 'GET' | 'POST', path: string, body?: unknown, token?: string): Promise<{ status: number; body: unknown }> {
+export async function organizationRequest(trust: OrganizationTrust, method: 'GET' | 'POST', path: string, body?: unknown, token?: string, signal?: AbortSignal): Promise<{ status: number; body: unknown }> {
   const options = trustedOptions(trust)
   const target = new URL(path, trust.origin)
   if (!path.startsWith('/organization/v1/') || target.origin !== new URL(trust.origin).origin
     || !/^\/organization\/v1\/[a-z0-9/-]+$/i.test(target.pathname)) throw new Error('invalid-route')
   const data = body === undefined ? undefined : JSON.stringify(body)
   return new Promise((resolve, reject) => {
-    const req = request({ ...options, method, path,
+    const req = request({ ...options, method, path, signal,
       headers: { ...(data === undefined ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) }),
         ...(token === undefined ? {} : { authorization: `Bearer ${token}` }) },
     }, (response) => {

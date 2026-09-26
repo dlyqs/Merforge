@@ -1,0 +1,8 @@
+.panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.field input, .field select { padding: 8px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l4); border-radius: 6px; min-width: 0; }
+.panel fieldset { border: 1px solid var(--dsw-alias-border-l4); border-radius: 8px; min-width: 0; }
+.panel small { display: block; color: var(--dsw-alias-label-secondary); }
+.panel li { margin: 8px 0; }
+.secret { display: block; user-select: all; padding: 8px; background: var(--dsw-alias-bg-layer-2); font-family: monospace; }

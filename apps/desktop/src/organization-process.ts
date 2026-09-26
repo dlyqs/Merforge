@@ -23,6 +23,15 @@ export class DesktopOrganizationProcess {
   private attempt: Attempt | undefined
   private current: OrganizationProcessState = { phase: 'disabled' }
   private sequence = 0
+  private readonly listeners = new Set<() => void>()
+
+  /** @param listener - Native process status observer. @returns Observer removal. */
+  subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
+  private changed(): void {
+    for (const listener of this.listeners) {
+      try { listener() } catch (error) { console.error('organization component=process result=observer-failed', error instanceof Error ? error.name : 'Error') }
+    }
+  }
 
   /**
    * @param executable - Packaged Electron executable, used in Node mode.
@@ -43,7 +52,7 @@ export class DesktopOrganizationProcess {
    */
   start(config: unknown): Promise<OrganizationProcessState> {
     if (this.attempt) return this.attempt.stop ? Promise.reject(new Error('organization-stopping')) : this.attempt.ready
-    this.current = { phase: 'starting' }
+    this.current = { phase: 'starting' }; this.changed()
     console.info('organization component=process result=starting')
     const entry = join(this.runtimeDirectory, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'organization.js')
     const child = spawn(this.executable, [entry], {
@@ -63,6 +72,7 @@ export class DesktopOrganizationProcess {
       attempt.pending.clear()
       if (this.attempt === attempt && !attempt.stop) {
         if (this.current.phase !== 'failed') this.current = { phase: 'failed', error: code }
+        this.changed()
         console.error('organization component=process result=failed decisionCode=%s', code)
       }
     }
@@ -73,6 +83,7 @@ export class DesktopOrganizationProcess {
         && 'expiresAt' in input && typeof input.expiresAt === 'number' && 'renewalDue' in input && typeof input.renewalDue === 'boolean') {
         if (attempt.stop) return
         this.current = { phase: 'ready', port: input.port, certificate: input.certificate, fingerprint: input.fingerprint, expiresAt: input.expiresAt, renewalDue: input.renewalDue }
+        this.changed()
         attempt.resolve(this.status())
         console.info('organization component=process result=ready')
       } else if (input.type === 'receipt' && 'requestId' in input && typeof input.requestId === 'number') {
@@ -97,7 +108,7 @@ export class DesktopOrganizationProcess {
     return ready.finally(() =>{  clearTimeout(timer) }).catch(async (error: unknown) => {
       await this.stop()
       if (!(error instanceof Error && error.message === 'organization-start-cancelled')) {
-        this.current = { phase: 'failed', error: error instanceof Error ? error.message : 'organization-start-failed' }
+        this.current = { phase: 'failed', error: error instanceof Error ? error.message : 'organization-start-failed' }; this.changed()
       }
       throw error
     })
@@ -129,7 +140,7 @@ export class DesktopOrganizationProcess {
     const attempt = this.attempt
     if (!attempt) return Promise.resolve()
     return attempt.stop ??= (async () => {
-      this.current = { phase: 'stopping' }
+      this.current = { phase: 'stopping' }; this.changed()
       attempt.reject(new Error('organization-start-cancelled'))
       for (const request of attempt.pending.values()) request.reject(new Error('organization-stopping'))
       if (attempt.child.connected) attempt.child.send({ type: 'shutdown' }, () => {})
@@ -141,7 +152,7 @@ export class DesktopOrganizationProcess {
         if (!graceful) attempt.child.kill('SIGKILL')
         await attempt.exited
         if (this.attempt === attempt) this.attempt = undefined
-        this.current = { phase: 'disabled' }
+        this.current = { phase: 'disabled' }; this.changed()
         console.info('organization component=process result=stopped')
       } finally { clearTimeout(timer) }
     })()

@@ -1,10 +1,16 @@
 /** Typed preload operations exposed only by the Electron shell. */
 
+import type { OrganizationDesktopBridge } from '@deepseek-ai/dsh-organization-connection/types'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { DesktopBrowserBridge } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
+  organizationSnapshot: 'dsh-desktop:organization-snapshot',
+  organizationConnection: 'dsh-desktop:organization-connection',
+  organizationServer: 'dsh-desktop:organization-server',
+  organizationSecret: 'dsh-desktop:organization-secret',
+  organizationChanged: 'dsh-desktop:organization-changed',
   boot: 'dsh-desktop:boot',
   bootFailed: 'dsh-desktop:boot-failed',
   browserAcquire: 'dsh-desktop:browser-acquire',
@@ -60,6 +66,7 @@ export interface DesktopUpdatePresentation {
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
+  readonly organization: OrganizationDesktopBridge
   readonly browser: DesktopBrowserBridge
   readonly updates: {
     status(): Promise<DesktopUpdatePresentation>

@@ -35,6 +35,7 @@
     "@deepseek-ai/dsh-organization-api": "workspace:*",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@deepseek-ai/dsh-organization-connection": "workspace:*"
   }
 }

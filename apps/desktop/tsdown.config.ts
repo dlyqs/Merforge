@@ -10,7 +10,7 @@ export default defineConfig([
     fixedExtension: false,
     dts: false,
     clean: false,
-    deps: { neverBundle: ['electron'] },
+    deps: { neverBundle: ['electron'], alwaysBundle: [/^@deepseek-ai\/dsh-organization(?:-|$|\/)/, 'zod', '@deepseek-ai/dsh-brand'] },
   },
   ...(['preload-app', 'preload-mandatory', 'preload-update-dialog'] as const).map(name => ({
     // Sandboxed Electron preloads run as CommonJS even though the application package is ESM.

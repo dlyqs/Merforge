@@ -4,6 +4,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Organization from '@deepseek-ai/dsh-organization'
 import OrganizationApi from '@deepseek-ai/dsh-organization-api'
+import { lockOrganizationDirectory } from '@deepseek-ai/dsh-organization/maintenance'
 import { join } from 'node:path'
 import { z } from 'zod'
 
@@ -20,6 +21,7 @@ export const organizationBootSchema = z.object({
  */
 export async function bootOrganization(input: unknown) {
   const config = organizationBootSchema.parse(input)
+  const release = lockOrganizationDirectory(config.api.directory)
   const ctx = new Context()
   try {
     await ctx.plugin(Loader)
@@ -43,6 +45,6 @@ export async function bootOrganization(input: unknown) {
     const api = ctx.get('organizationApi')
     if (!authority || !api) throw new Error('organization-boot-failed')
     const ready = api.status()
-    return { ctx, authority, ready, close: () => ctx.fiber.dispose() }
-  } catch (error) { await ctx.fiber.dispose(); throw error }
+    return { ctx, authority, ready, close: async () => { try { await ctx.fiber.dispose() } finally { release() } } }
+  } catch (error) { try { await ctx.fiber.dispose() } finally { release() }; throw error }
 }

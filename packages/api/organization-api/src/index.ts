@@ -150,9 +150,10 @@ export class OrganizationApiService extends Service {
       const authority: OrganizationService = this.ctx.organization
       const resourceRoute = /^\/organizations\/([a-f0-9-]+)\/(projects|search|events)$/.exec(path)
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
+      const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/members$/.exec(path)
       const method = ['/login', '/register', '/logout', '/commands', '/projects', '/grants'].includes(path) ? 'POST'
-        : ['/identity', '/organizations'].includes(path) || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
+        : ['/identity', '/organizations'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
       if (url.search && !resourceRoute && !detailRoute) throw new OrganizationError('invalid-input')
@@ -162,6 +163,7 @@ export class OrganizationApiService extends Service {
       const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '')
       if (!match?.[1]) throw new OrganizationError('unauthenticated')
       const token = brandString<LoginToken>(match[1])
+      if (receiptRoute?.[1]) { this.respond(res, 200, await authority.receipt(token, receiptRoute[1])); return }
       if (resourceRoute?.[1] && resourceRoute[2]) {
         const organizationId = brandString<OrganizationId>(parseUuid(resourceRoute[1]))
         if (resourceRoute[2] === 'events') {

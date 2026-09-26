@@ -262,6 +262,8 @@
       name: '@deepseek-ai/dsh-client-ui-workspace'
     - id: ui-personal-workflow
       name: '@deepseek-ai/dsh-client-ui-personal-workflow'
+    - id: ui-organization
+      name: '@deepseek-ai/dsh-client-ui-organization'
     - id: ui-personal
       name: '@deepseek-ai/dsh-client-ui-personal'
 
