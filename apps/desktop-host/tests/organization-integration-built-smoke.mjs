@@ -8,6 +8,8 @@ import { join, resolve } from 'node:path'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { request } from 'node:https'
+import { contextChild } from './organization-context-child.mjs'
+import { openOrganizationContext } from '../../desktop/lib/types/organization-context.js'
 import { DesktopOrganizationManager } from '../../desktop/lib/types/organization-manager.js'
 import { DesktopOrganizationProcess } from '../../desktop/lib/types/organization-process.js'
 import { OrganizationConnection } from '../../../packages/host/organization-connection/lib/index.js'
@@ -18,6 +20,7 @@ const root = await mkdtemp(join(tmpdir(), 'organization-integration-'))
 const controllers = []
 const clients = []
 const children = []
+const contextHosts = []
 const password = 'correct horse battery staple'
 const secret = () => randomBytes(32).toString('base64url')
 async function until(predicate) {
@@ -96,6 +99,19 @@ try {
     assert.equal(projected.workgraph.result.value.items[0].parentTaskId, null)
     assert.equal(JSON.stringify(projected).includes('HIDDEN_TASK_ROOT'), false)
     assert.equal(JSON.stringify(member.snapshot()).includes('Employee preparation'), false)
+    const contextRoot = join(home, 'local-context')
+    await mkdir(contextRoot)
+    const host = await contextChild(executable, contextRoot); contextHosts.push(host)
+    const selector = { ...taskQuery, taskId: publicTask, operationId: randomUUID() }
+    const opened = await openOrganizationContext(member, host, selector, () => {})
+    assert.equal(opened.result.mode, 'pre-execution')
+    assert.equal(JSON.stringify(opened).includes('HIDDEN_TASK_ROOT'), false)
+    const ownersContext = await openOrganizationContext(owner, host, { ...selector, operationId: randomUUID() }, () => {})
+    assert.notEqual(opened.result.sessionId, ownersContext.result.sessionId)
+    await host.close(); contextHosts.splice(contextHosts.indexOf(host), 1)
+    const reopenedHost = await contextChild(executable, contextRoot); contextHosts.push(reopenedHost)
+    assert.deepEqual((await openOrganizationContext(member, reopenedHost, selector, () => {})).result, opened.result)
+
     const login = (await organizationRequest(trust, 'POST', '/organization/v1/login', { username: 'employee', password })).body
     for (const path of ['/api/session', '/api/attachments/private-employee', '/files/private.txt', '/download/private-leader', '/organization/v1/initialize', '/organization/v1/recover']) {
       const status = await new Promise((yes, no) => {
@@ -106,6 +122,8 @@ try {
     }
     await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: granted.revision, actions: [] })
     await until(() => member.snapshot().projects?.total === 0)
+    await assert.rejects(openOrganizationContext(member, reopenedHost, selector, () => {}))
+    await reopenedHost.close(); contextHosts.splice(contextHosts.indexOf(reopenedHost), 1)
     await member.perform({ kind: 'personal' })
     assert.equal(member.snapshot().projects, undefined)
     await member.perform({ kind: 'select', organizationId: initialized.organizationId })
@@ -172,6 +190,7 @@ try {
   console.log('organization integration built smoke passed: Node + Electron, two native clients, WorkGraph save/grant/projection/restore, grants, revocation, private-route isolation, backup/restore and certificate rotation')
 } finally {
   for (const { child, exited } of children) { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited }
+  await Promise.allSettled(contextHosts.map(host => host.close()))
   await Promise.allSettled(clients.map(client => client.close()))
   await Promise.allSettled(controllers.map(controller => controller.stop()))
   await rm(root, { recursive: true, force: true })

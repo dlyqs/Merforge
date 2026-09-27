@@ -8,12 +8,20 @@ import type { ConnectionAction, OrganizationServerAction } from '@deepseek-ai/ds
 import type { OrganizationKey } from './locales.ts'
 import { zh } from './locales.ts'
 import css from './Organization.module.css'
+import { Workbench } from './Workbench.tsx'
+import { TaskGrants } from './TaskGrants.tsx'
+import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 
 type Section = 'connection' | 'projects' | 'members' | 'server'
 type Task = 'login' | 'register' | 'accept' | 'createOrg' | 'passwordChange' | 'createProject' | 'permissions' | 'configure' | 'initialize' | 'recover' | 'restore'
 
 /** @param props - Framework facts, initial section and dismissal callback. @returns Centered organization management workspace. */
 export function OrganizationDialog(props: OrganizationProps & { initialSection: Section; onClose: () => void }) {
+  const c = props.useOrganization(s => s.connection)
+  return <OrganizationDialogBody key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, c.mode].join(':')} {...props} />
+}
+
+function OrganizationDialogBody(props: OrganizationProps & { initialSection: Section; onClose: () => void }) {
   const { t } = props
   const state = props.useOrganization(s => s)
   const c = state.connection
@@ -21,6 +29,7 @@ export function OrganizationDialog(props: OrganizationProps & { initialSection: 
   const projects = c.projects
   const stopped = state.server.phase === 'disabled' || state.server.phase === 'failed'
   const org = c.organizations.find(item => item.id === c.organizationId)
+  const [project, setProject] = useState<OrganizationProjectView | null>(null)
   const [section, setSection] = useState<Section>(props.initialSection)
   const [task, setTask] = useState<Task | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -34,7 +43,7 @@ export function OrganizationDialog(props: OrganizationProps & { initialSection: 
   const focusTarget = useRef<HTMLHeadingElement>(null)
   const value = (key: string) => fields[key] ?? ''
   const set = (key: string, text: string) => { setFields(previous => ({ ...previous, [key]: text })) }
-  useEffect(() => { setInvitation(''); setNotice(null); setFields({}) }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
+  useEffect(() => { setInvitation(''); setNotice(null); setFields({}); setProject(null) }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   useEffect(() => { setAutoStart(state.server.settings.restoreOnLaunch) }, [state.server.settings.restoreOnLaunch])
   useEffect(() => {
     const previous = document.activeElement
@@ -103,7 +112,7 @@ export function OrganizationDialog(props: OrganizationProps & { initialSection: 
       }
       if (event.key !== 'Tab') return
       const dialog = root.current?.closest('[role="dialog"]')
-      const selector = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), summary, [tabindex="0"]'
+      const selector = 'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex="0"]'
       const controls = Array.from(dialog?.querySelectorAll<HTMLElement>(selector) ?? [])
         .filter(element => element.getClientRects().length > 0)
       const first = controls[0]; const last = controls.at(-1)
@@ -116,7 +125,7 @@ export function OrganizationDialog(props: OrganizationProps & { initialSection: 
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['connection', 'projects', 'members', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null) }}>{t(sectionLabels[item])}</button>)}
+        {(['connection', 'projects', 'members', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
         <div className={css.sectionHeading}>{task && <Button size="sm" aria-label={t('back')} icon={<IconChevronLeftOutlineRegular />} disabled={busy} onClick={() => { navigate(null) }} />}<h3 ref={focusTarget} tabIndex={-1}>{t(task ?? sectionLabels[section])}</h3></div>
@@ -149,17 +158,19 @@ export function OrganizationDialog(props: OrganizationProps & { initialSection: 
           {task === 'accept' && form(() => command({ kind: 'accept-invitation', invitationToken: value('invitation') }), input('invitation'), !writable || !value('invitation'))}
           {task === 'createOrg' && form(() => command({ kind: 'create-organization', name: value('orgName') }), input('orgName'), !writable || !value('orgName').trim())}
           {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}</>, !writable || !value('password') || value('newPassword').length < 12)}
-          {!task && section === 'projects' && <>
+          {!task && section === 'projects' && !project && <>
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>
               <form className={css.search} onSubmit={(event) => { event.preventDefault(); if (!busy && c.phase === 'ready') void run(() => connect({ kind: 'search', query: value('search'), offset: 0 })) }}><Input className={css.input ?? ''} icon={<IconSearchOutlineRegular />} aria-label={t('search')} placeholder={t('search')} value={value('search')} onChange={(event) => { set('search', event.target.value) }} /><Button type="submit" variant="outline" disabled={busy || c.phase !== 'ready'}>{t('searchAction')}</Button></form>
               {admin && <div className={css.actions}>{launch('createProject', !writable)}{launch('permissions', !writable)}</div>}
-              {projects && <><div className={css.list}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{project.id}</small></div></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
+              {projects && <><div className={css.list}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{project.id}</small></div><Button variant="outline" onClick={() => { setProject(project) }}>{t('tasks')}</Button></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
                 <div className={css.pagination}>{button('firstPage', () => connect({ kind: 'search', query: value('search'), offset: 0 }), c.phase !== 'ready' || projects.offset === 0)}{button('next', () => connect({ kind: 'search', query: value('search'), offset: projects.offset + projects.items.length }), c.phase !== 'ready' || projects.offset + projects.items.length >= projects.total)}</div></>}
             </>}
           </>}
+          {!task && section === 'projects' && project && <Workbench key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, c.mode, project.id].join(':')} {...props} project={project} onBack={() => { setProject(null) }} />}
           {task === 'createProject' && form(() => command({ kind: 'create-project', organizationId: c.organizationId, name: value('projectName') }), <>{input('projectName')}{value('projectId') && <label className={css.field}>{t('projectId')}<output className={css.secret}>{value('projectId')}</output></label>}</>, !admin || !writable || !value('projectName').trim())}
           {task === 'permissions' && <fieldset className={css.form} disabled={busy || !admin || !writable}><p className={css.muted}>{t('permissionsHint')}</p>{input('projectId')}<label className={css.field}>{t('memberId')}<select value={value('memberId')} onChange={(event) => { set('memberId', event.target.value) }}><option value="">{t('memberId')}</option>{c.members.map(member => <option key={member.id} value={member.id}>{member.username}</option>)}</select></label><div className={css.actions}>{button('read', () => grant(['read']), !value('projectId') || !value('memberId'))}{button('write', () => grant(['read', 'write']), !value('projectId') || !value('memberId'), true)}{button('revoke', () => grant([]), !value('projectId') || !value('memberId'))}</div></fieldset>}
+          {task === 'permissions' && admin && value('projectId') && <TaskGrants key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, value('projectId')].join(':')} {...props} projectId={value('projectId')} />}
           {!task && section === 'members' && <>
             <p className={css.muted}>{t('membersDescription')}</p>
             {!admin ? <p className={css.empty}>{t('adminRequired')}</p> : <>

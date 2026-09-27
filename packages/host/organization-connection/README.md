@@ -15,6 +15,8 @@ Construct the connection in the native owner, subscribe to safe snapshots, and c
 
 Fixed `workgraph-save/read/tasks/grant/grants` actions parse shared strict request schemas and require the currently selected organization. Account/server identity comes from native login, not the action. Reads return a separate `workgraph` result with native request ID, principal, organization and generation; task text never enters the shared management snapshot or persisted pending journal. Consumers compare the response generation with the current snapshot and clear content on change. Both project and WorkGraph SSE streams trigger invalidation, use the same bounded ordered transport and are drained during close. WorkGraph writes use the existing uncertain-receipt reconciliation and never automatically resubmit.
 
+A denied WorkGraph request invalidates the generation and clears displayed facts while retaining organization selection. A task-level denial does not establish loss of organization membership; the member may still read other tasks or create the first plan. Every subsequent operation rechecks current server permissions. Other forbidden routes retain their organization-reset behavior.
+
 Switches clear projects/members synchronously and abort the previous request generation. Events trigger fresh authorized reads; revoked or invalid certificates erase visible data. Offline writes reject immediately. An unconfirmed mutation blocks further writes for that server/account until `reconcile` checks its committed receipt. Reconciliation never resends a command. The journal contains account/server/operation IDs only; a generated invitation secret survives an uncertain response only while the native client remains alive.
 
 ## Model Experience

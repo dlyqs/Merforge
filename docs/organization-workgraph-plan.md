@@ -6,7 +6,7 @@
 
 目标：在已有组织项目上保存一份权威、版本化的任务树与依赖图，明确目标、范围、真人责任人建议、下发人及验收要求；领导和员工只读取获准的任务视图，各自的任务上下文与对话关联独立。一个任务可以经 GUI 创建、修改、重开、授权查看并关联自己的上下文，服务端搜索和同步遵守同一权限规则。
 
-计划创建时只制定计划；用户于 2026-09-27 授权完成 Phase 1–2，随后明确要求“请自动完成phase3-4”，用户又于 2026-09-27 明确要求“请自动完成phase5-6”，本次按 Phase 5–6 范围执行。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。权限与预执行上下文方案已在 Phase 1 按本次执行授权定稿；哪些能力已经实现以状态表及设计文档为准。
+计划创建时只制定计划；用户于 2026-09-27 授权完成 Phase 1–2，随后明确要求“请自动完成phase3-4”，用户又于 2026-09-27 明确要求“请自动完成phase5-6”，用户于 2026-09-28 明确要求“请自动完成phase7-8”，本次按 Phase 7–8 范围执行。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。权限与预执行上下文方案已在 Phase 1 按本次执行授权定稿；哪些能力已经实现以状态表及设计文档为准。
 
 关键阶段边界：本期保存的是**计划定义和待分配责任人**，不是已下发任务。指定责任人不授予读取或执行权限；显式授予任务查看权只允许查看准备材料，不产生分配通知、执行资格或员工电脑上的自动动作。正式批准后生成员工执行对话、员工接受/委托、HumanRequest、领取、Run、提交及验收分别留给产品 Phase 6–7A。任务绑定在本期提供身份隔离和持久关联，不打开普通 Agent 执行通道。
 
@@ -97,9 +97,9 @@
 | Phase 3 | 任务授权与投影 | 子树授权、历史/搜索/分页/事件一致过滤 | completed | workgraph-access；7 项新增权限测试 | 见阶段记录 |
 | Phase 4 | HTTPS 与原生动作 | 连接、协议、重连及原生身份代次 | completed | 固定路由/动作、独立任务 SSE、代次响应 | 历史阶段完成 |
 | Phase 5 | 本机上下文隔离 | 组织 Session 归属与入口保护 | completed | organization-context、个人入口保护、私有 IPC | 无公开任务 UI |
-| Phase 6 | 持久对话绑定 | 幂等关联、准确任务快照和失败恢复 | completed | 原子预留、JSONL 快照、在线重验及恢复 | 已达本次授权停止点 |
-| Phase 7 | 共享任务工作台 | 创建、编辑、授权视图与本人上下文入口 | pending | — | 依赖 6 |
-| Phase 8 | 集成与交付 | 无页面跨身份链路、发行和用户验收剧本 | pending | — | 依赖 7；不启动产品 Phase 6 |
+| Phase 6 | 持久对话绑定 | 幂等关联、准确任务快照和失败恢复 | completed | 原子预留、JSONL 快照、在线重验及恢复 | 历史阶段完成 |
+| Phase 7 | 共享任务工作台 | 创建、编辑、授权视图与本人上下文入口 | completed | Workbench、TaskEditor、TaskGrants、typed locale；9 项 Client 测试 | 可见验收待用户 |
+| Phase 8 | 集成与交付 | 无页面跨身份链路、发行和用户验收剧本 | completed | 71 项聚焦测试、完整构建、三组无窗口 smoke、三机剧本 | 已达授权停止点；可见验收待用户 |
 
 ## Phase 1：协议与授权设计
 
@@ -261,15 +261,19 @@
 
 验收清单：
 
-- [ ] 项目进入任务列表；单任务可创建/编辑，复杂计划展示树和依赖摘要；不建设可拖拽流程画布。
-- [ ] 详情显示目标/范围、版本、建议责任人、下发人、验收要求与可用动作；明确“尚未下发”，不显示虚假的运行/完成数据。
-- [ ] 保存失败保留本地草稿与幂等键；版本冲突要求刷新/重新确认，不覆盖远端；离线、无权限和资料失效有明确文案。
-- [ ] 任务管理授权与读取分别展示；员工只能查看已授权内容；本人上下文入口经过原生动作，普通发送入口不可用。
-- [ ] 组织/账号切换清理旧任务详情、草稿及在途响应；个人 Project/Bot 双入口仍正常；所有产品文案走 typed locale。
+- [x] 项目进入任务列表；单任务可创建/编辑，复杂计划展示树和依赖摘要；不建设可拖拽流程画布。
+- [x] 详情显示目标/范围、版本、建议责任人、下发人、验收要求与可用动作；明确“尚未下发”，不显示虚假的运行/完成数据。
+- [x] 保存失败保留本地草稿与幂等键；版本冲突要求刷新/重新确认，不覆盖远端；离线、无权限和资料失效有明确文案。
+- [x] 任务管理授权与读取分别展示；员工只能查看已授权内容；本人上下文入口经过原生动作，普通发送入口不可用。
+- [x] 组织/账号切换清理旧任务详情、草稿及在途响应；个人 Project/Bot 双入口仍正常；所有产品文案走 typed locale。
 
 助理验证：状态投影、纯交互、注册/组合测试、Host/Client 编译及局部 lint；不启动页面、不运行 Playwright。用户检查：任务详情阅读、键盘操作、窗口布局和只读提示，记录为待验，不自动阻塞后续无页面集成。依赖：Phase 6。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-28）：项目行进入独立 Workbench，使用可见分页绘制树和依赖摘要；TaskEditor 创建单任务完整定义或从获准完整版本修改节点文字，保留其余节点及关系；TaskGrants 独立管理 ID/授权元数据，可从无正文读取权的项目授权入口进入。本人上下文调用原生 context 动作，只展示首次持久快照，无个人 composer。中英文全部走 typed locale。原生代次改变立即隐藏任务/上下文/授权结果，已有计划草稿在线重验后才显示；未提交的新建草稿在同一身份下保留。身份切换重挂整个对话框，清空本地表单和迟到响应。
+
+保存失败保留草稿及相同内容的 operationId，修改已尝试内容时换新 ID；版本冲突禁止再次保存，须放弃并重读。无页面测试还发现 WorkGraph forbidden 会清除整个组织选择，阻塞首个计划创建：连接现改为递增代次、重新核验组织并恢复事件监听，保留仍有效的组织选择；所有后续操作照常服务端核权。新回归验证拒绝单任务后仍能读取其他任务、接收撤权事件及创建首个计划。
+
+验证：`pnpm exec vitest run packages/client/ui-organization/tests` 3 文件 9 项通过；Host/Client 定向 `tsc -b` 和相关局部 lint 通过（最终命令见 Phase 8）。GUI 只创建单任务计划；复杂计划展示与节点文本编辑已支持，不提供结构编辑器。可见布局/键盘/三机仍待用户检查。按本次 auto_until 授权继续 Phase 8。
 
 ## Phase 8：无页面集成与交付
 
@@ -279,15 +283,34 @@
 
 验收清单：
 
-- [ ] 从真实 Loader/私有组织进程开始，用两个身份完成单任务创建、版本编辑、授权读取、本人上下文绑定、撤权、重连和重开；测试直接检查数据库和 Session 持久结果。
-- [ ] CSV 多阶段计划证明依赖/父完成隐环拒绝及可见子树裁剪；隐藏内容哨兵不出现在 API、搜索、事件、快照、日志和他人上下文。
-- [ ] 新 schema 的停服备份/恢复保留任务与权限，恢复后旧 token 失效；未知新格式拒绝且原数据保留。
-- [ ] 真实构建产物在普通 Node/Electron Node mode 无窗口验证；必要发行依赖和入口检查通过，未增加组织 Agent 或第二种产品入口。
-- [ ] 验收剧本明确三个设备、账号、项目与任务 grant、预执行只读、故障预期，以及尚未提供批准/委托/执行；既有三机检查仍保持待验，不能据此宣称闭环已完成。
+- [x] 从真实 Loader/私有组织进程开始，用两个身份完成单任务创建、版本编辑、授权读取、本人上下文绑定、撤权、重连和重开；测试直接检查数据库和 Session 持久结果。
+- [x] CSV 多阶段计划证明依赖/父完成隐环拒绝及可见子树裁剪；隐藏内容哨兵不出现在 API、搜索、事件、快照、日志和他人上下文。
+- [x] 新 schema 的停服备份/恢复保留任务与权限，恢复后旧 token 失效；未知新格式拒绝且原数据保留。
+- [x] 真实构建产物在普通 Node/Electron Node mode 无窗口验证；必要发行依赖和入口检查通过，未增加组织 Agent 或第二种产品入口。
+- [x] 验收剧本明确三个设备、账号、项目与任务 grant、预执行只读、故障预期，以及尚未提供批准/委托/执行；既有三机检查仍保持待验，不能据此宣称闭环已完成。
 
 助理验证：相关聚焦测试、发行构建和无页面产物 smoke；报告实际命令、失败/跳过及影响。用户检查：真实三机、macOS/Windows 可见交互与安装运行，由用户决定时间，不自动恢复已取消的旧安装验收。依赖：Phase 7。完成后停止；下一产品阶段是 roadmap Phase 6，需另行制定/确认实施范围。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-28）：新增 `apps/desktop-host/tests/organization-workgraph.spec.ts`，经真实 Loader/HTTPS/原生身份完成单任务创建、版本编辑/冲突、显式授权、本人独立绑定、撤权、重连、重开及恢复；直接冷读 SQLite 和 Session JSONL 验证结果。CSV 三阶段计划验证显式环、父完成隐环、隐藏前置裁剪及搜索/快照/诊断正文隔离。备份恢复保留任务授权，拒绝未知 manifest schema 且当前数据库字节不变，恢复后旧 token 失效。既有维护测试补充未知数据库格式、迁移和恢复检查。
+
+`organization-integration-built-smoke.mjs` 扩展为真实私有组织进程和真实上下文 Loader 子进程，通过生产 `installOrganizationContextControl` 和原生 coordinator 交换 nonce/requestId/authorizationId，验证两身份绑定隔离、子进程重开和撤权拒绝；普通 Node/Electron Node mode 均通过。两个 `.mjs` helper 仅供测试，不增加产品入口。新增[三机验收剧本](organization-workgraph-acceptance.md)，同步设计、架构、概览、包 README 和 roadmap。
+
+最终相关检查（按测试文件最近一次结果去重，11 文件 71 项通过；不包含失败的调试轮次）：
+
+- `pnpm exec vitest run packages/client/ui-organization/tests`：3 文件 9 项。
+- `pnpm exec vitest run packages/host/organization-connection/tests apps/desktop-host/tests/organization-workgraph.spec.ts`：3 文件 13 项；随后补充拒绝写入后清除 pendingOperation 的断言，单独重跑 `pnpm exec vitest run packages/host/organization-connection/tests/workgraph.spec.ts`：5 项通过。
+- `pnpm exec vitest run apps/desktop-host/tests/organization-workgraph.spec.ts packages/workspace/organization-context/tests/context.spec.ts packages/host/organization-connection/tests/workgraph.spec.ts packages/api/organization-api/tests/workgraph.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/organization/tests/workgraph-access.spec.ts`：首轮新增集成用例失败，其余 5 文件 35 项通过。新增用例和 native 文件修正后按上一条重跑通过；其余 4 文件 31 项无需重复。
+- `pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts`：1 文件 18 项。
+- `pnpm exec tsc -b packages/client/ui-organization packages/host/organization-connection apps/desktop-host apps/desktop --pretty false` 通过。
+- `pnpm exec tsx scripts/run-oxlint.ts packages/client/ui-organization packages/host/organization-connection/src/index.ts packages/host/organization-connection/tests/workgraph.spec.ts apps/desktop-host/tests/organization-workgraph.spec.ts apps/desktop-host/tests/organization-context-host.mjs apps/desktop-host/tests/organization-context-child.mjs apps/desktop-host/tests/organization-integration-built-smoke.mjs` 通过；后续 native 小改再次单独 lint 通过。
+- `pnpm run build` 通过；最终实现变更后再次构建交付产物。`node apps/desktop-host/tests/organization-built-smoke.mjs`、`node apps/desktop-host/tests/organization-context-built-smoke.mjs`、`node apps/desktop-host/tests/organization-integration-built-smoke.mjs` 均通过；最后一次 native 调整后重跑 integration smoke 通过。
+- `pnpm run verify-application-entrypoints`、`pnpm run verify-cordis-config`、`pnpm run verify-client-packages`、`pnpm run verify-tsconfig-paths`、`pnpm run verify-scoped-events`、`pnpm run verify-client-ui-i18n`、`pnpm exec tsx scripts/verify-export-jsdoc.ts`、`git diff --check` 通过。
+
+失败与修正：新增集成暴露 WorkGraph forbidden 清空组织选择，现改为重新核验并保持有效选择/事件监听；同时清除已确定拒绝写入的 pendingOperation，避免界面永久锁住。测试初稿重复使用别的计划 TaskId、阶段顺序不满足父完成规则及 helper 产物路径错误均已纠正。没有通过削弱领域校验或取消代次保护使测试通过。
+
+未通过门禁：`pnpm run verify-package-dependencies` 报既有 `packages/client/file-upload/src/index.ts` 的 `@deepseek-ai/dsh-session#assertPersonalSessionId` 缺少 safe/peer-required 分类（HEAD 已含该导入，本次未改）。未增加依赖例外，未把该全仓门禁计为通过；构建及实际发行链路通过。服务目录生成器、完整测试 suite、真实模型 API、页面、Playwright、真实三机与 macOS/Windows 安装/可见交互未运行；本期没有模型执行需求。用户可见验收保持待验，不宣称组织执行闭环完成。
+
+本次 auto_until 内部 Phase 7–8 已完成，恢复 manual，起止清为 none。未 commit、push、部署或进入 roadmap 产品 Phase 6。
 
 ## 验证与关键链路日志
 
@@ -314,7 +337,7 @@
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 计划评审状态：用户 2026-09-27 明确授权“请自动完成phase5-6”；本次 auto_until Phase 5–6 已完成交付核验，恢复 manual，不进入 Phase 7。
+- 计划评审状态：用户 2026-09-28 明确授权“请自动完成phase7-8”；内部 Phase 7–8 已完成交付核验，恢复 manual，不进入 roadmap 产品 Phase 6。
 - 使用的 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`；工作目录：`/Users/git_local/Merforge`。本计划是后续执行入口，暂不创建专用 executor skill。
 
 1. 执行前读取本文、overview、相关 AGENTS、架构、防御模式与测试政策；优先复核 `blocked` 阶段的解除条件，未解除时不得跳过依赖。

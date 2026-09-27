@@ -20,7 +20,7 @@ it('returns to the previously selected organization after the native personal ac
     server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const connection = vi.fn<OrganizationProps['connection']>().mockResolvedValue({})
-  const props: OrganizationProps = { available: true, connection, server: vi.fn(), secret: vi.fn(),
+  const props: OrganizationProps = { available: true, connection, server: vi.fn(), secret: vi.fn(), context: vi.fn(),
     useOrganization: selector => selector(snapshot), t: makeTranslate(zh) }
   const view = render(<AccountMenu {...props} />)
   fireEvent.click(screen.getByRole('button', { name: zh.accountCenter }))
@@ -41,7 +41,7 @@ it('keeps failed selections open, traps keyboard focus and restores the avatar o
     server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const connection = vi.fn<OrganizationProps['connection']>().mockRejectedValue(new Error('unavailable'))
-  render(<AccountMenu available connection={connection} server={vi.fn()} secret={vi.fn()}
+  render(<AccountMenu available connection={connection} server={vi.fn()} secret={vi.fn()} context={vi.fn()}
     useOrganization={selector => selector(snapshot)} t={makeTranslate(zh)} />)
   const avatar = screen.getByRole('button', { name: zh.accountCenter })
   fireEvent.click(avatar)

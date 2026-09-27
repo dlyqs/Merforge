@@ -9,6 +9,7 @@ export interface OrganizationInjected {
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']
   secret: OrganizationDesktopBridge['secret']
+  context: OrganizationDesktopBridge['context']
   hooks: { organization: ObservableSnapshot<OrganizationDesktopSnapshot> }
 }
 /** Registered component props supplied by the slot renderer. */

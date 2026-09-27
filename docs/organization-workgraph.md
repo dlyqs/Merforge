@@ -1,6 +1,6 @@
 # 组织 WorkGraph 与预执行上下文
 
-本文定稿[施工计划](organization-workgraph-plan.md) Phase 1 的协议与权限设计。Phase 1–6 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影、HTTPS/原生动作及本机预执行上下文隔离和持久绑定。当前有受限原生绑定动作，没有任务 GUI。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
+本文定稿[施工计划](organization-workgraph-plan.md)的协议与权限设计。Phase 1–8 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影、HTTPS/原生动作、本机预执行上下文隔离与持久绑定、任务工作台和无页面集成。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
 
 ## 定义及版本
 
@@ -133,4 +133,14 @@ Loader、真实 HTTPS/原生/私有 IPC、JSONL、个人入口回归及无窗口
 
 JSONL provider 的 namespace 默认为 personal；组织插件在独立 Context 中配置 organization-context 和专用目录。storage-domain 的一个 global 记录原子保存 bindings/operations，binding 另存首次 createdAt；Session 中的 `organization/context` 和 `organization/task-snapshot` 是必读事件，仍使用当前 envelope v4。预留在写盘前完成，失败保留 reserved；重试在线核权后补齐同一日志的缺失尾部，不新增对话。ready 前后冷读和线上历史 revision 复核保证不返回半完成关联；旧快照若含当前不再获准的父节点或依赖则拒绝打开。
 
-`./invariant` 校验 ready 绑定与独立 JSONL 的归属及快照。Loader 验证安装这一检查，普通 open 也在交付前比较持久记录。新快照追加和 GUI 消费者尚未提供，重开只返回首次已记录的版本。
+`./invariant` 校验 ready 绑定与独立 JSONL 的归属及快照。Loader 验证安装这一检查，普通 open 也在交付前比较持久记录。任务工作台通过原生 context 动作展示本人只读上下文；新快照追加尚未提供，重开只返回首次已记录的版本。
+
+## 任务工作台
+
+项目列表进入任务工作台，服务端裁剪后分页/搜索，Client 只依据当页可见父子关系显示树。详情显示获准目标、范围、版本、建议责任人、必要性、依赖和验收/产物文字；下发人明确为尚未下发。GUI 创建单任务计划，已有复杂计划只能在完整读取获准后修改节点文字，不把局部投影回写为完整定义。
+
+任务授权管理独立于正文读取：管理员可在项目授权区输入项目、计划和任务 ID，查看 grant 元数据或授予 node/subtree read、根 subtree read/edit。工作台也提供相同管理控件。编辑/授权最终都由服务端拒绝无权动作。
+
+现有计划草稿随代次变化隐藏，在线重验完整定义权限后可查看；版本变化禁止覆盖。相同失败内容重试保持 operationId，修改已尝试内容使用新 operationId。不确定写入先查回执。关闭工作台或切换身份丢弃草稿，不提供持久草稿或离线队列。新建且尚未提交的草稿没有远端正文，可在同一身份在线时继续填写。
+
+WorkGraph 拒绝只说明该次任务操作无权：原生清空代次内容，重新核验组织并恢复事件监听，仍有效的组织选择保留。身份、账号或组织失效依旧清空选择。真实三机及 Desktop 可见检查见[验收剧本](organization-workgraph-acceptance.md)，尚待用户完成。

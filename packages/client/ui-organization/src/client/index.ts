@@ -35,6 +35,7 @@ export function apply(ctx: Context): void {
     connection: action => desktop ? desktop.connection(action) : unavailable(),
     server: action => desktop ? desktop.server(action) : unavailable(),
     secret: () => desktop ? desktop.secret() : unavailable(),
+    context: request => desktop ? desktop.context(request) : unavailable(),
     hooks: { organization: state } })
   ctx.effect(() => ctx.locale.register('organization', { zh, en }), 'organization.locale')
   ctx.effect(() => {

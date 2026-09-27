@@ -123,3 +123,35 @@ it('refuses malformed native actions, impersonation and offline writes; reconnec
   await expect.poll(() => h.ownerClient.snapshot().phase).toBe('ready')
   expect((await h.ownerClient.perform({ kind: 'workgraph-tasks', request: h.query })).workgraph?.result).toMatchObject({ value: { total: 3 } })
 }, 20000)
+
+it('keeps organization selection after a denied task read so other authorized tasks and first-plan creation remain reachable', async () => {
+  const h = await setup()
+  const generation = h.memberClient.snapshot().generation
+  await expect(h.memberClient.perform({ kind: 'workgraph-read', request: h.query })).rejects.toThrow('forbidden')
+  expect(h.memberClient.snapshot().organizationId).toBe(h.owner.organizationId)
+  expect(h.memberClient.snapshot().generation).toBeGreaterThan(generation)
+  expect((await h.memberClient.perform({ kind: 'workgraph-tasks', request: h.query })).workgraph?.result).toMatchObject({ value: { total: 1 } })
+  await expect(h.memberClient.perform({ kind: 'workgraph-save', request: {
+    ...h.save, expectedRevision: 1, operationId: randomUUID(),
+  } })).rejects.toThrow('forbidden')
+  expect(h.memberClient.snapshot().pendingOperation).toBeUndefined()
+  const afterDenial = h.memberClient.snapshot().generation
+  await h.ownerClient.perform({ kind: 'workgraph-grant', request: {
+    ...h.grant, expectedVersion: h.receipt.revision, actions: [], operationId: randomUUID(),
+  } })
+  await expect.poll(() => h.memberClient.snapshot().generation).toBeGreaterThan(afterDenial)
+  const project = await h.ownerClient.perform({ kind: 'command', command: {
+    kind: 'create-project', operationId: randomUUID(), organizationId: h.owner.organizationId, name: 'Empty workspace',
+  } })
+  await h.ownerClient.perform({ kind: 'command', command: { kind: 'set-grant', operationId: randomUUID(),
+    organizationId: h.owner.organizationId, projectId: project.receipt!.projectId, membershipId: h.owner.membershipId,
+    actions: ['read', 'write'], expectedVersion: 0,
+  } })
+  const query = { ...h.query, projectId: project.receipt!.projectId, planId: randomUUID() }
+  await expect(h.ownerClient.perform({ kind: 'workgraph-tasks', request: query })).rejects.toThrow('forbidden')
+  const taskId = randomUUID()
+  const definition = { ...h.save.definition, taskId, tasks: [{ ...h.save.definition.tasks[0]!, id: taskId }] }
+  expect((await h.ownerClient.perform({ kind: 'workgraph-save', request: {
+    ...h.save, ...query, definition, operationId: randomUUID(), expectedRevision: 0,
+  } })).receipt?.planRevision).toBe(1)
+}, 20000)

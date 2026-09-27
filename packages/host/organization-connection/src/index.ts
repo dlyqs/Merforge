@@ -113,7 +113,14 @@ export class OrganizationConnection {
     if (response.status !== 200) {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
-      else if (code === 'forbidden') this.reset({ organizationId: undefined, phase: 'ready', error: code })
+      else if (code === 'forbidden') {
+        if (route.startsWith('/workgraph/')) {
+          const next = this.reset({ phase: 'loading', error: code })
+          try { await this.refresh(next) } catch (_error) {
+            if (next === this.generation && this.token) this.offline(next)
+          }
+        } else this.reset({ organizationId: undefined, phase: 'ready', error: code })
+      }
       else if (response.status >= 500 && this.token) this.offline(generation)
       throw new Error(code)
     }
@@ -267,7 +274,8 @@ export class OrganizationConnection {
     } catch (error) {
       if (error instanceof Error && ['invalid-input', 'last-admin', 'version-conflict', 'forbidden', 'operation-conflict', 'invalid-credentials'].includes(error.message)) {
         this.uncertain.delete(`${pending.serverId}:${pending.accountId}`); this.savePending()
-        if (generation === this.generation) { this.publish({ pendingOperation: undefined }); await this.refresh(this.reset({ phase: 'loading' })) }
+        if (`${pending.serverId}:${pending.accountId}` === this.identityKey()) this.publish({ pendingOperation: this.pending?.operationId })
+        if (generation === this.generation) await this.refresh(this.reset({ phase: 'loading' }))
       }
       throw error
     } finally { this.writing = false }

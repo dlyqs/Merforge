@@ -80,3 +80,9 @@
   .card { padding: 16px; }
   .actions > button { flex: 1 1 auto; }
 }
+.field textarea { min-height: 80px; resize: vertical; padding: 12px; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; }
+.taskList { list-style: none; margin: 0; padding: 0; }
+.taskList li { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; padding-inline-start: calc(min(var(--task-depth), 8) * 16px); }
+.taskList button { border: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; cursor: pointer; text-align: start; overflow-wrap: anywhere; }
+.taskList button[aria-pressed="true"] { font-weight: 600; }
+.taskList small { color: var(--dsw-alias-label-tertiary); }
