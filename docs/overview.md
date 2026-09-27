@@ -2,6 +2,10 @@
 
 本文记录当前代码结构，帮助开发者定位基础裁剪和后续产品阶段的实现。目标产品见[产品路线图](../ai-native-work-os-product-roadmap.md)，基础裁剪的实际状态见[基础裁剪计划](desktop-agent-foundation-pruning-plan.md)，个人模式进度见[个人项目与 Bot 开发计划](personal-project-bot-plan.md)。Desktop 产品名为 Merforge。个人 Project 与私人 Bot 的 Host 数据、运行时和双入口 Client 界面已实现；个人复杂任务与同机接力的实施记录见[执行计划](personal-workflow-plan.md)，Phase 1–2 已完成：[个人工作流设计](personal-workflow.md)、持久 Task/计划版本、审核及 Remote 已实现，Phase 3 任务视图、修改、审核和导出已实现；Phase 4 的显式增强模式、内置方法、评估及结构化提案也已实现，Phase 5 的任务领取、输入框选择、有界执行与真实证据已实现；Phase 6 的持久接力、所有权转移和重启核对已实现；Phase 7 无页面 CSV 集成验证及文档收尾已完成，发行构建与产物测试通过，可见验收待用户检查；组织 Phase 1–7 已完成隔离设计、独立 SQLite 身份权威、私有 TLS 服务、授权同步、设置/登录 UI、停服备份恢复与发行验证；产品 Phase 4 三机验收待定，WorkGraph 尚未实现。
 
+## 下一阶段计划入口
+
+[组织 WorkGraph 与任务上下文实施计划](organization-workgraph-plan.md)细化 roadmap 的产品 Phase 5，内部 Phase 1–8 均待执行，模式为 `manual`，待用户审阅。本期拟扩展现有组织权威/API/原生连接/Client，复用个人工作流纯图规则，新增任务级授权与本人任务上下文隔离；当前代码尚无这些能力。正式批准、委托和执行仍属于产品 Phase 6–7A，不能从普通聊天入口提前启动。后续在该计划上下文中说“继续”，先读该计划唯一状态表，不续跑已完成的组织基础计划。
+
 ## 运行方式与目录
 
 Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有 Desktop Host，并在窗口中加载打包的前端资源。Host 通过 app-boot 启动自己的 profile，保留内部 Web bundle、本地 Webserver 和认证连接。独立 Web、CLI、headless、SDK、ACP 及 Python 产品入口已移除。Desktop 组合不包含 Office 转换与创建、麦克风、插件市场与检查、Open in App、Schedule、PTC workflow 和 Ralph；标准 Agent preset 保留文件、shell、Skill、subagent、job、Todo。浏览器 guest 仍由 Electron 管理；Agent 浏览器和 computer-use provider 随 Desktop 打包，但默认禁用，需要满足各自运行前提后启用。[依赖闭包记录](desktop-agent-foundation-pruning-closure.json)列出 Desktop package 集合。

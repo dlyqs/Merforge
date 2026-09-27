@@ -201,10 +201,26 @@ describe('AppFrame', () => {
     expect(document.title).toBe('Product')
   })
 
+  it('retains workspace navigation outside the secondary browser through collapse and reopen', () => {
+    const b = mountFrame()
+    const navigation = () => b.slotCalls.findLast(call => call.key === 'shell.navigation')!.props as {
+      collapsed: boolean
+      toggleSidebar: () => void
+    }
+    const control = b.getByTestId('shell.navigation-content')
+    expect(control.parentElement?.parentElement).toBe(b.getByTestId('main-content').parentElement)
+    expect(navigation().collapsed).toBe(false)
+    act(() => { navigation().toggleSidebar() })
+    expect(navigation().collapsed).toBe(true)
+    expect(b.getByTestId('shell.navigation-content')).toBe(control)
+    act(() => { navigation().toggleSidebar() })
+    expect(navigation().collapsed).toBe(false)
+  })
+
   it('renders owner props for the default sidebar and prospective right panel', () => {
     const { frame, rightOwner, sidebarOwner, slotCalls } = mountFrame()
-    expect(tracks(frame)).toEqual([280, 0])
-    expect(sidebarOwner()).toEqual({ collapsed: false, width: 280 })
+    expect(tracks(frame)).toEqual([352, 0])
+    expect(sidebarOwner()).toEqual({ collapsed: false, width: 352 })
     expect(rightOwner()).toEqual({ width: 864, viewportWidth: 1920, canShow: true })
     expect(slotCalls.find(c => c.key === 'main')).toEqual({ key: 'main', props: {}, options: { entryKey: 'conversation' } })
   })
@@ -215,7 +231,7 @@ describe('AppFrame', () => {
     expect(getByTestId('main-content').getAttribute('data-entry-key')).toBe('conversation')
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(getByTestId('rightbar-content')).toBeTruthy()
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([352, 0])
   })
 
   it('renders both occupants before workspace baselines settle', () => {
@@ -225,13 +241,13 @@ describe('AppFrame', () => {
     expect(getByTestId('rightbar-content')).toBeTruthy()
   })
 
-  it('keeps Windows caption controls mounted with a zero-width collapsed column', () => {
+  it('retains the primary rail when the Windows secondary browser closes', () => {
     document.documentElement.setAttribute('data-windows-titlebar', '')
     try {
       const { frame, instance, sidebarOwner, getByTestId, queryByTestId } = mountFrame()
       act(() => { instance.actions.toggleSidebar() })
-      expect(tracks(frame)[0]).toBe(0)
-      expect(sidebarOwner()).toMatchObject({ collapsed: true, width: 0 })
+      expect(tracks(frame)[0]).toBe(72)
+      expect(sidebarOwner()).toMatchObject({ collapsed: true, width: 72 })
       expect(getByTestId('sidebar-content')).toBeTruthy()
       // The caption row keeps the reopen controls; the darwin-only
       // shell.leading seat must not mount a duplicate set.
@@ -241,11 +257,11 @@ describe('AppFrame', () => {
     }
   })
 
-  it('keeps the closed sidebar mounted at its 56px rail without a handle', () => {
+  it('keeps the closed sidebar mounted at its 72px rail without a handle', () => {
     const { frame, instance, sidebarOwner, getByTestId, queryByTestId } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([56, 0])
-    expect(sidebarOwner()).toEqual({ collapsed: true, width: 56 })
+    expect(tracks(frame)).toEqual([72, 0])
+    expect(sidebarOwner()).toEqual({ collapsed: true, width: 72 })
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
     // The rail keeps the window chrome housed: no shell.leading seat.
@@ -253,7 +269,7 @@ describe('AppFrame', () => {
     expect(frame.querySelector('[data-shell-leading-band]')).toBeNull()
   })
 
-  it('mounts the shell.leading seat only while the darwin collapse hides the column', () => {
+  it('keeps macOS window controls in the persistent rail during collapse', () => {
     document.documentElement.dataset.platform = 'darwin'
     const { frame, instance, sidebarOwner, queryByTestId } = mountFrame()
     // The window drag band composes app-regions in DOM order: it must render
@@ -261,10 +277,10 @@ describe('AppFrame', () => {
     expect(frame.firstElementChild?.hasAttribute('data-shell-leading-band')).toBe(true)
     expect(queryByTestId('shell.leading-content')).toBeNull()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([0, 0])
-    expect(sidebarOwner()).toEqual({ collapsed: true, width: 0 })
-    expect(frame.querySelector('[data-shell-leading]')).not.toBeNull()
-    expect(queryByTestId('shell.leading-content')).toBeTruthy()
+    expect(tracks(frame)).toEqual([72, 0])
+    expect(sidebarOwner()).toEqual({ collapsed: true, width: 72 })
+    expect(frame.querySelector('[data-shell-leading]')).toBeNull()
+    expect(queryByTestId('shell.leading-content')).toBeNull()
     act(() => { instance.actions.toggleSidebar() })
     expect(queryByTestId('shell.leading-content')).toBeNull()
   })
@@ -283,7 +299,7 @@ describe('AppFrame', () => {
       // The deepened conversation drag band keys off this frame marker.
       expect(frame.hasAttribute('data-panel-conversation')).toBe(panelId === null)
       expect(instance.getSnapshot().layoutInfo).toBe(layoutInfo)
-      expect(tracks(frame)).toEqual([280, 0])
+      expect(tracks(frame)).toEqual([352, 0])
       expect(selectedSession).toBe(sessionId)
       expect(document.title).toBe(panelId === null ? 'Session title — DSH Local Build' : 'DSH Local Build')
     }
@@ -319,7 +335,7 @@ describe('AppFrame normal width concessions', () => {
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ rightbarShown: true, rightbar: 864 })
     act(() => { instance.actions.closeRightbar() })
     resize(455)
-    expect(tracks(frame)).toEqual([56, 0])
+    expect(tracks(frame)).toEqual([72, 0])
     resize(1920)
     expect(tracks(frame)).toEqual([420, 0])
   })
@@ -328,15 +344,15 @@ describe('AppFrame normal width concessions', () => {
     frameWidth = 800
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
-    expect(rightOwner()).toEqual({ width: 344, viewportWidth: 800, canShow: true })
+    expect(tracks(frame)).toEqual([352, 0])
+    expect(rightOwner()).toEqual({ width: 328, viewportWidth: 800, canShow: true })
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([56, 360])
+    expect(tracks(frame)).toEqual([72, 360])
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ narrowExpanded: false, rightbar: 360 })
     expect(rightOwner().canShow).toBe(true)
   })
 
-  it.each([[756, 300, true], [755, 0, false]] as const)('reports eligibility at %ipx', (width, rightbar, canShow) => {
+  it.each([[772, 300, true], [771, 0, false]] as const)('reports eligibility at %ipx', (width, rightbar, canShow) => {
     frameWidth = width
     const { instance, rightOwner } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
@@ -356,13 +372,13 @@ describe('AppFrame normal width concessions', () => {
     resize(1024)
     expect(tracks(frame)[0]).toBe(400)
     resize(1023)
-    expect(tracks(frame)[0]).toBe(56)
+    expect(tracks(frame)[0]).toBe(72)
     act(() => { instance.actions.toggleSidebar() })
     expect(tracks(frame)[0]).toBe(400)
     resize(980)
     expect(tracks(frame)[0]).toBe(400)
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)[0]).toBe(56)
+    expect(tracks(frame)[0]).toBe(72)
     resize(1920)
     expect(tracks(frame)[0]).toBe(400)
   })
@@ -372,7 +388,7 @@ describe('AppFrame normal width concessions', () => {
     act(() => { instance.actions.toggleSidebar() })
     resize(980)
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)[0]).toBe(280)
+    expect(tracks(frame)[0]).toBe(352)
     expect(instance.getSnapshot().layoutInfo.sidebar).toBe(0)
   })
 })
@@ -381,9 +397,9 @@ describe('AppFrame right panel presentation', () => {
   it('releases the fullscreen track with the instant marker while clearing fullscreen', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openRightbar(true, true) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     act(() => { instance.actions.closeRightbar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([352, 0])
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     expect(frame.dataset.rightbarInstant).toBe('true')
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
@@ -395,11 +411,11 @@ describe('AppFrame right panel presentation', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openRightbar(true, true) })
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     expect(frame.dataset.rightbarInstant).toBe('true')
     act(() => { instance.actions.closeRightbar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([352, 0])
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     expect(frame.dataset.rightbarInstant).toBeUndefined()
   })
@@ -475,33 +491,33 @@ describe('AppFrame right panel presentation', () => {
   it('preserves normal tracks through fullscreen and hides the outer resize handle', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(handleFor(frame, 'rightbar').style.left).toBe('1056px')
     act(() => { instance.actions.openRightbar(true, true) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(rightOwner().width).toBe(864)
     expect(frame.dataset.rightbarFullscreen).toBe('true')
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(handleFor(frame, 'rightbar').style.left).toBe('1056px')
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     act(() => { instance.actions.closeRightbar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([352, 0])
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
   })
 
   it('inserts a fullscreen track and its transition-suppression marker in the same render', () => {
     const { frame, instance } = mountFrame()
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(tracks(frame)).toEqual([352, 0])
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     act(() => { instance.actions.openRightbar(true, true) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(frame.dataset.rightbarFullscreen).toBe('true')
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([280, 864])
+    expect(tracks(frame)).toEqual([352, 864])
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
   })
 
@@ -509,7 +525,7 @@ describe('AppFrame right panel presentation', () => {
     frameWidth = 700
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, true) })
-    expect(tracks(frame)).toEqual([56, 0])
+    expect(tracks(frame)).toEqual([72, 0])
     expect(rightOwner()).toEqual({ width: 0, viewportWidth: 700, canShow: false })
     expect(instance.getSnapshot().layoutInfo.rightbarShown).toBe(true)
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
@@ -519,11 +535,11 @@ describe('AppFrame right panel presentation', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, false) })
     resize(1100)
-    expect(tracks(frame)).toEqual([280, 0])
-    expect(rightOwner().width).toBe(420)
-    drag(handleFor(frame, 'rightbar'), 680, 690)
-    expect(instance.getSnapshot().layoutInfo.rightbar).toBe(410)
-    expect(rightOwner().width).toBe(410)
+    expect(tracks(frame)).toEqual([352, 0])
+    expect(rightOwner().width).toBe(348)
+    drag(handleFor(frame, 'rightbar'), 752, 762)
+    expect(instance.getSnapshot().layoutInfo.rightbar).toBe(338)
+    expect(rightOwner().width).toBe(338)
     expect(tracks(frame)[1]).toBe(0)
   })
 })
@@ -532,7 +548,7 @@ describe('AppFrame pointer resizing', () => {
   it('updates columns during the gesture and freezes the drag-start width', () => {
     const { frame, instance } = mountFrame()
     const handle = handleFor(frame, 'sidebar')
-    pointer(handle, 'pointerdown', 280)
+    pointer(handle, 'pointerdown', 352)
     expect(frame.dataset.dragging).toBe('true')
     pointer(handle, 'pointermove', 320)
     pointer(handle, 'pointermove', 340)
@@ -553,14 +569,14 @@ describe('AppFrame pointer resizing', () => {
     act(() => { instance.actions.openRightbar(true, false) })
     resize(1100)
     const handle = handleFor(frame, 'rightbar')
-    expect(rightOwner().width).toBe(420)
+    expect(rightOwner().width).toBe(348)
     expect(tracks(frame)[1]).toBe(770)
-    expect(handle.style.left).toBe('680px')
-    drag(handle, 680, 690)
-    expect(instance.getSnapshot().layoutInfo.rightbar).toBe(410)
-    expect(rightOwner().width).toBe(410)
-    expect(tracks(frame)[1]).toBe(410)
-    expect(handle.style.left).toBe('690px')
+    expect(handle.style.left).toBe('752px')
+    drag(handle, 752, 762)
+    expect(instance.getSnapshot().layoutInfo.rightbar).toBe(338)
+    expect(rightOwner().width).toBe(338)
+    expect(tracks(frame)[1]).toBe(338)
+    expect(handle.style.left).toBe('762px')
   })
 
   it('widens to the 70% limit and shrinks to 300px through pointer input', () => {
@@ -578,7 +594,7 @@ describe('AppFrame pointer resizing', () => {
   it('commits the pointerup coordinate and cancels its pending animation frame', () => {
     const { frame, instance } = mountFrame()
     const handle = handleFor(frame, 'sidebar')
-    pointer(handle, 'pointerdown', 280)
+    pointer(handle, 'pointerdown', 352)
     pointer(handle, 'pointermove', 320)
     pointer(handle, 'pointerup', 360)
     expect(instance.getSnapshot().layoutInfo.sidebar).toBe(360)
@@ -595,25 +611,25 @@ describe('AppFrame pointer resizing', () => {
     pointer(handle, 'pointercancel', 500, 9)
     pointer(handle, 'pointerdown', 500, 9, 2)
     expect(frame.dataset.dragging).toBeUndefined()
-    pointer(handle, 'pointerdown', 280)
+    pointer(handle, 'pointerdown', 352)
     pointer(handle, 'pointerdown', 500, 9)
     pointer(handle, 'pointermove', 500, 9)
     pointer(handle, 'pointerup', 500, 9)
     expect(animationFrames.size).toBe(0)
-    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(280)
-    pointer(handle, 'pointerup', 300)
-    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(300)
+    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(352)
+    pointer(handle, 'pointerup', 332)
+    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(332)
   })
 
   it.each(['pointercancel', 'lostpointercapture'])('ends %s without committing queued motion', (event) => {
     const { frame, instance } = mountFrame()
     const handle = handleFor(frame, 'sidebar')
-    pointer(handle, 'pointerdown', 280)
+    pointer(handle, 'pointerdown', 352)
     pointer(handle, 'pointermove', 340)
     if (event === 'lostpointercapture') handle.releasePointerCapture(1)
     pointer(handle, event, 340)
     act(flushFrames)
-    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(280)
+    expect(instance.getSnapshot().layoutInfo.sidebar).toBe(352)
     expect(animationFrames.size).toBe(0)
     expect(frame.dataset.dragging).toBeUndefined()
     expect(handle.hasPointerCapture(1)).toBe(false)

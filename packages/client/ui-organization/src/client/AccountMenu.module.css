@@ -1,0 +1,34 @@
+.avatar, .portrait {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, var(--dsw-alias-bg-layer-2));
+}
+.avatar { width: 38px; height: 38px; border: 1px solid var(--dsw-alias-border-l3); cursor: pointer; -webkit-app-region: no-drag; }
+.avatar:hover { background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--dsw-alias-bg-layer-2)); }
+.avatar:focus-visible, .space:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
+.dialog { width: min(420px, calc(100vw - 32px)); }
+.content { display: flex; flex-direction: column; gap: 16px; padding: 0 24px; }
+.identity { display: flex; align-items: center; gap: 14px; padding: 4px 0 12px; outline: none; }
+.portrait { width: 56px; height: 56px; }
+.identity strong { font-size: 18px; }
+.identity small, .space small { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.caption { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.spaces { display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow-y: auto; padding: 3px; margin: -3px; }
+.space { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 12px; border: 1px solid var(--dsw-alias-border-l3); border-radius: 14px; background: transparent; color: var(--dsw-alias-label-primary); text-align: start; cursor: pointer; }
+.space > span:first-of-type { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.space[aria-pressed='true'] { border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, transparent); }
+.space:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.space:disabled { cursor: default; opacity: 0.6; }
+.selected { flex-shrink: 0; font-size: 11px; color: var(--dsw-alias-state-business-primary); }
+@media (prefers-reduced-motion: no-preference) {
+  .avatar { transition: transform 180ms ease, background 180ms ease; }
+  .avatar:hover { transform: translateY(-1px) scale(1.04); }
+  .avatar:active { transform: scale(0.95); }
+  .space { transition: background 160ms ease, border-color 160ms ease; }
+  .dialog { animation: arrive 180ms ease-out; }
+}
+@keyframes arrive { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }

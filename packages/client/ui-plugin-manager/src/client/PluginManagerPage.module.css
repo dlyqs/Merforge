@@ -9,6 +9,7 @@
   height: 100%;
   overflow: auto;
   padding: 28px clamp(24px, 4vw, 48px) 48px;
+  padding-top: max(28px, var(--dsh-frame-leading-clearance, 0px));
   color: var(--dsw-alias-label-primary);
 }
 

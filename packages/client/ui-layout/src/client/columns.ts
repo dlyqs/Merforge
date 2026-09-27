@@ -10,13 +10,13 @@ export interface Columns { sidebar: number; center: number; rightbar: number }
 /** Center width protected while the normal right column is open. */
 export const CENTER_MIN = 400
 /** Sidebar drag clamp floor. */
-export const SIDEBAR_MIN = 264
+export const SIDEBAR_MIN = 312
 /** Sidebar drag clamp ceiling. */
-export const SIDEBAR_MAX = 420
+export const SIDEBAR_MAX = 492
 /** Sidebar width before any user drag. */
-export const SIDEBAR_DEFAULT = 280
-/** Closed-sidebar rail: a 24px icon column between 16px horizontal paddings. */
-export const SIDEBAR_COLLAPSED = 56
+export const SIDEBAR_DEFAULT = 352
+/** Persistent primary navigation rail, including macOS window controls. */
+export const SIDEBAR_COLLAPSED = 72
 /** Viewport width below which the sidebar auto-collapses to the rail (deepsuite
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */

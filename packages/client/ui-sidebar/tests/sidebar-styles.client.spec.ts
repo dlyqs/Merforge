@@ -26,47 +26,15 @@ function declarations(selector: string): Map<string, string> | undefined {
 }
 
 describe('SidebarRoot.module.css', () => {
-  it('shares and cancels the wide shell trailing padding structurally', () => {
-    const root = declarations('.root')
-    expect(root?.get('--dsh-sidebar-inline-padding')).toBe('12px')
-    expect(root?.get('padding')).toBe('6px var(--dsh-sidebar-inline-padding)')
-    expect(declarations('.regionArea')?.get('margin-left')).toBe('-4px')
-    expect(declarations('.regionArea')?.get('padding-left')).toBe('4px')
-    expect(declarations('.regionArea')?.get('margin-right')).toBe(
-      'calc(-1 * var(--dsh-sidebar-inline-padding))',
-    )
-    expect(declarations('.collapsed .regionArea')?.get('margin-left')).toBe('0')
-    expect(declarations('.collapsed .regionArea')?.get('padding-left')).toBe('0')
-    expect(declarations('.collapsed .regionArea')?.get('margin-right')).toBe('0')
+  it('reserves a persistent rail and an independently scrolling browser', () => {
+    expect(declarations('.rail')?.get('flex')).toBe('0 0 72px')
+    expect(declarations('.secondary')?.get('min-width')).toBe('0')
+    expect(declarations('.regionArea')?.get('min-height')).toBe('0')
+    expect(declarations('.footArea')?.get('margin-top')).toBe('auto')
   })
 
-  it('moves the four upper controls while the settings seat only fades', () => {
-    const animation = 'rail-in 150ms var(--ds-ease-in-out) backwards'
-    for (const selector of [
-      '.railIn .iconButton',
-      '.railIn .newSession',
-      '.railIn .regionArea',
-    ]) {
-      expect(declarations(selector)?.get('animation')).toBe(animation)
-    }
-    expect(declarations('.railIn .footArea')?.get('animation')).toBe(
-      'rail-fade-in 150ms var(--ds-ease-in-out) backwards',
-    )
-    expect(css).toMatch(
-      /@keyframes rail-in\s*\{\s*from\s*\{\s*opacity: 0;\s*transform: translateX\(49px\);\s*}\s*}/,
-    )
-    expect(css).toMatch(/@keyframes rail-fade-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
-  })
-
-  it('gives shell rail controls the same base anchor for their shared translation', () => {
-    expect(declarations('.collapsed .headerRow')?.get('justify-content')).toBe('flex-start')
-    expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')
-    expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
-  })
-
-  it('reserves traffic-light space and lets the mode selector shrink', () => {
-    expect(declarations('.topStrip')?.get('padding')).toBe('0 12px 2px 80px')
-    expect(declarations('.modeSeat')?.get('min-width')).toBe('0')
-    expect(declarations('.modeSeat')?.get('flex')).toBe('1')
+  it('keeps the avatar below macOS traffic lights', () => {
+    expect(declarations(":global(html[data-platform='darwin']) .rail")?.get('padding-top')).toBe('52px')
+    expect(declarations(":global(html[data-platform='darwin'][data-fullscreen]) .rail")?.get('padding-top')).toBe('20px')
   })
 })

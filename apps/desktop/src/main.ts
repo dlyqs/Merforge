@@ -184,11 +184,11 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
     } : {}),
-    // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
+    // Compact native controls fit the primary rail; sidebar vibrancy
     // needs a transparent window background to show through the page.
     ...(process.platform === 'darwin' ? {
-      titleBarStyle: 'hiddenInset' as const,
-      trafficLightPosition: { x: 16, y: 18 },
+      titleBarStyle: 'hidden' as const,
+      trafficLightPosition: { x: 10, y: 16 },
       vibrancy: 'sidebar' as const,
       // 'active' keeps the vibrancy material stable when the window blurs;
       // 'followWindow' washes the sidebar out behind an unfocused window.

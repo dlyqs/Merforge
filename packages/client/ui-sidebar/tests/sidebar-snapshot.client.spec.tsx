@@ -70,11 +70,11 @@ describe('sidebar shell snapshots', () => {
     await runtime.dispose()
   })
 
-  it('renders the collapsed rail after the crossfade settles, in place', async () => {
+  it('renders the collapsed rail while keeping its primary entries, in place', async () => {
     const { runtime } = await bench({ locale: 'en' })
     const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
     const shell = slot.container.firstElementChild
-    slot.update({ collapsed: true, width: 56 })
+    slot.update({ collapsed: true, width: 72 })
     // The wide content (wordmark shortcut) unmounts at the 150ms settle;
     // only the rail's capsule remains a New-session button.
     await waitFor(() => {
@@ -103,7 +103,7 @@ describe('sidebar shell snapshots', () => {
     try {
       const slot = runtime.renderSlot('sidebar', { collapsed: false, width: 300 })
       expect(slot.container).toMatchSnapshot('windows expanded')
-      slot.update({ collapsed: true, width: 0 })
+      slot.update({ collapsed: true, width: 72 })
       expect(slot.view.getAllByRole('button', { name: 'New session' })).toHaveLength(1)
       expect(slot.container).toMatchSnapshot('windows collapsed')
     } finally {

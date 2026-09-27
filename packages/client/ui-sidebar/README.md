@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-The dsh web client sidebar lets users switch between Personal and Organization, start a new session, collapse navigation to a 56px rail, browse Project and Bot conversations, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session creates an ordinary conversation without Project or Bot affiliation. The header contains only the mode selector and collapse control, without branding or build metadata.
+The Desktop navigation has a persistent 72px primary rail and a resizable secondary browser. The rail contains an avatar placeholder, New Session, Tasks, Projects, Bots and Recent, with the Personal/Organization switch and Settings pinned below a divider at the bottom. Projects and Bots display their conversations in the secondary browser. Tasks displays plan rows there and opens the selected plan in the main workspace. Settings retains its centered overlay.
 
 ## Table of Contents
 
@@ -27,23 +27,17 @@ The sidebar is the navigation shell: users switch modes, start new sessions, col
 
 ### Mode selector and New Session
 
-The expanded header renders `sidebar.mode` immediately before the collapse button. Its occupant owns the Personal/Organization controls; the shell supplies a shrinking seat capped at 200px. Branding slots remain declared for existing registrants but are no longer rendered. New Session creates and opens an ordinary Session without Project or Bot affiliation.
+The rail top renders `sidebar.account` for a circular avatar and centered account dialog. The rail foot renders Settings without a divider. The middle browser omits redundant section headings. The shell contributes a fixed-size collapse control to `shell.navigation` in the main workspace, with the `shell.navigation.badge` child seat. Branding slots remain reserved. New Session creates and opens an ordinary Session without Project or Bot affiliation.
 
 ### Global panel entries
 
-Plugins add an icon component to the root-scoped `sidebar.panellist` list with an `id`, optional `order`, and a string or locale-aware `label`. The same id addresses the component registered in the layout's root-scoped `main` keyed slot; selecting a missing main entry throws without changing the current selection. The label supplies plain visible text, the accessible name, and the collapsed tooltip. Each row reads its own selected state through `usePanelInfo`; moving DOM focus to search or a directory picker does not change the displayed panel or its selected row. With no registrations, neither the list nor spacing for it is rendered. The shipped composition registers no example panel.
+Plugins register `sidebar.panellist` icons with an `id`, optional `order`, and localized `label`; the same id selects a registered `main` panel. The `tasks` entry occupies the first navigation position and selects `sidebar.tasks` as the secondary browser. Other contributed panels follow the persistent Projects, Bots and Recent entries. All primary entries keep their labels when the secondary browser collapses. DOM focus alone does not change selection.
 
-### Collapse behavior
+### Collapse and window controls
 
-The top expand button hosts the optional, non-interactive `sidebar.toggle.badge` slot while collapsed. Its occupant supplies status and tooltip content without adding another action or changing the button's navigation behavior.
+Collapsing removes the secondary browser while keeping the primary rail on macOS, Windows and other clients. Choosing Tasks, Projects, Bots or Recent expands the browser when needed. The collapse button lives in the secondary header; the collapsed rail provides the reopen control and its optional `shell.navigation.badge`.
 
-During a live collapse, the expanded content fades out at its current width, the upper controls share one fade and leftward translation into the 56px rail, and the layout's column slide ends the motion. A page that starts collapsed renders the rail statically, and reduced-motion mode disables both transitions. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation.
-
-On Windows Electron, the expanded mode selector and toggle share the sidebar header below the caption. When collapsed, the sidebar toggle and New Session occupy the caption's top-left corner and reserve 84px before Desktop menus. These controls use 28px circular boxes, exclude themselves from window dragging, and show tooltips below the caption.
-
-### macOS desktop
-
-Under `html[data-platform='darwin']`, the expanded column opens with a 52px header. An 80px left inset clears the hiddenInset traffic lights; the mode selector shrinks within the remaining space to the left of the collapse button. Fullscreen removes this inset. The header remains a window-drag surface with interactive controls excluded. Collapsing hides the column entirely; `HeaderLeadingControls` in the frame's `shell.leading` seat supplies Open sidebar and New Session beside the traffic lights.
+On macOS the rail reserves its top 52px for native traffic lights. Fullscreen releases that top reservation. The secondary header has no traffic-light inset. Window drag regions remain owned by the frame; controls exclude themselves from dragging.
 
 ### Scrollbars
 
@@ -61,7 +55,7 @@ The shell is pure composition: `SidebarRootComponentProps` composes the layout o
 
 ### Slot discipline
 
-Declaration-aware `slots.inject()` lets a replacing package activate before or after the sidebar. The foot is the `sidebar.settings` seat: the sidebar renders only the bottom-pinned layout slot and shares its column state (`wide`). The `/client` exports are the plugin body (`apply`/`inject`) plus the contract types only; SidebarRoot, the row components, and the tree derivation remain package-internal behind the slot registration.
+Declaration-aware `slots.inject()` lets a replacing package activate before or after the sidebar. The foot is the `sidebar.settings` seat: the sidebar renders only the bottom-pinned layout slot and supplies `wide: false` for the persistent icon presentation. The `/client` exports are the plugin body (`apply`/`inject`) plus the contract types only; SidebarRoot, the row components, and the tree derivation remain package-internal behind the slot registration.
 
 </details>
 

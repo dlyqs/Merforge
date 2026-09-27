@@ -22,10 +22,12 @@ it('loads personal records through the registered sidebar seat', async ({ mock, 
     } satisfies SessionFollowFrame)
   })
   const c = await start()
-  const entry = c.ctx.slots.entries('personal.manager.workflow')[0]
+  const entry = c.ctx.slots.entries('main').find(entry => entry.options.key === 'tasks')
   expect(entry?.component).toBe(Workflow)
   expect(entry?.locale).toBe('personalWorkflow')
   expect(entry?.inject).toBeDefined()
+  expect(c.ctx.slots.entries('sidebar.tasks')[0]?.store).toBe(entry?.store)
+  expect(c.ctx.slots.entries('sidebar.panellist').some(item => item.options.id === 'tasks')).toBe(true)
   const face = entry!.inject!() as Partial<WorkflowActions>
   mock.remote.session.workflowList.mockResolvedValue(ok([]))
   expect(await face.list?.()).toEqual([])

@@ -86,8 +86,8 @@ export function apply(ctx: ClientContext): void {
   const carrier = (globalThis as typeof globalThis & { dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge } }).dshDesktop
   const desktopUpdate = new DesktopUpdateSource(carrier?.protocolVersion === 1 ? carrier.updates : undefined)
   ctx.effect(() => () => { desktopUpdate.dispose() }, 'ui-settings-general: desktop update carrier')
-  ctx.slots.inject('sidebar.toggle.badge', () => ctx.slots.register({
-    name: 'sidebar.toggle.badge', locale: NS,
+  ctx.slots.inject('shell.navigation.badge', () => ctx.slots.register({
+    name: 'shell.navigation.badge', locale: NS,
     inject: () => ({ hooks: { desktopUpdate: desktopUpdate.store, connectionState: connection.state } }),
   }, DesktopUpdateBadge))
 

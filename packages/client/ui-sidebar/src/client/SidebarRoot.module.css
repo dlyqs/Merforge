@@ -1,419 +1,50 @@
-/* Sidebar column (figma 133:7629): vertical stack, padding 12/6, sidebar
-   fill + 1px right border painted by the layout column. Collapse is a
-   slide + crossfade, not a morph: the content holds its frozen expanded
-   layout (inline width set by the component) and fades in place (.fading)
-   while the sliding column (AppFrame grid tracks) clips it; the rail layout
-   (.collapsed) only applies after the fade settles, so nothing reflows
-   mid-slide. */
-
 .root {
-  --dsh-sidebar-inline-padding: 12px;
+  --dsh-sidebar-inline-padding: 0px;
   display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
-  padding: 6px var(--dsh-sidebar-inline-padding);
-  box-sizing: border-box;
-  background: var(--dsw-specific-sidebar-fill);
+  min-width: 0;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  /* The sidebar is elevated above the conversation surface, so a revealed
-     scrollbar uses the l2 pair. .quietBars hides it without changing layout. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
-
-/* macOS desktop: the AppFrame column owns the translucent sidebar tint; an
-   opaque fill here would sit on top of it and block the window vibrancy. */
-:global([data-platform='darwin']) .root {
-  background: transparent;
-}
-
-/* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
-   rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the expand control. */
-.root.collapsed {
-  padding: 18px 10px 6px;
-}
-
-/* Expanded controls share the sidebar header; collapsed controls use the caption. */
-:global([data-windows-titlebar]) .root .headerRow {
-  height: 40px;
-  margin: 0;
-  padding: 0;
-}
-
-:global([data-windows-titlebar]) .collapsed .toggle {
-  position: fixed;
-  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
-  left: 12px;
-  z-index: 30;
-  -webkit-app-region: no-drag;
-}
-
-:global([data-windows-titlebar]) .root.collapsed .headerRow {
-  height: 0;
-}
-
-:global([data-windows-titlebar]) .root.collapsed {
-  padding: 0;
-}
-
-:global([data-windows-titlebar]) .root:not(.collapsed) .newSession {
-  margin-top: 8px;
-  margin-left: 0;
-}
-
-:global([data-windows-titlebar]) .collapsed .panelList,
-:global([data-windows-titlebar]) .collapsed .regionArea,
-:global([data-windows-titlebar]) .collapsed .footArea {
-  display: none;
-}
-
-:global(html[data-windows-titlebar]:has([data-sidebar-collapsed='true'])) {
-  --dsh-windows-menu-start: 84px;
-}
-
-:global([data-windows-titlebar]) .collapsed .newSession {
-  position: fixed;
-  top: calc((var(--dsh-windows-titlebar-height) - 28px) / 2);
-  left: 48px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  z-index: 30;
-  -webkit-app-region: no-drag;
-}
-
-:global([data-windows-titlebar]) .railIn .iconButton,
-:global([data-windows-titlebar]) .railIn .newSession {
-  animation: none;
-}
-
-:global([data-windows-titlebar]) .collapsed .toggle,
-:global([data-windows-titlebar]) .collapsed .newSession {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  corner-shape: round;
-  color: var(--dsw-alias-label-secondary);
-}
-
-:global([data-windows-titlebar]) .collapsed .toggle .panelIcon {
-  display: inline;
-}
-
-/* Scrollbars in the column are a pointer affordance: the shell adds this
-   class whenever the pointer is not inside (SidebarRoot.tsx owns the linger),
-   and rebinding ui-theme's indirection pair to `transparent` takes the thumb
-   out of every scroll region nested under it — the workspace browser's
-   session list. `transparent` rather than `display: none` on the bar:
-   the reservation (`scrollbar-gutter: stable` on the list) stays in force, so
-   revealing the thumb never reflows a row. Rebinding contract and the two
-   rendering paths it reaches: ui-theme's README. */
 .root.quietBars {
   --dsh-scrollbar-thumb: transparent;
   --dsh-scrollbar-thumb-hover: transparent;
 }
-
-/* Collapse phase 1: the whole frozen-width content fades out in place over
-   150ms; at settle the children unmount/snap to the rail layout. */
-.fading > * {
-  opacity: 0;
-  transition: opacity 150ms var(--ds-ease-in-out);
-}
-
-/* Wide-only content fades back in on expand remount. */
-.wide {
-  animation: wide-in 200ms var(--ds-ease-in-out);
-}
-
-@keyframes wide-in {
-  from { opacity: 0; }
-}
-
-/* At the 150ms rail settle, the upper controls enter from the former
-   rail right edge over the remaining 150ms of the AppFrame track transition.
-   The bottom-pinned settings seat shares their opacity timeline but stays
-   horizontally fixed. Only a live collapse gets .railIn; a cold collapsed
-   render stays static. */
-.railIn .iconButton,
-.railIn .newSession,
-.railIn .panelList,
-.railIn .regionArea {
-  animation: rail-in 150ms var(--ds-ease-in-out) backwards;
-}
-
-.railIn .footArea {
-  animation: rail-fade-in 150ms var(--ds-ease-in-out) backwards;
-}
-
-@keyframes rail-in {
-  from {
-    opacity: 0;
-    transform: translateX(49px);
-  }
-}
-
-@keyframes rail-fade-in {
-  from { opacity: 0; }
-}
-
-/* Header controls share one compact row; the macOS inset clears traffic lights. */
-.headerRow {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  height: 46px;
-  margin-bottom: 6px;
-  min-width: 0;
+.rail {
   box-sizing: border-box;
-}
-.modeSeat { flex: 1; min-width: 0; max-width: 200px; }
-.collapsed .headerRow { justify-content: flex-start; height: 36px; margin-bottom: 12px; }
-.topStrip {
-  height: 52px;
-  margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 6px;
-  padding: 0 12px 2px 80px;
-  -webkit-app-region: drag;
-}
-:global([data-fullscreen]) .topStrip { padding-left: 12px; }
-
-.iconButton {
-  position: relative;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  corner-shape: round;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.iconButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.collapsed .iconButton {
-  width: 36px;
-  height: 36px;
-  /* Rail hovers share the panel rows' and New Session's 12px rounding. */
-  border-radius: 12px;
-}
-
-/* Rail icons ride the primary ink (figma rail spec); expanded keeps the
-   secondary icon-button ink. */
-.collapsed .iconButton {
-  color: var(--dsw-alias-label-primary);
-}
-
-/* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off
-   corners); collapsed it renders as the rail's plain icon control. */
-.newSession {
-  flex: none;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 38px;
-  padding: 8px 16px;
-  margin: 0 2px 12px;
-  box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 12px;
-  background: var(--dsw-alias-button-elevated-fill);
-  color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.newSession:hover {
-  background: var(--dsw-alias-button-floating-hover);
-}
-
-/* macOS: the themed elevated fill reads as a foreign slab on the vibrancy
-   sidebar; a white wash sits in the glass like native macOS sidebar
-   controls. Dark keeps the same white ink at lower alpha. */
-:global([data-platform='darwin']) .newSession {
-  background: rgb(255 255 255 / 0.55);
-}
-
-:global([data-platform='darwin']) .newSession:hover {
-  background: rgb(255 255 255 / 0.3);
-}
-
-:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession {
-  background: rgb(255 255 255 / 0.15);
-}
-
-:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession:hover {
-  background: rgb(255 255 255 / 0.2);
-}
-
-.collapsed .newSession {
-  align-self: flex-start;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  margin: 0 0 12px;
-  gap: 0;
-  border-color: transparent;
-  background: transparent;
-}
-
-.collapsed .newSession:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.newSessionLabel {
-  max-width: 200px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.collapsed .newSessionLabel {
-  max-width: 0;
-}
-
-.panelList {
-  flex: none;
-  display: flex;
+  flex: 0 0 72px;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-/* Panel entries share the New Session bar's 12px radius and 2px inset, the
-   session rows' hover/selected surface, and the primary ink. */
-.panelRow {
-  display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 2px;
-  min-height: 36px;
-  padding: 7px 8px;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  line-height: 22px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.panelRow:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.panelRow.panelActive {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-
-.panelRow:focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
-  outline-offset: -2px;
-}
-
-.panelGlyph {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.panelTitle {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.collapsed .panelList {
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.collapsed .panelRow {
-  width: 36px;
-  height: 36px;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  color: var(--dsw-alias-label-primary);
-}
-
-/* Region seat: always mounted so the foot never moves. Its trailing margin
-   cancels the wide shell inset so the nested scrollbar can sit at the sidebar
-   edge; the browser restores that inset inside its own rows. */
-.regionArea {
-  flex: 1;
+  gap: 14px;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin-left: -4px;
-  margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
-  padding-left: 4px;
-  overflow: hidden;
+  padding: 20px 8px 12px;
+  border-right: 0.5px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-bg-module-platform);
 }
+:global(html[data-platform='darwin']) .rail { padding-top: 52px; }
+:global(html[data-platform='darwin'][data-fullscreen]) .rail { padding-top: 20px; }
 
-.collapsed .regionArea {
-  margin-left: 0;
-  margin-right: 0;
-  padding-left: 0;
-}
-
-/* Footer seats: additive actions stack above Settings. Each occupant owns its
-   button geometry and hover chrome. */
-.footArea {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.settingsArea,
-.footerActions {
-  flex: none;
-  min-width: 0;
-  width: 100%;
-}
-
-.footerActions {
-  display: flex;
-}
-
-.collapsed .footArea {
+.createButton, .navButton {
+  display: inline-flex;
   align-items: center;
-}
-
-.collapsed .settingsArea,
-.collapsed .footerActions {
-  display: flex;
   justify-content: center;
-  width: auto;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .wide,
-  .fading > *,
-  .railIn .iconButton,
-  .railIn .newSession,
-  .railIn .panelList,
-  .railIn .footArea,
-  .railIn .regionArea {
-    transition: none;
-    animation: none;
-  }
-}
+.createButton { width: 36px; height: 36px; background: var(--dsw-alias-bg-layer-2); }
+.panelList { display: flex; flex-direction: column; gap: 6px; width: 100%; overflow-y: auto; min-height: 0; }
+.navButton { flex-direction: column; gap: 5px; width: 100%; min-height: 58px; padding: 8px 2px; font-size: 11px; line-height: 15px; }
+.navButton span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navButton[aria-current='page'] { color: var(--dsw-alias-state-business-primary); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 11%, transparent); }
+:is(.navButton, .createButton):hover { background: var(--dsw-alias-interactive-bg-hover); }
+:is(.navButton, .createButton):focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+.footArea { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; width: 100%; margin-top: auto; padding-top: 12px; }
+.settingsArea { width: 100%; display: flex; justify-content: center; }
+.secondary { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--dsw-specific-sidebar-fill); }
+.regionArea { display: flex; flex: 1; min-height: 0; min-width: 0; padding: 12px 10px; }

@@ -43,7 +43,7 @@ function hook<T>(value: T) {
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
-function mount(sessionList: SessionListState = list) {
+function mount(sessionList: SessionListState = list, section?: PersonalSidebarProps['section']) {
   const openSession = vi.fn()
   const moveSession = vi.fn(async () => {})
   const deleteSession = vi.fn(async () => {})
@@ -52,7 +52,7 @@ function mount(sessionList: SessionListState = list) {
   const pickDirectory = vi.fn(async () => '/tmp/picked-project')
   const props: PersonalSidebarProps = {
     renderSlot: () => <span>Task plans</span>, renderSlotChain: () => null, SessionProvider: ({ children }) => <>{children}</>,
-    wide: true, expandSidebar: vi.fn(),
+    wide: true, expandSidebar: vi.fn(), ...(section === undefined ? {} : { section }),
     useSessions: hook(sessionList), useSessionStatus: hook(statuses), useWorkspaces: hook(workspaces),
     useSessionRetainInfo: () => undefined, useResource, usePanelInfo,
     useRecords: hook({ phase: 'ready' as const, projects: [project(projectA, 'Alpha'), project(projectB, 'Beta')], bots: [bot] }),
@@ -74,6 +74,16 @@ describe('personal sidebar', () => {
     expect(screen.getByText(zh.bots)).toBeTruthy()
     expect(screen.queryByRole('button', { name: zh.expand })).toBeNull()
     expect(screen.queryByRole('button', { name: zh.collapse })).toBeNull()
+  })
+
+  it.each(['projects', 'bots', 'recent'] as const)('shows only the %s secondary browser', (section) => {
+    mount(list, section)
+    expect(screen.queryByText(zh.projects)).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.addProject }) !== null).toBe(section === 'projects')
+    expect(screen.queryByText(zh.bots)).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.addBot }) !== null).toBe(section === 'bots')
+    expect(screen.queryByRole('region', { name: zh.recent }) !== null).toBe(section === 'recent')
+    expect(screen.queryByText('Task plans')).toBeNull()
   })
 
   it('does not create an ungrouped section for a blank ordinary conversation', () => {
@@ -114,7 +124,7 @@ describe('personal sidebar', () => {
     expect(screen.getByRole('button', { name: `Alpha · ${zh.dropProject}` }).getAttribute('aria-expanded')).toBe('true')
     const rows = screen.getAllByRole('button', { name: 'Conversation · 进行中' })
     expect(rows).toHaveLength(2)
-    expect(screen.getAllByText('Task plans')).toHaveLength(1)
+    expect(screen.queryByText('Task plans')).toBeNull()
     expect(rows[0]?.textContent).toContain('Reviewer')
     expect(rows[1]?.textContent).not.toContain('Reviewer')
     fireEvent.click(rows[1]!)

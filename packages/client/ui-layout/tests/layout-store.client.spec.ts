@@ -13,7 +13,7 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot()).toEqual({
       panelInfo: { activePanelId: null },
       layoutInfo: {
-        sidebar: 280,
+        sidebar: 352,
         viewportWidth: 1920,
         narrowExpanded: false,
         rightbar: null,
@@ -31,17 +31,17 @@ describe('createLayoutStore', () => {
     const b = createLayoutStore().create()
     a.actions.setSidebar(400)
     a.actions.openRightbar(true, false)
-    expect(b.store.getSnapshot().layoutInfo.sidebar).toBe(280)
+    expect(b.store.getSnapshot().layoutInfo.sidebar).toBe(352)
     expect(b.store.getSnapshot().layoutInfo.rightbar).toBeNull()
     expect(write).not.toHaveBeenCalled()
   })
 
-  it('clamps the sidebar to 264–420px', () => {
+  it('clamps the sidebar to 312–492px', () => {
     const { store, actions } = createLayoutStore().create()
     actions.setSidebar(1)
-    expect(store.getSnapshot().layoutInfo.sidebar).toBe(264)
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(312)
     actions.setSidebar(9999)
-    expect(store.getSnapshot().layoutInfo.sidebar).toBe(420)
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(492)
   })
 
   it('toggles the wide sidebar between closed and default width', () => {
@@ -50,7 +50,7 @@ describe('createLayoutStore', () => {
     actions.toggleSidebar()
     expect(store.getSnapshot().layoutInfo.sidebar).toBe(0)
     actions.toggleSidebar()
-    expect(store.getSnapshot().layoutInfo.sidebar).toBe(280)
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(352)
   })
 
   it('keeps the sidebar preference while toggling its narrow override', () => {
@@ -213,12 +213,12 @@ describe('right panel', () => {
 
   it('keeps the wide sidebar preference and never opens a closed right panel on resize', () => {
     const { store, actions } = createLayoutStore().create()
-    actions.setSidebar(420)
+    actions.setSidebar(492)
     actions.openRightbar(true, false)
-    expect(store.getSnapshot().layoutInfo.sidebar).toBe(420)
+    expect(store.getSnapshot().layoutInfo.sidebar).toBe(492)
     actions.closeRightbar()
     actions.setViewportWidth(3000)
-    expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 420, rightbarShown: false, rightbarTrack: false })
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 492, rightbarShown: false, rightbarTrack: false })
   })
 })
 

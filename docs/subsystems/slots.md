@@ -110,9 +110,14 @@ The hierarchy below is the shipped declaration tree. A child exists only while t
 
 ```text
 root
+├─ shell.navigation
+│  └─ shell.navigation.badge
 ├─ sidebar
 │  ├─ sidebar.brand.mark
 │  ├─ sidebar.brand.name
+│  ├─ sidebar.account
+│  ├─ sidebar.tasks
+│  ├─ sidebar.personal
 │  ├─ sidebar.panellist
 │  ├─ sidebar.footer.action
 │  ├─ sidebar.workspaces
@@ -130,7 +135,7 @@ root
 │        ├─ settings.models.provider-card
 │        ├─ settings.models.footer
 │        └─ settings.plugins.tab
-├─ main
+├─ main (conversation or selected panel, including tasks)
 │  ├─ plugins.item
 │  ├─ plugins.bundle.config
 │  ├─ plugins.row.config
@@ -177,7 +182,6 @@ root
 │     │  └─ sidebar.right.tab.guide.entry
 │     ├─ sidebar.right.pane.tab.title
 │     └─ sidebar.right.tab.menu.item
-├─ shell.leading
 └─ shell.overlay
 ```
 

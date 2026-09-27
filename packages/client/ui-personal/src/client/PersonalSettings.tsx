@@ -9,7 +9,7 @@ import css from './PersonalSidebar.module.css'
  * @returns Personal navigation.
  */
 export function PersonalSidebarEntry(props: PropsRuntime<'sidebar.personal'> & PropsRenderFactories) {
-  return props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar })
+  return props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })
 }
 
 /** Expose persistent personal records and temporary workflow testing controls.
@@ -21,6 +21,6 @@ export function PersonalSettings(props: PropsRuntime<'settings.section'> & Props
     <h2>{props.t('settingsTitle')}</h2>
     <p>{props.t('settingsDescription')}</p>
     {props.renderSlot('settings.personal.testing', {})}
-    {props.renderFactorySlot('personal.manager', { wide: true, expandSidebar: () => {}, management: true })}
+    {props.renderFactorySlot('personal.manager', { wide: true, expandSidebar: () => {}, management: true, onNavigate: props.close })}
   </section>
 }

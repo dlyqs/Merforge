@@ -235,3 +235,15 @@
   .settingIcon { display: none; }
   .testing { padding: 16px; }
 }
+
+.taskBrowser { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; min-width: 0; padding: 8px 2px; }
+.taskBrowser .planList { flex-direction: column; overflow-x: hidden; overflow-y: auto; margin: 0; padding: 0; }
+.taskBrowser .planItem { flex: none; width: 100%; border-radius: 9px; padding: 14px 12px; }
+.taskBrowser .planItem strong { white-space: normal; overflow-wrap: anywhere; line-height: 20px; }
+.taskBrowser .planItem small { line-height: 18px; }
+.taskBrowser .empty { min-height: 160px; padding: 16px 8px; font-size: 12px; line-height: 20px; }
+.taskPage { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 22px 28px 32px; box-sizing: border-box; color: var(--dsw-alias-label-primary); }
+.taskPage h2 { margin: 0 0 6px; font-size: 20px; line-height: 28px; font-weight: 600; }
+.taskPage .body { max-width: 1600px; margin: 0 auto; }
+.taskPage .toolbar { min-height: 40px; padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 16px)); }
+@media (max-width: 800px) { .taskPage { padding: 18px 16px 24px; } }

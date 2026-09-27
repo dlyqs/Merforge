@@ -23,15 +23,15 @@ This package provides the Web GUI's three-column AppFrame, edge-column widths, a
 <a id="use-this-package"></a>
 ## Use this package
 
-The root slot composes the sidebar, main content, and right column. The sidebar spans 264–420px, defaults to 280px, and retains a 56px rail when collapsed; below 1024px it collapses automatically, and opening the right panel collapses a manually expanded sidebar. The right panel first opens at 45% of the viewport, then retains the user's pixel preference, capped at 70%. To protect 400px for the center, the frame first reduces the right panel to 300px, then reports insufficient room so its occupant closes it, and only then compresses the center further. Dragging has no transition delay; the right handle is absent while closed or fullscreen.
+The root slot composes the sidebar, main content, and right column. The sidebar spans 312–492px including the 72px primary rail, defaults to 352px, and retains the primary rail when collapsed; below 1024px it collapses automatically, and opening the right panel collapses a manually expanded sidebar. The right panel first opens at 45% of the viewport, then retains the user's pixel preference, capped at 70%. To protect 400px for the center, the frame first reduces the right panel to 300px, then reports insufficient room so its occupant closes it, and only then compresses the center further. Dragging has no transition delay; the right handle is absent while closed or fullscreen.
 
-Global panels occupy the root-scoped `main` keyed slot; `conversation` is the reserved key for the Conversation. `ctx.layout.selectPanel(id)` selects a registered panel, and `null` selects the Conversation without changing the current Session. No global panel is registered by the shipped composition.
+Global panels occupy the root-scoped `main` keyed slot; `conversation` is the reserved key for the Conversation. `ctx.layout.selectPanel(id)` selects a registered panel, and `null` selects the Conversation without changing the current Session. The shipped task workspace occupies the `tasks` key.
 
 ### Window-chrome seat
 
-On macOS desktop (`html[data-platform='darwin']`, set only by the desktop preload) a collapsed sidebar hides its column entirely instead of keeping the rail, and the frame mounts the single root-scoped `shell.leading` seat at its top-left — beside the hiddenInset traffic lights, over every main panel; ui-sidebar occupies it with the reopen and New Session controls. While the seat is mounted the frame publishes `--dsh-frame-leading-clearance`, the inline band the window chrome occupies measured from the frame's left edge; a main panel whose content reaches the top-left corner pads by it so nothing lands under the lights or the controls. The frame also always publishes `--dsh-frame-top-clearance` (48px) on the root element, the constant step below the window's top strip; entry pages in the main panel (plugin manager and similar, not the conversation) pad their top by it, and overlay primitives (portal menus, bottom-anchored overlays, the settings panel) keep it as their top viewport margin — the root-element home lets overlays portalled to `document.body` read it too. The full-width window drag band is 52px; while the Conversation is selected and its header shows the view tab strip, the band deepens to the 76px header block (title row plus tab strip), so blank header space drags while header controls stay clickable.
+The primary navigation rail remains visible when the secondary browser collapses, on every platform. Native macOS traffic lights stay over this rail, so no controls float over the main panel. The frame publishes `--dsh-frame-top-clearance` (48px) for macOS overlays. Its 52px window drag band extends to 76px when the Conversation header displays view tabs; interactive controls remain excluded from dragging.
 
-Windows Electron's `data-windows-titlebar` marker reserves the caption height above all columns and removes the collapsed sidebar rail. Only the content area's top-left corner has a 16px radius; the other corners and the internal divider remain square. The frame publishes `--dsh-windows-content-radius` and `--dsh-windows-sidebar-width` for ui-sidebar-right's fullscreen corner and sidebar clearance. Ordinary Web documents do not receive the marker; macOS retains its separate layout.
+Windows Electron's `data-windows-titlebar` marker reserves the caption height above all columns. The frame publishes `--dsh-windows-content-radius` and `--dsh-windows-sidebar-width` for the right panel's fullscreen placement.
 
 ### Theme presentation
 
@@ -83,7 +83,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define the current layout behavior. They are current package constraints, not a general window-manager comparison or a task backlog.
 
 - **Panel geometry is transient** — reload restores the sidebar default and the right panel hidden; each dragged width is one frame-wide preference, not a per-Session fact.
-- **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; the left 56px rail remains.
+- **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; the left 72px rail remains.
 - **Track and panel travel on one shared curve only while animating** — during a discrete open/close the frame sets `data-animating` and its track transition and the occupant's slide read the same duration and easing variables; an occupant that used its own would detach the panel's edge from the conversation's while squeezing. Drags and instant presentation switches run transition-free, so the curve does not cover them.
 - **No scroll anchoring during squeeze reflow** — layout changes may move the reader's viewport.
 
@@ -98,3 +98,5 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. The shell viewing-state store behind `ctx.layout` emits no Cordis events; clamp and track sequencing is asserted directly by this package's columns and service specs.
+
+The `shell.navigation` slot places a persistent 32px sidebar control at the main workspace’s upper-left. Its owner supplies the current collapsed state and toggle action. Main headers clear it through `--dsh-frame-leading-clearance`.

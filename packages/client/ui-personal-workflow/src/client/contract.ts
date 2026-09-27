@@ -1,22 +1,29 @@
 /** Personal plan view props and Remote callbacks. */
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkflowMode, SetWorkflowModeRequest, PlanView, PlanRevision, SavePlanRequest, ApprovePlanRequest, ReadPlanRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-personal/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type { createWorkflowStore } from './store.ts'
 import type { WorkflowKey } from './locales.ts'
 
 /** Operations return only committed Host results. */
 export interface WorkflowActions {
-  list(): Promise<PlanView[]>
+  list(this: void): Promise<PlanView[]>
   save(request: SavePlanRequest): Promise<PlanRevision>
   approve(request: ApprovePlanRequest): Promise<PlanRevision>
   exportPlan(request: ReadPlanRequest): Promise<string>
   openSession(id: SessionId): void
 }
 /** Derived slot props and user operations. */
-export type WorkflowProps = PropsRuntime<'personal.manager.workflow'> & PropsLocale<'personalWorkflow'> & WorkflowActions
+export type WorkflowProps = PropsRuntime<'main'> & PropsLocale<'personalWorkflow'> & WorkflowActions & PropsStore<ReturnType<typeof createWorkflowStore>>
+/** Shared task list selection and navigation. */
+export type WorkflowListProps = PropsRuntime<'sidebar.tasks'> & PropsLocale<'personalWorkflow'> & Pick<WorkflowActions, 'list'> & PropsStore<ReturnType<typeof createWorkflowStore>> & { openTasks(): void }
+/** Settings entry opens the same main task workspace. */
+export type WorkflowEntryProps = PropsRuntime<'personal.manager.workflow'> & PropsLocale<'personalWorkflow'> & { openTasks(): void }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {

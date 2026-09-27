@@ -35,7 +35,7 @@ function allowlist(value: string): string[] | undefined {
 /** Sidebar Project/Bot browser and editor. */
 export function PersonalSidebar(props: PersonalSidebarProps) {
   const {
-    management = false, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
+    management = false, section, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
     refresh, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
     createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
@@ -243,46 +243,50 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>
     {wide && <div className={css.body}>
       {management && <h3>{t('tasks')}</h3>}
-      {props.renderSlot('personal.manager.workflow', { projectId: null, botId: null })}
+      {management && props.renderSlot('personal.manager.workflow', { projectId: null, botId: null, ...(props.onNavigate === undefined ? {} : { onNavigate: props.onNavigate }) })}
       {records.phase === 'loading' && <p>{t('loading')}</p>}
       {records.phase === 'error' && <button type="button" onClick={() => { void refresh() }}>{t('retry')}</button>}
-      <div className={css.groupHeading}><span>{t('projects')}</span>
-        <div className={css.headingActions}>
-          <Menu open={menu === 'projects'} portal align="end" autoFocus
-            onClose={() => { setMenu(null) }}
-            anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('projects')}`}
-              aria-haspopup="menu" aria-expanded={menu === 'projects'}
-              onClick={() => { setMenu(menu === 'projects' ? null : 'projects') }}><IconEllipsisOutlineRegular /></button>}
-            selectedId={sortByName.project ? 'name' : 'default'}
-            items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
-            onSelect={(id) => { setSortByName(value => ({ ...value, project: id === 'name' })); setMenu(null) }} />
+      {(section === undefined || section === 'projects') && <>
+        <div className={section === undefined ? css.groupHeading : css.browserActions}>{section === undefined && <span>{t('projects')}</span>}
+          <div className={css.headingActions}>
+            <Menu open={menu === 'projects'} portal align="end" autoFocus
+              onClose={() => { setMenu(null) }}
+              anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('projects')}`}
+                aria-haspopup="menu" aria-expanded={menu === 'projects'}
+                onClick={() => { setMenu(menu === 'projects' ? null : 'projects') }}><IconEllipsisOutlineRegular /></button>}
+              selectedId={sortByName.project ? 'name' : 'default'}
+              items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
+              onSelect={(id) => { setSortByName(value => ({ ...value, project: id === 'name' })); setMenu(null) }} />
 
-          <Tooltip label={t('addProject')}><button type="button" className={css.headerAction} aria-label={t('addProject')}
-            onClick={() => { setError(null); setDraft(projectDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+            <Tooltip label={t('addProject')}><button type="button" className={css.headerAction} aria-label={t('addProject')}
+              onClick={() => { setError(null); setDraft(projectDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+          </div>
         </div>
-      </div>
-      {(sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects).map(project => groupRow({ kind: 'project', id: project.id }, project.name, () => { setDraft(projectDraft(project)) }))}
-      <div className={css.groupHeading}><span>{t('bots')}</span>
-        <div className={css.headingActions}>
-          <Menu open={menu === 'bots'} portal align="end" autoFocus
-            onClose={() => { setMenu(null) }}
-            anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('bots')}`}
-              aria-haspopup="menu" aria-expanded={menu === 'bots'}
-              onClick={() => { setMenu(menu === 'bots' ? null : 'bots') }}><IconEllipsisOutlineRegular /></button>}
-            selectedId={sortByName.bot ? 'name' : 'default'}
-            items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
-            onSelect={(id) => { setSortByName(value => ({ ...value, bot: id === 'name' })); setMenu(null) }} />
+        {(sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects).map(project => groupRow({ kind: 'project', id: project.id }, project.name, () => { setDraft(projectDraft(project)) }))}
+      </>}
+      {(section === undefined || section === 'bots') && <>
+        <div className={section === undefined ? css.groupHeading : css.browserActions}>{section === undefined && <span>{t('bots')}</span>}
+          <div className={css.headingActions}>
+            <Menu open={menu === 'bots'} portal align="end" autoFocus
+              onClose={() => { setMenu(null) }}
+              anchor={<button type="button" className={css.headerAction} aria-label={`${t('more')} ${t('bots')}`}
+                aria-haspopup="menu" aria-expanded={menu === 'bots'}
+                onClick={() => { setMenu(menu === 'bots' ? null : 'bots') }}><IconEllipsisOutlineRegular /></button>}
+              selectedId={sortByName.bot ? 'name' : 'default'}
+              items={[{ id: 'default', label: t('sortDefault') }, { id: 'name', label: t('sortName') }]}
+              onSelect={(id) => { setSortByName(value => ({ ...value, bot: id === 'name' })); setMenu(null) }} />
 
-          <Tooltip label={t('addBot')}><button type="button" className={css.headerAction} aria-label={t('addBot')}
-            onClick={() => { setError(null); setDraft(botDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+            <Tooltip label={t('addBot')}><button type="button" className={css.headerAction} aria-label={t('addBot')}
+              onClick={() => { setError(null); setDraft(botDraft()) }}><IconPlusOutlineRegular /></button></Tooltip>
+          </div>
         </div>
-      </div>
-      {(sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots).map(bot => groupRow({ kind: 'bot', id: bot.id }, bot.name, () => { setDraft(botDraft(bot)) }))}
-      {!management && <section aria-label={t('recent')}>
-        <div className={css.groupHeading}><span>{t('recent')}</span></div>
+        {(sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots).map(bot => groupRow({ kind: 'bot', id: bot.id }, bot.name, () => { setDraft(botDraft(bot)) }))}
+      </>}
+      {!management && (section === undefined || section === 'recent') && <section aria-label={t('recent')}>
+        {section === undefined && <div className={css.groupHeading}><span>{t('recent')}</span></div>}
         {unassigned.map(id => sessionRow(id, 'recent'))}
       </section>}
-      {records.phase === 'ready' && records.projects.length === 0 && records.bots.length === 0 && unassigned.length === 0 && <p>{t('none')}</p>}
+      {records.phase === 'ready' && (section === 'projects' ? records.projects.length === 0 : section === 'bots' ? records.bots.length === 0 : section === 'recent' ? unassigned.length === 0 : records.projects.length === 0 && records.bots.length === 0 && unassigned.length === 0) && <p>{t(section === 'projects' ? 'noProjects' : section === 'bots' ? 'noBots' : section === 'recent' ? 'noRecent' : 'none')}</p>}
       {error !== null && draft === null && deleteTarget === null && deleteSessionId === null && selectedSession === null && newTarget === null && <p role="alert">{t('error', { message: error })}</p>}
     </div>}
     {selectedSession !== null && sessions.byId[selectedSession] !== undefined && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('manageSession')}

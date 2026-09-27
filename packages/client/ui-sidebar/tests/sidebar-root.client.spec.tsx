@@ -7,7 +7,7 @@ import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
   SidebarSettingsOwnerProps,
 } from '../src/client/contract/slots.ts'
-import { HeaderLeadingControls, type HeaderLeadingControlsProps } from '../src/client/HeaderLeadingControls.tsx'
+import { SidebarToggle } from '../src/client/SidebarToggle.tsx'
 import { SidebarRoot } from '../src/client/SidebarRoot.tsx'
 import { en } from '../src/client/locales.ts'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
@@ -45,7 +45,9 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
   const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
   let current = { collapsed, width }
   const root = () => (
-    <SidebarRoot
+    <><SidebarToggle {...{ collapsed: current.collapsed, toggleSidebar, t, useSessions: neverHook,
+      useSessionStatus, useSessionRetainInfo: neverHook, usePanelInfo, useResource, useWorkspaces: neverHook }}
+    renderSlot={() => null} /><SidebarRoot
       collapsed={current.collapsed} width={current.width}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
       usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
@@ -55,10 +57,10 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
         key: string,
         owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
       ) => {
-        if (key === 'sidebar.mode') return <button>Personal / Organization</button>
+        if (key === 'sidebar.account') return <button>Personal / Organization</button>
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
-        if (key === 'sidebar.toggle.badge') return null
+        if (key === 'shell.navigation.badge') return null
         if (key === 'sidebar.settings') {
           settingsOwner = owner
           return <div data-testid="settings-seat" data-wide={owner.wide} />
@@ -71,7 +73,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
         regionOwner = owner as SidebarSectionOwnerProps
         return <div data-testid="region" data-wide={owner.wide} />
       }) as SidebarRootComponentProps['renderSlot']}
-    />
+    /></>
   )
   const view = render(root())
   return {
@@ -114,47 +116,42 @@ describe('SidebarRoot shell', () => {
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
     const b = mountShell()
     expect(b.regionOwner().wide).toBe(true)
-    // The settings seat rides the same wide flag (ui-settings renders the row).
-    expect(b.settingsOwner().wide).toBe(true)
-    expect(b.footerActionOwner().wide).toBe(true)
+    // Settings remains a rail icon in both secondary-browser states.
+    expect(b.settingsOwner().wide).toBe(false)
+    expect(b.footerActionOwner().wide).toBe(false)
     // Expanded: the request is a no-op (no accidental collapse).
     b.regionOwner().expandSidebar()
     expect(b.toggleSidebar).not.toHaveBeenCalled()
   })
 
-  it('keeps the region mounted through collapse and expands on its request', () => {
-    vi.useFakeTimers()
+  it('keeps primary navigation and settings while unmounting the collapsed browser', () => {
     const b = mountShell()
-    b.rerender({ collapsed: true })
-    // Wide content survives the crossfade window, then settles into the rail.
-    expect(b.regionOwner().wide).toBe(true)
-    vi.advanceTimersByTime(200)
-    b.rerender({})
-    expect(b.regionOwner().wide).toBe(false)
+    b.rerender({ collapsed: true, width: 72 })
+    expect(screen.queryByTestId('region')).toBeNull()
     expect(b.footerActionOwner().wide).toBe(false)
-    expect(screen.getByTestId('region')).toBeTruthy()
-    b.regionOwner().expandSidebar()
+    expect(screen.getByRole('button', { name: 'Personal / Organization' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
 
-  it('renders statically collapsed on a cold start (no crossfade classes)', () => {
-    const b = mountShell({ collapsed: true })
-    expect(b.regionOwner().wide).toBe(false)
-    expect(screen.queryByRole('button', { name: 'Personal / Organization' })).toBeNull()
+  it('starts collapsed with primary navigation available', () => {
+    mountShell({ collapsed: true, width: 72 })
+    expect(screen.queryByTestId('region')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Personal / Organization' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
   })
 
   it('shows only the badge bubble while the rail badge is hovered inside the toggle', () => {
     vi.useFakeTimers()
-    render(<SidebarRoot
-      collapsed width={56}
+    render(<SidebarToggle
+      collapsed
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo}
       useResource={useResource} useWorkspaces={neverHook}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
-      renderSlot={((key: string) => key === 'sidebar.toggle.badge'
+      toggleSidebar={vi.fn()} t={t}
+      renderSlot={((key: string) => key === 'shell.navigation.badge'
         ? <Tooltip label="Update — V1.2.3"><span data-testid="badge" /></Tooltip>
-        : null) as SidebarRootComponentProps['renderSlot']}
+        : null) as React.ComponentProps<typeof SidebarToggle>['renderSlot']}
     />)
     const toggle = screen.getByRole('button', { name: 'Open sidebar' })
     fireEvent.mouseEnter(toggle)
@@ -172,26 +169,13 @@ describe('SidebarRoot shell', () => {
   })
 })
 
-it('keeps the macOS sidebar toggle in its top strip', () => {
+it('keeps the macOS workspace toggle available beside the sidebar', () => {
   document.documentElement.dataset.platform = 'darwin'
   const shell = mountShell()
   fireEvent.click(screen.getByRole('button', { name: en['toggle.collapse'] }))
   expect(shell.toggleSidebar).toHaveBeenCalledOnce()
   expect(screen.getAllByRole('button', { name: 'New session' })).toHaveLength(1)
   expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
-})
-
-it('wires the shell.leading controls to the shared sidebar actions', () => {
-  const toggleSidebar = vi.fn()
-  const startSession = vi.fn()
-  // This occupant only consumes its two actions and locale, not Session hooks;
-  // mounting is the frame's decision (ui-layout shell.leading seat).
-  const props = { toggleSidebar, startSession, t } as HeaderLeadingControlsProps
-  render(<HeaderLeadingControls {...props} />)
-  fireEvent.click(screen.getByRole('button', { name: en['toggle.open'] }))
-  fireEvent.click(screen.getByRole('button', { name: en['session.new.label'] }))
-  expect(toggleSidebar).toHaveBeenCalledOnce()
-  expect(startSession).toHaveBeenCalledOnce()
 })
 
 describe('Windows caption tooltips', () => {
@@ -203,22 +187,22 @@ describe('Windows caption tooltips', () => {
   }
 
   it.each([false, true])(
-    'drops the sidebar toggle bubble below the caption (collapsed=%s)',
+    'drops the sidebar toggle bubble beside the navigation control (collapsed=%s)',
     (collapsed) => {
       vi.useFakeTimers()
       document.documentElement.setAttribute('data-windows-titlebar', '')
       mountShell({ collapsed, width: collapsed ? 0 : 300 })
       hover(screen.getByRole('button', { name: collapsed ? 'Open sidebar' : 'Collapse sidebar' }))
-      expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('bottom')
+      expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('right')
     },
   )
 
-  it('drops the collapsed New Session bubble below the caption as well', () => {
+  it('drops the collapsed New Session bubble beside the navigation control as well', () => {
     vi.useFakeTimers()
     document.documentElement.setAttribute('data-windows-titlebar', '')
     mountShell({ collapsed: true, width: 0 })
     hover(screen.getByRole('button', { name: 'New session' }))
-    expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('bottom')
+    expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('right')
   })
 
   it('keeps the ordinary Web bubble beside its anchor', () => {

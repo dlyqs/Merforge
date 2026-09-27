@@ -27,7 +27,7 @@ import css from './AppFrame.module.css'
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay' | 'shell.leading'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay' | 'shell.navigation'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
@@ -181,11 +181,8 @@ export function AppFrame({
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
   const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
-  // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
-  // the Windows caption row; neither platform keeps an icon rail.
   const darwin = document.documentElement.dataset.platform === 'darwin'
-  const collapsedWidth = darwin
-    || document.documentElement.hasAttribute('data-windows-titlebar') ? 0 : SIDEBAR_COLLAPSED
+  const collapsedWidth = SIDEBAR_COLLAPSED
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
   const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference, collapsedWidth)
@@ -264,14 +261,8 @@ export function AppFrame({
   const main = useMemo(() => (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
   ), [usePanelInfo, renderSlot])
+  const navigation = useMemo(() => renderSlot('shell.navigation', { collapsed: sidebarCollapsed, toggleSidebar: actions.toggleSidebar }), [renderSlot, sidebarCollapsed, actions])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
-  // Window-chrome seat over the main panels' top-left corner: only a fully
-  // hidden sidebar column on macOS desktop leaves window chrome without a
-  // home — the Windows zero-width collapse keeps its controls in the caption
-  // row (ui-sidebar). AppFrame.module.css publishes the matching
-  // --dsh-frame-leading-clearance under the same collapsed condition.
-  const leading = useMemo(() => renderSlot('shell.leading', {}), [renderSlot])
-  const leadingMounted = darwin && sidebarCollapsed
 
   return (
     <div
@@ -304,7 +295,7 @@ export function AppFrame({
         {sidebar}
       </div>
       <>
-        <CenterColumn>{main}</CenterColumn>
+        <CenterColumn><div className={css.navigationSeat}>{navigation}</div>{main}</CenterColumn>
         <RightbarColumn>
           {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
         </RightbarColumn>
@@ -312,11 +303,6 @@ export function AppFrame({
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
       </div>
-      {leadingMounted && (
-        <div className={css.leadingSeat} data-shell-leading>
-          {leading}
-        </div>
-      )}
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
       {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (

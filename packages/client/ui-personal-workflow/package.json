@@ -37,7 +37,8 @@
         "@deepseek-ai/dsh-client-ui-sidebar",
         "@deepseek-ai/dsh-client-ui-workspace",
         "@deepseek-ai/dsh-client-ui-personal",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout"
       ],
       "platform": "web"
     }
@@ -75,7 +76,8 @@
     "@deepseek-ai/dsh-client-ui-personal": "workspace:*",
     "@deepseek-ai/dsh-personal-workflow": "workspace:*",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:*",
-    "@deepseek-ai/dsh-util-crypto": "workspace:*"
+    "@deepseek-ai/dsh-util-crypto": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-layout": "workspace:*"
   },
   "files": [
     "lib/index.js",

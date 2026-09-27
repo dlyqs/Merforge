@@ -59,7 +59,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Shared Project/Bot management used by sidebar and settings. */
     'personal.manager': {
       scope: 'root'
-      props: { wide: boolean; expandSidebar: () => void; management?: boolean }
+      props: { wide: boolean; expandSidebar: () => void; management?: boolean; onNavigate?: () => void; section?: 'projects' | 'bots' | 'recent' }
       children: { 'personal.manager.workflow': { kind: 'single'; scope: 'root' } }
       inject: PersonalInjected
       locale: 'personal'
@@ -70,7 +70,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'settings.personal.testing': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
 
     /** The single all-plans entry above personal navigation. */
-    'personal.manager.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null } }
+    'personal.manager.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null; onNavigate?: () => void } }
   }
   interface LocaleNamespaceMap {
     /** Personal Project and Bot navigation copy. */

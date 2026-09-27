@@ -1,22 +1,14 @@
-/**
- * Sidebar slot contract: the registrant-side props composition for the
- * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
- * owns column geometry, the mode selector, New Session, and global panel rows;
- * the browsing region belongs to the `sidebar.personal` registrant
- * (ui-personal), and the foot is the
- * `sidebar.settings` registrant's (ui-settings), followed by optional footer
- * actions in `sidebar.footer.action`.
- */
+/** Primary navigation, secondary browser and footer slot declarations. */
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /** Compact Personal/Organization selector beside the sidebar toggle. */
-    'sidebar.mode': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
-    /** Non-interactive notification inside the collapsed sidebar expand button. */
-    'sidebar.toggle.badge': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
+    /** Account avatar and account dialog at the primary rail top. */
+    'sidebar.account': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
+    /** Non-interactive notification inside the workspace navigation button. */
+    'shell.navigation.badge': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
     /**
      * Reserved brand-mark registration; the navigation header no longer renders branding.
      */
@@ -39,6 +31,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
     /** Project and Bot navigation in the sidebar browsing region. */
     'sidebar.personal': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /** Task plan list paired with the task main panel. */
+    'sidebar.tasks': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
     /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
@@ -90,6 +84,8 @@ export interface SidebarPanelMetadata {
 export interface SidebarSectionOwnerProps {
   /** Shell fold-state output: wide renders the full browser, rail the icon column. */
   wide: boolean
+  /** Selected secondary browser; absent in independent management occurrences. */
+  section?: 'projects' | 'bots' | 'recent'
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
 }
@@ -99,13 +95,13 @@ export interface SidebarSectionOwnerProps {
  * occupant's trigger row must render against (wide row vs rail icon).
  */
 export interface SidebarSettingsOwnerProps {
-  /** Whether the sidebar renders wide content (false = 56px rail). */
+  /** Whether the sidebar renders wide content (false = primary rail). */
   wide: boolean
 }
 
 /** Owner share of an action rendered beside Settings at the sidebar foot. */
 export interface SidebarFooterActionOwnerProps {
-  /** Whether the sidebar renders wide content (false = 56px rail). */
+  /** Whether the sidebar renders wide content (false = primary rail). */
   wide: boolean
 }
 
@@ -121,7 +117,7 @@ export type SidebarRootInjected = {
   /** Toggle the sidebar column through the layout service. */
   toggleSidebar: () => void
   /** Select the global panel addressed by a sidebar row. */
-  selectPanel: (id: MainPanelId) => void
+  selectPanel: (id: MainPanelId | null) => void
   /** Private reactive sources bound to framework selector hooks. */
   hooks: { panels: ObservableSnapshot<readonly SidebarPanelMetadata[]> }
 }
@@ -134,12 +130,12 @@ export type SidebarRootInjected = {
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
-    | 'sidebar.mode'
+    | 'sidebar.account'
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
-    | 'sidebar.toggle.badge'
     | 'sidebar.panellist'
     | 'sidebar.personal'
+    | 'sidebar.tasks'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

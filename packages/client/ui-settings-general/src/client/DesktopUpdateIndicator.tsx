@@ -76,7 +76,7 @@ export function DesktopUpdateIndicator({ wide, hidden, t, view, onOpen }: {
   </Tooltip>
 }
 
-type BadgeProps = PropsRuntime<'sidebar.toggle.badge'> & PropsLocale<'settings'>
+type BadgeProps = PropsRuntime<'shell.navigation.badge'> & PropsLocale<'settings'>
   & Pick<InjectFace<SettingsRootInjected>, 'useDesktopUpdate' | 'useConnectionState'>
 
 /**

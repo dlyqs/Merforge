@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  accountCenter: '账号', spaces: '工作空间', personalDescription: '你的项目、助手与对话', currentSpace: '当前',
   workspace: '组织工作台', viewMode: '工作视角', openWorkspace: '打开组织工作台',
   settingsDescription: '连接团队，管理成员与项目，或在这台电脑上提供组织服务。',
   account: '账号与组织', accountDescription: '连接受信任的服务，登录账号，选择你要进入的组织。',
@@ -43,6 +44,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  accountCenter: 'Account', spaces: 'Workspaces', personalDescription: 'Your projects, bots and chats', currentSpace: 'Current',
   workspace: 'Organization workspace', viewMode: 'Workspace view', openWorkspace: 'Open organization workspace',
   settingsDescription: 'Connect your team, manage members and projects, or host an organization on this computer.',
   account: 'Account & organization', accountDescription: 'Connect to a trusted service, sign in and choose your organization.',

@@ -7,28 +7,6 @@ import type { OrganizationProps } from './contract.ts'
 import { OrganizationDialog } from './OrganizationDialog.tsx'
 import css from './Organization.module.css'
 
-/** @param props - Native mode controls and localized copy. @returns Header selector and centered organization dialog. */
-export function OrganizationModeSwitch(props: OrganizationProps) {
-  const c = props.useOrganization(s => s.connection)
-  const [open, setOpen] = useState(false)
-  const [error, setError] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const personal = async () => {
-    setBusy(true)
-    try { await props.connection({ kind: 'personal' }); setError(false) }
-    catch (_error) { setError(true) }
-    finally { setBusy(false) }
-  }
-  return <>
-    <div className={css.switcher} role="group" aria-label={props.t('viewMode')}>
-      <Button title={props.t('personal')} size="sm" aria-pressed={c.mode === 'personal'} disabled={busy} onClick={() => { void personal() }}>{props.t('personal')}</Button>
-      <Button title={props.t('title')} size="sm" aria-pressed={c.mode === 'organization'} onClick={() => { setOpen(true) }}>{props.t('title')}</Button>
-    </div>
-    {error && <p role="alert" className={css.error}>{props.t('failure')}</p>}
-    {open && <OrganizationDialog {...props} initialSection={c.organizationId ? 'projects' : 'connection'} onClose={() => { setOpen(false) }} />}
-  </>
-}
-
 /** @param props - Organization facts and personal factory seat. @returns Navigation and centered workspace dialog. */
 export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sidebar.personal'> & PropsRenderFactories) {
   const c = props.useOrganization(s => s.connection)
@@ -45,7 +23,7 @@ export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sid
         <p className={css.muted}>{props.t('scope')}</p>
         <Button variant="outline" onClick={() => { setOpen(true) }}>{props.t('openWorkspace')}</Button>
       </div>
-      : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar })}
+      : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })}
     {open && <OrganizationDialog {...props} initialSection={c.organizationId ? 'projects' : 'connection'} onClose={() => { setOpen(false) }} />}
   </div>
 }
