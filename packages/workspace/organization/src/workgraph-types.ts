@@ -39,3 +39,36 @@ export interface OrganizationPlanVersion {
   createdBy: MembershipId
   createdAt: number
 }
+/** Authorized task projection; hidden relations cannot be reconstructed from this view. */
+export interface OrganizationTaskView extends OrganizationTask {
+  planId: OrganizationPlanId
+  revision: OrganizationPlanRevision
+  phaseTitle: string
+  assignable: boolean
+  hasUndisclosedPrerequisite: boolean
+}
+/** Current-authority page; total counts only matching visible tasks. */
+export interface OrganizationTaskPage {
+  items: OrganizationTaskView[]
+  total: number
+  offset: number
+  revision: number
+  cursor: import('./types.ts').OrganizationCursor
+}
+/** Administration metadata does not confer permission to read task text. */
+export interface OrganizationTaskGrant {
+  planId: OrganizationPlanId
+  taskId: OrganizationTaskId
+  membershipId: MembershipId
+  scope: 'node' | 'subtree'
+  actions: ('read' | 'edit')[]
+  version: number
+  active: boolean
+}
+/** Content-free invalidations for currently visible changes only. */
+export interface OrganizationWorkgraphBatch {
+  from: import('./types.ts').OrganizationCursor
+  cursor: import('./types.ts').OrganizationCursor
+  revision: number
+  events: { revision: number; planId: OrganizationPlanId }[]
+}

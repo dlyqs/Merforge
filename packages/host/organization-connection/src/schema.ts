@@ -41,6 +41,7 @@ revision: version,
 cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.enum(['workgraph-save', 'workgraph-read', 'workgraph-tasks', 'workgraph-grant', 'workgraph-grants']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('probe'), origin: z.string().max(2048) }).strict(),
   z.object({ kind: z.literal('trust'), fingerprint: z.string() }).strict(),
   z.object({ kind: z.literal('login'), username: z.string(), password: z.string() }).strict(),

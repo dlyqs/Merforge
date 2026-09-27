@@ -9,9 +9,10 @@ import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema } from './resource-schema.ts'
-import { workgraphSaveSchema, workgraphReadSchema } from './workgraph-schema.ts'
+import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
 import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
-import type { OrganizationPlanVersion } from './workgraph-types.ts'
+import { visibleTasks, setTaskGrant, taskGrants, selectedPlan, visibleWorkgraphEvents } from './workgraph-access.ts'
+import type { OrganizationTaskPage, OrganizationTaskGrant, OrganizationWorkgraphBatch, OrganizationPlanVersion } from './workgraph-types.ts'
 import { authorizedProject, visibleProjects, visibleEvents, accessVersion, createCursor, readCursor } from './resources.ts'
 import type { OrganizationProjectPage, OrganizationProjectView, OrganizationEventBatch, ResourceGrantView, ProjectAction } from './types.ts'
 import type { AccountId, LoginResult, LoginToken, MemberView, OperationId, OrganizationAction, OrganizationId, OrganizationView, Principal, Receipt } from './types.ts'
@@ -110,7 +111,7 @@ export class OrganizationService extends Service {
       const receipt = receiptSchema.parse(JSON.parse(String(row.response)))
       const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
       if (receipt.organizationId) {
-        const manage = ['invite', 'set-membership', 'create-project', 'set-grant'].includes(String(event?.kind))
+        const manage = ['invite', 'set-membership', 'create-project', 'set-grant', 'set-task-grant'].includes(String(event?.kind))
         const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
         if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
         if (event?.kind === 'rename-project' && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'write')
@@ -172,6 +173,8 @@ export class OrganizationService extends Service {
 
   private recordCommit(receipt: Receipt): Receipt {
     this.ctx.logger.info('organization operationId=%s revision=%s result=committed', receipt.operationId, receipt.revision)
+    if (receipt.planId) this.ctx.logger.info('organization component=workgraph operationId=%s planId=%s revision=%s planRevision=%s result=committed',
+      receipt.operationId, receipt.planId, receipt.revision, receipt.planRevision ?? 'grant')
     this.publishCommit(receipt.revision)
     return receipt
   }
@@ -526,12 +529,111 @@ export class OrganizationService extends Service {
       const request = parse(workgraphReadSchema, input)
       const version = transaction(db, () => {
         const principal = this.principal(db, token, request.organizationId)
-        const plan = authorizeWorkgraph(db, principal, request.projectId, request.planId, false)
+        const plan = authorizeWorkgraph(db, principal, request.projectId, request.planId, request.revision !== undefined)
         const value = readWorkgraphVersion(db, plan.id, request.revision ?? plan.currentRevision)
         checkWorkgraphLimits(value, this.config)
         return value
       })
       deliver(version)
+    })
+  }
+
+  private boundedWorkgraph<T>(value: T): T {
+    if (Buffer.byteLength(JSON.stringify(value)) > this.config.workgraphMaxBytes) throw new OrganizationError('invalid-input')
+    return value
+  }
+
+  /**
+   * Deliver task details, history and search through one current-permission projection.
+   * @param token - Current organization bearer.
+   * @param input - Strict project/task selection, search and pagination cursor.
+   * @param deliver - Synchronous authorized handoff; content must not be queued for later delivery.
+   * @returns Completion after bounded projection delivery.
+   */
+  readTasks(token: LoginToken, input: unknown, deliver: (page: OrganizationTaskPage) => void): Promise<void> {
+    return this.enqueue('workgraph-tasks', (db) => {
+      const query = parse(workgraphTasksSchema, input)
+      const page = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        const revision = this.head(db), version = accessVersion(db, principal)
+        if (query.offset > 0 && query.cursor === undefined) throw new OrganizationError('snapshot-required')
+        if (query.cursor !== undefined
+          && readCursor(this.cursorSecret, query.cursor, principal, version, revision, this.config.eventReplayWindow) !== revision) {
+          throw new OrganizationError('snapshot-required')
+        }
+        const items = visibleTasks(db, principal, query)
+        return this.boundedWorkgraph({ items: items.slice(query.offset, query.offset + this.config.workgraphPageSize),
+          total: items.length, offset: query.offset, revision, cursor: createCursor(this.cursorSecret, principal, version, revision) })
+      })
+      deliver(page)
+    })
+  }
+
+  /**
+   * Set explicit task actions without granting the administrator content access.
+   * @param token - Current administrator credential.
+   * @param input - Strict grant mutation including optimistic version and operation ID.
+   * @returns Atomic metadata receipt; identical retries do not publish another event.
+   */
+  grantTask(token: LoginToken, input: unknown): Promise<Receipt> {
+    return this.enqueue('workgraph-grant', async (db) => {
+      const request = parse(workgraphGrantSchema, input)
+      const principal = this.principal(db, token, request.organizationId, 'manage')
+      const scope = `account:${principal.accountId}`
+      const fingerprint = await requestFingerprint('set-task-grant', request, false)
+      const result = transaction(db, () => {
+        const current = this.principal(db, token, request.organizationId, 'manage')
+        selectedPlan(db, current, request)
+        const previous = this.previous(db, scope, request.operationId, fingerprint)
+        if (previous) return { receipt: previous, committed: false }
+        const receipt = this.mutate(db, scope, request, 'set-task-grant', current.accountId, request.organizationId, fingerprint, (revision) => {
+          setTaskGrant(db, current, request, revision, this.config.workgraphMaxGrants)
+          return { organizationId: request.organizationId, projectId: request.projectId, planId: request.planId }
+        })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
+    })
+  }
+
+  /**
+   * Read task-grant management metadata without task text.
+   * @param token - Current organization administrator credential.
+   * @param input - Known organization/project/plan identifiers.
+   * @param deliver - Synchronous handoff of bounded metadata.
+   * @returns Completion after current administrator validation.
+   */
+  readTaskGrants(token: LoginToken, input: unknown, deliver: (grants: OrganizationTaskGrant[]) => void): Promise<void> {
+    return this.enqueue('workgraph-grants', (db) => {
+      const query = parse(workgraphGrantsSchema, input)
+      const result = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId, 'manage')
+        return this.boundedWorkgraph(taskGrants(db, selectedPlan(db, principal, query), this.config.workgraphMaxGrants))
+      })
+      deliver(result)
+    })
+  }
+
+  /**
+   * Deliver invalidations only for changes in currently visible task projections.
+   * @param token - Bearer revalidated on every poll or stream batch.
+   * @param input - Organization and previous authorized cursor.
+   * @param deliver - Synchronous handoff; consumers close slow streams rather than queue content.
+   * @returns Completion after committed-range delivery or a required snapshot reset.
+   */
+  readWorkgraphEvents(token: LoginToken, input: unknown, deliver: (batch: OrganizationWorkgraphBatch) => void): Promise<void> {
+    return this.enqueue('workgraph-events', (db) => {
+      const query = parse(eventQuerySchema, input)
+      const batch = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        const head = this.head(db), version = accessVersion(db, principal)
+        const after = readCursor(this.cursorSecret, query.cursor, principal, version, head, this.config.eventReplayWindow)
+        const revision = Math.min(head, after + this.config.eventBatchSize)
+        return this.boundedWorkgraph({ from: brandString<import('./types.ts').OrganizationCursor>(query.cursor),
+          cursor: createCursor(this.cursorSecret, principal, version, revision), revision,
+          events: visibleWorkgraphEvents(db, principal, after, revision) })
+      })
+      deliver(batch)
     })
   }
 

@@ -363,7 +363,14 @@ async function main(): Promise<void> {
   ipcMain.handle(DESKTOP_IPC.organizationSnapshot, (event) => { assertProductSender(event); return organizationManager.snapshot() })
   ipcMain.handle(DESKTOP_IPC.organizationConnection, async (event, action: ConnectionAction) => {
     assertProductSender(event)
-    try { return await organizationManager.connection.perform(action) } finally { publishOrganization() }
+    try {
+      const result = await organizationManager.connection.perform(action)
+      assertProductSender(event)
+      if (result.workgraph && result.workgraph.generation !== organizationManager.connection.snapshot().generation) {
+        throw new Error('superseded')
+      }
+      return result
+    } finally { publishOrganization() }
   })
   ipcMain.handle(DESKTOP_IPC.organizationServer, async (event, action: OrganizationServerAction) => {
     assertProductSender(event)

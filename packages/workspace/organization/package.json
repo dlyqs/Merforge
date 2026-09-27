@@ -35,6 +35,10 @@
     "./maintenance": {
       "types": "./lib/types/maintenance.d.ts",
       "default": "./lib/types/maintenance.js"
+    },
+    "./workgraph": {
+      "types": "./lib/types/workgraph-schema.d.ts",
+      "default": "./lib/types/workgraph-schema.js"
     }
   },
   "files": [

@@ -318,6 +318,7 @@
       "@deepseek-ai/dsh-session-format-catalog/message-projections": ["./packages/session/session-format-catalog/src/message-projections.ts"],
       "@deepseek-ai/dsh-native-command/types": ["./packages/util/native-command/src/types.ts"],
       "@deepseek-ai/dsh-organization/protocol": ["./packages/workspace/organization/src/schema.ts"],
+      "@deepseek-ai/dsh-organization/workgraph": ["./packages/workspace/organization/src/workgraph-schema.ts"],
       "@deepseek-ai/dsh-organization/resources": ["./packages/workspace/organization/src/resource-schema.ts"],
       "@deepseek-ai/dsh-organization/maintenance": ["./packages/workspace/organization/src/maintenance.ts"],
       "@deepseek-ai/dsh-organization/types": ["./packages/workspace/organization/src/types.ts"],

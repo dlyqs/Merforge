@@ -77,6 +77,25 @@ try {
     await member.perform({ kind: 'search', query: 'salary', offset: 0 })
     assert.equal(member.snapshot().projects.total, 0)
     await member.perform({ kind: 'reconnect' })
+    await command({ kind: 'set-grant', projectId: project.projectId, membershipId: initialized.membershipId,
+      expectedVersion: 0, actions: ['read', 'write'] })
+    const rootTask = randomUUID(), publicTask = randomUUID(), phaseId = randomUUID()
+    const taskQuery = { organizationId: initialized.organizationId, projectId: project.projectId, planId: randomUUID() }
+    const task = (id, parentTaskId, goal) => ({ id, parentTaskId, goal, phaseId, scope: 'Shared preparation',
+      acceptance: ['Reviewed'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null })
+    const definition = { taskId: rootTask, phases: [{ id: phaseId, title: 'Preparation' }], tasks: [
+      task(rootTask, null, 'HIDDEN_TASK_ROOT'), task(publicTask, rootTask, 'Employee preparation'),
+    ] }
+    const saved = await owner.perform({ kind: 'workgraph-save', request: { ...taskQuery, definition, expectedRevision: 0, operationId: randomUUID() } })
+    assert.equal(saved.receipt.planRevision, 1)
+    await owner.perform({ kind: 'workgraph-grant', request: { ...taskQuery, taskId: publicTask, scope: 'subtree',
+      membershipId: registered.receipt.membershipId, actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })
+    await until(() => member.snapshot().phase === 'ready')
+    const projected = await member.perform({ kind: 'workgraph-tasks', request: taskQuery })
+    assert.equal(projected.workgraph.result.value.total, 1)
+    assert.equal(projected.workgraph.result.value.items[0].parentTaskId, null)
+    assert.equal(JSON.stringify(projected).includes('HIDDEN_TASK_ROOT'), false)
+    assert.equal(JSON.stringify(member.snapshot()).includes('Employee preparation'), false)
     const login = (await organizationRequest(trust, 'POST', '/organization/v1/login', { username: 'employee', password })).body
     for (const path of ['/api/session', '/api/attachments/private-employee', '/files/private.txt', '/download/private-leader', '/organization/v1/initialize', '/organization/v1/recover']) {
       const status = await new Promise((yes, no) => {
@@ -107,6 +126,13 @@ try {
     await member.perform({ kind: 'login', username: 'employee', password })
     await member.perform({ kind: 'select', organizationId: initialized.organizationId })
     assert.equal(member.snapshot().projects.total, 0)
+    await owner.perform({ kind: 'login', username: 'owner', password })
+    await owner.perform({ kind: 'select', organizationId: initialized.organizationId })
+    const restoredPlan = await owner.perform({ kind: 'workgraph-read', request: taskQuery })
+    assert.deepEqual(restoredPlan.workgraph.result.value.definition, definition)
+    await until(() => member.snapshot().phase === 'ready')
+    await assert.rejects(member.perform({ kind: 'workgraph-tasks', request: taskQuery }), /forbidden/)
+    await member.perform({ kind: 'select', organizationId: initialized.organizationId })
     await controller.stop()
     await rename(join(directory, 'tls-identity.json'), join(directory, 'old-tls.json'))
     await controller.start(config)
@@ -143,7 +169,7 @@ try {
   const recoveredTrust = { ...recovered, origin: `https://127.0.0.1:${recovered.port}`, timeoutMs: 5000, maxResponseBytes: 1048576 }
   assert.equal((await organizationRequest(recoveredTrust, 'POST', '/organization/v1/login', { username: 'crashowner', password })).status, 200)
   await replacement.stop()
-  console.log('organization integration built smoke passed: Node + Electron, two native clients, grants, revocation, private-route isolation, backup/restore and certificate rotation')
+  console.log('organization integration built smoke passed: Node + Electron, two native clients, WorkGraph save/grant/projection/restore, grants, revocation, private-route isolation, backup/restore and certificate rotation')
 } finally {
   for (const { child, exited } of children) { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited }
   await Promise.allSettled(clients.map(client => client.close()))

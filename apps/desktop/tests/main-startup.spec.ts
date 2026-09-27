@@ -613,6 +613,20 @@ describe('desktop main startup', () => {
     sender.mainFrame.url = original
   })
 
+  it('limits organization task IPC to the owned top frame and rejects malformed task input', async () => {
+    await readyForUpdate()
+    const handler = harness.handlers.get(DESKTOP_IPC.organizationConnection)!
+    const sender = harness.windows[0]!.webContents
+    const action = { kind: 'workgraph-tasks', request: { accountId: 'forged' } }
+    for (const event of [
+      { sender: {}, senderFrame: sender.mainFrame },
+      { sender, senderFrame: { url: sender.mainFrame.url } },
+      { sender, senderFrame: { url: 'https://untrusted.example/' } },
+    ]) await expect(handler(event, action)).rejects.toThrow('unowned renderer')
+    await expect(handler({ sender, senderFrame: sender.mainFrame }, action)).rejects.toThrow('unavailable')
+    await expect(handler({ sender, senderFrame: sender.mainFrame }, { kind: 'approve' })).rejects.toThrow()
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)('limits native titlebar styling to macOS on %s', async (platform) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
     await import('../src/main.ts')

@@ -1,6 +1,6 @@
 # 组织 WorkGraph 与预执行上下文
 
-本文定稿[施工计划](organization-workgraph-plan.md) Phase 1 的协议与权限设计。Phase 2 已实现组织服务内的完整定义写入、根授权读取、SQLite v3 与纯图规则复用；下文标注 Phase 3–6 的接口是后续实现约束，当前没有对应网络、原生或 GUI 入口。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
+本文定稿[施工计划](organization-workgraph-plan.md) Phase 1 的协议与权限设计。Phase 1–4 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影与 HTTPS/原生动作；Phase 5–6 的本机上下文隔离及绑定仍为后续实现约束，当前没有任务 GUI 或上下文入口。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
 
 ## 定义及版本
 
@@ -21,7 +21,7 @@
 
 任务 ID 在整个权威库唯一；移除后保留 tombstone，不允许在原计划或别的计划重新使用。根不能移除或替换。阶段顺序不隐式创造任务依赖。重复 ID、未知父/阶段/依赖、跨计划依赖、多根、层级环、显式依赖环、父完成隐环和逆阶段依赖均在 JSON 输入处拒绝。唯一根、已存在的父引用和无层级环共同保证连通。
 
-成员引用检查同组织。新指定的成员及其账号必须有效；原来指定的成员停用后可以保留不变，以保留历史。Phase 3 当前视图的 `assignable` 从当前 membership/account 状态派生；历史正文仍保留原引用，不能声称其仍可执行。
+成员引用检查同组织。新指定的成员及其账号必须有效；原来指定的成员停用后可以保留不变，以保留历史。当前任务视图的 `assignable` 从当前 membership/account 状态派生；历史正文仍保留原引用，不能声称其仍可执行。
 
 ## 存储及提交
 
@@ -43,15 +43,15 @@ v1/v2 启动时先校验旧结构，再在同一事务增加缺失表，最后�
 
 `Config.workgraphMaxTasks=1000` 同时限制任务和阶段条目；`workgraphMaxDepth=100`；`workgraphMaxBytes=1048576` 限制完整版本 JSON 的 UTF-8 字节（含作者、时间和版本元数据）。写入和读取均应用限额；超限明确失败，不截断图。Phase 3 查询在这些限额外应用 pageSize，Phase 4 还需核对 HTTP response 包装及原生 maxResponseBytes，过大返回失败。配置缩小不破坏磁盘历史校验，但可能阻止读取较大的版本。
 
-## 当前权限及历史投影（Phase 3）
+## 当前权限及历史投影
 
 任务 read 需要有效账号、有效组织成员、项目 read 和显式任务 read。编辑只有根 subtree edit 加 read 及项目 write；node edit 不支持。管理员只能管理 grant，不自动得到正文。授权管理请求携带已知 IDs、actions、scope、expectedVersion、OperationId；响应只有这些管理元数据和新 version。
 
-新增、删除、移位任一任务都会改变 plan 的 `structureVersion`，所有旧 grant 因 epoch 不符失效；这是保守的整计划失效策略。唯一例外是提交完整新树的当前根编辑者：其本次保存显式确认新树，事务更新它的根 grant epoch 和 version。其他根读者、根编辑者及子树读者都必须显式重授。正文、阶段、建议责任人或依赖变化不改变树覆盖范围，不更新结构 epoch；正常内容失效事件仍要求重读。
+新增、删除、移位任一任务都会改变 plan 的 `structureVersion`，所有旧 grant 因 epoch 不符失效；这是保守的整计划失效策略。唯一例外是提交完整新树的当前根编辑者：其本次保存显式确认新树，事务更新它的根 grant epoch 和 version。其他根读者、根编辑者及子树读者都必须显式重授。正文、阶段、建议责任人或依赖变化不改变树覆盖范围，不更新结构 epoch；事件只比较当前授权下的前后投影，隐藏任务正文改变不向局部读者发送任务失效引用。成员/账号有效性变化使游标失效，重新派生 assignable。
 
-历史读取应用当前 grant，再与请求历史中相同稳定 TaskId 的覆盖范围取交集；当前删除节点不返回。不能从旧 parent 链、旧 grant 或回执扩大权限。根完整编辑者可取得完整历史定义（该角色本就有整计划内容权）；普通 TaskView 不返回已删除、移出或未授权节点。没有任何可见任务时统一 forbidden，不能通过“未找到/已删除”区别探测。
+历史读取应用当前 grant，再与请求历史中相同稳定 TaskId 的覆盖范围取交集；当前删除节点不返回。不能从旧 parent 链、旧 grant 或回执扩大权限。`readPlan` 的显式 revision 请求要求当前根 edit；根完整编辑者可取得完整历史定义（该角色本就有整计划内容权）；普通 TaskView 不返回已删除、移出或未授权节点。没有任何可见任务时统一 forbidden，不能通过“未找到/已删除”区别探测。
 
-TaskView 与 PlanDefinition 使用不同类型。TaskView 的根可以是获准的中间节点，其 parentTaskId 为 null；仅包含可见阶段及必要的阶段标题，不返回隐藏节点 ID、标题、数量、路径、成员或阶段。可见依赖返回 ID；任何隐藏依赖只置 `hasUndisclosedPrerequisite: true`，不附数量、状态或变化事件。搜索、列表、总数、历史差异和分页先做授权投影；绝不先把全量传给 Client。游标签名绑定 server/account/organization/当前授权版本/事件位置，授权或结构版本变化返回 snapshot-required。
+TaskView 与 PlanDefinition 使用不同类型。TaskView 的根可以是获准的中间节点，其 parentTaskId 为 null；仅包含可见阶段及必要的阶段标题，不返回隐藏节点 ID、标题、数量、路径、成员或阶段。可见依赖返回 ID；任何隐藏依赖只置 `hasUndisclosedPrerequisite: true`，不附数量、状态或变化事件。搜索、列表、总数和分页先做授权投影；历史差异由同一当前授权下两个 revision 的任务投影比较，不提供完整历史差异旁路；绝不先把全量传给 Client。游标签名绑定 server/account/organization/当前授权版本/事件位置，授权或结构版本变化返回 snapshot-required。
 
 两账号、两组织、两子树的固定推演：
 
@@ -65,7 +65,7 @@ TaskView 与 PlanDefinition 使用不同类型。TaskView 的根可以是获准�
 | 撤销 b 的项目 read 或停用成员 | 当前及历史均拒绝 | 拒绝 | B 按其独立状态判断 | 关闭 A 展示和在途请求 |
 | b 从 X 改授 Y | X 旧历史不可打开 | 仅 Y 当前/历史交集 | 无影响 | 不能借旧回执打开 X |
 
-## HTTPS 和原生动作（Phase 4）
+## HTTPS 和原生动作
 
 复用 `/organization/v1` 固定前缀、原生 TLS 信任和 bearer；新增专用路由，不给通用 URL/RPC 转发：
 
@@ -78,7 +78,11 @@ TaskView 与 PlanDefinition 使用不同类型。TaskView 的根可以是获准�
 | POST `/workgraph/grants`，`workgraph-grants` | organizationId/projectId/planId → 仅管理元数据 |
 | GET `/workgraph/events`，原生连接轮询/SSE | organizationId/cursor → 无正文的当前授权失效批次 |
 
-通用管理快照不得携带任务正文。现有 `/receipts` 行为扩展为同账号且当前动作授权核对；无法确认的写入不自动重发。approve/dispatch/claim/submit 以及完成状态不进入任何 schema，未知路由和字段拒绝。Phase 2 只有领域方法，组织 API 现有 allow-list 不暴露任务写入。
+`OrganizationConnection` 的通用管理快照只增加 generation，不携带任务正文。固定读取动作独立返回 `workgraph`，含原生生成的品牌 requestId、server/account principal、organizationId、generation 和经过校验的 plan/tasks/grants 结果。每次返回核对代次；Desktop 在异步返回后再次校验所属顶层窗口和当前代次。后续任务 UI 必须按此代次清除旧结果。项目和任务使用独立 SSE 流，共用已认证快照游标；重复批次忽略，乱序或缺口要求重新取快照，撤权/断线先取消代次和清空展示。
+
+任务授权/正文完整响应受 `workgraphMaxBytes` 限制；`workgraphMaxGrants` 限制每计划保留授权行，`workgraphPageSize` 限制投影页条目。API 的 maxBodyBytes/maxResponseBytes 与原生 maxResponseBytes 仍独立限制完整传输值，超限明确拒绝。
+
+现有 `/receipts` 行为扩展为同账号且当前动作授权核对；无法确认的写入不自动重发。approve/dispatch/claim/submit 以及完成状态不进入任何 schema，未知路由和字段拒绝。固定任务动作已通过原生连接的同一未确认操作账本核对，离线不接受写入。
 
 ## 本机任务上下文（Phase 5–6）
 
@@ -100,7 +104,7 @@ Host 到原生的权限复核也是固定动作 `organization-context-authorize`
 
 ### 实际消费者清单与 Phase 5 拒绝点
 
-以下均须在 Phase 5 落实及测试后，Phase 6 才能创建首个组织 Session。当前 Phase 2 尚未创建组织 Session，也未声称现有个人入口具备组织账号隔离能力。
+以下均须在 Phase 5 落实及测试后，Phase 6 才能创建首个组织 Session。当前 Phase 4 尚未创建组织 Session，也未声称现有个人入口具备组织账号隔离能力。
 
 | 当前源码消费者 | 处理策略 |
 | --- | --- |

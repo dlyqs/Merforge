@@ -28,6 +28,8 @@ export const configSchema = z.object({
   pageSize: z.number().int().min(1).max(200).default(50),
   eventBatchSize: z.number().int().min(1).max(1000).default(100),
   eventReplayWindow: z.number().int().min(1).max(1000000).default(10000),
+  workgraphMaxGrants: z.number().int().min(1).max(100000).default(10000),
+  workgraphPageSize: z.number().int().min(1).max(1000).default(50),
   workgraphMaxTasks: z.number().int().min(1).max(100000).default(1000),
   workgraphMaxDepth: z.number().int().min(1).max(10000).default(100),
   workgraphMaxBytes: z.number().int().min(256).max(104857600).default(1048576),
@@ -103,7 +105,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })

@@ -123,10 +123,16 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true):
     for (const row of db.prepare('SELECT * FROM operation_receipts').all()) {
       const receipt = receiptSchema.parse(JSON.parse(receiptRowSchema.strict().parse(row).response))
       if (receipt.planId !== undefined || receipt.planRevision !== undefined) {
-        if (!workgraph || !db.prepare(`SELECT 1 FROM plan_revisions r JOIN organization_plans p ON p.id=r.planId
-          WHERE r.planId=? AND r.revision=? AND r.eventRevision=? AND p.organizationId=? AND p.projectId=?`)
-          .get(receipt.planId ?? null, receipt.planRevision ?? null, receipt.revision,
-            receipt.organizationId ?? null, receipt.projectId ?? null)) throw new OrganizationError('incompatible-store')
+        const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
+        const valid = event?.kind === 'set-task-grant' && receipt.planRevision === undefined
+          ? db.prepare(`SELECT 1 FROM workgraph_events w JOIN organization_plans p ON p.id=w.planId
+            WHERE w.planId=? AND w.revision=? AND p.organizationId=? AND p.projectId=?`)
+            .get(receipt.planId ?? null, receipt.revision, receipt.organizationId ?? null, receipt.projectId ?? null)
+          : db.prepare(`SELECT 1 FROM plan_revisions r JOIN organization_plans p ON p.id=r.planId
+            WHERE r.planId=? AND r.revision=? AND r.eventRevision=? AND p.organizationId=? AND p.projectId=?`)
+            .get(receipt.planId ?? null, receipt.planRevision ?? null, receipt.revision,
+              receipt.organizationId ?? null, receipt.projectId ?? null)
+        if (!workgraph || !valid) throw new OrganizationError('incompatible-store')
       }
     }
     if (db.prepare('PRAGMA foreign_key_check').all().length > 0) throw new OrganizationError('incompatible-store')

@@ -152,11 +152,11 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/members$/.exec(path)
-      const method = ['/login', '/register', '/logout', '/commands', '/projects', '/grants'].includes(path) ? 'POST'
-        : ['/identity', '/organizations'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
+      const method = ['/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants'].includes(path) ? 'POST'
+        : ['/identity', '/organizations', '/workgraph/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
-      if (url.search && !resourceRoute && !detailRoute) throw new OrganizationError('invalid-input')
+      if (url.search && !resourceRoute && !detailRoute && path !== '/workgraph/events') throw new OrganizationError('invalid-input')
       if (path === '/identity') { this.respond(res, 200, await authority.identity()); return }
       if (path === '/login') { this.respond(res, 200, await authority.login(await this.body(req))); return }
       if (path === '/register') { this.respond(res, 200, await authority.register(await this.body(req))); return }
@@ -164,6 +164,28 @@ export class OrganizationApiService extends Service {
       if (!match?.[1]) throw new OrganizationError('unauthenticated')
       const token = brandString<LoginToken>(match[1])
       if (receiptRoute?.[1]) { this.respond(res, 200, await authority.receipt(token, receiptRoute[1])); return }
+      if (path === '/workgraph/save') { this.respond(res, 200, await authority.savePlan(token, await this.body(req))); return }
+      if (path === '/workgraph/grant') { this.respond(res, 200, await authority.grantTask(token, await this.body(req))); return }
+      if (path === '/workgraph/read') {
+        await authority.readPlan(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return
+      }
+      if (path === '/workgraph/tasks') {
+        await authority.readTasks(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return
+      }
+      if (path === '/workgraph/grants') {
+        await authority.readTaskGrants(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return
+      }
+      if (path === '/workgraph/events') {
+        const query = parameters(url, ['organizationId', 'cursor', 'stream'])
+        if (!query.organizationId || !query.cursor || query.stream !== undefined && query.stream !== 'true') {
+          throw new OrganizationError('invalid-input')
+        }
+        const organizationId = brandString<OrganizationId>(parseUuid(query.organizationId))
+        if (query.stream === 'true') await this.streams.open(token, organizationId, query.cursor, res, 'workgraph')
+        else await authority.readWorkgraphEvents(token, { organizationId, cursor: query.cursor },
+          (value) => { this.respond(res, 200, value) })
+        return
+      }
       if (resourceRoute?.[1] && resourceRoute[2]) {
         const organizationId = brandString<OrganizationId>(parseUuid(resourceRoute[1]))
         if (resourceRoute[2] === 'events') {

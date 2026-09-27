@@ -78,10 +78,11 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
     const plan = workgraphPlanSchema.parse(db.prepare('SELECT * FROM organization_plans WHERE id=?').get(grant.planId))
     if (!db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(grant.membershipId, plan.organizationId)
       || grant.structureVersion > plan.structureVersion || grant.version < grant.structureVersion
-      || (grant.canEdit && (grant.scope !== 'subtree' || grant.taskId !== plan.rootTaskId))) fail()
+      || (grant.canEdit && (!grant.canRead || grant.scope !== 'subtree' || grant.taskId !== plan.rootTaskId))) fail()
   }
   if (db.prepare(`SELECT 1 FROM workgraph_events w LEFT JOIN plan_revisions r ON r.eventRevision=w.revision AND r.planId=w.planId
-    WHERE r.planId IS NULL LIMIT 1`).get()) fail()
+    JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
+    WHERE (r.planId IS NULL AND e.kind!='set-task-grant') OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind='save-plan' AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('save-plan','set-task-grant') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

@@ -51,3 +51,40 @@ export const taskGrantRowSchema = z.object({
   canRead: z.union([z.literal(0), z.literal(1)]), canEdit: z.union([z.literal(0), z.literal(1)]),
   structureVersion: z.number().int().positive(), version: z.number().int().positive(),
 }).strict()
+/** Explicit task-grant management selector, never a content read. */
+export const workgraphGrantsSchema = workgraphReadSchema.omit({ revision: true })
+/** Node reads or root-subtree edits; the authority checks the selected root. */
+export const workgraphGrantSchema = workgraphGrantsSchema.extend({
+  operationId: id<OperationId>(), taskId, membershipId: id<MembershipId>(),
+  scope: z.enum(['node', 'subtree']), actions: z.array(z.enum(['read', 'edit'])).max(2),
+  expectedVersion: z.number().int().nonnegative(),
+}).strict().refine(value => new Set(value.actions).size === value.actions.length
+  && (!value.actions.includes('edit') || value.actions.includes('read') && value.scope === 'subtree'))
+/** List, search, detail and history all select from the same authorized task projection. */
+export const workgraphTasksSchema = z.object({
+  organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>(),
+  planId: id<OrganizationPlanId>().optional(), taskId: taskId.optional(), revision: planRevisionSchema.optional(),
+  search: z.string().max(120).default(''), offset: z.number().int().nonnegative().default(0),
+  cursor: z.string().max(2048).optional(),
+}).strict().refine(value => value.revision === undefined || value.planId !== undefined)
+/** Wire task view deliberately does not require a complete tree. */
+export const workgraphTaskViewSchema = workgraphDefinitionSchema.shape.tasks.element.extend({
+  planId: id<OrganizationPlanId>(), revision: planRevisionSchema, phaseTitle: text,
+  assignable: z.boolean(), hasUndisclosedPrerequisite: z.boolean(),
+}).strict()
+/** Bounded transport page; the service applies byte and entry ceilings before delivery. */
+export const workgraphPageSchema = z.object({
+  items: z.array(workgraphTaskViewSchema), total: z.number().int().nonnegative(), offset: z.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(), cursor: z.string().transform(value => brandString<import('./types.ts').OrganizationCursor>(value)),
+}).strict()
+/** Grant response contains only management identifiers and action metadata. */
+export const workgraphGrantViewSchema = z.object({
+  planId: id<OrganizationPlanId>(), taskId, membershipId: id<MembershipId>(), scope: z.enum(['node', 'subtree']),
+  actions: z.array(z.enum(['read', 'edit'])), version: z.number().int().positive(), active: z.boolean(),
+}).strict()
+/** Content-free task invalidations on the separate WorkGraph stream. */
+export const workgraphBatchSchema = z.object({
+  from: workgraphPageSchema.shape.cursor, cursor: workgraphPageSchema.shape.cursor,
+  revision: z.number().int().nonnegative(),
+  events: z.array(z.object({ revision: z.number().int().positive(), planId: id<OrganizationPlanId>() }).strict()),
+}).strict()

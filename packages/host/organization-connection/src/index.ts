@@ -2,12 +2,14 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents, OrganizationStreamReset, type OrganizationTrust, type CertificateOffer } from '@deepseek-ai/dsh-organization-api/transport'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents, followWorkgraphEvents, OrganizationStreamReset, type OrganizationTrust, type CertificateOffer } from '@deepseek-ai/dsh-organization-api/transport'
 import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-organization/protocol'
 import { projectCommandSchema, grantCommandSchema } from '@deepseek-ai/dsh-organization/resources'
+import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
-import type { ConnectionAction, ConnectionSnapshot, ConnectionResult } from './types.ts'
+import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId } from './types.ts'
 
 /** Configurable request bounds and reconnection interval for a small LAN client. */
 export type Config = z.input<typeof connectionConfig>
@@ -15,7 +17,7 @@ interface Pending { operationId: OperationId; accountId: AccountId; serverId: Se
 
 /** One native connection; no personal cookie, model credential or filesystem record enters this owner. */
 export class OrganizationConnection {
-  private state: ConnectionSnapshot = { revision: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] }
+  private state: ConnectionSnapshot = { revision: 0, generation: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] }
   private trust: OrganizationTrust | undefined
   private offer: (CertificateOffer & { origin: string }) | undefined
   private token: LoginToken | undefined
@@ -23,7 +25,7 @@ export class OrganizationConnection {
   private generation = 0
   private discardedResponses = 0
   private cancel = new AbortController()
-  private stream: Promise<void> | undefined
+  private readonly streams = new Set<Promise<void>>()
   private retry: ReturnType<typeof setTimeout> | undefined
   private readonly uncertain = new Map<string, Pending>()
   private get pending(): Pending | undefined { return this.uncertain.get(this.identityKey()) }
@@ -85,7 +87,7 @@ export class OrganizationConnection {
   private reset(next: Partial<ConnectionSnapshot>): number {
     this.cancel.abort(); this.cancel = new AbortController(); clearTimeout(this.retry)
     this.generation++
-    this.publish({ projects: undefined, members: [], error: undefined, ...next })
+    this.publish({ generation: this.generation, projects: undefined, members: [], error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
@@ -194,6 +196,11 @@ export class OrganizationConnection {
             role: action.role, invitationToken }, invitationToken)
         }
         case 'command': return await this.mutate(action.command)
+        case 'workgraph-save': return await this.mutate(workgraphSaveSchema.parse(action.request), undefined, 'save')
+        case 'workgraph-grant': return await this.mutate(workgraphGrantSchema.parse(action.request), undefined, 'grant')
+        case 'workgraph-read':
+        case 'workgraph-tasks':
+        case 'workgraph-grants': return await this.readWorkgraph({ kind: action.kind, request: action.request }, generation)
         default: return assertNever(action.kind)
       }
     } catch (error) {
@@ -205,17 +212,40 @@ export class OrganizationConnection {
       throw error
     }
   }
+  private async readWorkgraph(
+    action: { kind: 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grants'; request: unknown }, generation: number,
+  ): Promise<ConnectionResult> {
+    const organizationId = this.currentOrganization()
+    const principal = this.state.principal
+    if (!principal) throw new Error('unavailable')
+    const requestId = brandString<OrganizationRequestId>(randomUUID())
+    const request = (action.kind === 'workgraph-read' ? workgraphReadSchema
+      : action.kind === 'workgraph-tasks' ? workgraphTasksSchema : workgraphGrantsSchema).parse(action.request)
+    if (request.organizationId !== organizationId) throw new Error('forbidden')
+    const route = action.kind === 'workgraph-read' ? '/workgraph/read' : action.kind === 'workgraph-tasks' ? '/workgraph/tasks' : '/workgraph/grants'
+    const value = await this.request(route, request, generation)
+    if (generation !== this.generation) throw new Error('superseded')
+    const result: NonNullable<ConnectionResult['workgraph']>['result'] = action.kind === 'workgraph-read'
+      ? { kind: 'plan', value: workgraphVersionSchema.parse(value) }
+      : action.kind === 'workgraph-tasks' ? { kind: 'tasks', value: workgraphPageSchema.parse(value) }
+        : { kind: 'grants', value: z.array(workgraphGrantViewSchema).parse(value) }
+    return { workgraph: { generation, requestId, principal: { ...principal }, organizationId, result } }
+  }
+
   private currentOrganization(): OrganizationId {
     if (!this.token || !this.state.organizationId || this.state.phase !== 'ready') throw new Error('unavailable')
     return this.state.organizationId
   }
-  private async mutate(input: unknown, invitationToken?: string): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant'): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
+    const command = workgraph === 'save' ? workgraphSaveSchema.parse(input)
+      : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
+    const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
-    const route = command.kind === 'set-grant' ? '/grants' : command.kind === 'create-project' || command.kind === 'rename-project' ? '/projects' : '/commands'
+    const route = workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
+      : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,
       accountId: this.state.principal.accountId,
       serverId: this.state.principal.serverId, ...(invitationToken ? { invitationToken } : {}) }
@@ -226,11 +256,11 @@ export class OrganizationConnection {
     try {
       const receipt = receiptSchema.parse(await this.request(route, command))
       this.pending = undefined; this.publish({ pendingOperation: undefined })
-      if (command.kind === 'change-password') this.invalidate('unauthenticated')
+      if (kind === 'change-password') this.invalidate('unauthenticated')
       else {
         try { await this.refresh(this.reset({ phase: 'loading' })) } catch (error) { if (error instanceof Error && error.message === 'superseded') throw error }
       }
-      if (command.kind !== 'change-password' && `${pending.serverId}:${pending.accountId}` !== this.identityKey()) throw new Error('superseded')
+      if (kind !== 'change-password' && `${pending.serverId}:${pending.accountId}` !== this.identityKey()) throw new Error('superseded')
       return { receipt, ...(invitationToken ? { invitationToken } : {}) }
     } catch (error) {
       if (error instanceof Error && ['invalid-input', 'last-admin', 'version-conflict', 'forbidden', 'operation-conflict', 'invalid-credentials'].includes(error.message)) {
@@ -262,14 +292,15 @@ export class OrganizationConnection {
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     if (generation !== this.generation) return
     this.publish({ organizations, projects, members, phase: 'ready', error: undefined })
-    this.follow(generation, id, projects)
+    this.follow(generation, id, projects, false)
+    this.follow(generation, id, projects, true)
   }
   private follow(generation: number,
     id: OrganizationId,
-    page: { cursor: import('@deepseek-ai/dsh-organization/types').OrganizationCursor; revision: number }): void {
+    page: { cursor: import('@deepseek-ai/dsh-organization/types').OrganizationCursor; revision: number }, workgraph: boolean): void {
     if (!this.trust || !this.token) return
-    const stream = followOrganizationEvents(this.trust, id, this.token, page, this.cancel.signal)
-    this.stream = (async () => {
+    const stream = (workgraph ? followWorkgraphEvents : followOrganizationEvents)(this.trust, id, this.token, page, this.cancel.signal)
+    const task = (async () => {
       try {
         for await (const batch of stream) {
           if (generation !== this.generation) return
@@ -278,6 +309,8 @@ export class OrganizationConnection {
         }
       } catch (error) {
         if (generation !== this.generation) return
+        console.info('organization component=connection stream=%s result=reset decisionCode=%s',
+          workgraph ? 'workgraph' : 'projects', error instanceof OrganizationStreamReset ? error.code : 'transport-failed')
         if (error instanceof OrganizationStreamReset && error.code === 'snapshot-required') this.scheduleRefresh(generation)
         else if (error instanceof OrganizationStreamReset && ['forbidden', 'unauthenticated'].includes(error.code)) this.invalidate(error.code)
         else {
@@ -287,6 +320,8 @@ export class OrganizationConnection {
         }
       }
     })()
+    this.streams.add(task)
+    void task.finally(() => this.streams.delete(task))
   }
   private scheduleRefresh(generation: number): void {
     if (generation !== this.generation) return
@@ -315,6 +350,6 @@ export class OrganizationConnection {
   async close(): Promise<void> { this.token = undefined; this.reset({ phase: 'disconnected',
     principal: undefined,
     organizations: [],
-    organizationId: undefined }); await this.stream; this.listeners.clear() }
+    organizationId: undefined }); await Promise.allSettled([...this.streams]); this.listeners.clear() }
 }
 function assertNever(value: never): never { throw new Error(`unknown action ${String(value)}`) }

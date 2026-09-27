@@ -20,7 +20,7 @@ export const inject = ['slots', 'locale']
  */
 export function apply(ctx: Context): void {
   const desktop = (globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }).dshDesktop?.organization
-  const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0,
+  const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0, generation: 0,
     phase: 'disconnected',
     mode: 'personal',
     organizations: [],

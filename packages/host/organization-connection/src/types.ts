@@ -1,8 +1,13 @@
 /** Safe Desktop organization views; bearer tokens and certificates stay in the native owner. */
+import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { Principal, OrganizationView, OrganizationProjectPage, MemberView, Receipt, OrganizationId, OperationId } from '@deepseek-ai/dsh-organization/types'
+
+/** Native request identity, scoped by server, account, organization and generation. */
+export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
+  | { kind: 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
   | { kind: 'login'; username: string; password: string }
@@ -17,6 +22,7 @@ export type ConnectionAction =
 /** Native-owned connection snapshot; reset on every identity or organization transition. */
 export interface ConnectionSnapshot {
   revision: number
+  generation: number
   phase: 'disconnected' | 'untrusted' | 'signed-out' | 'loading' | 'ready' | 'offline'
   mode: 'personal' | 'organization'
   origin?: string | undefined
@@ -31,7 +37,20 @@ export interface ConnectionSnapshot {
   pendingOperation?: OperationId | undefined
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
-export interface ConnectionResult { receipt?: Receipt; invitationToken?: string; grants?: import('@deepseek-ai/dsh-organization/types').ResourceGrantView[] }
+export interface ConnectionResult {
+  receipt?: Receipt
+  invitationToken?: string
+  grants?: import('@deepseek-ai/dsh-organization/types').ResourceGrantView[]
+  workgraph?: {
+    generation: number
+    requestId: OrganizationRequestId
+    principal: Principal
+    organizationId: OrganizationId
+    result: { kind: 'plan'; value: import('@deepseek-ai/dsh-organization').OrganizationPlanVersion }
+      | { kind: 'tasks'; value: import('@deepseek-ai/dsh-organization').OrganizationTaskPage }
+      | { kind: 'grants'; value: import('@deepseek-ai/dsh-organization').OrganizationTaskGrant[] }
+  }
+}
 
 /** Settings retained on the service machine, separate from all personal profiles. */
 export interface OrganizationServerSettings {

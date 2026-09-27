@@ -5,6 +5,8 @@ import { request, type RequestOptions } from 'node:https'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { LoginToken, OrganizationId, OrganizationCursor, OrganizationProjectId, OrganizationEventBatch } from '@deepseek-ai/dsh-organization'
+import { workgraphBatchSchema } from '@deepseek-ai/dsh-organization/workgraph'
+import type { OrganizationWorkgraphBatch } from '@deepseek-ai/dsh-organization'
 import { isIP } from 'node:net'
 
 /** Public certificate facts obtained without HTTP credentials. */
@@ -137,8 +139,37 @@ export async function* followOrganizationEvents(
   trust: OrganizationTrust, organizationId: OrganizationId, token: LoginToken,
   snapshot: { cursor: OrganizationCursor; revision: number }, signal: AbortSignal,
 ): AsyncGenerator<OrganizationEventBatch, void, unknown> {
-  const options = trustedOptions(trust)
   const path = `/organization/v1/organizations/${organizationId}/events?stream=true&cursor=${encodeURIComponent(snapshot.cursor)}`
+  yield* followEvents(trust, path, token, snapshot, signal, batchSchema)
+}
+
+/**
+ * Follow task invalidations through the same bounded, ordered SSE transport as projects.
+ * @param trust - Native certificate trust and response limits.
+ * @param organizationId - Currently selected organization.
+ * @param token - Native bearer, never a personal cookie.
+ * @param snapshot - Last authorized snapshot or batch cursor.
+ * @param signal - Identity-generation cancellation.
+ * @returns Content-free, current-authority WorkGraph invalidations.
+ */
+export async function* followWorkgraphEvents(
+  trust: OrganizationTrust, organizationId: OrganizationId, token: LoginToken,
+  snapshot: { cursor: OrganizationCursor; revision: number }, signal: AbortSignal,
+): AsyncGenerator<OrganizationWorkgraphBatch, void, unknown> {
+  const path = `/organization/v1/workgraph/events?organizationId=${organizationId}&stream=true&cursor=${encodeURIComponent(snapshot.cursor)}`
+  yield* followEvents(trust, path, token, snapshot, signal, workgraphBatchSchema)
+}
+
+async function* followEvents<T extends {
+  from: OrganizationCursor
+  cursor: OrganizationCursor
+  revision: number
+  events: { revision: number }[]
+}>(
+  trust: OrganizationTrust, path: string, token: LoginToken,
+  snapshot: { cursor: OrganizationCursor; revision: number }, signal: AbortSignal, schema: z.ZodType<T>,
+): AsyncGenerator<T, void, unknown> {
+  const options = trustedOptions(trust)
   const req = request({ ...options, path, method: 'GET', signal, headers: { authorization: `Bearer ${token}` } })
   req.setTimeout(trust.timeoutMs, () => req.destroy(new Error('stream-timeout')))
   let cursor = snapshot.cursor
@@ -168,7 +199,7 @@ export async function* followOrganizationEvents(
           throw new OrganizationStreamReset(reason.error === 'unauthenticated' || reason.error === 'forbidden' ? reason.error : 'snapshot-required')
         }
         if (!frame.startsWith('data: ')) throw new OrganizationStreamReset('snapshot-required')
-        const batch = batchSchema.parse(JSON.parse(frame.slice(6)))
+        const batch = schema.parse(JSON.parse(frame.slice(6)))
         if (batch.cursor === cursor && batch.revision === revision && batch.events.length === 0) continue
         if (batch.cursor === cursor && batch.revision <= revision) continue
         if (batch.from !== cursor || batch.revision < revision) throw new OrganizationStreamReset('snapshot-required')

@@ -29,9 +29,11 @@ The account, organization, membership, invitation, server, operation and credent
 | `pageSize` | 50 | Maximum projects in one list/search page (1–200) |
 | `eventBatchSize` | 100 | Maximum committed revision range examined per event batch (1–1000) |
 | `eventReplayWindow` | 10000 | Maximum cursor lag before a fresh snapshot is required |
+| `workgraphMaxGrants` | 10000 | Maximum retained grant rows per plan |
+| `workgraphPageSize` | 50 | Maximum authorized task entries per page |
 | `workgraphMaxTasks` | 1000 | Maximum tasks and phases per definition |
 | `workgraphMaxDepth` | 100 | Maximum root-inclusive tree depth |
-| `workgraphMaxBytes` | 1048576 | Complete version JSON UTF-8 byte ceiling, including metadata |
+| `workgraphMaxBytes` | 1048576 | Complete version, task page, grant list or event batch UTF-8 byte ceiling, including metadata |
 | `busyTimeoutMs` | 5000 | SQLite writer-lock wait ceiling |
 
 Defaults serve a small LAN deployment, and validated Config fields allow adjustment. Successful attempts count toward the rate ceiling too; window expiry clears counters. Unknown usernames still perform real scrypt unless already throttled. Expired sessions are pruned during login. The service serializes admitted operations, including password work, and disposal rejects new work, drains existing work, then closes the database.
@@ -58,11 +60,13 @@ Business records, resource invalidations, audit events and receipts share one tr
 
 ## WorkGraph definitions
 
-`savePlan` accepts a strict complete definition with a stable plan ID, expected definition revision and OperationId. Creation requires project read/write and atomically grants the creator root-subtree read/edit. Editing additionally requires current root read/edit. `readPlan` delivers a complete current or historical version to a current root reader, using a synchronous callback. These domain methods have no network or GUI exposure yet. [WorkGraph design](../../../../docs/organization-workgraph.md) owns the full protocol and later task-view rules.
+`savePlan` accepts a strict complete definition with a stable plan ID, expected definition revision and OperationId. Creation requires project read/write and atomically grants the creator root-subtree read/edit. Editing additionally requires current root read/edit. `readPlan` delivers a complete current version to a current root reader; explicit historical revisions require root edit. All reads use synchronous callbacks. Fixed organization HTTPS routes and native actions consume these methods; task GUI and local context bindings are deferred. [WorkGraph design](../../../../docs/organization-workgraph.md) owns the protocol and task-view rules.
 
 Versions are immutable rows with server-derived authorship. Removed task IDs remain reserved. Task membership suggestions are checked within the organization and grant no access. New suggestions must be enabled; existing disabled references may remain unchanged. Shared `dsh-task-graph` checks hierarchy and effective completion cycles without loading personal runtime services. No definition accepts execution, cwd, permission or approval fields.
 
 Structural changes invalidate all old task grants except the current editor's explicit root grant, which is updated atomically. Receipts recheck current root read/edit and project permissions. Whole-version byte, task and depth ceilings reject oversized writes and reads. Startup and maintenance check graph history against task identities, authors, heads and event records; no independent content cache exists.
+
+`grantTask` manages explicit node/subtree read and root-subtree edit with optimistic grant versions. Management responses from `readTaskGrants` never include task text. `readTasks` intersects current and historical covered task IDs, filters hidden parents, phases and dependencies, then searches and paginates. A hidden prerequisite is represented by one boolean, without identity or count. Empty permission sets and inaccessible detail IDs return forbidden. `readWorkgraphEvents` compares authorized projections and omits edits confined to hidden tasks. Account/member/project/task-grant or structural epoch changes invalidate cursors; delivery reauthenticates inside the serialized authority operation. Current member/account state determines suggestion assignability.
 
 Offline backups now write schema 3; restore also accepts validated schema 2 backups, checks the actual stamp and upgrades staging before swapping directories. Existing login revocation and recovery rotation still apply.
 
@@ -72,7 +76,7 @@ This package contributes no model requests, tools, prompt text or Session events
 
 ## Known Limitations and Deferred Work
 
-Task-subtree projections, general task grants, task HTTPS/native actions and local context bindings remain for WorkGraph Phases 3–6.
+Local context isolation/bindings and task GUI remain for WorkGraph Phases 5–7.
 
 GUI and native connection ownership live in `ui-organization`, `organization-connection` and Desktop. `./maintenance` owns the offline directory lock, checked backups and staged restore, which revokes old logins/invitations and rotates recovery. `receipt` checks current authority before resolving an uncertain account operation. HTTPS ingress and private Electron lifecycle live in `organization-api` and Desktop; this domain package never starts a listener. The API must bound queued requests before calling this service. This service owns no file-import or personal-data migration path. Disk access by a principal who can replace the database is outside its confidentiality guarantees.
 
