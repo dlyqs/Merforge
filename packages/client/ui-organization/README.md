@@ -11,7 +11,7 @@ Adds organization settings and a personal/organization switch to Desktop. The [o
 
 ## Use this package
 
-The shipped Web bundle loads the plugin. Settings provide local service configuration, certificate comparison, initialization/recovery, invitation registration, login/logout, organization selection, member management and explicit project grants. Service maintenance opens native backup/restore directory dialogs. Product copy uses the `organization` typed locale in Chinese and English. The sidebar reuses `personal.manager` for the original Project/Bot/Session navigation; it does not copy or transfer personal records.
+The shipped Web bundle loads the plugin. Settings show compact account and local-service summaries that open a centered organization workspace. The workspace groups account, projects, members and local-service operations; each editing task replaces the overview with a focused form. The sidebar contains only the personal/organization switch and organization entry, never setup forms. Dialogs retain keyboard focus and return it to the entry on dismissal; pending operations prevent dismissal. The workspace provides local service configuration, certificate comparison, initialization/recovery, invitation registration, login/logout, organization selection, member management and explicit project grants. Service maintenance opens native backup/restore directory dialogs. Product copy uses the `organization` typed locale in Chinese and English. The sidebar reuses `personal.manager` for the original Project/Bot/Session navigation; it does not copy or transfer personal records.
 
 ## Model Experience
 
@@ -22,3 +22,5 @@ Presentation only: no model calls, prompt tokens, cache changes or Session event
 Visible Desktop acceptance and three-computer Wi-Fi validation remain user-owned; see the [acceptance script](../../../docs/organization-foundation-acceptance.md). Project authorization requires the receipt's project ID when the administrator lacks a read grant. Password and invitation forms do not provide account discovery or email delivery.
 
 No invariant companion is published: this plugin renders the native owner's snapshot and has no second authority. The composition test checks registration/disposal without mounting a page; native integration tests own isolation and race coverage.
+
+The Personal/Organization selector occupies `sidebar.mode`, immediately to the left of the sidebar collapse control. The browsing region contains personal navigation or the selected organization summary; account and administration controls continue to use centered dialogs.

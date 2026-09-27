@@ -178,6 +178,15 @@ export abstract class SessionPersistence extends Service {
   abstract flush(): Promise<void>
 
   /**
+   * Permanently remove a stored Session. The caller must first close its writer.
+   * Existing read observations may retain their immutable snapshot. Independent
+   * forks are unchanged. Missing Sessions succeed; active writers reject.
+   * @param id - Session identity to remove.
+   * @returns resolution after durable removal from open, stat, and list.
+   */
+  abstract delete(id: SessionId): Promise<void>
+
+  /**
    * Observe one stored session without reading its event log or taking
    * ownership.
    *

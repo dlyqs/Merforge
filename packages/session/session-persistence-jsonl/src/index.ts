@@ -235,6 +235,11 @@ class JsonlSessionPersistence extends SessionPersistence {
     const inheritedEventCount = SessionLogOffset(options?.inheritedEventCount ?? 0)
     await this.ensureRootEncoding()
     options?.signal?.throwIfAborted()
+    for (const project of await this.listProjectDirs(options?.signal)) {
+      if (await this.exists(join(project, encodeSegment(snapshot.id), 'session.deleted'))) {
+        throw new SessionAlreadyExistsError(snapshot.id)
+      }
+    }
     if (this.tracker.hasPending(snapshot.id) || await this.findLog(snapshot.id, options?.signal) !== undefined) {
       throw new SessionAlreadyExistsError(snapshot.id)
     }
@@ -392,6 +397,33 @@ class JsonlSessionPersistence extends SessionPersistence {
     }
     signal?.throwIfAborted()
     return snapshots
+  }
+
+  /**
+   * Remove every log generation while preserving the kernel lock inode.
+   * A durable marker prevents older generations resurfacing after interruption.
+   * @param id - Session whose writer has already closed.
+   */
+  async delete(id: SessionId): Promise<void> {
+    this.tracker.claimWrite(id)
+    let lease: SessionWriteLease | undefined
+    try {
+      const selected = await this.findLog(id, undefined, true)
+      if (selected === undefined) return
+      const dir = dirname(selected.currentPath)
+      lease = await this.acquireLease(id, undefined, dir)
+      const marker = await open(join(dir, 'session.deleted'), 'a', 0o600)
+      try { await marker.sync() } finally { await marker.close() }
+      if (process.platform !== 'win32') await this.syncDirPosix(dir)
+      this.coldLogMemo.delete(id)
+      for (const name of await readdir(dir)) {
+        if (parseGenerationLogFilename(name, this.compression) === undefined) continue
+        await rm(join(dir, name), { force: true })
+      }
+      if (process.platform !== 'win32') await this.syncDirPosix(dir)
+    } finally {
+      try { await lease?.release() } finally { this.tracker.releaseClaim(id) }
+    }
   }
 
   // --- handle-facing storage internals (package-private via the handle class below) ---
@@ -626,7 +658,16 @@ class JsonlSessionPersistence extends SessionPersistence {
     // Refuse an opposite-encoding artifact before the lock's mkdir publishes
     // the session directory — the last moment the directory can be absent.
     await this.rejectOppositeArtifact(header.cwd, header.id)
-    return this.acquireLease(header.id, header.cwd)
+    const lease = await this.acquireLease(header.id, header.cwd)
+    try {
+      if (await this.exists(join(sessionDir(this.root, header.cwd, header.id), 'session.deleted'))) {
+        throw new SessionPersistenceNotFoundError(header.id)
+      }
+      return lease
+    } catch (error: unknown) {
+      await lease.release()
+      throw error
+    }
   }
 
   /** Decode complete frames and retain complete JSONL records from a torn final frame. */
@@ -1122,6 +1163,7 @@ class JsonlSessionPersistence extends SessionPersistence {
   private async resolveGenerationInDirectory(
     dir: string,
     signal?: AbortSignal,
+    includeDeleted = false,
   ): Promise<ResolvedJsonlGeneration | undefined> {
     signal?.throwIfAborted()
     let entries: Dirent[]
@@ -1132,6 +1174,7 @@ class JsonlSessionPersistence extends SessionPersistence {
       throw error
     }
     signal?.throwIfAborted()
+    if (!includeDeleted && entries.some(entry => entry.name === 'session.deleted')) return undefined
     const generations: Array<{ readonly path: string; readonly version: number }> = []
     const opposite: string[] = []
     for (const entry of entries) {
@@ -1158,14 +1201,14 @@ class JsonlSessionPersistence extends SessionPersistence {
   }
 
   /** Find the unique authoritative generation for an id across project directories. */
-  private async findLog(id: SessionId, signal?: AbortSignal): Promise<ResolvedJsonlGeneration | undefined> {
+  private async findLog(id: SessionId, signal?: AbortSignal, includeDeleted = false): Promise<ResolvedJsonlGeneration | undefined> {
     const matches: ResolvedJsonlGeneration[] = []
     for (const project of await this.listProjectDirs(signal)) {
       signal?.throwIfAborted()
       await this.rejectLegacyFlatArtifact(project, id, signal)
       signal?.throwIfAborted()
       const dir = join(project, encodeSegment(id))
-      const selected = await this.resolveGenerationInDirectory(dir, signal)
+      const selected = await this.resolveGenerationInDirectory(dir, signal, includeDeleted)
       if (selected !== undefined) matches.push(selected)
     }
     if (matches.length > 1) {

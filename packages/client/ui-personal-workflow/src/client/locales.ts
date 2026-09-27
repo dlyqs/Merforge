@@ -1,5 +1,13 @@
 /** Task plan labels owned by the Client locale. */
 export const zh = {
+  hideDetails: '收起任务详情',
+  mindMap: '任务导图', mapCount: '{count} 个节点', mapControls: '导图视图控制',
+  zoomIn: '放大', zoomOut: '缩小', zoomLevel: '缩放 {percent}%，点击恢复原始大小', actualSize: '恢复原始大小',
+  fitMap: '适应画布', locateTask: '定位当前', expandAll: '展开全部',
+  mapHint: '拖动空白处平移 · 点击节点查看详情', hierarchyHint: '连线表示任务拆分，不代表执行顺序',
+  rootTask: '主任务', requiredNode: '必要', optionalNode: '可选',
+  expandBranch: '展开「{goal}」的子任务', collapseBranch: '收起「{goal}」的子任务',
+  invalidHierarchy: '草稿存在循环或未连接的父子关系，相关节点单独展示。请调整父任务后再保存。',
   plansHint: '查看任务拆分，审核计划并跟进执行进度。',
   emptyHint: '开启任务增强模式并描述目标，生成的计划会显示在这里。',
   selectPlan: '选择一个任务计划', selectPlanHint: '查看任务结构、阶段依赖和验收要求。',
@@ -39,6 +47,14 @@ export const zh = {
 export type WorkflowKey = keyof typeof zh
 /** Complete English task plan copy. */
 export const en = {
+  hideDetails: 'Hide task details',
+  mindMap: 'Task map', mapCount: '{count} nodes', mapControls: 'Map view controls',
+  zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoomLevel: 'Zoom {percent}%, click for actual size', actualSize: 'Actual size',
+  fitMap: 'Fit to view', locateTask: 'Locate selected', expandAll: 'Expand all',
+  mapHint: 'Drag the canvas to pan · Select a node for details', hierarchyHint: 'Lines show task breakdown, not execution order',
+  rootTask: 'Main task', requiredNode: 'Required', optionalNode: 'Optional',
+  expandBranch: 'Expand subtasks of {goal}', collapseBranch: 'Collapse subtasks of {goal}',
+  invalidHierarchy: 'This draft has cyclic or disconnected parent relationships. Affected nodes appear separately. Fix their parents before saving.',
   plansHint: 'Review task breakdowns, approve plans, and follow execution progress.',
   emptyHint: 'Enable task enhancement and describe a goal to create a plan here.',
   selectPlan: 'Select a task plan', selectPlanHint: 'Explore the task structure, dependencies, and acceptance criteria.',

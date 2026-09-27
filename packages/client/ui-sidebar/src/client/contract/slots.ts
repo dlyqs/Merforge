@@ -1,7 +1,7 @@
 /**
  * Sidebar slot contract: the registrant-side props composition for the
  * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
- * owns column geometry, the brand row, New Session, and global panel rows;
+ * owns column geometry, the mode selector, New Session, and global panel rows;
  * the browsing region belongs to the `sidebar.personal` registrant
  * (ui-personal), and the foot is the
  * `sidebar.settings` registrant's (ui-settings), followed by optional footer
@@ -13,17 +13,16 @@ import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** Compact Personal/Organization selector beside the sidebar toggle. */
+    'sidebar.mode': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
     /** Non-interactive notification inside the collapsed sidebar expand button. */
     'sidebar.toggle.badge': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
     /**
-     * Brand mark rendered in the expanded brand row and collapsed rail.
-     * Declared by this package's `sidebar` entry; deployments may replace
-     * the shell's fish fallback without replacing the surrounding controls.
+     * Reserved brand-mark registration; the navigation header no longer renders branding.
      */
     'sidebar.brand.mark': { kind: 'single'; scope: 'root'; owner: SidebarBrandMarkOwnerProps }
     /**
-     * Brand name rendered beside the expanded mark. Declared by this
-     * package's `sidebar` entry; the shell supplies a generic text fallback.
+     * Reserved brand-name registration; the navigation header no longer renders branding.
      */
     'sidebar.brand.name': { kind: 'single'; scope: 'root'; owner: SidebarBrandNameOwnerProps }
     /**
@@ -135,6 +134,7 @@ export type SidebarRootInjected = {
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
+    | 'sidebar.mode'
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
     | 'sidebar.toggle.badge'

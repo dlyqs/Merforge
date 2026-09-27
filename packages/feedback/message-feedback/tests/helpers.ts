@@ -105,6 +105,7 @@ interface StoredSession {
 
 /** Minimal controllable persistence provider for service-level tests. */
 class TestPersistence extends SessionPersistence {
+  async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
   readonly durable = new Map<SessionId, StoredSession>()
   readFailure: Error | undefined
   appendFailure: Error | undefined

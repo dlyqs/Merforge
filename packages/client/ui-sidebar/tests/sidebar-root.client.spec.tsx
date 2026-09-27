@@ -3,7 +3,6 @@ import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ReactNode } from 'react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
   SidebarSettingsOwnerProps,
@@ -56,6 +55,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
         key: string,
         owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
       ) => {
+        if (key === 'sidebar.mode') return <button>Personal / Organization</button>
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
         if (key === 'sidebar.toggle.badge') return null
@@ -97,69 +97,18 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
 }
 
 describe('SidebarRoot shell', () => {
-  it('routes New Session (capsule + wordmark) and the column toggle', () => {
+  it('renders a single New Session action without brand or build text', () => {
+    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
     const b = mountShell()
-    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
-    expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
-    // Expanded, both the wordmark and the capsule start a session.
-    const starters = screen.getAllByRole('button', { name: 'New session' })
-    expect(starters).toHaveLength(2)
-    for (const button of starters) fireEvent.click(button)
-    expect(b.startSession).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Personal / Organization' })).toBeTruthy()
+    expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
+    expect(screen.queryByTestId('custom-brand-name')).toBeNull()
+    expect(screen.queryByText('DSH Local Build')).toBeNull()
+    expect(screen.queryByText('1.2.3')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(b.startSession).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
-  })
-
-  it('renders generic brand fallbacks when no package fills the slots', () => {
-    vi.stubEnv('DSH_CLIENT_COMMIT_HASH', '0123456')
-    vi.stubEnv('DSH_CLIENT_GIT_DIRTY', 'true')
-    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3-rc.4')
-    const { container } = render(<SidebarRoot
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
-      useResource={useResource} useWorkspaces={neverHook}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
-    expect(container.querySelector('svg')).not.toBeNull()
-  })
-
-  it.each([
-    [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
-    [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
-  ])('omits unavailable build-version suffixes from %j', (environment, expected) => {
-    for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
-    render(<SidebarRoot
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
-      useResource={useResource} useWorkspaces={neverHook}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText(expected)).toBeTruthy()
-  })
-
-  it('retains the local-build fallback without complete build metadata', () => {
-    render(<SidebarRoot
-      collapsed={false} width={300}
-      useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
-      useResource={useResource} useWorkspaces={neverHook}
-      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
-      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
-        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
-    />)
-
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
@@ -191,6 +140,7 @@ describe('SidebarRoot shell', () => {
   it('renders statically collapsed on a cold start (no crossfade classes)', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Personal / Organization' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
   })
 
@@ -227,11 +177,8 @@ it('keeps the macOS sidebar toggle in its top strip', () => {
   const shell = mountShell()
   fireEvent.click(screen.getByRole('button', { name: en['toggle.collapse'] }))
   expect(shell.toggleSidebar).toHaveBeenCalledOnce()
-  // The brand stays part of the logo row's window-drag surface: no button
-  // role (the global no-drag rule would subtract it); only the dedicated
-  // New Session capsule starts a session.
   expect(screen.getAllByRole('button', { name: 'New session' })).toHaveLength(1)
-  expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+  expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
 })
 
 it('wires the shell.leading controls to the shared sidebar actions', () => {

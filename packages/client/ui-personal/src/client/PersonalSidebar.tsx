@@ -37,14 +37,14 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   const {
     management = false, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
     refresh, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
-    createSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
+    createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
   const records = useRecords(value => value)
   const sessions = useSessions(value => value)
   const statuses = useSessionStatus(value => value)
   const workspaces = useWorkspaces(value => value)
-  const [entrance, setEntrance] = useState<Entrance | null>(null)
-  const [showUnassigned, setShowUnassigned] = useState(false)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const [deleteSessionId, setDeleteSessionId] = useState<SessionId | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionId | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entrance | null>(null)
@@ -56,6 +56,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     if (busy) return
     setDraft(null)
     setDeleteTarget(null)
+    setDeleteSessionId(null)
     setSelectedSession(null)
     setNewTarget(null)
     setError(null)
@@ -144,7 +145,8 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     if (id === '' || sessions.byId[id] === undefined) return
     void perform(() => moveSession({ sessionId: id, ...(target.kind === 'project' ? { projectId: target.id } : { botId: target.id }) }))
   }
-  const sessionRow = (id: SessionId) => {
+  const sessionRow = (id: SessionId, context: 'project' | 'bot' | 'recent') => {
+    const menuId = `${context}:session:${id}`
     const summary = sessions.byId[id]
     if (summary === undefined) return null
     const status = statuses.get(id)
@@ -167,11 +169,22 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
       }} aria-label={`${summary.displayTitle} · ${statusLabel}`}>
         <span className={css.statusSlot}>{statusState !== 'idle' && <StateDot state={statusState} />}</span>
         <span className={css.sessionTitle}>{summary.blank ? t('newSession') : summary.displayTitle}</span>
-        {botName !== undefined && <span className={css.tag}>{botName}</span>}
+        {context === 'project' && botName !== undefined && <span className={css.tag}>{botName}</span>}
       </button>
       <div className={css.sessionActions}>
-        <Tooltip label={t('manageSession')}><button type="button" className={css.rowAction}
-          aria-label={t('manageSession')} onClick={() => { setError(null); setSelectedSession(id) }}><IconEllipsisOutlineRegular /></button></Tooltip>
+        <Menu open={menu === menuId} portal align="end" autoFocus onClose={() => { setMenu(null) }}
+          anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${summary.displayTitle}`}
+            aria-haspopup="menu" aria-expanded={menu === menuId}
+            onClick={() => { setMenu(menu === menuId ? null : menuId) }}><IconEllipsisOutlineRegular /></button>}
+          items={[
+            { id: 'manage', label: t('manageSession'), icon: <IconEditOutlineRegular />, disabled: busy },
+            { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
+          ]}
+          onSelect={(action) => {
+            setMenu(null); setError(null)
+            if (action === 'delete') setDeleteSessionId(id)
+            else setSelectedSession(id)
+          }} />
         {archived && <Tooltip label={t('unarchive')}><button type="button" className={css.rowAction}
           aria-label={t('unarchive')} onClick={() => { void perform(() => unarchiveSession(id)) }}><IconUnarchiveOutlineRegular /></button></Tooltip>}
       </div>
@@ -179,16 +192,25 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   }
 
   const groupRow = (target: Entrance, name: string, edit: () => void) => {
-    const open = entrance?.kind === target.kind && entrance.id === target.id
-    const ids = memberIds(sessions, target)
     const menuId = `${target.kind}:${target.id}`
+    const open = expanded.has(menuId)
+    const ids = memberIds(sessions, target)
     return <div key={`${target.kind}:${target.id}`} className={css.group}>
       <div className={css.groupRow}
         onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
         onDrop={(event) => { acceptDrop(target, event) }}>
         <button type="button" className={css.groupButton} aria-expanded={open}
           aria-label={`${name} · ${t(target.kind === 'project' ? 'dropProject' : 'dropBot')}`}
-          onClick={() => { if (!wide) expandSidebar(); setEntrance(open ? null : target); setSelectedSession(null) }}>
+          onClick={() => {
+            if (!wide) expandSidebar()
+            setExpanded((current) => {
+              const next = new Set(current)
+              if (next.has(menuId)) next.delete(menuId)
+              else next.add(menuId)
+              return next
+            })
+            setSelectedSession(null)
+          }}>
           <span className={css.leadingIcon} aria-hidden="true">
             {target.kind === 'project'
               ? open ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />
@@ -213,8 +235,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>}
       </div>
       {wide && open && <div className={css.groupContents}>
-        {props.renderSlot('personal.manager.workflow', { projectId: target.kind === 'project' ? target.id : null, botId: target.kind === 'bot' ? target.id : null })}
-        {!management && ids.map(sessionRow)}
+        {!management && ids.map(id => sessionRow(id, target.kind))}
       </div>}
     </div>
   }
@@ -241,18 +262,6 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>
       </div>
       {(sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects).map(project => groupRow({ kind: 'project', id: project.id }, project.name, () => { setDraft(projectDraft(project)) }))}
-      {!management && unassigned.length > 0 && <div className={css.group}>
-        <div className={css.groupRow}>
-          <button type="button" className={css.groupButton} aria-expanded={showUnassigned}
-            onClick={() => { setShowUnassigned(value => !value) }}>
-            <span className={css.leadingIcon} aria-hidden="true">
-              {showUnassigned ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
-              <IconTriangleRightFillRegular className={css.chevron} />
-            </span>
-            <span className={css.groupTitle}>{t('unassigned')}</span></button>
-        </div>
-        {showUnassigned && <div className={css.groupContents}>{unassigned.map(sessionRow)}</div>}
-      </div>}
       <div className={css.groupHeading}><span>{t('bots')}</span>
         <div className={css.headingActions}>
           <Menu open={menu === 'bots'} portal align="end" autoFocus
@@ -269,8 +278,12 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>
       </div>
       {(sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots).map(bot => groupRow({ kind: 'bot', id: bot.id }, bot.name, () => { setDraft(botDraft(bot)) }))}
+      {!management && <section aria-label={t('recent')}>
+        <div className={css.groupHeading}><span>{t('recent')}</span></div>
+        {unassigned.map(id => sessionRow(id, 'recent'))}
+      </section>}
       {records.phase === 'ready' && records.projects.length === 0 && records.bots.length === 0 && unassigned.length === 0 && <p>{t('none')}</p>}
-      {error !== null && draft === null && deleteTarget === null && selectedSession === null && newTarget === null && <p role="alert">{t('error', { message: error })}</p>}
+      {error !== null && draft === null && deleteTarget === null && deleteSessionId === null && selectedSession === null && newTarget === null && <p role="alert">{t('error', { message: error })}</p>}
     </div>}
     {selectedSession !== null && sessions.byId[selectedSession] !== undefined && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('manageSession')}
       className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}>
@@ -296,6 +309,16 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </li>)}</ol>
         {error !== null && <p role="alert">{t('error', { message: error })}</p>}
       </div></Modal>}
+    {deleteSessionId !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('delete')}
+      footer={<>
+        <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => { void perform(
+          () => deleteSession(deleteSessionId), () => { setDeleteSessionId(null); setSelectedSession(null) },
+        ) }}>{t('delete')}</Button>
+      </>}>
+      <p>{t('confirmDeleteSession', { name: sessions.byId[deleteSessionId]?.displayTitle ?? t('newSession') })}</p>
+      {error !== null && <p role="alert">{t('error', { message: error })}</p>}
+    </Modal>}
     {deleteTarget !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('delete')}>
       <div className={css.confirm}>
         <span>{t('confirmDelete', { name: deleteTarget.kind === 'project'
@@ -303,7 +326,15 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
           : records.bots.find(bot => bot.id === deleteTarget.id)?.name ?? '' })}</span>
         <Button variant="primary" disabled={busy} onClick={() => { void perform(
           () => deleteTarget.kind === 'project' ? deleteProject(deleteTarget.id) : deleteBot(deleteTarget.id),
-          () => { setDeleteTarget(null); setEntrance(null); setSelectedSession(null) },
+          () => {
+            setDeleteTarget(null)
+            setExpanded((current) => {
+              const next = new Set(current)
+              next.delete(`${deleteTarget.kind}:${deleteTarget.id}`)
+              return next
+            })
+            setSelectedSession(null)
+          },
         ) }}>{t('delete')}</Button>
         <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
         {error !== null && <p role="alert">{t('error', { message: error })}</p>}

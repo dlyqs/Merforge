@@ -138,6 +138,32 @@ function secondTurn(startSeq = 6): SessionEvent[] {
  */
 export function runPersistenceContract(name: string, make: () => Promise<ContractBackend>): void {
   describe(`SessionPersistence contract: ${name}`, () => {
+    it('deletes a closed Session durably while refusing an active writer', async () => {
+      const backend = await make()
+      const { persistence, dispose } = backend
+      try {
+        const header = meta('delete-conversation', '/work')
+        const writer = await persistence.create(header)
+        await writer.append(oneTurnLog())
+        await expect(persistence.delete(header.id)).rejects.toBeInstanceOf(SessionAlreadyOwnedError)
+        expect(await persistence.stat(header.id)).toBeDefined()
+        await writer.close()
+        await persistence.delete(header.id)
+        expect(await persistence.stat(header.id)).toBeUndefined()
+        expect(await persistence.list()).toEqual([])
+        await expect(persistence.open(header.id, 'read')).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+        await expect(persistence.open(header.id, 'write')).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+        await persistence.delete(header.id)
+        if (backend.reopen !== undefined) {
+          const reopened = await backend.reopen()
+          try {
+            expect(await reopened.persistence.list()).toEqual([])
+            await expect(reopened.persistence.open(header.id, 'read')).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+          } finally { await reopened.dispose() }
+        }
+      } finally { await dispose() }
+    })
+
     it('round-trips through one write handle: append, self-read, offset/length defaults', async () => {
       const { persistence, dispose } = await make()
       try {

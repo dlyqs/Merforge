@@ -44,11 +44,16 @@ describe('personal entrance membership', () => {
     expect(after.byId[first]?.running).toBe(true)
   })
 
-  it('hides empty ordinary drafts and pending affiliations from the virtual group', () => {
+  it('hides empty ordinary drafts and pending affiliations from Recent', () => {
     expect(unassignedIds(catalog([{ ...summary(first), blank: true }]))).toEqual([])
     expect(unassignedIds(catalog([{ ...summary(first), projectionValues: {} }]))).toEqual([])
     expect(unassignedIds(catalog([summary(first)]))).toEqual([first])
     expect(unassignedIds(catalog([summary(first, projectA), summary(second, undefined, botA)]))).toEqual([])
+  })
+
+  it('orders Recent by latest activity independently of catalog order', () => {
+    const list = catalog([summary(first), { ...summary(second), updatedAt: 5 }])
+    expect(unassignedIds(list)).toEqual([second, first])
   })
 
   it('keeps a deleted object’s former Session discoverable from its event history', () => {

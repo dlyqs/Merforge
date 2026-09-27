@@ -1,5 +1,5 @@
 ---
-description: "Sidebar shell plugin for the dsh web client: brand row, New Session action, collapse control, scroll-aware region seat, and bottom-pinned Settings seat."
+description: "Sidebar shell plugin for the dsh web client: mode selector, New Session action, collapse control, scroll-aware region seat, and bottom-pinned Settings seat."
 kind: "package-reference"
 ---
 
@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-The dsh web client sidebar lets users recognize the active build, start a new session, collapse navigation to a 56px rail, browse Project and Bot conversations, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session creates an ordinary conversation without Project or Bot affiliation. Deployments can replace the brand mark or name while retaining the navigation controls and rail geometry.
+The dsh web client sidebar lets users switch between Personal and Organization, start a new session, collapse navigation to a 56px rail, browse Project and Bot conversations, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session creates an ordinary conversation without Project or Bot affiliation. The header contains only the mode selector and collapse control, without branding or build metadata.
 
 ## Table of Contents
 
@@ -23,11 +23,11 @@ The dsh web client sidebar lets users recognize the active build, start a new se
 <a id="use-this-package"></a>
 ## Use this package
 
-The sidebar is the navigation shell: users see the brand, start new sessions, collapse the rail, and reach Settings. Feature plugins fill its seats — ui-personal fills `sidebar.personal` with the two direct sections, and ui-settings registers the trigger row and settings panel at `sidebar.settings`.
+The sidebar is the navigation shell: users switch modes, start new sessions, collapse the rail, and reach Settings. Feature plugins fill its seats — ui-personal fills `sidebar.personal` with Projects, Bots, and Recent, and ui-settings registers the trigger row and settings panel at `sidebar.settings`.
 
-### Brand and New Session
+### Mode selector and New Session
 
-The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as independent single slots; the collapsed rail renders the same mark slot. Without occupants, the shell uses the fish mark and a localized local-build label. A complete build stacks a code badge below the label as `version[-commit][-dirty]`, using `DSH_CLIENT_VERSION`, the optional 7-character `DSH_CLIENT_COMMIT_HASH`, and `DSH_CLIENT_GIT_DIRTY=true`; missing version metadata omits the badge. New Session creates and opens an ordinary Session without Project or Bot affiliation.
+The expanded header renders `sidebar.mode` immediately before the collapse button. Its occupant owns the Personal/Organization controls; the shell supplies a shrinking seat capped at 200px. Branding slots remain declared for existing registrants but are no longer rendered. New Session creates and opens an ordinary Session without Project or Bot affiliation.
 
 ### Global panel entries
 
@@ -39,11 +39,11 @@ The top expand button hosts the optional, non-interactive `sidebar.toggle.badge`
 
 During a live collapse, the expanded content fades out at its current width, the upper controls share one fade and leftward translation into the 56px rail, and the layout's column slide ends the motion. A page that starts collapsed renders the rail statically, and reduced-motion mode disables both transitions. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation.
 
-On Windows Electron, `html[data-windows-titlebar]` fixes the sidebar toggle in the caption's top-left corner in both states, aligned with New Session's left edge only when expanded. The expanded brand sits below the caption and above New Session, with 8px of extra space above that button. Collapsing hides the brand and sidebar content and places New Session between the sidebar toggle and the Desktop-owned menus. The sidebar sets the root `--dsh-windows-menu-start` to 84px when collapsed; the Desktop preload uses it to position its menu after New Session and defaults to 48px when expanded. Caption icon buttons use centered 16px glyphs in 28px circular controls and exclude themselves from the window drag region. The sidebar toggle and New Session bubbles open below the caption, where the Desktop-owned menu text cannot cover them; an occupying `sidebar.toggle.badge` chooses its own bubble side.
+On Windows Electron, the expanded mode selector and toggle share the sidebar header below the caption. When collapsed, the sidebar toggle and New Session occupy the caption's top-left corner and reserve 84px before Desktop menus. These controls use 28px circular boxes, exclude themselves from window dragging, and show tooltips below the caption.
 
 ### macOS desktop
 
-Under `html[data-platform='darwin']` (set only by the desktop preload) the expanded column opens with a 52px top strip that clears the hiddenInset traffic lights and carries the collapse toggle; the frame's own drag band (ui-layout `.leadingBand`) covers that strip, and the logo row below extends the drag surface, so the brand wordmark is not a New Session shortcut there — the dedicated New Session button keeps the action — and collapsing hides the column entirely instead of leaving the rail. The package registers `HeaderLeadingControls` into the frame's `shell.leading` window-chrome seat (ui-layout), which mounts it — the open-sidebar and New Session controls beside the traffic lights — only while the column is hidden, over every main panel. Rationale and the window-integration contract: the [macOS hidden-titlebar Agent Note](../../../.agents/notes/implemented/feature/2026-09-13-macos-hidden-titlebar-vibrancy.md).
+Under `html[data-platform='darwin']`, the expanded column opens with a 52px header. An 80px left inset clears the hiddenInset traffic lights; the mode selector shrinks within the remaining space to the left of the collapse button. Fullscreen removes this inset. The header remains a window-drag surface with interactive controls excluded. Collapsing hides the column entirely; `HeaderLeadingControls` in the frame's `shell.leading` seat supplies Open sidebar and New Session beside the traffic lights.
 
 ### Scrollbars
 
@@ -57,7 +57,7 @@ Scrollbars in the column are a pointer affordance: the shell rebinds the scrollb
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The shell is pure composition: `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the declared brand, the `sidebar.personal` and `sidebar.settings` child slots, and injected navigation callbacks. Panel entries and their optional titles use the same composition path. Panel metadata is derived from list registrations and locale changes; selection belongs to the layout store.
+The shell is pure composition: `SidebarRootComponentProps` composes the layout owner share, the global `useSessions` and `useWorkspaces` hooks, the mode selector, the `sidebar.personal` and `sidebar.settings` child slots, and injected navigation callbacks. Panel entries and their optional titles use the same composition path. Panel metadata is derived from list registrations and locale changes; selection belongs to the layout store.
 
 ### Slot discipline
 

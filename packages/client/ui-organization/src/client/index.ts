@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-personal/client'
 import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationInjected } from './contract.ts'
-import { OrganizationSettings, OrganizationSidebar } from './Organization.tsx'
+import { OrganizationSettings, OrganizationSidebar, OrganizationModeSwitch } from './Organization.tsx'
 import { zh, en } from './locales.ts'
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
@@ -51,6 +51,8 @@ export function apply(ctx: Context): void {
     label: () => t('settings'),
     locale: 'organization',
     inject: bind }, OrganizationSettings))
+  ctx.slots.inject('sidebar.mode', () => ctx.slots.register({ name: 'sidebar.mode',
+    locale: 'organization', inject: bind }, OrganizationModeSwitch))
   ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal',
     priority: -10,
     locale: 'organization',

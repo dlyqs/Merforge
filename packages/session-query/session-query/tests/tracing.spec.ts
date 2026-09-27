@@ -83,6 +83,7 @@ class TraceHandle implements SessionHandle {
 }
 
 class TracePersistence extends SessionPersistence {
+  async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
   static entries = new Map<SessionIdType, { meta: SessionHeader; events: SessionEvent[] }>()
   static listCalls = 0
   static readCalls = 0

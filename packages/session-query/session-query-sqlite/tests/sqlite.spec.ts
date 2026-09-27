@@ -129,6 +129,7 @@ class TestHandle implements SessionHandle {
 }
 
 class TestPersistence extends SessionPersistence {
+  async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
   static entries = new Map<SessionIdType, { meta: SessionHeader; events: SessionEvent[] }>()
   static revisions = new Map<SessionIdType, number>()
   static nextRevision = 0

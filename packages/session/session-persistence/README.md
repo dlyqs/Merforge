@@ -31,7 +31,7 @@ The seam ships the [JSONL](../session-persistence-jsonl/README.md) backend: one 
 
 ### What the service provides
 
-With a backend mounted, five service methods address stored sessions:
+With a backend mounted, the following service methods address stored sessions:
 
 ```text
 const handle = await ctx.sessionPersistence.create(header)     // store a new session, take write ownership
@@ -40,7 +40,10 @@ const reader = await ctx.sessionPersistence.open(id, 'read')   // observe withou
 const snap = await ctx.sessionPersistence.stat(id)             // header + revision (+ eventCount / sizeBytes) without a log read
 const all = await ctx.sessionPersistence.list()                // one snapshot per visible stored session
 await ctx.sessionPersistence.flush()                           // backend-wide durability barrier over every active write handle
+await ctx.sessionPersistence.delete(id)                        // permanently remove a Session after closing its writer
 ```
+
+`delete(id)` refuses an active writer, removes the Session from subsequent `open`/`stat`/`list` calls, and succeeds for a missing identity. The lifecycle owner must stop and drain activity before deleting. Independently forked Sessions remain unchanged; previously retained immutable read observations may finish using their snapshots.
 
 Service-level `flush()` drains every active write handle's routed events and materializes its session, exactly as each handle's own `flush` would; failures aggregate per session as an `AggregateError` without abandoning the sweep, and a handle closed mid-sweep counts as flushed because close itself drains durably.
 

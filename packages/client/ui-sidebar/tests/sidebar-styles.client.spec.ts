@@ -59,17 +59,14 @@ describe('SidebarRoot.module.css', () => {
   })
 
   it('gives shell rail controls the same base anchor for their shared translation', () => {
-    expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
+    expect(declarations('.collapsed .headerRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
-  it('keeps the slotted brand row at the full artwork height', () => {
-    expect(declarations('.brandIdentity')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('height')).toBe('24px')
-    expect(declarations('.brandName')?.get('line-height')).toBe('24px')
-    expect(declarations('.brandName')?.get('font-size')).toBe('18px')
-    expect(declarations('.fallbackBrandName')?.get('font-size')).toBe('17px')
-    expect(declarations('.fallbackBrandName')?.get('white-space')).toBe('nowrap')
+  it('reserves traffic-light space and lets the mode selector shrink', () => {
+    expect(declarations('.topStrip')?.get('padding')).toBe('0 12px 2px 80px')
+    expect(declarations('.modeSeat')?.get('min-width')).toBe('0')
+    expect(declarations('.modeSeat')?.get('flex')).toBe('1')
   })
 })

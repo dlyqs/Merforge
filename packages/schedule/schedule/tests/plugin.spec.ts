@@ -22,6 +22,7 @@ interface StoredProbeSession {
 
 /** In-memory handle-based persistence, just enough for agent-loop's write path. */
 class PersistenceProbe extends SessionPersistence {
+  async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
   private readonly stored = new Map<string, StoredProbeSession>()
 
   override async create(header: SessionHeader): Promise<SessionHandle> {

@@ -486,6 +486,7 @@ describe('SessionObservationReader cold path', () => {
     }
 
     class SwapPersistence extends SessionPersistence {
+      async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
       static readCalls = 0
 
       create(): Promise<SessionHandle> {

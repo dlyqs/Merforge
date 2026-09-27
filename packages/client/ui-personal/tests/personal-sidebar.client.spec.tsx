@@ -46,11 +46,12 @@ const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({
 function mount(sessionList: SessionListState = list) {
   const openSession = vi.fn()
   const moveSession = vi.fn(async () => {})
+  const deleteSession = vi.fn(async () => {})
   const createSession = vi.fn(async () => sessionId)
   const createProject = vi.fn(async () => {})
   const pickDirectory = vi.fn(async () => '/tmp/picked-project')
   const props: PersonalSidebarProps = {
-    renderSlot: () => null, renderSlotChain: () => null, SessionProvider: ({ children }) => children,
+    renderSlot: () => <span>Task plans</span>, renderSlotChain: () => null, SessionProvider: ({ children }) => <>{children}</>,
     wide: true, expandSidebar: vi.fn(),
     useSessions: hook(sessionList), useSessionStatus: hook(statuses), useWorkspaces: hook(workspaces),
     useSessionRetainInfo: () => undefined, useResource, usePanelInfo,
@@ -58,12 +59,12 @@ function mount(sessionList: SessionListState = list) {
     refresh: vi.fn(async () => {}), createProject, updateProject: vi.fn(async () => {}),
     pickDirectory,
     deleteProject: vi.fn(async () => {}), createBot: vi.fn(async () => {}), updateBot: vi.fn(async () => {}),
-    deleteBot: vi.fn(async () => {}), createSession, moveSession,
+    deleteBot: vi.fn(async () => {}), deleteSession, createSession, moveSession,
     refreshAffiliation: vi.fn(async () => {}), openSession, unarchiveSession: vi.fn(async () => {}),
     t: makeTranslate(zh, commonZh),
   }
   render(<PersonalSidebar {...props} />)
-  return { openSession, moveSession, createSession, createProject, pickDirectory }
+  return { deleteSession, openSession, moveSession, createSession, createProject, pickDirectory }
 }
 
 describe('personal sidebar', () => {
@@ -79,28 +80,23 @@ describe('personal sidebar', () => {
     mount({ ...list, byId: { [sessionId]: {
       ...summary, blank: true, projectionValues: { personalAffiliation: { current: {}, history: [] } },
     } } })
-    expect(screen.queryByRole('button', { name: zh.unassigned })).toBeNull()
+    expect(screen.getByRole('region', { name: zh.recent })).toBeTruthy()
+    expect(screen.queryByText('Conversation')).toBeNull()
   })
 
   it('keeps nonempty ordinary conversations accessible with one stable action container', async () => {
     mount({ ...list, byId: { [sessionId]: {
       ...summary, projectionValues: { personalAffiliation: { current: {}, history: [] } },
     } } })
-    const group = screen.getByRole('button', { name: zh.unassigned })
-    fireEvent.click(group)
-    expect(group.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('region', { name: zh.recent })).toBeTruthy()
     const row = screen.getByRole('button', { name: 'Conversation · 进行中' }).parentElement
     expect(row).not.toBeNull()
-    const action = within(row as HTMLElement).getByRole('button', { name: zh.manageSession })
+    const action = within(row as HTMLElement).getByRole('button', { name: `${zh.more} Conversation` })
     const container = action.parentElement
     expect(container).not.toBe(row)
     expect(within(container as HTMLElement).getAllByRole('button')).toHaveLength(1)
-    fireEvent.mouseEnter(action)
-    await waitFor(() => { expect(screen.getByRole('tooltip')).toBeTruthy() })
-    expect(action.parentElement).toBe(container)
-    expect(within(row as HTMLElement).getAllByRole('button')).toHaveLength(2)
-    fireEvent.mouseLeave(action)
     fireEvent.click(action)
+    fireEvent.click(screen.getByRole('menuitem', { name: zh.manageSession }))
     expect(screen.getByRole('dialog', { name: zh.manageSession })).toBeTruthy()
   })
 
@@ -110,11 +106,18 @@ describe('personal sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Conversation · 进行中' }))
     expect(openSession).toHaveBeenCalledWith(sessionId)
     expect(screen.queryByRole('dialog')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: zh.manageSession }))
+    fireEvent.click(screen.getByRole('button', { name: `${zh.more} Conversation` }))
+    fireEvent.click(screen.getByRole('menuitem', { name: zh.manageSession }))
     expect(screen.getByText(/Alpha \/ Reviewer/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: zh.close }))
     fireEvent.click(screen.getByRole('button', { name: `Reviewer · ${zh.dropBot}` }))
-    fireEvent.click(screen.getByRole('button', { name: 'Conversation · 进行中' }))
+    expect(screen.getByRole('button', { name: `Alpha · ${zh.dropProject}` }).getAttribute('aria-expanded')).toBe('true')
+    const rows = screen.getAllByRole('button', { name: 'Conversation · 进行中' })
+    expect(rows).toHaveLength(2)
+    expect(screen.getAllByText('Task plans')).toHaveLength(1)
+    expect(rows[0]?.textContent).toContain('Reviewer')
+    expect(rows[1]?.textContent).not.toContain('Reviewer')
+    fireEvent.click(rows[1]!)
     expect(openSession).toHaveBeenNthCalledWith(2, sessionId)
   })
 
@@ -129,7 +132,8 @@ describe('personal sidebar', () => {
     expect(createSession).toHaveBeenCalledWith({ projectId: projectA })
     await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
     fireEvent.click(screen.getByRole('button', { name: 'Conversation · 进行中' }))
-    fireEvent.click(screen.getByRole('button', { name: zh.manageSession }))
+    fireEvent.click(screen.getByRole('button', { name: `${zh.more} Conversation` }))
+    fireEvent.click(screen.getByRole('menuitem', { name: zh.manageSession }))
     fireEvent.change(screen.getByLabelText(zh.moveProject), { target: { value: projectB } })
     expect(moveSession).toHaveBeenCalledWith({ sessionId, projectId: projectB })
   })
@@ -148,6 +152,21 @@ describe('personal sidebar', () => {
     expect(moveSession).toHaveBeenCalledWith({ sessionId, projectId: projectB })
   })
 
+  it.each(['project', 'bot'] as const)('moves a Recent conversation into a %s', (kind) => {
+    const { moveSession } = mount({ ...list, byId: { [sessionId]: {
+      ...summary, projectionValues: { personalAffiliation: { current: {}, history: [] } },
+    } } })
+    const recent = screen.getByRole('region', { name: zh.recent })
+    const row = within(recent).getByRole('button', { name: 'Conversation · 进行中' }).parentElement!
+    const setData = vi.fn()
+    fireEvent.dragStart(row, { dataTransfer: { setData, effectAllowed: 'move' } })
+    expect(setData).toHaveBeenCalledWith('application/x-dsh-personal-session', sessionId)
+    const label = kind === 'project' ? `Alpha · ${zh.dropProject}` : `Reviewer · ${zh.dropBot}`
+    const target = screen.getByRole('button', { name: label }).parentElement!
+    fireEvent.drop(target, { dataTransfer: { getData: () => sessionId, dropEffect: 'move' } })
+    expect(moveSession).toHaveBeenCalledWith({ sessionId, ...(kind === 'project' ? { projectId: projectA } : { botId: botA }) })
+  })
+
   it('opens Project and Bot editors through More menus outside the sidebar', () => {
     mount()
     for (const [name, title] of [['Alpha', zh.editProject], ['Reviewer', zh.editBot]]) {
@@ -159,6 +178,36 @@ describe('personal sidebar', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: zh.cancel }))
       expect(screen.queryByRole('dialog')).toBeNull()
     }
+  })
+
+  it('confirms conversation deletion and invokes the durable action', async () => {
+    const { deleteSession } = mount()
+    fireEvent.click(screen.getByRole('button', { name: `Alpha · ${zh.dropProject}` }))
+    fireEvent.click(screen.getByRole('button', { name: `${zh.more} Conversation` }))
+    fireEvent.click(screen.getByRole('menuitem', { name: zh.delete }))
+    expect(deleteSession).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog', { name: zh.delete })
+    fireEvent.click(within(dialog).getByRole('button', { name: zh.delete }))
+    await waitFor(() => { expect(deleteSession).toHaveBeenCalledWith(sessionId) })
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+  })
+
+  it('keeps the conversation and shows an error when deletion fails; cancel makes no request', async () => {
+    const { deleteSession } = mount()
+    deleteSession.mockRejectedValueOnce(new Error('Storage unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: `Alpha · ${zh.dropProject}` }))
+    const openDelete = () => {
+      fireEvent.click(screen.getByRole('button', { name: `${zh.more} Conversation` }))
+      fireEvent.click(screen.getByRole('menuitem', { name: zh.delete }))
+    }
+    openDelete()
+    fireEvent.click(screen.getByRole('button', { name: zh.cancel }))
+    expect(deleteSession).not.toHaveBeenCalled()
+    openDelete()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: zh.delete }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('Storage unavailable') })
+    fireEvent.click(screen.getByRole('button', { name: zh.cancel }))
+    expect(screen.getByRole('button', { name: 'Conversation · 进行中' })).toBeTruthy()
   })
 
   it('saves the picked directory directly on a new Project', async () => {

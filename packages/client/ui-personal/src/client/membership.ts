@@ -21,7 +21,7 @@ export function memberIds(list: SessionListState, entrance: Entrance): SessionId
 
 /** Keep conversations without a Project or Bot discoverable.
  * @param list - one shared Session catalog.
- * @returns nonempty unclassified Session IDs with loaded affiliations.
+ * @returns nonempty unclassified Session IDs, newest activity first.
  */
 export function unassignedIds(list: SessionListState): SessionId[] {
   return list.ids.filter((id) => {
@@ -30,5 +30,5 @@ export function unassignedIds(list: SessionListState): SessionId[] {
     const affiliation = summary.projectionValues?.personalAffiliation
     return affiliation !== undefined && affiliation.current.projectId === undefined
       && affiliation.current.botId === undefined
-  })
+  }).sort((a, b) => (list.byId[b]?.updatedAt ?? 0) - (list.byId[a]?.updatedAt ?? 0))
 }

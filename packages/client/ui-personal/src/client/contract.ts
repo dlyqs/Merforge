@@ -39,6 +39,7 @@ export interface PersonalActions {
   }): Promise<void>
   deleteBot(id: BotId): Promise<void>
   createSession(input: { projectId?: ProjectId; botId?: BotId }): Promise<SessionId>
+  deleteSession(sessionId: SessionId): Promise<void>
   moveSession(input: { sessionId: SessionId; projectId?: ProjectId | null; botId?: BotId | null }): Promise<void>
   refreshAffiliation(sessionId: SessionId): Promise<void>
   openSession(sessionId: SessionId): void
@@ -66,9 +67,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
   interface SlotMap {
     /** Temporary personal workflow test controls within settings. */
-    'settings.personal.testing': { kind: 'single'; scope: 'root'; owner: object }
+    'settings.personal.testing': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
 
-    /** Task plans associated with the expanded personal entrance. */
+    /** The single all-plans entry above personal navigation. */
     'personal.manager.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null } }
   }
   interface LocaleNamespaceMap {

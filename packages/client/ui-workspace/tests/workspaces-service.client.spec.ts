@@ -927,6 +927,15 @@ describe('UiWorkspaceService', () => {
     expect(b.sessions.retained[0]!.reference.sessionId).toBe(sid('saved'))
   })
 
+  it('releases the main conversation when deletion removes it from the catalog', () => {
+    const b = bench()
+    b.sessions.list.set(sessionState([summary('current')]))
+    b.uiWorkspace.openSession(sid('current'))
+    b.sessions.list.set(sessionState([]))
+    expect(b.sessions.retained[0]!.release).toHaveBeenCalledOnce()
+    expect(b.selectPanel).toHaveBeenCalledTimes(2)
+  })
+
   it('clears a selected Session when an external archive snapshot arrives', () => {
     const b = bench()
     b.uiWorkspace.openSession(sid('current'))

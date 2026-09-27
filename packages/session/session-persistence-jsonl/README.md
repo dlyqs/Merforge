@@ -9,6 +9,8 @@ kind: "package-reference"
 
 `dsh-session-persistence-jsonl` stores current-format Sessions as append-only JSONL, using checksummed Zstandard frames by default or raw text when `compression: 'none'` is selected. It saves and reopens current Sessions, repairs an interrupted tail, and refuses files with another format version. Configure a root directory for the log files.
 
+User-requested deletion acquires exclusive write ownership, durably records `session.deleted`, and removes all log generations. Reads and listings ignore marked directories, including after interruption or restart. The empty marker and `session.lock` remain so older generations cannot reappear and the POSIX lock inode stays stable. Reusing a deleted identity is refused.
+
 ## Table of Contents
 
 - [Use this package](#use-this-package)

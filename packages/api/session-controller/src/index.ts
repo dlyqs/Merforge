@@ -179,7 +179,7 @@ export class SessionController extends TypertRemoteService {
       ctx.emit('api-session/added', this.listState.summaryFor(session))
     })
     ctx.on('session/disposed', (session) => {
-      ctx.emit('api-session/removed', session.id)
+      if (!this.agents.isDeleting(session.id)) ctx.emit('api-session/removed', session.id)
     })
     const publishAgentAvailability = ({ agent }: { agent: Agent }): undefined => {
       if (ctx.sessions.get(agent.id) === agent.session) {
@@ -455,6 +455,17 @@ export class SessionController extends TypertRemoteService {
     const registry = this.ctx.get('personalProjects')
     if (registry === undefined) throw new Error('personal Project and Bot service is unavailable')
     return registry
+  }
+
+  /**
+   * Permanently delete an ordinary conversation after stopping its owned activity.
+   * @param sessionId - conversation selected by the user.
+   * @returns resolution after storage deletion and Client removal notification.
+   */
+  @Remote('delete')
+  async deleteSession(sessionId: SessionId): Promise<void> {
+    await this.agents.deleteSession(sessionId)
+    this.ctx.emit('api-session/removed', sessionId)
   }
 
   /** List current personal records for the Client data surface.

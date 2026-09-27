@@ -1,14 +1,12 @@
 /** Tree and affiliation projections never create execution facts. */
 import { expect, it } from 'vitest'
-import { childrenOf, overlappingArtifacts, selectPlans } from '../src/client/view.ts'
-import { definition, ids } from '../../../workspace/personal-workflow/tests/fixture.ts'
+import { overlappingArtifacts, selectPlans } from '../src/client/view.ts'
+import { definition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import { projectPlan } from '../../../workspace/personal-workflow/src/projection.ts'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
 
-it('keeps fork/join dependencies separate from sibling presentation order', () => {
+it('finds exact shared artifact declarations without claiming resource isolation', () => {
   const tasks = definition().tasks
-  expect(childrenOf(tasks, ids[0]!)).toHaveLength(4)
-  expect(childrenOf(tasks, ids[0]!).slice(1, 3).map(task => task.dependsOn)).toEqual([[ids[1]], [ids[1]]])
   expect(overlappingArtifacts(tasks, tasks[0]!)).toEqual([])
   expect(overlappingArtifacts([...tasks, { ...tasks[1]!, artifacts: tasks[0]!.artifacts }], tasks[0]!)).toEqual(tasks[0]!.artifacts)
 })

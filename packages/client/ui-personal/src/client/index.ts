@@ -64,6 +64,10 @@ export function apply(ctx: Context): void {
       ctx.uiWorkspace.openSession(sessionId)
       return sessionId
     },
+    deleteSession: async (sessionId) => {
+      valueOf(await ctx.remote.session.delete(sessionId))
+      await ctx.sessions.refresh()
+    },
     moveSession: async (input) => {
       valueOf(await ctx.remote.session.personalMove(input))
       await ctx.sessions.refresh()

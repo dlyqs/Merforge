@@ -114,6 +114,7 @@ function entryRevision(entry: { events: SessionEvent[] }): SessionPersistenceRev
 }
 
 class TestPersistence extends SessionPersistence {
+  async delete(): Promise<void> { throw new Error('Deletion is not supported by this test provider') }
   static entries = new Map<SessionIdType, { meta: SessionHeader; events: SessionEvent[] }>()
   static listFailure: unknown
   static listOverride: ((signal?: AbortSignal) => Promise<SessionPersistenceSnapshot[]>) | undefined
