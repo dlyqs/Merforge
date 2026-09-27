@@ -9,11 +9,15 @@ import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema } from './resource-schema.ts'
+import { workgraphSaveSchema, workgraphReadSchema } from './workgraph-schema.ts'
+import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
+import type { OrganizationPlanVersion } from './workgraph-types.ts'
 import { authorizedProject, visibleProjects, visibleEvents, accessVersion, createCursor, readCursor } from './resources.ts'
 import type { OrganizationProjectPage, OrganizationProjectView, OrganizationEventBatch, ResourceGrantView, ProjectAction } from './types.ts'
 import type { AccountId, LoginResult, LoginToken, MemberView, OperationId, OrganizationAction, OrganizationId, OrganizationView, Principal, Receipt } from './types.ts'
 
 export type * from './types.ts'
+export type * from './workgraph-types.ts'
 export { OrganizationError } from './error.ts'
 export { ORGANIZATION_SCHEMA_VERSION } from './database.ts'
 export { createOrganizationToken } from './security.ts'
@@ -108,6 +112,7 @@ export class OrganizationService extends Service {
       if (receipt.organizationId) {
         const manage = ['invite', 'set-membership', 'create-project', 'set-grant'].includes(String(event?.kind))
         const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
+        if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
         if (event?.kind === 'rename-project' && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'write')
       }
       if (event?.kind === 'set-account' && principal.accountId !== this.metadata(db).rootAccountId) throw new OrganizationError('forbidden')
@@ -475,6 +480,59 @@ export class OrganizationService extends Service {
 
   private head(db: DatabaseSync): number {
     return Number(db.prepare('SELECT coalesce(max(revision),0) AS revision FROM organization_events').get()?.revision)
+  }
+
+  /**
+   * Commit a complete planning definition, never an approved or executing task.
+   * @param token - Current organization credential; authorship is derived by the service.
+   * @param input - Strict whole-definition request with expectedRevision and operationId.
+   * @returns Atomic metadata receipt; retries require current root read/edit permission.
+   */
+  savePlan(token: LoginToken, input: unknown): Promise<Receipt> {
+    const request = parse(workgraphSaveSchema, input)
+    return this.enqueue('save-plan', async (db) => {
+      const principal = this.principal(db, token, request.organizationId)
+      const scope = `account:${principal.accountId}`
+      const fingerprint = await requestFingerprint(scope, request, false)
+      const result = transaction(db, () => {
+        const current = this.principal(db, token, request.organizationId)
+        authorizedProject(db, current, request.projectId, 'read')
+        authorizedProject(db, current, request.projectId, 'write')
+        if (db.prepare('SELECT id FROM organization_plans WHERE id=?').get(request.planId)) {
+          authorizeWorkgraph(db, current, request.projectId, request.planId, true)
+        }
+        const previous = this.previous(db, scope, request.operationId, fingerprint)
+        if (previous) return { receipt: previous, committed: false }
+        const receipt = this.mutate(db, scope, request, 'save-plan', current.accountId, request.organizationId, fingerprint, (revision) => {
+          const version = saveWorkgraph(db, current, request, revision, this.config)
+          return { organizationId: request.organizationId, projectId: request.projectId,
+            planId: request.planId, planRevision: version.revision }
+        })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
+    })
+  }
+
+  /**
+   * Deliver a full current or historical definition only to a current root reader.
+   * @param token - Current organization credential.
+   * @param input - Organization, project, plan and optional exact definition revision.
+   * @param deliver - Synchronous handoff; consumers must not defer authorized content delivery.
+   * @returns Completion after current authorization and bounded delivery, without Agent activation.
+   */
+  readPlan(token: LoginToken, input: unknown, deliver: (version: OrganizationPlanVersion) => void): Promise<void> {
+    return this.enqueue('read-plan', (db) => {
+      const request = parse(workgraphReadSchema, input)
+      const version = transaction(db, () => {
+        const principal = this.principal(db, token, request.organizationId)
+        const plan = authorizeWorkgraph(db, principal, request.projectId, request.planId, false)
+        const value = readWorkgraphVersion(db, plan.id, request.revision ?? plan.currentRevision)
+        checkWorkgraphLimits(value, this.config)
+        return value
+      })
+      deliver(version)
+    })
   }
 
   /**

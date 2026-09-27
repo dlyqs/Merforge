@@ -6,7 +6,7 @@
 
 目标：在已有组织项目上保存一份权威、版本化的任务树与依赖图，明确目标、范围、真人责任人建议、下发人及验收要求；领导和员工只读取获准的任务视图，各自的任务上下文与对话关联独立。一个任务可以经 GUI 创建、修改、重开、授权查看并关联自己的上下文，服务端搜索和同步遵守同一权限规则。
 
-本轮只制定计划，不开始实现。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。下面的权限和预执行上下文方案是供审阅的明确建议，不代表已经实现或此前已获产品确认。
+计划创建时只制定计划；用户于 2026-09-27 明确要求“请自动完成phase1-2”，本次按该范围执行。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。权限与预执行上下文方案已在 Phase 1 按本次执行授权定稿；哪些能力已经实现以状态表及设计文档为准。
 
 关键阶段边界：本期保存的是**计划定义和待分配责任人**，不是已下发任务。指定责任人不授予读取或执行权限；显式授予任务查看权只允许查看准备材料，不产生分配通知、执行资格或员工电脑上的自动动作。正式批准后生成员工执行对话、员工接受/委托、HumanRequest、领取、Run、提交及验收分别留给产品 Phase 6–7A。任务绑定在本期提供身份隔离和持久关联，不打开普通 Agent 执行通道。
 
@@ -92,8 +92,8 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 协议与授权设计 | 定稿数据、任务可见范围和本机上下文隔离 | pending | — | 先确认所有 Session 可达入口 |
-| Phase 2 | 任务定义与版本 | SQLite 持久图、事务回执及纯规则复用 | pending | — | 依赖 1 |
+| Phase 1 | 协议与授权设计 | 定稿数据、任务可见范围和本机上下文隔离 | completed | organization-workgraph.md；架构职责说明 | Session 入口及隔离策略已定稿 |
+| Phase 2 | 任务定义与版本 | SQLite 持久图、事务回执及纯规则复用 | completed | SQLite v3、WorkGraph、task-graph；73 项聚焦测试与两组产物 smoke | 已达本次授权停止点 |
 | Phase 3 | 任务授权与投影 | 子树授权、历史/搜索/分页/事件一致过滤 | pending | — | 依赖 2 |
 | Phase 4 | HTTPS 与原生动作 | 连接、协议、重连及原生身份代次 | pending | — | 依赖 3 |
 | Phase 5 | 本机上下文隔离 | 组织 Session 归属与入口保护 | pending | — | 依赖 4；尚不向用户暴露绑定入口 |
@@ -109,15 +109,17 @@
 
 验收清单：
 
-- [ ] 定稿定义/版本/授权/本机绑定的数据字段和路由；明确整份计划编辑与裁剪视图不能互换。
-- [ ] 用两账号、两组织、两个不同任务子树推演授权矩阵，固定结构变化及历史版本授权行为。
-- [ ] 列出 Session 读、写、查询、导出、分叉、移动、模型输入和附件的所有实际消费者；每个有明确的 guard 或拒绝策略。
-- [ ] 定稿原生到本机 Host 的可信身份传递、撤销代次、超时与重启流程，不将 token 交给 Renderer。
-- [ ] 确定纯图逻辑是否需要小型公共库；明确 SQLite v2 升级、备份恢复、配置限额和包/编译面影响。
+- [x] 定稿定义/版本/授权/本机绑定的数据字段和路由；明确整份计划编辑与裁剪视图不能互换。
+- [x] 用两账号、两组织、两个不同任务子树推演授权矩阵，固定结构变化及历史版本授权行为。
+- [x] 列出 Session 读、写、查询、导出、分叉、移动、模型输入和附件的所有实际消费者；每个有明确的 guard 或拒绝策略。
+- [x] 定稿原生到本机 Host 的可信身份传递、撤销代次、超时与重启流程，不将 token 交给 Renderer。
+- [x] 确定纯图逻辑是否需要小型公共库；明确 SQLite v2 升级、备份恢复、配置限额和包/编译面影响。
 
 助理验证：源码与接口对照、请求和故障时序推演；不写仅验证静态类型的测试。用户检查：审阅“任务显式查看授权”和“预执行上下文只读”的建议；若要求本期就批准执行，属于范围调整，先修改计划。依赖：旧三机可见检查非阻塞，若当前基础已出现真实错误则记录具体阻塞。
 
-实际完成：未开始，执行后填写变更、验证、跳过项、偏差及下一阶段。
+实际完成（2026-09-27）：新增 [组织 WorkGraph 设计](organization-workgraph.md)，明确品牌 ID、完整修订请求/回执、SQLite v3 表及索引、当前权限和历史交集规则、两账号/两组织/两子树矩阵、原生身份代次与本机绑定故障时序；核对 Session Controller、查询工具、引用展开、导出、上传、文件和 Agent 恢复的实际消费者。架构页记录后续私有 IPC 与独立组织 Session 存储职责，明确 Phase 4–6 尚未实现。
+
+设计决定：纯图规则提取为无服务 `util/task-graph`；结构变化采用整计划旧 grant 失效，仅提交新完整树的根编辑者在事务中更新自身 grant；本机上下文使用独立 Session 存储和保留 ID，不进入个人 corpus/Agent registry。源码核对和故障推演已完成；无页面检查、无静态类型专用测试。仓库引用的 `.agents/skills/dsh-prose-standard/SKILL.md` 不存在，检索后未找到，文档按 AGENTS 的直接契约规则人工核对。该缺失不阻塞设计和实施。下一阶段 Phase 2。
 
 ## Phase 2：任务定义与版本
 
@@ -127,15 +129,29 @@
 
 验收清单：
 
-- [ ] 单任务与 CSV 多阶段示例可保存/重开，历史 revision 不可变；身份、项目和成员引用同组织。
-- [ ] 根唯一、连通、重复 ID、悬空依赖、显式环和父完成隐环在输入边界拒绝。
-- [ ] 并发旧版本写入只允许一个成功；重复 OperationId 同内容返回原回执、不同内容拒绝；事务失败无半份图或孤立事件。
-- [ ] v2 组织库升级不丢账号/项目/grant；未知版本和损坏数据拒绝；停服备份/恢复认识新结构。
-- [ ] 不生成执行状态或批准；拒绝注入 cwd、权限、Run 或完成字段；个人图规则回归保持原行为。
+- [x] 单任务与 CSV 多阶段示例可保存/重开，历史 revision 不可变；身份、项目和成员引用同组织。
+- [x] 根唯一、连通、重复 ID、悬空依赖、显式环和父完成隐环在输入边界拒绝。
+- [x] 并发旧版本写入只允许一个成功；重复 OperationId 同内容返回原回执、不同内容拒绝；事务失败无半份图或孤立事件。
+- [x] v2 组织库升级不丢账号/项目/grant；未知版本和损坏数据拒绝；停服备份/恢复认识新结构。
+- [x] 不生成执行状态或批准；拒绝注入 cwd、权限、Run 或完成字段；个人图规则回归保持原行为。
 
 助理验证：真实临时 SQLite、故障回滚、重开与迁移测试；纯图行为测试和相关编译面。用户检查：无本阶段新增 GUI。依赖：Phase 1 定稿后实现，不把未来任务领取租约提前建空表。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-27）：组织服务新增 `savePlan/readPlan`、`workgraph-{types,schema,database}.ts` 与 `workgraph.ts`。完整定义、不可变 revision、稳定任务索引/tombstone、创建者根 grant、结构 epoch、事件和回执原子提交；当前权限控制历史与回执读取。SQLite 升为 v3，兼容 v1/v2 事务迁移，停服备份写 v3，恢复支持并校验 v2/v3。新库 `util/task-graph` 由组织与个人 schema 共用，无个人 runtime 依赖；同步 manifests、Host aggregate、源码 paths、lockfile、READMEs、架构及概览。
+
+验证已完成（各文件最近一次结果，共 7 个测试文件、73 项通过）：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/personal-workflow/tests/plan.spec.ts packages/workspace/personal-workflow/tests/storage.spec.ts packages/api/organization-api/tests`：5 文件 48 项。
+- `pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts packages/host/organization-connection/tests/connection.spec.ts`：当时 24 项通过；随后增加 v2 备份恢复/manifest 不符测试，单独运行 `pnpm exec vitest run packages/host/organization-connection/tests/connection.spec.ts`：7 项通过。authority 最近一次为 18 项通过。
+- `pnpm exec tsc -b packages/workspace/organization packages/workspace/personal-workflow`：通过。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host --filter '@deepseek-ai/dsh-task-graph' --filter '@deepseek-ai/dsh-organization' --filter '@deepseek-ai/dsh-personal-workflow'`：三个相关包构建通过。
+- `node packages/workspace/organization/tests/built-smoke.mjs`、`node packages/workspace/personal-workflow/tests/built-smoke.mjs`：普通 Node 产物验证通过，组织包含保存/重开计划，个人包含 Loader、Remote codecs 和持久执行恢复。
+- `pnpm exec tsx scripts/run-oxlint.ts packages/util/task-graph/src packages/workspace/organization/src packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/personal-workflow/src/plan-schema.ts packages/host/organization-connection/tests/connection.spec.ts`：通过。
+- `pnpm exec tsx scripts/gen-tsconfig-paths.ts --check`：通过；通过 `tsx --eval` 调用仓库 `collectExportJsdocViolations()` 和 `packageMetaProblems()` 并筛选上述三个变更包：无问题。`git diff --check` 通过。
+
+覆盖单任务和 CSV 三阶段持久重开、不可变历史、隐含父完成环、旧版本竞争、OperationId 冲突/重试不重复事件、晚期 SQL 故障全回滚、跨组织引用、管理员/建议成员无 grant 拒绝、撤权后历史/回执拒绝、移位失效、删除 ID 不复用、停用成员历史保留、完整 UTF-8 大小/深度限额、损坏数据拒绝、v1/v2 迁移及停服恢复。初次抽取的父字段替换错误和旧 v1 测试夹具遗漏新增表均已修正，后续相关检查通过。
+
+偏差与范围：Phase 2 提前落下创建者根 grant 和结构失效的最小实现，以免新增完整读取接口出现权限空缺；一般任务授权、局部投影和查询仍属于 Phase 3。没有 GUI 改动、页面/Playwright、真实模型调用、全仓测试、全量发行构建或部署；本阶段未新增模型能力，不需要真实 API 测试。未自动 commit/push。本次 auto_until 已达 Phase 2，恢复 manual，下一候选为 Phase 3，需后续执行指令。
 
 ## Phase 3：任务授权与一致投影
 
@@ -270,7 +286,7 @@
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 计划评审状态：待用户审阅；没有执行授权。本次请求仅为“给出下一阶段实施计划”。
+- 计划评审状态：用户 2026-09-27 明确授权“请自动完成phase1-2”；按 auto_until 执行 Phase 1–2，已完成并回到 manual；不自动进入 Phase 3。
 - 使用的 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`；工作目录：`/Users/git_local/Merforge`。本计划是后续执行入口，暂不创建专用 executor skill。
 
 1. 执行前读取本文、overview、相关 AGENTS、架构、防御模式与测试政策；优先复核 `blocked` 阶段的解除条件，未解除时不得跳过依赖。

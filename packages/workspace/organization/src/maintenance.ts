@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION, transaction } from './database.ts'
 
 const files = ['organization.sqlite', 'tls-identity.json'] as const
-const manifestSchema = z.object({ format: z.literal(1), schema: z.literal(ORGANIZATION_SCHEMA_VERSION), hashes: z.object({ 'organization.sqlite': z.string().regex(/^[a-f0-9]{64}$/), 'tls-identity.json': z.string().regex(/^[a-f0-9]{64}$/) }).strict() }).strict()
+const manifestSchema = z.object({ format: z.literal(1), schema: z.union([z.literal(2), z.literal(ORGANIZATION_SCHEMA_VERSION)]), hashes: z.object({ 'organization.sqlite': z.string().regex(/^[a-f0-9]{64}$/), 'tls-identity.json': z.string().regex(/^[a-f0-9]{64}$/) }).strict() }).strict()
 function regular(path: string): void { if (!lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) throw new Error('invalid-backup-path') }
 function directory(path: string): void { if (!isAbsolute(path) || !lstatSync(path).isDirectory() || lstatSync(path).isSymbolicLink()) throw new Error('invalid-backup-path') }
 function hash(path: string): string { regular(path); return createHash('sha256').update(readFileSync(path)).digest('hex') }
@@ -90,6 +90,10 @@ export function restoreOrganization(backup: string, target: string, busyTimeoutM
     directory(target)
     mkdirSync(stage, { mode: 0o700 })
     for (const file of files) { copyFileSync(join(backup, file), join(stage, file)); chmodSync(join(stage, file), 0o600) }
+    const sourceDb = new DatabaseSync(join(stage, 'organization.sqlite'), { readOnly: true })
+    try {
+      if (sourceDb.prepare('PRAGMA user_version').get()?.user_version !== manifest.schema) throw new Error('invalid-backup-schema')
+    } finally { sourceDb.close() }
     validate(stage, busyTimeoutMs)
     const recoveryToken = randomBytes(32).toString('base64url')
     const db = openOrganizationDatabase(join(stage, 'organization.sqlite'), busyTimeoutMs)

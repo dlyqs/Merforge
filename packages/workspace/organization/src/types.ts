@@ -1,4 +1,5 @@
 /** Organization identities and safe views crossing the organization protocol. */
+import type { OrganizationPlanId, OrganizationPlanRevision } from './workgraph-types.ts'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
 /** Identity of one organization service instance. */
@@ -39,6 +40,8 @@ export interface Receipt {
   membershipId?: MembershipId | undefined
   invitationId?: InvitationId | undefined
   projectId?: OrganizationProjectId | undefined
+  planId?: OrganizationPlanId | undefined
+  planRevision?: OrganizationPlanRevision | undefined
 }
 /** Successful login; the token is delivered once and held by the local Host. */
 export interface LoginResult {

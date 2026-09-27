@@ -24,6 +24,7 @@ Each package provides one primitive; open a package page for how to use it.
 
 | Package | Role |
 |---|---|
+| [`task-graph/`](task-graph/README.md) | Shared task hierarchy and completion dependency validation |
 | [`brand/`](brand/README.md) | Nominal string types and their stateless constructor |
 | [`package-manifest/`](package-manifest/README.md) | Shared TypeScript declarations for package manifests |
 | [`crypto/`](crypto/README.md) | Mints RFC 9562 v4 UUIDs from the cross-runtime `crypto.getRandomValues` primitive |

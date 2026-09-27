@@ -51,7 +51,7 @@ Account 含账号状态、密码摘要、版本；Membership 含组织、账号�
 
 使用 Node `node:sqlite` 的 `DatabaseSync`，与现有 `storage-sqlite` 技术一致；Node >=22.19 与 Electron 44 的 Node runtime 支持。Node 为 MIT、内含 SQLite 为 public domain，无新增原生 addon。现有 `KvUnit` 仅承诺单次调用原子性，因此不复用其多次写入模拟组织事务。
 
-组织库独占 `application_id` 和 `ORGANIZATION_SCHEMA_VERSION = 2`（SQLite `user_version`），独立于个人 Session 格式。已知 v1 库在事务内增加项目/授权/资源事件表后升级；未盖章但非空的库、其他 application id、未知版本或非法持久记录均拒绝。使用 STRICT 表、外键、唯一索引、WAL、`synchronous=FULL`、`BEGIN IMMEDIATE`；同步事务体没有 await。服务队列包括密码计算，关闭先拒绝新工作再等队列清空。所有 mutation 在写锁内重新检查权限和版本；并发初始化/邀请由唯一记录和事务判定，不能创建第二套管理员。
+组织库独占 `application_id` 和 `ORGANIZATION_SCHEMA_VERSION = 3`（SQLite `user_version`），独立于个人 Session 格式。已知 v1/v2 库在事务内补齐项目与 WorkGraph 表后升级；WorkGraph v3 的表和授权规则见[组织任务设计](organization-workgraph.md)。未盖章但非空的库、其他 application id、未知版本或非法持久记录均拒绝。使用 STRICT 表、外键、唯一索引、WAL、`synchronous=FULL`、`BEGIN IMMEDIATE`；同步事务体没有 await。服务队列包括密码计算，关闭先拒绝新工作再等队列清空。所有 mutation 在写锁内重新检查权限和版本；并发初始化/邀请由唯一记录和事务判定，不能创建第二套管理员。
 
 表：`metadata`（实例、bootstrap account/org、恢复摘要）、`accounts`、`organizations`、`memberships`、`invitations`、`login_sessions`、`login_attempts`、`operation_receipts`、`organization_events`、`organization_projects`、`resource_grants`、`resource_events`。事件自增序号同时作为变更 revision；各实体 version 指向最近变更 revision。业务数据、事件、回执同事务提交；提交失败回滚全部，成功响应只在 COMMIT 后返回。失败登录计数也持久保存，进程重启不能绕过限流。审计事件不含密码、用户名、token 或项目正文。
 

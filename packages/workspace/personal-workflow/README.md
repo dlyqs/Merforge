@@ -4,6 +4,8 @@
 
 `save`, `approve`, `read`, `list`, and `export` back the Session Controller Remote methods. `propose` accepts a model proposal but cannot approve it. `snapshot` and `propose` persist an exact `personal-workflow/snapshot` in the initiating Session and verify its durable readback before returning. A failed Session write can be retried with the same operation identity after the plan commit; the plan and Session event are not duplicated. Reading a plan does not assign an executor.
 
+`dsh-task-graph` supplies the pure tree, phase-order and effective completion-cycle rules shared with organization plans; personal JSON fields and execution semantics remain owned here.
+
 `projectPlan` derives dependency blockers, necessary-child counts and simultaneous ready tasks. Trusted execution observations require evidence before counting completion, including a parent's own acceptance. `exportPlan` renders the exact stored revision as read-only Markdown. See [personal workflow](../../../../docs/personal-workflow.md) for states, interactions, ownership and recovery.
 
 ## Model Experience

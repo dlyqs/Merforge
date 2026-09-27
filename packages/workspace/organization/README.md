@@ -1,6 +1,6 @@
 # Organization identity authority
 
-`ctx.organization` owns one dedicated SQLite database for service-instance accounts, organizations, memberships, invitations, login sessions, operation receipts and audit events. It is a Host-only service combining its definition and SQLite implementation. The [organization design](../../../docs/organization-foundation.md) owns protocol, isolation, permission and product-flow decisions.
+`ctx.organization` owns one dedicated SQLite database for service-instance accounts, organizations, memberships, invitations, login sessions, operation receipts and audit events. It is a Host-only service combining its definition and SQLite implementation. The [organization design](../../../../docs/organization-foundation.md) owns protocol, isolation, permission and product-flow decisions.
 
 The service is loaded by the real Loader in its tests. The private organization API and Electron process consume it through a dedicated Loader composition; this package is not mounted in the personal Desktop profile and has no application launcher, network listener or model tool.
 
@@ -29,13 +29,16 @@ The account, organization, membership, invitation, server, operation and credent
 | `pageSize` | 50 | Maximum projects in one list/search page (1–200) |
 | `eventBatchSize` | 100 | Maximum committed revision range examined per event batch (1–1000) |
 | `eventReplayWindow` | 10000 | Maximum cursor lag before a fresh snapshot is required |
+| `workgraphMaxTasks` | 1000 | Maximum tasks and phases per definition |
+| `workgraphMaxDepth` | 100 | Maximum root-inclusive tree depth |
+| `workgraphMaxBytes` | 1048576 | Complete version JSON UTF-8 byte ceiling, including metadata |
 | `busyTimeoutMs` | 5000 | SQLite writer-lock wait ceiling |
 
 Defaults serve a small LAN deployment, and validated Config fields allow adjustment. Successful attempts count toward the rate ceiling too; window expiry clears counters. Unknown usernames still perform real scrypt unless already throttled. Expired sessions are pruned during login. The service serializes admitted operations, including password work, and disposal rejects new work, drains existing work, then closes the database.
 
 ## Persistence and replay
 
-`ORGANIZATION_SCHEMA_VERSION = 2` and a dedicated SQLite application ID identify this database. Known v1 identity databases upgrade transactionally by adding resource tables; unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
+`ORGANIZATION_SCHEMA_VERSION = 3` and a dedicated SQLite application ID identify this database. Known v1 identity and v2 project databases upgrade transactionally by adding missing project/WorkGraph tables; unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
 
 WAL, `synchronous=FULL`, foreign keys and synchronous `BEGIN IMMEDIATE` transactions ensure business records, their monotonically sequenced audit event and receipt commit together. Cross-connection writes recheck permission, entity version and invitation state under the write lock. No asynchronous work runs inside a SQL transaction. SQL faults and commit failures roll back, and process termination leaves uncommitted changes invisible after reopening.
 
@@ -53,11 +56,23 @@ The first list/search page atomically returns its snapshot revision and opaque H
 
 Business records, resource invalidations, audit events and receipts share one transaction. Write retries check current permission before reading receipts. Grant changes cannot be undone by old write receipts or event cursors. Already delivered data cannot be erased from a client's saved copies.
 
+## WorkGraph definitions
+
+`savePlan` accepts a strict complete definition with a stable plan ID, expected definition revision and OperationId. Creation requires project read/write and atomically grants the creator root-subtree read/edit. Editing additionally requires current root read/edit. `readPlan` delivers a complete current or historical version to a current root reader, using a synchronous callback. These domain methods have no network or GUI exposure yet. [WorkGraph design](../../../../docs/organization-workgraph.md) owns the full protocol and later task-view rules.
+
+Versions are immutable rows with server-derived authorship. Removed task IDs remain reserved. Task membership suggestions are checked within the organization and grant no access. New suggestions must be enabled; existing disabled references may remain unchanged. Shared `dsh-task-graph` checks hierarchy and effective completion cycles without loading personal runtime services. No definition accepts execution, cwd, permission or approval fields.
+
+Structural changes invalidate all old task grants except the current editor's explicit root grant, which is updated atomically. Receipts recheck current root read/edit and project permissions. Whole-version byte, task and depth ceilings reject oversized writes and reads. Startup and maintenance check graph history against task identities, authors, heads and event records; no independent content cache exists.
+
+Offline backups now write schema 3; restore also accepts validated schema 2 backups, checks the actual stamp and upgrades staging before swapping directories. Existing login revocation and recovery rotation still apply.
+
 ## Model Experience
 
 This package contributes no model requests, tools, prompt text or Session events. It changes no model tokens or KV-cache prefixes.
 
 ## Known Limitations and Deferred Work
+
+Task-subtree projections, general task grants, task HTTPS/native actions and local context bindings remain for WorkGraph Phases 3–6.
 
 GUI and native connection ownership live in `ui-organization`, `organization-connection` and Desktop. `./maintenance` owns the offline directory lock, checked backups and staged restore, which revokes old logins/invitations and rotates recovery. `receipt` checks current authority before resolving an uncertain account operation. HTTPS ingress and private Electron lifecycle live in `organization-api` and Desktop; this domain package never starts a listener. The API must bound queued requests before calling this service. This service owns no file-import or personal-data migration path. Disk access by a principal who can replace the database is outside its confidentiality guarantees.
 

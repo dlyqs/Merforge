@@ -3,12 +3,13 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, openSync, closeSync } from 'node:fs'
 import { dirname, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { workgraphDdl, validateWorkgraphDatabase } from './workgraph-database.ts'
 import { projectSchema, grantSchema, resourceEventSchema } from './resource-schema.ts'
 import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 2
+export const ORGANIZATION_SCHEMA_VERSION = 3
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -77,12 +78,13 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
-        db.exec(ddl + resourceDdl)
+        db.exec(ddl + resourceDdl + workgraphDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
-      } else if (stamp === 1 && app === applicationId) {
-        validateDatabase(db, false)
-        db.exec(resourceDdl)
+      } else if ((stamp === 1 || stamp === 2) && app === applicationId) {
+        validateDatabase(db, stamp === 2, false)
+        if (stamp === 1) db.exec(resourceDdl)
+        db.exec(workgraphDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -97,8 +99,9 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
   }
 }
 
-function validateDatabase(db: DatabaseSync, resources = true): void {
+function validateDatabase(db: DatabaseSync, resources = true, workgraph = true): void {
   try {
+    if (workgraph) validateWorkgraphDatabase(db)
     if (resources) {
       for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)
       for (const row of db.prepare('SELECT * FROM resource_grants').all()) grantSchema.parse(row)
@@ -117,7 +120,15 @@ function validateDatabase(db: DatabaseSync, resources = true): void {
     for (const row of db.prepare('SELECT * FROM login_sessions').all()) sessionSchema.strict().parse(row)
     for (const row of db.prepare('SELECT * FROM login_attempts').all()) attemptSchema.strict().parse(row)
     for (const row of db.prepare('SELECT * FROM organization_events').all()) eventSchema.strict().parse(row)
-    for (const row of db.prepare('SELECT * FROM operation_receipts').all()) receiptSchema.parse(JSON.parse(receiptRowSchema.strict().parse(row).response))
+    for (const row of db.prepare('SELECT * FROM operation_receipts').all()) {
+      const receipt = receiptSchema.parse(JSON.parse(receiptRowSchema.strict().parse(row).response))
+      if (receipt.planId !== undefined || receipt.planRevision !== undefined) {
+        if (!workgraph || !db.prepare(`SELECT 1 FROM plan_revisions r JOIN organization_plans p ON p.id=r.planId
+          WHERE r.planId=? AND r.revision=? AND r.eventRevision=? AND p.organizationId=? AND p.projectId=?`)
+          .get(receipt.planId ?? null, receipt.planRevision ?? null, receipt.revision,
+            receipt.organizationId ?? null, receipt.projectId ?? null)) throw new OrganizationError('incompatible-store')
+      }
+    }
     if (db.prepare('PRAGMA foreign_key_check').all().length > 0) throw new OrganizationError('incompatible-store')
     const initialized = metadata.rootAccountId !== null
     if (initialized !== (metadata.rootOrganizationId !== null) || initialized !== (metadata.recoveryHash !== null)) throw new OrganizationError('incompatible-store')

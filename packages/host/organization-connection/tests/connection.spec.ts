@@ -1,6 +1,7 @@
 /** Real shipped organization YAML, SQLite, TLS and independent native clients; no renderer. */
 import { afterEach, expect, it, vi } from 'vitest'
 import * as fs from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
 import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -213,3 +214,65 @@ it('preserves the current directory when validation or the final restore rename 
   expect(() => restoreOrganization(backup, h.directory, 5000)).toThrow()
   expect(await readFile(join(h.directory, 'organization.sqlite'))).toEqual(original)
 }, 30000)
+
+it('preserves immutable WorkGraph revisions through stopped backup and restore', async () => {
+  const h = await setup()
+  const login = await h.app.authority.login({ username: 'owner', password })
+  const organizationId = h.initialized.organizationId!
+  const project = await h.app.authority.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(), organizationId, name: 'Backup plan' })
+  await h.app.authority.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId, projectId: project.projectId,
+    membershipId: h.initialized.membershipId, expectedVersion: 0, actions: ['read', 'write'] })
+  const planId = randomUUID(), taskId = randomUUID(), phaseId = randomUUID()
+  const request = { organizationId, projectId: project.projectId, planId, operationId: randomUUID(), expectedRevision: 0,
+    definition: { taskId, phases: [{ id: phaseId, title: 'Plan' }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
+      goal: 'Persistent work', scope: 'Text', acceptance: ['Readable after restore'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null }] } }
+  await h.app.authority.savePlan(login.token, request)
+  await h.app.authority.savePlan(login.token, { ...request, operationId: randomUUID(), expectedRevision: 1 })
+  await h.owner.close()
+  await h.app.close()
+  const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 3 })
+  restoreOrganization(backup, h.directory, 5000)
+  const restored = await bootOrganization(h.config)
+  cleanup.push(restored.close)
+  const current = await restored.authority.login({ username: 'owner', password })
+  const query = { organizationId, projectId: project.projectId, planId }
+  for (const revision of [1, 2]) {
+    await restored.authority.readPlan(current.token, { ...query, revision }, (value) => {
+      expect(value.revision).toBe(revision)
+      expect(value.definition).toEqual(request.definition)
+    })
+  }
+  await expect(restored.authority.readPlan(login.token, query, () => { throw new Error('old login') })).rejects.toMatchObject({ code: 'unauthenticated' })
+})
+
+
+it('restores a schema v2 backup by upgrading staging and retaining project grants', async () => {
+  const h = await setup()
+  const login = await h.app.authority.login({ username: 'owner', password })
+  const organizationId = h.initialized.organizationId!
+  const project = await h.app.authority.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(), organizationId, name: 'Legacy project' })
+  await h.app.authority.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId, projectId: project.projectId,
+    membershipId: h.initialized.membershipId, expectedVersion: 0, actions: ['read'] })
+  await h.owner.close(); await h.app.close()
+  const backup = backupOrganization(h.directory, join(h.root, 'legacy-backup'), 5000)
+  const db = new DatabaseSync(join(backup, 'organization.sqlite'))
+  try {
+    db.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans; PRAGMA user_version=2')
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  } finally { db.close() }
+  const hashes = {
+    'organization.sqlite': createHash('sha256').update(await readFile(join(backup, 'organization.sqlite'))).digest('hex'),
+    'tls-identity.json': createHash('sha256').update(await readFile(join(backup, 'tls-identity.json'))).digest('hex'),
+  }
+  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 3, hashes }))
+  expect(() => restoreOrganization(backup, h.directory, 5000)).toThrow('invalid-backup-schema')
+  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 2, hashes }))
+  restoreOrganization(backup, h.directory, 5000)
+  const restored = await bootOrganization(h.config)
+  cleanup.push(restored.close)
+  const current = await restored.authority.login({ username: 'owner', password })
+  await restored.authority.readProject(current.token, { organizationId, projectId: project.projectId }, (value) => {
+    expect(value.name).toBe('Legacy project')
+  })
+})
