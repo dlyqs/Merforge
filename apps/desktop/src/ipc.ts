@@ -7,6 +7,7 @@ import type { DesktopBrowserBridge } from '@deepseek-ai/dsh-client-ui-sidebar-br
 /** IPC channel names kept private to the desktop application bundle. */
 export const DESKTOP_IPC = {
   organizationSnapshot: 'dsh-desktop:organization-snapshot',
+  organizationContext: 'dsh-desktop:organization-context',
   organizationConnection: 'dsh-desktop:organization-connection',
   organizationServer: 'dsh-desktop:organization-server',
   organizationSecret: 'dsh-desktop:organization-secret',

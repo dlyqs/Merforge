@@ -15,13 +15,19 @@
       "path": "../../util/brand"
     },
     {
-      "path": "../../workspace/organization"
+      "path": "../../core/session"
     },
     {
-      "path": "../../api/organization-api"
+      "path": "../organization"
     },
     {
-      "path": "../../workspace/organization-context"
+      "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../session/session-persistence-jsonl"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

@@ -186,3 +186,5 @@ This Dev Note is working context for maintainers: open questions and directions 
 The `title` parameter has no production caller since the gateway's create-by-name branch was removed; a code TODO proposes dropping the parameter and its `@param` clause together ([note](../../../.agents/notes/archived/simplification/2026-07-31-one-route-to-add-a-workspace.md)).
 
 </details>
+
+Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.

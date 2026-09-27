@@ -3,6 +3,7 @@
  *
  * @module @deepseek-ai/dsh-session-query
  */
+import { assertPersonalSessionId } from '@deepseek-ai/dsh-session'
 
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { Context, Service } from '@deepseek-ai/cordis'
@@ -141,6 +142,7 @@ export abstract class SessionQueryEngine extends Service {
     sessionId: SessionId,
     options: SessionObservationOptions = {},
   ): Promise<SessionObservation> {
+    assertPersonalSessionId(sessionId)
     return this._observations.read(sessionId, options)
   }
 

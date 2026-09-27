@@ -4,6 +4,7 @@
  *
  * @module @deepseek-ai/dsh-agent
  */
+import { assertPersonalSessionId } from '@deepseek-ai/dsh-session'
 
 import { Context, FiberState, getTraceable, Service, symbols } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
@@ -389,6 +390,7 @@ export class AgentRegistry extends Service {
    * @returns the handle after setup, rollback-covered publication, and loop start complete.
    */
   async create(options: CreateAgentOptions): Promise<AgentHandle> {
+    assertPersonalSessionId(options.sessionId)
     const ownerCtx = this.ctx
     // Re-trace a Service-backed factory through the accessing context
     // explicitly. This preserves AgentLoop's dependency origin while binding
@@ -408,6 +410,7 @@ export class AgentRegistry extends Service {
    * @returns the handle after setup, rollback-covered publication, and loop start complete.
    */
   async resume(options: ResumeAgentOptions): Promise<AgentHandle> {
+    assertPersonalSessionId(options.resumeSessionId)
     const ownerCtx = this.ctx
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
@@ -457,6 +460,7 @@ export class AgentRegistry extends Service {
    *   creation dispatch settles.
    */
   enter(agent: Agent, owner: Agent | undefined): () => void {
+    assertPersonalSessionId(agent.id)
     const id = agent.id
     if (id !== agent.session.id) {
       throw new Error(`agent id "${id}" does not match session id "${agent.session.id}"`)
@@ -564,6 +568,7 @@ export class AgentRegistry extends Service {
    * @returns the agent, or undefined when no live agent has that id.
    */
   get(id: SessionId): Agent | undefined {
+    assertPersonalSessionId(id)
     return this.store.get(id)?.agent
   }
 

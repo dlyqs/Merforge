@@ -43,6 +43,7 @@ export { REGION_BEGIN, REGION_END }
  * errors, so the partition can never silently drift from the service API.
  */
 export const SERVICE_PAGE: Record<string, string> = {
+  organizationContext: 'session.md',
   speechToText: 'voice-input.md',
   speechController: 'voice-input.md',
   productTelemetry: 'product-telemetry.md',
@@ -369,6 +370,9 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   SessionForkRequest: 'session.md',
   SessionForkValue: 'session.md',
   SessionId: 'core.md',
+  ContextAuthority: '../organization-workgraph.md',
+  ContextRequest: '../organization-workgraph.md',
+  ContextResult: '../organization-workgraph.md',
   SessionLogOffset: 'session.md',
   SessionSeq: 'session.md',
   SessionSeqCursor: 'session.md',

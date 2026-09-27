@@ -28,6 +28,14 @@ export function SessionId(id: string): SessionId {
   return brandString<SessionId>(id)
 }
 
+/**
+ * Refuse identities owned by the isolated, non-executable organization store.
+ * @param id - Identity presented to a personal Session operation.
+ */
+export function assertPersonalSessionId(id: string): void {
+  if (id.startsWith('organization-context:')) throw new Error('organization-context: personal access forbidden')
+}
+
 /** Sequence number of one existing event in a Session log. */
 export type SessionSeq = BrandedNumber<'SessionSeq'>
 

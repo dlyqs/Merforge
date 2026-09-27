@@ -35,3 +35,9 @@
     - id: computer-use-cua-driver
       name: '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
       disabled: true
+
+- insert:
+    - id: organization-context
+      name: '@deepseek-ai/dsh-organization-context'
+      config:
+        root: !!js dshHomePath('organization-context-sessions')

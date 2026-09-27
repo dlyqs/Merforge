@@ -26,3 +26,5 @@ No model tools, prompts, token use or KV-cache changes. Organization facts do no
 One selected service per Desktop at a time. No offline mutation queue, permanent login, organization task execution or private-data import. Legitimately delivered content cannot be remotely erased. After a native process restart, a lost invitation secret must be replaced with a new invitation after resolving the old receipt.
 
 No invariant companion is published: the owner has one generation-controlled snapshot and no independent replicated authority to compare. The server rechecks access on each read and delivery; real YAML/TLS tests cover this relationship.
+
+The Desktop bridge also declares the fixed read-only `context` selector. Electron coordinates it with its personal Host over private Node IPC, using this connection’s online task reads, generation and timeout. This connection never uploads local Session IDs or snapshots to the organization authority.

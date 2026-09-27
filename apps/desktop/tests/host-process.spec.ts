@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { contextRequestSchema, contextAuthoritySchema } from '@deepseek-ai/dsh-organization-context/protocol'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -195,4 +197,37 @@ describe('desktop host process', () => {
     expect((failure as DesktopHostFatalError).diagnostic).toBe(diagnostic)
     expect(Object.keys(failure!)).not.toContain('diagnostic')
   })
+})
+
+it('correlates organization authorization with the private Host nonce and rejects cancelled reads', async () => {
+  const source = HTTP_HOST + `
+process.on('message', message => {
+  if (message.type === 'organization-context-open') {
+    process.send({ type: 'organization-context-authorize', requestId: message.requestId, nonce: message.nonce, authorizationId: message.requestId });
+  }
+  if (message.type === 'organization-context-authorized' && message.authority) {
+    const authority = message.authority;
+    const result = { sessionId: 'organization-context:' + message.requestId,
+      owner: { version: 1, serverId: authority.serverId, accountId: authority.accountId, organizationId: authority.organizationId,
+        planId: authority.task.planId, taskId: authority.task.id }, snapshot: authority.task, mode: 'pre-execution' };
+    process.send({ type: 'organization-context-result', requestId: message.requestId,
+      nonce: '00000000-0000-4000-8000-000000000000', error: 'stale nonce' });
+    process.send({ type: 'organization-context-result', requestId: message.requestId, nonce: message.nonce, result });
+  }
+});`
+  const host = hostProcess(projectWithHost(source)); await host.start()
+  const request = contextRequestSchema.parse({ organizationId: randomUUID(), projectId: randomUUID(),
+    planId: randomUUID(), taskId: randomUUID(), operationId: randomUUID() })
+  const authority = contextAuthoritySchema.parse({ serverId: randomUUID(), accountId: randomUUID(),
+    organizationId: request.organizationId, generation: 1, requestId: randomUUID(), task: {
+      id: request.taskId, planId: request.planId, revision: 1, parentTaskId: null, phaseId: randomUUID(), phaseTitle: 'Phase',
+      goal: 'Goal', scope: 'Scope', acceptance: ['Accepted'], artifacts: [], required: true, dependsOn: [],
+      suggestedMembershipId: null, assignable: false, hasUndisclosedPrerequisite: false,
+    } })
+  const read = await host.openOrganizationContext(request, async () => authority, 2000, new AbortController().signal)
+  expect(read.owner.accountId).toBe(authority.accountId)
+  const cancel = new AbortController()
+  const waiting = host.openOrganizationContext(request, async () => { cancel.abort(); return authority }, 2000, cancel.signal)
+  await expect(waiting).rejects.toThrow('cancelled')
+  await host.stop()
 })

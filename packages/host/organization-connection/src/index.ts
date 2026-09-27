@@ -68,6 +68,8 @@ export class OrganizationConnection {
   private savePending(): void {
     if (this.config.trustPath) this.save(`${this.config.trustPath}.pending`, [...this.uncertain.values()].map(({ operationId, serverId, accountId }) => ({ operationId, serverId, accountId })))
   }
+  /** Native deadline shared by private context reads and their authorization requests. */
+  get timeoutMs(): number { return this.config.timeoutMs }
   /** Read the native state.
    * @returns Safe copied snapshot without login credentials.
    */

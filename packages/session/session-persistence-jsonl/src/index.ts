@@ -87,6 +87,8 @@ export interface Config {
   root: string
   /** Physical encoding; defaults to checksummed Zstandard frames. */
   compression?: JsonlCompression
+  /** Isolated organization store; never mount this instance into personal services. */
+  namespace?: 'personal' | 'organization-context'
 }
 
 /** One stored event graph whose producer has established immutable sharing. */
@@ -172,6 +174,7 @@ class JsonlSessionPersistence extends SessionPersistence {
   static Config: z<Config> = z.object({
     root: z.string().required(),
     compression: JsonlCompressionSchema,
+    namespace: z.union([z.const('personal'), z.const('organization-context')]).default('personal'),
   })
 
   /** Backend label for diagnostics and effects; shadows `Service.name` without changing the service key. */
@@ -215,6 +218,12 @@ class JsonlSessionPersistence extends SessionPersistence {
     return { kind: 'jsonl', path: logPath(this.root, meta.cwd, meta.id, this.compression) }
   }
 
+  private admit(id: SessionId): void {
+    if (id.startsWith('organization-context:') !== (this.config.namespace === 'organization-context')) {
+      throw new Error('organization-context: persistence access forbidden')
+    }
+  }
+
   // --- SessionPersistence service API ---
 
   /**
@@ -227,6 +236,7 @@ class JsonlSessionPersistence extends SessionPersistence {
    * @returns the owned write handle.
    */
   async create(header: SessionHeader, options?: SessionPersistenceCreateOptions): Promise<SessionHandle> {
+    this.admit(header.id)
     options?.signal?.throwIfAborted()
     const snapshot = materializeCreateHeader(header)
     // Fail fast on a seeded/cut mismatch with the exact refusal the header
@@ -260,6 +270,7 @@ class JsonlSessionPersistence extends SessionPersistence {
    * @returns the open handle.
    */
   async open(id: SessionId, access: SessionAccess, options?: SessionPersistenceOpenOptions): Promise<SessionHandle> {
+    this.admit(id)
     options?.signal?.throwIfAborted()
     await this.ensureRootEncoding()
     options?.signal?.throwIfAborted()
@@ -335,6 +346,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     id: SessionId,
     options?: SessionPersistenceStatOptions,
   ): Promise<SessionPersistenceSnapshot | undefined> {
+    this.admit(id)
     options?.signal?.throwIfAborted()
     await this.ensureRootEncoding()
     options?.signal?.throwIfAborted()
@@ -377,6 +389,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     const pending = [...this.tracker.pendingEntries()]
     const artifacts = await this.listArtifacts(signal)
     for (const artifact of artifacts) {
+      this.admit(artifact.header.id)
       signal?.throwIfAborted()
       try {
         const identity = await stat(artifact.path, { bigint: true })
@@ -405,6 +418,7 @@ class JsonlSessionPersistence extends SessionPersistence {
    * @param id - Session whose writer has already closed.
    */
   async delete(id: SessionId): Promise<void> {
+    this.admit(id)
     this.tracker.claimWrite(id)
     let lease: SessionWriteLease | undefined
     try {

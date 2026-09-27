@@ -97,3 +97,5 @@ These limits apply to the transport operation itself.
 None.
 
 </details>
+
+Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.

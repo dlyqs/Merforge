@@ -470,3 +470,18 @@ describe('Session file uploads', () => {
       })
   })
 })
+
+it('rejects reserved organization upload IDs before consuming bytes or writing personal attachments', async () => {
+  const h = await uploadHarness()
+  try {
+    const response = await h.uploadRoute(new Request('http://localhost/api/upload?sessionId=organization-context%3A00000000-0000-4000-8000-000000000000', {
+      method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: new Uint8Array([1, 2, 3]),
+    }))
+    const payload: unknown = await response.json()
+    expect(payload).toMatchObject({ ok: false })
+    expect(JSON.stringify(payload)).toContain('forbidden')
+    expect(h.saveFile).not.toHaveBeenCalled()
+    expect(h.saveFileStream).not.toHaveBeenCalled()
+    expect(h.followup).not.toHaveBeenCalled()
+  } finally { await h.disposeAgent(); await h.ctx.fiber.dispose() }
+})

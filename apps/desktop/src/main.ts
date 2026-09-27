@@ -1,5 +1,7 @@
-import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
+import { openOrganizationContext } from './organization-context.ts'
+import { type ContextRequest, type ContextAuthority } from '@deepseek-ai/dsh-organization-context/protocol'
+import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 
 import { mkdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -376,6 +378,15 @@ async function main(): Promise<void> {
     assertProductSender(event)
     try { return await organizationManager.perform(action) } finally { publishOrganization() }
   })
+  ipcMain.handle(DESKTOP_IPC.organizationContext, async (event, input: unknown) => {
+    assertProductSender(event)
+    const host = backend.host
+    if (!host) throw new Error('organization-context-unavailable')
+    return openOrganizationContext(organizationManager.connection, host, input, () => {
+      assertProductSender(event)
+      if (backend.host !== host) throw new Error('superseded')
+    })
+  })
   ipcMain.handle(DESKTOP_IPC.organizationSecret, (event) => { assertProductSender(event); return organizationManager.secret() })
   organization.subscribe(publishOrganization)
   void organizationManager.restoreOnLaunch().finally(publishOrganization)
@@ -418,6 +429,7 @@ async function main(): Promise<void> {
         }
       },
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
+      openOrganizationContext: (request: ContextRequest, authorize: (revision?: ContextAuthority['task']['revision']) => Promise<ContextAuthority>, timeoutMs: number, signal: AbortSignal) => host.openOrganizationContext(request, authorize, timeoutMs, signal),
     }
   }, (state) => {
     if (state.phase === 'error') reportFatal(state.failure, 'host')

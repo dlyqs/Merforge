@@ -1,4 +1,5 @@
 /** Host file-upload service: streamed intake and Agent-scoped staged receipts. */
+import { assertPersonalSessionId } from '@deepseek-ai/dsh-session'
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
@@ -122,6 +123,7 @@ export class FileUploads extends TypertRemoteService {
     readonly signal?: AbortSignal
     readonly name?: string
   }): Promise<FileUploadValue> {
+    assertPersonalSessionId(request.sessionId)
     const agent = await this.resolveAgent(request.sessionId)
     return this.commit(agent, async () => this.ctx.attachments.saveFileStream({
       data: request.data,

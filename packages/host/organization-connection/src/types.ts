@@ -80,6 +80,10 @@ export type OrganizationServerAction =
 export interface OrganizationDesktopSnapshot { connection: ConnectionSnapshot; server: OrganizationServerSnapshot }
 /** Sandboxed preload operations, restricted to the owning Desktop top frame. */
 export interface OrganizationDesktopBridge {
+  context(request: import('@deepseek-ai/dsh-organization-context/protocol').ContextRequest): Promise<{
+    generation: number
+    result: import('@deepseek-ai/dsh-organization-context/protocol').ContextResult
+  }>
   snapshot(): Promise<OrganizationDesktopSnapshot>
   connection(action: ConnectionAction): Promise<ConnectionResult>
   server(action: OrganizationServerAction): Promise<{ recoveryToken?: string; path?: string }>

@@ -13,7 +13,7 @@ import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-uti
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from './types.ts'
+import { assertPersonalSessionId, SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { SurfaceManager, validateSessionEventData, validateSurfaceMetadata } from './surface.ts'
@@ -998,6 +998,7 @@ export class SessionStore extends Service {
    *   non-absolute path.
    */
   prepare(id?: SessionId, options?: PrepareSessionOptions): Session {
+    if (id !== undefined) assertPersonalSessionId(id)
     let sessionId: SessionId
     if (id === undefined) {
       do sessionId = brandString<SessionId>(`session-${++this.counter}`)
@@ -1065,6 +1066,7 @@ export class SessionStore extends Service {
    * @throws if a session with this id is already in the store.
    */
   enter(session: Session): () => void {
+    assertPersonalSessionId(session.id)
     const id = session.id
     const carrier = scopeTarget(session, scopeOf(this.ctx))
     // This is the authoritative collision boundary after arbitrary unpublished
@@ -1207,6 +1209,7 @@ export class SessionStore extends Service {
    * @returns the session, or undefined when no live session has that id.
    */
   get(id: SessionId): Session | undefined {
+    assertPersonalSessionId(id)
     return this.store.get(id)?.session
   }
 

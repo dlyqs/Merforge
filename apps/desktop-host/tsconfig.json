@@ -58,6 +58,9 @@
     },
     {
       "path": "../../vendor/include"
+    },
+    {
+      "path": "../../packages/workspace/organization-context"
     }
   ]
 }

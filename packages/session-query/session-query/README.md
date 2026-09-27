@@ -163,3 +163,5 @@ This Dev Note is working context for maintainers: open design questions and dire
 Recursive traversal through cited source events, extractor and search-provider registries, and additional model-facing surfaces are deferred; the [tool-session-query README](../tool-session-query/README.md) documents the current consumer surface.
 
 </details>
+
+Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.

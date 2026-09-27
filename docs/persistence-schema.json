@@ -9898,6 +9898,264 @@
       }
     },
     {
+      "key": "event:organization/context",
+      "kind": "event",
+      "event": "organization/context",
+      "surface": false,
+      "digest": "e51bc305307015c4c0e209820956ec26f8f15803702d3a6d67fd8e98b33f675e",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "organization/context"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:organization/task-snapshot",
+      "kind": "event",
+      "event": "organization/task-snapshot",
+      "surface": false,
+      "digest": "386ad99c165e3ef75211254387b7ec05fa14580160b73a00e929742edfa3d88f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              6
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/task-snapshot"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:permission/preset",
       "kind": "event",
       "event": "permission/preset",
@@ -21100,7 +21358,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:206"
+        "packages/core/session/src/types.ts:214"
       ]
     },
     {
@@ -21226,10 +21484,12 @@
         ]
       },
       "names": [
-        "packages/core/session/src/types.ts#SessionSeq"
+        "packages/core/session/src/types.ts#SessionSeq",
+        "packages/workspace/organization/src/workgraph-types.ts#OrganizationPlanRevision"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:32"
+        "packages/core/session/src/types.ts:40",
+        "packages/workspace/organization/src/workgraph-types.ts:12"
       ]
     },
     {
@@ -21818,7 +22078,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:204"
+        "packages/core/session/src/types.ts:212"
       ]
     },
     {
@@ -25950,7 +26210,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:427"
+        "packages/core/session/src/types.ts:435"
       ]
     },
     {
@@ -26276,7 +26536,7 @@
         "packages/core/session/src/types.ts#SessionHeader"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:94"
+        "packages/core/session/src/types.ts:102"
       ]
     },
     {
@@ -27476,7 +27736,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:341"
+        "packages/core/session/src/types.ts:349"
       ]
     },
     {
@@ -30136,7 +30396,7 @@
         "packages/core/session/src/types.ts#TurnEndCancelCause"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:196"
+        "packages/core/session/src/types.ts:204"
       ]
     },
     {
@@ -32199,6 +32459,124 @@
       "sources": [
         "packages/attachment/attachment/src/types.ts:8"
       ]
+    },
+    {
+      "digest": "2f951ebcb644b0244f07e73725fd7d61c80cc1c01d99f7cdab44a51e65c20b21",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              5
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "2fe5026daf14bd4ff2b7bfb7cf9791c302d9cbba06802178b6dfec00b892698f",
@@ -36095,7 +36473,7 @@
         "packages/core/session/src/types.ts#SurfaceOp"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:462"
+        "packages/core/session/src/types.ts:470"
       ]
     },
     {
@@ -36600,6 +36978,163 @@
       "sources": [
         "packages/llm/llm/src/assistant-stream.ts:35"
       ]
+    },
+    {
+      "digest": "386ad99c165e3ef75211254387b7ec05fa14580160b73a00e929742edfa3d88f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              6
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/task-snapshot"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "390d53114613acc342887f8bae3f782d1d1ea1a8db4c926e9bda81fa28a03e56",
@@ -39732,7 +40267,7 @@
         "packages/core/session/src/types.ts#OptionalSessionSeq"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:65"
+        "packages/core/session/src/types.ts:73"
       ]
     },
     {
@@ -42785,7 +43320,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:311"
+        "packages/core/session/src/types.ts:319"
       ]
     },
     {
@@ -45689,7 +46224,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:193"
+        "packages/core/session/src/types.ts:201"
       ]
     },
     {
@@ -45726,6 +46261,13 @@
         "packages/webhook/webhook/src/brand.ts#WebhookRuleId",
         "packages/webhook/webhook/src/brand.ts#WebhookSourceId",
         "packages/workflow/workflow/src/types.ts#WorkflowRunId",
+        "packages/workspace/organization/src/types.ts#AccountId",
+        "packages/workspace/organization/src/types.ts#MembershipId",
+        "packages/workspace/organization/src/types.ts#OrganizationId",
+        "packages/workspace/organization/src/types.ts#ServerId",
+        "packages/workspace/organization/src/workgraph-types.ts#OrganizationPhaseId",
+        "packages/workspace/organization/src/workgraph-types.ts#OrganizationPlanId",
+        "packages/workspace/organization/src/workgraph-types.ts#OrganizationTaskId",
         "packages/workspace/personal-project/src/types.ts#BotId",
         "packages/workspace/personal-project/src/types.ts#ProjectId",
         "packages/workspace/personal-workflow/src/types.ts#OperationId",
@@ -45755,6 +46297,13 @@
         "packages/webhook/webhook/src/brand.ts:6",
         "packages/webhook/webhook/src/brand.ts:9",
         "packages/workflow/workflow/src/types.ts:13",
+        "packages/workspace/organization/src/types.ts:10",
+        "packages/workspace/organization/src/types.ts:12",
+        "packages/workspace/organization/src/types.ts:6",
+        "packages/workspace/organization/src/types.ts:8",
+        "packages/workspace/organization/src/workgraph-types.ts:10",
+        "packages/workspace/organization/src/workgraph-types.ts:6",
+        "packages/workspace/organization/src/workgraph-types.ts:8",
         "packages/workspace/personal-project/src/types.ts:5",
         "packages/workspace/personal-project/src/types.ts:7",
         "packages/workspace/personal-workflow/src/types.ts:11",
@@ -47182,7 +47731,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:375"
+        "packages/core/session/src/types.ts:383"
       ]
     },
     {
@@ -47221,7 +47770,7 @@
         "packages/core/session/src/types.ts#RequestHeaderReason"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:273"
+        "packages/core/session/src/types.ts:281"
       ]
     },
     {
@@ -48135,7 +48684,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:355"
+        "packages/core/session/src/types.ts:363"
       ]
     },
     {
@@ -48239,7 +48788,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:221"
+        "packages/core/session/src/types.ts:229"
       ]
     },
     {
@@ -55959,6 +56508,20 @@
       "sources": []
     },
     {
+      "digest": "68c82357108cb2e95360f0a9026dd0b1271573263bce06ee9ae99ee7e9e7907a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "organization/task-snapshot"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "68f44f59e91c41395076cb77265981a601680ec8a381bbbeb6ab754ffdc94573",
       "schema": {
         "root": 0,
@@ -56957,7 +57520,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:330"
+        "packages/core/session/src/types.ts:338"
       ]
     },
     {
@@ -56984,7 +57547,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:191"
+        "packages/core/session/src/types.ts:199"
       ]
     },
     {
@@ -57034,7 +57597,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:192"
+        "packages/core/session/src/types.ts:200"
       ]
     },
     {
@@ -60604,7 +61167,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:212"
+        "packages/core/session/src/types.ts:220"
       ]
     },
     {
@@ -64677,6 +65240,60 @@
       "sources": []
     },
     {
+      "digest": "942473d2e92c34c06ca213c7e94a24c96fa30732d0052bc12ff1214f5ec47b22",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "94c56aeb1564ad735eb773d88636b40761d063efa1610f1308004d32923f5378",
       "schema": {
         "root": 0,
@@ -65811,7 +66428,7 @@
         "packages/core/session/src/types.ts#EpochHeader"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:240"
+        "packages/core/session/src/types.ts:248"
       ]
     },
     {
@@ -66941,7 +67558,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:383",
+        "packages/core/session/src/types.ts:391",
         "packages/core/tools/src/types.ts:24"
       ]
     },
@@ -70628,7 +71245,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:214",
+        "packages/core/session/src/types.ts:222",
         "packages/llm/llm/src/types.ts:160"
       ]
     },
@@ -70877,7 +71494,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:390"
+        "packages/core/session/src/types.ts:398"
       ]
     },
     {
@@ -70934,7 +71551,7 @@
         "packages/interaction/commands/src/types.ts#CommandSource"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:190",
+        "packages/core/session/src/types.ts:198",
         "packages/interaction/commands/src/types.ts:75",
         "packages/interaction/commands/src/types.ts:79",
         "packages/llm/llm/src/message.ts:111",
@@ -71133,6 +71750,20 @@
           {
             "kind": "literal",
             "value": "compaction/end"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "b02a45d7e80746bf00a745e4fbc5277f8f68a2905244447ba995c01cb3850ae2",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "organization/context"
           }
         ]
       },
@@ -71350,7 +71981,7 @@
         "packages/core/session/src/types.ts#RequestContext"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:254"
+        "packages/core/session/src/types.ts:262"
       ]
     },
     {
@@ -72595,7 +73226,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:202"
+        "packages/core/session/src/types.ts:210"
       ]
     },
     {
@@ -76195,7 +76826,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:464"
+        "packages/core/session/src/types.ts:472"
       ]
     },
     {
@@ -82995,7 +83626,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:297"
+        "packages/core/session/src/types.ts:305"
       ]
     },
     {
@@ -83046,7 +83677,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:361"
+        "packages/core/session/src/types.ts:369"
       ]
     },
     {
@@ -83057,6 +83688,103 @@
           {
             "kind": "literal",
             "value": "instruction-following"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e51bc305307015c4c0e209820956ec26f8f15803702d3a6d67fd8e98b33f675e",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "organization/context"
           }
         ]
       },
@@ -83927,7 +84655,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:196"
+        "packages/core/session/src/types.ts:204"
       ]
     },
     {
@@ -84136,7 +84864,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:228"
+        "packages/core/session/src/types.ts:236"
       ]
     },
     {
@@ -84268,8 +84996,8 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:299",
-        "packages/core/session/src/types.ts:301"
+        "packages/core/session/src/types.ts:307",
+        "packages/core/session/src/types.ts:309"
       ]
     },
     {
@@ -84747,7 +85475,7 @@
         "packages/core/session/src/types.ts#TurnEndReason"
       ],
       "sources": [
-        "packages/core/session/src/types.ts:232"
+        "packages/core/session/src/types.ts:240"
       ]
     },
     {
@@ -90415,7 +91143,7 @@
       },
       "names": [],
       "sources": [
-        "packages/core/session/src/types.ts:288",
+        "packages/core/session/src/types.ts:296",
         "packages/deliverables/workspace-changes/src/types.ts:106"
       ]
     },

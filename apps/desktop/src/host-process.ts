@@ -1,5 +1,7 @@
 /** Electron Node-mode child lifecycle for the shared Web application. */
 
+import { randomUUID } from 'node:crypto'
+import { contextNativeMessageSchema, contextRequestSchema, type ContextRequest, type ContextAuthority, type ContextResult } from '@deepseek-ai/dsh-organization-context/protocol'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
 import { desktopNodeEnvironment } from './node-environment.ts'
@@ -102,6 +104,12 @@ export class DesktopHostProcess {
   private failureReported = false
   private stopping = false
   private shutdownCompleted = false
+  private readonly contextNonce = randomUUID()
+  private readonly contextQueries = new Map<string, {
+    authorize: (revision?: ContextAuthority['task']['revision']) => Promise<ContextAuthority>
+    resolve: (result: ContextResult) => void
+    reject: (error: Error) => void
+  }>()
   private nextControlId = 1
   private readonly taskQueries = new Map<number, { resolve: (active: boolean) => void; reject: (error: Error) => void }>()
 
@@ -151,6 +159,25 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
+      const context = contextNativeMessageSchema.safeParse(message)
+      if (context.success) {
+        const response = context.data
+        const query = this.contextQueries.get(response.requestId)
+        if (!query || response.nonce !== this.contextNonce) return
+        if (response.type === 'organization-context-result') {
+          if (response.result && !response.error) query.resolve(response.result)
+          else query.reject(new Error('organization-context-unavailable'))
+        } else {
+          void query.authorize(response.revision).then((authority) => {
+            if (this.contextQueries.get(response.requestId) === query && child.connected) {
+              child.send({ type: 'organization-context-authorized', requestId: response.requestId, nonce: response.nonce, authorizationId: response.authorizationId, authority })
+            }
+          }, () => {
+            if (child.connected) child.send({ type: 'organization-context-authorized', requestId: response.requestId, nonce: response.nonce, authorizationId: response.authorizationId, error: 'denied' })
+          }).catch(() => { query.reject(new Error('organization-context-unavailable')) })
+        }
+        return
+      }
       if (!isDesktopHostEvent(message)) {
         this.fail(new Error('dsh desktop host sent an invalid IPC event'))
         child.kill('SIGTERM')
@@ -178,6 +205,41 @@ export class DesktopHostProcess {
       })
     })
     return this.readyPromise
+  }
+
+  /**
+   * Request a read-only binding through the private Host channel.
+   * @param input - Task selector; identities and snapshots are not accepted.
+   * @param authorize - Native online task read bound to the initiating connection generation.
+   * @param timeoutMs - Native request deadline.
+   * @param signal - Native identity lifetime cancellation.
+   * @returns Durable context after online rechecks; no execution capability.
+   */
+  async openOrganizationContext(input: ContextRequest, authorize: (revision?: ContextAuthority['task']['revision']) => Promise<ContextAuthority>, timeoutMs: number, signal: AbortSignal): Promise<ContextResult> {
+    signal.throwIfAborted()
+    const request = contextRequestSchema.parse(input)
+    const child = this.child
+    if (!child?.connected || this.stopping || this.failureReported) throw new Error('organization-context-unavailable')
+    const requestId = randomUUID()
+    const abort = () => { this.contextQueries.get(requestId)?.reject(new Error('organization-context-cancelled')) }
+    signal.addEventListener('abort', abort, { once: true })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await new Promise<ContextResult>((resolve, reject) => {
+        this.contextQueries.set(requestId, { authorize, resolve, reject })
+        timer = setTimeout(() => { reject(new Error('organization-context-timeout')) }, timeoutMs)
+        child.send({ type: 'organization-context-open', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => {
+          if (error !== null) reject(error)
+        })
+      })
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+      this.contextQueries.delete(requestId)
+      // IPC may disconnect during the awaited operation.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition
+      if (child.connected) child.send({ type: 'organization-context-cancel', requestId, nonce: this.contextNonce }, () => {})
+    }
   }
 
   /**
@@ -234,6 +296,8 @@ export class DesktopHostProcess {
 
   private fail(error: Error): void {
     this.readyReject(error)
+    for (const query of this.contextQueries.values()) query.reject(error)
+    this.contextQueries.clear()
     for (const query of this.taskQueries.values()) query.reject(error)
     this.taskQueries.clear()
     if (!this.failureReported && !this.stopping) {

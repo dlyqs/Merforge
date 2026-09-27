@@ -325,6 +325,7 @@
       "@deepseek-ai/dsh-organization-api/transport": ["./packages/api/organization-api/src/transport.ts"],
       "@deepseek-ai/dsh-organization-connection/types": ["./packages/host/organization-connection/src/types.ts"],
 
+      "@deepseek-ai/dsh-organization-context/protocol": ["./packages/workspace/organization-context/src/protocol.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-agent": ["./packages/core/agent/src"],
       "@deepseek-ai/dsh-agent-default-model": ["./packages/core/agent-default-model/src"],
@@ -401,6 +402,8 @@
       "@deepseek-ai/dsh-organization": ["./packages/workspace/organization/src"],
       "@deepseek-ai/dsh-organization-api": ["./packages/api/organization-api/src"],
       "@deepseek-ai/dsh-organization-connection": ["./packages/host/organization-connection/src"],
+      "@deepseek-ai/dsh-organization-context": ["./packages/workspace/organization-context/src"],
+      "@deepseek-ai/dsh-organization-context/invariant": ["./packages/workspace/organization-context/src/invariant.ts"],
       "@deepseek-ai/dsh-output-retention": ["./packages/util/output-retention/src"],
       "@deepseek-ai/dsh-package-manifest": ["./packages/util/package-manifest/src"],
       "@deepseek-ai/dsh-permission-presets": ["./packages/interaction/permission-presets/src"],

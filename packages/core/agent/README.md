@@ -185,3 +185,5 @@ These limits define when this package needs special care. They are current packa
 This Dev Note is working context for maintainers; it is explicitly non-authoritative. Open, undecided directions: inter-agent channels beyond delegation — shared state, streaming child output, and background or poll semantics remain outside the current delegation seam; and the `SessionStartSource` values `'clear'`/`'compact'` are reserved with no emitter yet, pending the driving subsystems.
 
 </details>
+
+Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.

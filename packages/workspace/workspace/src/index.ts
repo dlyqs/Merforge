@@ -4,6 +4,7 @@
  * domain data form.
  * @module @deepseek-ai/dsh-workspace
  */
+import { assertPersonalSessionId } from '@deepseek-ai/dsh-session'
 
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat } from 'node:fs/promises'
@@ -359,6 +360,7 @@ export class WorkspaceRegistry extends Service {
    * @returns resolution after durability and, with `stopActivity`, after every stop request was issued.
    */
   archiveSession(sessionId: SessionId, options: ArchiveSessionOptions = {}): Promise<void> {
+    assertPersonalSessionId(sessionId)
     return this.enqueueOperation(async () => {
       // The chain slot serializes against every other registry write, so this
       // check-then-write pair cannot interleave with another archive.
@@ -393,6 +395,7 @@ export class WorkspaceRegistry extends Service {
    * @returns resolution after durability.
    */
   unarchiveSession(sessionId: SessionId): Promise<void> {
+    assertPersonalSessionId(sessionId)
     return this.enqueueOperation(async () => {
       // The chain slot serializes against every other registry write, so this
       // check-then-write pair cannot interleave with a concurrent archive.
@@ -422,6 +425,7 @@ export class WorkspaceRegistry extends Service {
    * @returns resolution after durability.
    */
   pinSession(sessionId: SessionId): Promise<void> {
+    assertPersonalSessionId(sessionId)
     return this.enqueueOperation(async () => {
       // The chain slot serializes against every other registry write, so this
       // check-then-write pair cannot interleave with another pin or archive.
@@ -449,6 +453,8 @@ export class WorkspaceRegistry extends Service {
    * @returns resolution after durability.
    */
   unpinSession(sessionId: SessionId): Promise<void> {
+    assertPersonalSessionId(sessionId)
+    assertPersonalSessionId(sessionId)
     return this.enqueueOperation(async () => {
       // The chain slot serializes against every other registry write, so this
       // check-then-write pair cannot interleave with a concurrent pin.

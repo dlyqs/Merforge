@@ -7,6 +7,7 @@ import { loadLayeredEnv, loadProfileDirectory } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 
+import { installOrganizationContextControl } from './organization-context.ts'
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { bootDesktopProfile } from './profile-boot.ts'
 
@@ -64,6 +65,11 @@ async function main(): Promise<void> {
   })
   process.once('disconnect', () => { void stop() })
   const { ctx } = await application
+  installOrganizationContextControl(ctx, {
+    on: (event, listener) => process.on(event, listener),
+    off: (event, listener) => process.off(event, listener),
+    send: (message) => { if (!process.connected || !process.send) throw new Error('organization-context: disconnected'); process.send(message) },
+  })
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   const url = ctx.connection.authenticatedUrl(`http://127.0.0.1:${String(ctx.webServer.port)}`)
   if (process.connected) process.send?.({ type: 'ready', url, injections: ctx.webServer.collectIndexInjections() }, (error) => { if (error !== null) console.error(error) })

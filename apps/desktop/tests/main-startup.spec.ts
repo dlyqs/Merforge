@@ -627,6 +627,14 @@ describe('desktop main startup', () => {
     await expect(handler({ sender, senderFrame: sender.mainFrame }, { kind: 'approve' })).rejects.toThrow()
   })
 
+  it('rejects organization context identity injection and non-owning frames before any local read', async () => {
+    await readyForUpdate()
+    const handler = harness.handlers.get(DESKTOP_IPC.organizationContext)!
+    const sender = harness.windows[0]!.webContents
+    await expect(handler({ sender, senderFrame: { url: sender.mainFrame.url } }, {})).rejects.toThrow('unowned renderer')
+    await expect(handler({ sender, senderFrame: sender.mainFrame }, { accountId: 'forged', snapshot: {} })).rejects.toThrow()
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)('limits native titlebar styling to macOS on %s', async (platform) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
     await import('../src/main.ts')

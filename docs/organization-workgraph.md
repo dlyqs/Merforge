@@ -1,6 +1,6 @@
 # 组织 WorkGraph 与预执行上下文
 
-本文定稿[施工计划](organization-workgraph-plan.md) Phase 1 的协议与权限设计。Phase 1–4 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影与 HTTPS/原生动作；Phase 5–6 的本机上下文隔离及绑定仍为后续实现约束，当前没有任务 GUI 或上下文入口。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
+本文定稿[施工计划](organization-workgraph-plan.md) Phase 1 的协议与权限设计。Phase 1–6 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影、HTTPS/原生动作及本机预执行上下文隔离和持久绑定。当前有受限原生绑定动作，没有任务 GUI。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
 
 ## 定义及版本
 
@@ -86,7 +86,7 @@ TaskView 与 PlanDefinition 使用不同类型。TaskView 的根可以是获准�
 
 ## 本机任务上下文（Phase 5–6）
 
-选择新 Host 插件 `workspace/organization-context`，只拥有本机绑定和预执行 Session。复用 JSONL format/handle 与 projection 纯定义，但使用独立组织上下文存储根和独立会话集合；不注册进个人 `sessions`、`sessionPersistence`、`sessionQuery` 或 Agents registry。不复制个人工作流聚合。不需要更改 agent-loop。
+Host 插件 `workspace/organization-context`，只拥有本机绑定和预执行 Session。复用 JSONL format/handle 与 projection 纯定义，但使用独立组织上下文存储根和独立会话集合；不注册进个人 `sessions`、`sessionPersistence`、`sessionQuery` 或 Agents registry。不复制个人工作流聚合。不需要更改 agent-loop。
 
 SessionId 使用保留前缀 `organization-context:` 加随机 UUID，普通 Session/Agent 入口明确拒绝这个命名空间；个人 Session 创建和 fork 也拒绝调用方提交该前缀。独立存储和入口拒绝共同保证冷重开、热缓存、猜测 ID 都不能旁路读取。组织归属写入不可移除的初始 `organization/context` 必读事件，字段为 serverId/accountId/organizationId/planId/taskId 和协议版本；SessionId 不进入服务端任务事实。组织 Session 不带 cwd、Bot 或个人归属。事件遵循当前 Session envelope 扩展规则，无理由不提升格式版本。
 
@@ -104,7 +104,7 @@ Host 到原生的权限复核也是固定动作 `organization-context-authorize`
 
 ### 实际消费者清单与 Phase 5 拒绝点
 
-以下均须在 Phase 5 落实及测试后，Phase 6 才能创建首个组织 Session。当前 Phase 4 尚未创建组织 Session，也未声称现有个人入口具备组织账号隔离能力。
+Phase 5–6 已落实下表的共享入口保护。保留 ID 在个人 SessionStore/AgentRegistry、JSONL provider、query observation、Workspace 写入及上传执行处拒绝；上层 Controller、导出、引用、附件和模型消费者沿这些入口读取。隔离 JSONL 根不注册个人索引。
 
 | 当前源码消费者 | 处理策略 |
 | --- | --- |
@@ -121,8 +121,16 @@ Host 到原生的权限复核也是固定动作 `organization-context-authorize`
 | `core/agent` create/resolve/recovery、调度/jobs/subagent 触发、model-visible context 和 tools executor | 组织 Session 不进 Agent registry，保留 ID 在创建/恢复处拒绝；没有可执行 Agent 就不安装工具或模型上下文；不得依赖 pre-step 作为唯一拒绝 |
 | Client sessions manager/history/projection-store/lineage | 只消费个人 Remote；组织任务面板独立 IPC 状态，以 generation 清空，不能将组织聊天混入个人缓存 |
 
-还需在 Phase 5 的同机故障测试中执行 ID 猜测、列表/搜索隐藏哨兵、直接 fork/prompt/export/upload、账号切换迟到响应、撤权中断流和重启无网络拒绝；不能以未来委托授权代替这些检查。
+Loader、真实 HTTPS/原生/私有 IPC、JSONL、个人入口回归及无窗口产物测试覆盖绑定重开、账号隔离、保留 ID 猜测/分叉/执行/导出/上传拒绝、代次变化、撤权、取消和离线拒绝。当前上下文返回单次只读快照，不建立上下文历史流；不存在模型或工具执行入口。
 
 ## 编译与依赖
 
-`util/task-graph` 是仅两种定义消费者使用的零运行时依赖纯库，提取现有个人 graph 校验，不引入个人 service/Session/cwd 到组织进程。新增 manifest、两消费者 dependencies/tsconfig references、Host aggregate、源码 paths 和 lockfile；它没有服务、状态、配置或 invariant companion。组织包保持 Host 单编译面；本阶段无 Client 类型或 UI 更改。后续组织上下文插件只在个人 Desktop Host 的私有组合中安装，组织 HTTPS 服务进程不会读取本机 Session。
+`util/task-graph` 是仅两种定义消费者使用的零运行时依赖纯库，提取现有个人 graph 校验，不引入个人 service/Session/cwd 到组织进程。新增 manifest、两消费者 dependencies/tsconfig references、Host aggregate、源码 paths 和 lockfile；它没有服务、状态、配置或 invariant companion。组织包保持 Host 单编译面；本阶段无 Client 类型或 UI 更改。组织上下文插件只在个人 Desktop Host 的私有组合中安装，组织 HTTPS 服务进程不会读取本机 Session。
+
+### 已实现的本机协调细节
+
+`organization.context(request)` preload 动作只接收 organization/project/plan/task/operationId。`apps/desktop/src/organization-context.ts` 持有线上复核；`host-process.ts` 和 Host 的 `organization-context.ts` 用启动 nonce、打开 requestId 和独立 authorizationId 关联每次复核，沿用原生 timeoutMs。当前使用单次结果，无组织 Remote 或持续聊天流。
+
+JSONL provider 的 namespace 默认为 personal；组织插件在独立 Context 中配置 organization-context 和专用目录。storage-domain 的一个 global 记录原子保存 bindings/operations，binding 另存首次 createdAt；Session 中的 `organization/context` 和 `organization/task-snapshot` 是必读事件，仍使用当前 envelope v4。预留在写盘前完成，失败保留 reserved；重试在线核权后补齐同一日志的缺失尾部，不新增对话。ready 前后冷读和线上历史 revision 复核保证不返回半完成关联；旧快照若含当前不再获准的父节点或依赖则拒绝打开。
+
+`./invariant` 校验 ready 绑定与独立 JSONL 的归属及快照。Loader 验证安装这一检查，普通 open 也在交付前比较持久记录。新快照追加和 GUI 消费者尚未提供，重开只返回首次已记录的版本。

@@ -6,7 +6,7 @@
 
 目标：在已有组织项目上保存一份权威、版本化的任务树与依赖图，明确目标、范围、真人责任人建议、下发人及验收要求；领导和员工只读取获准的任务视图，各自的任务上下文与对话关联独立。一个任务可以经 GUI 创建、修改、重开、授权查看并关联自己的上下文，服务端搜索和同步遵守同一权限规则。
 
-计划创建时只制定计划；用户于 2026-09-27 授权完成 Phase 1–2，随后明确要求“请自动完成phase3-4”，本次按 Phase 3–4 范围执行。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。权限与预执行上下文方案已在 Phase 1 按本次执行授权定稿；哪些能力已经实现以状态表及设计文档为准。
+计划创建时只制定计划；用户于 2026-09-27 授权完成 Phase 1–2，随后明确要求“请自动完成phase3-4”，用户又于 2026-09-27 明确要求“请自动完成phase5-6”，本次按 Phase 5–6 范围执行。歧义检查：roadmap 已确定产品 Phase 4 工程完成、产品 Phase 5 尚未实现，因此“下一阶段”落在产品 Phase 5；不把 Phase 6–7A 的批准、委托和运行一并纳入。权限与预执行上下文方案已在 Phase 1 按本次执行授权定稿；哪些能力已经实现以状态表及设计文档为准。
 
 关键阶段边界：本期保存的是**计划定义和待分配责任人**，不是已下发任务。指定责任人不授予读取或执行权限；显式授予任务查看权只允许查看准备材料，不产生分配通知、执行资格或员工电脑上的自动动作。正式批准后生成员工执行对话、员工接受/委托、HumanRequest、领取、Run、提交及验收分别留给产品 Phase 6–7A。任务绑定在本期提供身份隔离和持久关联，不打开普通 Agent 执行通道。
 
@@ -95,9 +95,9 @@
 | Phase 1 | 协议与授权设计 | 定稿数据、任务可见范围和本机上下文隔离 | completed | organization-workgraph.md；架构职责说明 | Session 入口及隔离策略已定稿 |
 | Phase 2 | 任务定义与版本 | SQLite 持久图、事务回执及纯规则复用 | completed | SQLite v3、WorkGraph、task-graph；73 项聚焦测试与两组产物 smoke | 历史阶段完成 |
 | Phase 3 | 任务授权与投影 | 子树授权、历史/搜索/分页/事件一致过滤 | completed | workgraph-access；7 项新增权限测试 | 见阶段记录 |
-| Phase 4 | HTTPS 与原生动作 | 连接、协议、重连及原生身份代次 | completed | 固定路由/动作、独立任务 SSE、代次响应 | 已达本次授权停止点 |
-| Phase 5 | 本机上下文隔离 | 组织 Session 归属与入口保护 | pending | — | 依赖 4；尚不向用户暴露绑定入口 |
-| Phase 6 | 持久对话绑定 | 幂等关联、准确任务快照和失败恢复 | pending | — | 依赖 5；始终预执行 |
+| Phase 4 | HTTPS 与原生动作 | 连接、协议、重连及原生身份代次 | completed | 固定路由/动作、独立任务 SSE、代次响应 | 历史阶段完成 |
+| Phase 5 | 本机上下文隔离 | 组织 Session 归属与入口保护 | completed | organization-context、个人入口保护、私有 IPC | 无公开任务 UI |
+| Phase 6 | 持久对话绑定 | 幂等关联、准确任务快照和失败恢复 | completed | 原子预留、JSONL 快照、在线重验及恢复 | 已达本次授权停止点 |
 | Phase 7 | 共享任务工作台 | 创建、编辑、授权视图与本人上下文入口 | pending | — | 依赖 6 |
 | Phase 8 | 集成与交付 | 无页面跨身份链路、发行和用户验收剧本 | pending | — | 依赖 7；不启动产品 Phase 6 |
 
@@ -211,15 +211,17 @@
 
 验收清单：
 
-- [ ] 可信原生身份与当前有效任务 read 共同控制本机访问；Renderer 伪造身份或快照不能创建通行证。
-- [ ] 组织 Session 无法通过个人列表、搜索、导出、猜测 ID、分叉/移动、附件入口或普通模型发送绕过保护。
-- [ ] 退出/撤权/断线/身份切换使旧代次访问失败；不把组织上下文挂到私人 Bot 或个人计划。
-- [ ] 预执行上下文不能启动模型、工具或子 Agent；无 UI 入口时内部调用也拒绝。
-- [ ] effect/监听器释放后无残余权限状态；个人 Session 原路径和已存在个人任务不受影响。
+- [x] 可信原生身份与当前有效任务 read 共同控制本机访问；Renderer 伪造身份或快照不能创建通行证。
+- [x] 组织 Session 无法通过个人列表、搜索、导出、猜测 ID、分叉/移动、附件入口或普通模型发送绕过保护。
+- [x] 退出/撤权/断线/身份切换使旧代次访问失败；不把组织上下文挂到私人 Bot 或个人计划。
+- [x] 预执行上下文不能启动模型、工具或子 Agent；无 UI 入口时内部调用也拒绝。
+- [x] effect/监听器释放后无残余权限状态；个人 Session 原路径和已存在个人任务不受影响。
 
 助理验证：真实 Loader、本机 Host 入口的跨身份/猜测 ID 拒绝、取消与失效竞争、个人 Session 回归；核对模型与工具调用计数为零。用户检查：本阶段无公开绑定 UI。依赖：Phase 4；若必须改变通用 Session 的生命周期，先更新局部设计和验证范围，禁止直接改 agent-loop。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-28）：新增独立 organization-context 服务和 JSONL namespace，个人 SessionStore/AgentRegistry 的创建、恢复、进入和查找入口拒绝保留 ID，个人持久化、查询、归档/置顶与上传入口同步拒绝。Desktop 私有 Node IPC 以 requestId、启动 nonce、授权请求 ID 和原生 generation 关联，每次读取在线复核，切换/断线取消在途交付；所属顶层窗口校验保持有效。组织记录不进入个人 Session/Agent 集合，不提供执行或公开 Remote。
+
+验证：Loader/真实 JSONL 隔离与恢复测试通过；真实 HTTPS→原生协调器→私有 Host IPC 测试验证可见任务快照和撤权拒绝；普通个人 create/fork、upload、cold-read、Desktop Host/preload 聚焦回归共 6 文件 87 项通过。随后新增历史授权和真实链路用例，单独 context.spec.ts 7 项通过；main-startup 的 context/任务 IPC 定向检查通过（无关项按过滤跳过）。相关 Host 编译通过；Phase 6 交付前继续检查新增故障用例、局部 lint 和构建产物。无页面/模型调用；继续授权内 Phase 6。
 
 ## Phase 6：持久绑定与任务快照
 
@@ -229,15 +231,27 @@
 
 验收清单：
 
-- [ ] 本人同一任务重复打开使用同一绑定；其他账号独立；不采用现有私人 Session，不复制领导聊天。
-- [ ] 创建 Session 前保留固定标识与操作状态；部分失败、断电重开、重复响应不会生成重复可见对话。
-- [ ] 快照包含已授权任务版本及必要说明；历史不自动替换最新定义，权限被撤销后不能通过旧快照继续访问。
-- [ ] 绑定只记录本人本机引用；组织服务及他人视图不返回 Session 标识、路径或正文。
-- [ ] 绑定失败无伪成功，无自动重试模型调用；创建后仍为预执行只读。
+- [x] 本人同一任务重复打开使用同一绑定；其他账号独立；不采用现有私人 Session，不复制领导聊天。
+- [x] 创建 Session 前保留固定标识与操作状态；部分失败、断电重开、重复响应不会生成重复可见对话。
+- [x] 快照包含已授权任务版本及必要说明；历史不自动替换最新定义，权限被撤销后不能通过旧快照继续访问。
+- [x] 绑定只记录本人本机引用；组织服务及他人视图不返回 Session 标识、路径或正文。
+- [x] 绑定失败无伪成功，无自动重试模型调用；创建后仍为预执行只读。
 
 助理验证：真实 Session 持久化和重开、授权检查与落盘之间撤权、跨存储故障、同机不同账号；验证没有新增 Run 或工具副作用。用户检查：在 Phase 7 GUI 接入后一并检查。依赖：Phase 5。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-28）：storage-domain 原子预留 binding/operation 回执及固定 SessionId；独立 JSONL 写入不可移除归属、首次获准 task revision 和时间，flush 后冷读比较，再提交 ready。重试与重启复用 reserved 标识；本人同任务不新增对话，账号/任务独立，operationId 改换绑定拒绝。每次重开在线核验当前及历史授权；历史关联不再可见时拒绝旧快照，不用新定义覆盖原文。私有 IPC 关联请求、启动 nonce 和独立授权请求；原生代次取消和最终交付复核覆盖异步竞争。组织服务不接收 SessionId 或本机聊天，未增加 Run/模型/工具执行。新增 invariant companion 对照 ready 绑定与 JSONL，两者不符会拒绝。
+
+实际验证（无页面）：
+
+- `./node_modules/.bin/vitest run packages/workspace/organization-context/tests/context.spec.ts`：最终 8 项通过，使用真实 Loader、storage-domain/JSONL、HTTPS 和原生协调/私有 Host IPC；包括重复打开、账号隔离、个人读/导出/分叉/Agent 拒绝、撤权/代次/取消/离线、预留落盘失败、ready 标记失败恢复、历史授权缩小、跨存储损坏及监听器释放。
+- 聚焦回归运行了 `apps/desktop/tests/{host-process,preload-app}.spec.ts`、`packages/api/session-controller/tests/{commands-create-fork,commands-upload-file,session-cold}.host.spec.ts`、`packages/workspace/personal-workflow/tests/storage.spec.ts`、`packages/session/session-persistence-jsonl/tests/jsonl.spec.ts`。最新三文件 context/host-process/upload 合跑 46 项通过；其余文件最近一次通过。新增上传负例核对附件写入和 followup 均为零。测试夹具中的列表调用和 global 写入故障注入已修正，最终新增用例通过。
+- `./node_modules/.bin/vitest run packages/workspace/organization-context/tests/context.spec.ts apps/desktop/tests/main-startup.spec.ts -t 'context|persists|isolates|refuses reserved|retains a reservation|denies revocation|rejects a history|routes real'` 的原生所属窗口/伪造身份检查通过；无关 Desktop 测试按过滤跳过，未重跑 Phase 4 记录的 titleBarStyle 旧断言。
+- `./node_modules/.bin/tsc -b apps/desktop-host apps/desktop/tsconfig.host.json packages/client/file-upload/tsconfig.host.json packages/api/session-controller/tsconfig.host.json --pretty false`，及带 `packages/client/ui-organization` 的相关编译通过；变更文件局部 `run-oxlint.ts`、新增包/原生包的 export JSDoc 与 package metadata/invariant publication 检查通过。
+- `gen-tsconfig-paths.ts --check`、`verify-application-entrypoints.ts`、`verify-cordis-config.ts`、`gen-scoped-events.ts --check`、`verify-client-ui-i18n.ts`、`git diff --check` 通过。`gen-persistence-catalog.ts` 已同步两个必读事件及机器 schema；Session envelope 保持 v4。首次误用不存在的 `verify-scoped-events.ts`，已改用仓库真实命令并通过。
+- `./node_modules/.bin/tsdown --env.DSH_BUILD_FACE host` 针对 session、agent、session-persistence-jsonl、session-query、workspace、client-file-upload、organization-context、organization-connection 和 desktop-host 九包构建通过；最后上下文修改后重建 context/desktop-host。`node apps/desktop-host/tests/organization-context-built-smoke.mjs` 在普通 Node 与 Electron Node mode 验证隔离、落盘、重开和离线拒绝；原有 `organization-built-smoke.mjs` 和 `organization-integration-built-smoke.mjs` 两组 Node/Electron smoke 同样通过。
+- 非通过项：`gen-config-catalog.ts` 仍被未修改的 organization-api `./tls.ts`、organization `./schema.ts` 本地 schema 导入解析两项阻塞；本次 Config.root JSDoc 已补齐。`gen-cordis-catalog.ts` 的新增 ContextRequest/Authority/Result 和 service page 映射已补齐，剩余既有类型映射问题仍未通过。只同步本次接口拥有的 README/设计/架构，不把全仓生成器计为通过。
+
+同步计划、overview、架构、WorkGraph 设计和相关包 README；诊断只记 operationId、revision、generation、prepared/committed/reconcile-required/denied，不记正文。没有页面、Playwright、模型 API、全仓测试、完整发行构建、自动 commit/push 或部署。GUI 和用户可见验收留 Phase 7–8。已达 Phase 6 停止点，恢复 manual，不开始 Phase 7。
 
 ## Phase 7：共享项目任务工作台
 
@@ -300,7 +314,7 @@
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 计划评审状态：用户 2026-09-27 明确授权“请自动完成phase3-4”；本次 auto_until Phase 3–4 已完成必要交付核验，恢复 manual，不进入 Phase 5。
+- 计划评审状态：用户 2026-09-27 明确授权“请自动完成phase5-6”；本次 auto_until Phase 5–6 已完成交付核验，恢复 manual，不进入 Phase 7。
 - 使用的 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`；工作目录：`/Users/git_local/Merforge`。本计划是后续执行入口，暂不创建专用 executor skill。
 
 1. 执行前读取本文、overview、相关 AGENTS、架构、防御模式与测试政策；优先复核 `blocked` 阶段的解除条件，未解除时不得跳过依赖。
