@@ -7,6 +7,10 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
+  | { kind: 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
+  | { kind: 'device-register'; name: string }
+  | { kind: 'device-revoke'; expectedVersion: number }
+  | { kind: 'device-read' }
   | { kind: 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
@@ -35,9 +39,21 @@ export interface ConnectionSnapshot {
   username?: string | undefined
   error?: string | undefined
   pendingOperation?: OperationId | undefined
+  inbox?: import('@deepseek-ai/dsh-organization').OrganizationInboxPage | undefined
+  renewing?: import('@deepseek-ai/dsh-organization').OrganizationAssignmentId | undefined
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  generation?: number
+  assignment?: {
+    generation: number
+    result: { kind: 'review'; value: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/assignment').approvalReviewResultSchema> }
+      | { kind: 'tasks'; value: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/assignment').taskAssignmentsPageSchema> }
+      | { kind: 'inbox'; value: import('@deepseek-ai/dsh-organization').OrganizationInboxPage }
+      | { kind: 'preparation'; value: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/assignment').preparationSchema> }
+      | { kind: 'device'; value: import('@deepseek-ai/dsh-organization').OrganizationDevice | null }
+  }
+
   receipt?: Receipt
   invitationToken?: string
   grants?: import('@deepseek-ai/dsh-organization/types').ResourceGrantView[]

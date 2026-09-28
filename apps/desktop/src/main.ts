@@ -1,4 +1,5 @@
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
+import { assertOrganizationSender, assertOrganizationResult } from './organization-ipc.ts'
 import { openOrganizationContext } from './organization-context.ts'
 import { type ContextRequest, type ContextAuthority } from '@deepseek-ai/dsh-organization-context/protocol'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
@@ -14,6 +15,7 @@ import {
   ipcMain,
   Menu,
   powerMonitor,
+  safeStorage,
   nativeTheme,
   net,
   protocol,
@@ -340,13 +342,7 @@ async function main(): Promise<void> {
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
   let injections: readonly unknown[] = []
   let localeBackend: Awaited<ReturnType<typeof connectDesktopLocale>> | undefined
-  const assertProductSender = (event: IpcMainInvokeEvent): void => {
-    assertDesktopSender(event, ['app'])
-    if (mainWindow === undefined || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents
-      || event.senderFrame === null || event.senderFrame !== mainWindow.webContents.mainFrame) {
-      throw new Error('dsh desktop: rejected IPC from an unowned renderer')
-    }
-  }
+  const assertProductSender = (event: IpcMainInvokeEvent): void =>{  assertOrganizationSender(event, mainWindow) }
   const organization = new DesktopOrganizationProcess(resources.node, resources.dsh, 30000)
   const organizationManager = new DesktopOrganizationManager(organization, desktopHome, async (kind) => {
     if (kind === 'backup') {
@@ -355,7 +351,15 @@ async function main(): Promise<void> {
     }
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? undefined : result.filePaths[0]
+  }, {
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    getSelectedStorageBackend: () => process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform,
+    encryptString: text => safeStorage.encryptString(text),
+    decryptString: bytes => safeStorage.decryptString(bytes),
   })
+  const suspendOrganization = () =>{  organizationManager.connection.suspend() }
+  powerMonitor.on('suspend', suspendOrganization)
+  app.once('will-quit', () => powerMonitor.off('suspend', suspendOrganization))
   const publishOrganization = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(DESKTOP_IPC.organizationChanged, organizationManager.snapshot())
@@ -368,9 +372,7 @@ async function main(): Promise<void> {
     try {
       const result = await organizationManager.connection.perform(action)
       assertProductSender(event)
-      if (result.workgraph && result.workgraph.generation !== organizationManager.connection.snapshot().generation) {
-        throw new Error('superseded')
-      }
+      assertOrganizationResult(result, organizationManager.connection.snapshot().generation)
       return result
     } finally { publishOrganization() }
   })

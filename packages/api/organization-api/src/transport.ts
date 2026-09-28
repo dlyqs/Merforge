@@ -1,4 +1,5 @@
 /** Certificate-bound organization transport; never uses the personal Host cookie or follows redirects. */
+import { inboxBatchSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { X509Certificate } from 'node:crypto'
 import { connect, checkServerIdentity } from 'node:tls'
 import { request, type RequestOptions } from 'node:https'
@@ -205,7 +206,7 @@ async function* followEvents<T extends {
         if (batch.from !== cursor || batch.revision < revision) throw new OrganizationStreamReset('snapshot-required')
         let previous = revision
         for (const event of batch.events) {
-          if (event.revision <= previous || event.revision > batch.revision) throw new OrganizationStreamReset('snapshot-required')
+          if (event.revision < previous || event.revision <= revision || event.revision > batch.revision) throw new OrganizationStreamReset('snapshot-required')
           previous = event.revision
         }
         cursor = batch.cursor
@@ -216,4 +217,21 @@ async function* followEvents<T extends {
     }
     throw new OrganizationStreamReset('unavailable')
   } finally { req.destroy() }
+}
+
+/**
+ * Follow durable inbox invalidations using the bounded ordered organization transport.
+ * @param trust - Native certificate trust and limits.
+ * @param organizationId - Current selected organization.
+ * @param token - Native bearer credential.
+ * @param snapshot - Authorized inbox snapshot cursor.
+ * @param signal - Identity cancellation.
+ * @returns Ordered content-free invalidations; gaps require a new inbox query.
+ */
+export async function* followInboxEvents(
+  trust: OrganizationTrust, organizationId: OrganizationId, token: LoginToken,
+  snapshot: { cursor: OrganizationCursor; revision: number }, signal: AbortSignal,
+): AsyncGenerator<z.output<typeof inboxBatchSchema>, void, unknown> {
+  yield* followEvents(trust, `/organization/v1/assignment/events?organizationId=${organizationId}&stream=true&cursor=${encodeURIComponent(snapshot.cursor)}`,
+    token, snapshot, signal, inboxBatchSchema)
 }

@@ -310,3 +310,13 @@ it('delivers only authorized inbox invalidations and requires a snapshot after r
   await h.projectGrant(h.other.membershipId!, [], h.otherGrant.revision)
   await expect(h.service.readInboxEvents(h.other.token, { organizationId: h.query.organizationId, cursor }, () => {})).rejects.toMatchObject({ code: 'snapshot-required' })
 })
+
+it('previews a visibility gap without granting access or creating an approval', async () => {
+  const h = await setup()
+  const { kind: _kind, operationId: _operationId, ...review } = h.approve
+  await h.service.readApproval(h.owner.token, review, (value) => { expect(value.assigneeCanRead).toBe(true) })
+  await h.projectGrant(h.other.membershipId!, [], h.otherGrant.revision)
+  await h.service.readApproval(h.owner.token, review, (value) => { expect(value.assigneeCanRead).toBe(false) })
+  expect(h.db.prepare('SELECT COUNT(*) AS count FROM task_assignments').get()?.count).toBe(0)
+  await expect(h.service.assignmentCommand(h.owner.token, h.approve)).rejects.toMatchObject({ code: 'forbidden' })
+})

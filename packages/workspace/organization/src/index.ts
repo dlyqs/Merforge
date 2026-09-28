@@ -8,8 +8,11 @@ import { DeviceChallenges, ownedDevice, changeDevice, invalidateDevicesAndLeases
 import { deviceCommandSchema, provenDeviceCommandSchema, deviceProofSchema, serverEpochSchema, leaseSchema } from './device-schema.ts'
 import type { OrganizationDeviceChallenge, OrganizationLease } from './device-types.ts'
 import type { OrganizationDelegation } from './assignment-types.ts'
+import { taskAssignmentsQuerySchema, devicesQuerySchema } from './assignment-protocol.ts'
+import { deviceSchema } from './device-schema.ts'
+import { assignmentSchema, assignmentRequestSchema, approvalReviewSchema } from './assignment-schema.ts'
 import { assignmentCommandSchema, assignmentReadSchema, participantCommandSchema, inboxQuerySchema } from './assignment-schema.ts'
-import { changeAssignment, selectedAssignment, authorizeAssignmentRead, invalidateAssignments } from './assignment.ts'
+import { reviewAssignment, changeAssignment, selectedAssignment, authorizeAssignmentRead, invalidateAssignments } from './assignment.ts'
 import { authorizeParticipant, changeParticipant, visibleInbox, invalidateDelegations, parseDelegation } from './assignment-participant.ts'
 import type { OrganizationInboxPage } from './assignment-types.ts'
 import type { OrganizationAssignment } from './assignment-types.ts'
@@ -693,6 +696,7 @@ export class OrganizationService extends Service {
    * @returns Completion after a bounded event range or snapshot-required rejection.
    */
   readInboxEvents(token: LoginToken, input: unknown, deliver: (value: {
+    from: import('./types.ts').OrganizationCursor
     cursor: import('./types.ts').OrganizationCursor
     revision: number
     events: { assignmentId: OrganizationAssignment['id']; revision: number }[]
@@ -709,12 +713,72 @@ export class OrganizationService extends Service {
             SELECT createdRevision AS revision FROM task_assignments WHERE id=?
             UNION ALL SELECT version AS revision FROM task_assignments WHERE id=?
             UNION ALL SELECT revision FROM assignment_actions WHERE assignmentId=?
-          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, after, revision)
+            UNION ALL SELECT version FROM assignment_delegations WHERE assignmentId=?
+            UNION ALL SELECT version FROM assignment_leases WHERE assignmentId=?
+          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
           return typeof row?.revision === 'number' ? [{ assignmentId: assignment.id, revision: row.revision }] : []
         })
-        return this.boundedWorkgraph({ cursor: createCursor(this.cursorSecret, principal, version, revision), revision, events })
+        return this.boundedWorkgraph({ from: brandString<import('./types.ts').OrganizationCursor>(query.cursor), cursor: createCursor(this.cursorSecret, principal, version, revision), revision, events: events.sort((a, b) => a.revision - b.revision) })
       })
       deliver(value)
+    })
+  }
+
+  /**
+   * Review assignee visibility before explicit approval, without changing grants.
+   * @param token - Current root editor credential.
+   * @param input - Exact definition and proposed employee.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after current membership and visibility checks.
+   */
+  readApproval(token: LoginToken, input: unknown, deliver: (value: z.output<typeof import('./assignment-schema.ts').approvalReviewResultSchema>) => void): Promise<void> {
+    return this.enqueue('approval-review', (db) => {
+      const query = parse(approvalReviewSchema, input)
+      const result = transaction(db, () => ({ planRevision: query.planRevision, assigneeId: query.assigneeId,
+        assigneeCanRead: reviewAssignment(db, this.principal(db, token, query.organizationId), query) }))
+      deliver(result)
+    })
+  }
+
+  /**
+   * Read task approval history under current task visibility.
+   * @param token - Current organization credential.
+   * @param input - Task selector and snapshot pagination.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after bounded delivery.
+   */
+  readTaskAssignments(token: LoginToken, input: unknown, deliver: (value: z.output<typeof import('./assignment-protocol.ts').taskAssignmentsPageSchema>) => void): Promise<void> {
+    return this.enqueue('task-assignments', (db) => {
+      const query = parse(taskAssignmentsQuerySchema, input)
+      const value = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        visibleTasks(db, principal, { ...query, search: '', offset: 0 })
+        const revision = this.head(db), version = accessVersion(db, principal)
+        if (query.offset > 0 && !query.cursor) throw new OrganizationError('snapshot-required')
+        if (query.cursor && readCursor(this.cursorSecret, query.cursor, principal, version, revision, this.config.eventReplayWindow) !== revision) throw new OrganizationError('snapshot-required')
+        const items = db.prepare('SELECT * FROM task_assignments WHERE organizationId=? AND projectId=? AND planId=? AND taskId=? ORDER BY createdRevision DESC')
+          .all(query.organizationId, query.projectId, query.planId, query.taskId).map(row => assignmentSchema.parse(row))
+        return this.boundedWorkgraph({ items: items.slice(query.offset, query.offset + this.config.pageSize), total: items.length,
+          offset: query.offset, revision, cursor: createCursor(this.cursorSecret, principal, version, revision) })
+      })
+      deliver(value)
+    })
+  }
+
+  /**
+   * Read only the current member's public device registrations.
+   * @param token - Current organization credential.
+   * @param input - Organization selector.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after bounded delivery.
+   */
+  readDevices(token: LoginToken, input: unknown, deliver: (value: import('./device-types.ts').OrganizationDevice[]) => void): Promise<void> {
+    return this.enqueue('devices', (db) => {
+      const query = parse(devicesQuerySchema, input)
+      const principal = this.principal(db, token, query.organizationId)
+      const devices = db.prepare('SELECT * FROM organization_devices WHERE organizationId=? AND accountId=? AND membershipId=?')
+        .all(query.organizationId, principal.accountId, principal.membershipId ?? null).map(row => deviceSchema.parse(row))
+      deliver(this.boundedWorkgraph(devices))
     })
   }
 
@@ -789,14 +853,18 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Read preparation qualifications without granting any model/tool execution capability.
-   * @param token - Current designated employee credential.
+   * Read preparation qualifications under current task visibility, without model/tool execution capability.
+   * @param token - Current task reader credential; mutation still requires the designated employee.
    * @param input - Exact assignment selector.
    * @param deliver - Synchronous current-authority handoff.
    * @returns Completion after delivery of current and terminal metadata.
    */
   readPreparation(token: LoginToken, input: unknown, deliver: (value: {
+    serverTime: number
+    delegationMaxDurationMs: number
+    delegationMaxBudget: number
     assignment: OrganizationAssignment
+    request: import('./assignment-types.ts').OrganizationHumanRequest
     delegations: OrganizationDelegation[]
     lease: OrganizationLease | null
   }) => void): Promise<void> {
@@ -805,10 +873,13 @@ export class OrganizationService extends Service {
       const value = transaction(db, () => {
         const current = this.principal(db, token, query.organizationId)
         const assignment = selectedAssignment(db, query)
-        authorizeParticipant(db, current, assignment)
+        authorizeAssignmentRead(db, current, assignment)
+        const request = assignmentRequestSchema.parse(db.prepare('SELECT * FROM assignment_requests WHERE assignmentId=?').get(assignment.id))
         const delegations = db.prepare('SELECT * FROM assignment_delegations WHERE assignmentId=? ORDER BY createdRevision').all(assignment.id).map(parseDelegation)
         const row = db.prepare('SELECT * FROM assignment_leases WHERE assignmentId=? ORDER BY fencingEpoch DESC LIMIT 1').get(assignment.id)
-        return this.boundedWorkgraph({ assignment, delegations, lease: row ? leaseSchema.parse(row) : null })
+        return this.boundedWorkgraph({ serverTime: Date.now(), delegationMaxDurationMs: this.config.delegationMaxDurationMs,
+          delegationMaxBudget: this.config.delegationMaxBudget, assignment, request, delegations,
+          lease: row ? leaseSchema.parse(row) : null })
       })
       deliver(value)
     })

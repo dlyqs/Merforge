@@ -5,6 +5,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationPhaseId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OperationId, OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
+import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { TaskEditor } from './TaskEditor.tsx'
 import { TaskGrants } from './TaskGrants.tsx'
 import { taskRows, workgraphError } from './workgraph-view.ts'
@@ -29,6 +30,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
   const [page, setPage] = useState<{ generation: number; value: OrganizationTaskPage }>()
   const [selected, setSelected] = useState<OrganizationTaskId>()
   const [draft, setDraft] = useState<Draft>()
+  const [assignmentRevision, setAssignmentRevision] = useState<number>()
   const [context, setContext] = useState<ContextReply>()
   const [search, setSearch] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const alive = useRef(true)
@@ -38,6 +40,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
   const ready = c.phase === 'ready' && c.mode === 'organization' && c.organizationId === props.project.organizationId
   const currentPage = ready && page?.generation === c.generation ? page.value : undefined
   const task = currentPage?.items.find(item => item.id === selected)
+  const retainedTask = page?.value.items.find(item => item.id === selected)
   const writable = ready && !busy && !c.pendingOperation
   const draftCurrent = draft?.expectedRevision === 0 || draft?.generation === c.generation
   const run = async (work: () => Promise<void>) => {
@@ -49,7 +52,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
     const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search, offset, ...(offset && currentPage ? { cursor: currentPage.cursor } : {}) } })
     if (alive.current && result.workgraph?.result.kind === 'tasks') setPage({ generation: result.workgraph.generation, value: result.workgraph.result.value })
   }
-  useEffect(() => { void run(() => load()) }, [])
+  useEffect(() => { if (ready) void run(() => load()) }, [ready, c.generation])
   const edit = async (item: OrganizationTaskView) => {
     const result = await props.connection({ kind: 'workgraph-read', request: { ...query, planId: item.planId } })
     if (!alive.current || result.workgraph?.result.kind !== 'plan') return
@@ -96,7 +99,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
   }
   return <section className={css.form} aria-busy={busy}>
     <div className={css.cardHeading}><Button onClick={props.onBack}>{t('back')}</Button><h4>{props.project.name}</h4></div>
-    <p className={css.notice}>{t('notDispatched')}</p>
+    <p className={css.notice}>{t('preparationOnly')}</p>
     {!ready && <p role="status">{t(c.phase)}</p>}
     {notice && <p className={css.notice} role="status">{notice}</p>}
     {ready && !currentPage && <p>{t('taskStale')}</p>}
@@ -108,13 +111,13 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
     {currentPage && <><p>{t('taskTotal', { count: currentPage.total })}</p><ul className={css.taskList}>
       {taskRows(currentPage.items).map(({ task: item, depth }) => <li key={item.id} style={{ '--task-depth': depth } as React.CSSProperties}>
         <button aria-pressed={selected === item.id}
-          onClick={() => { setSelected(item.id); setContext(undefined) }}>{item.goal}</button><small>{item.phaseTitle}</small>
+          onClick={() => { setSelected(item.id); setContext(undefined); setAssignmentRevision(undefined) }}>{item.goal}</button>
+        <small>{item.phaseTitle}</small>
       </li>)}
     </ul><div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div></>}
     {task && <section className={css.card}>
       <h4>{task.goal}</h4><p>{task.scope}</p><p>{t('taskVersion', { revision: task.revision })}</p>
-      <p>{t('dispatcher')} · {t('notDispatched')}</p>
       <p>{t('suggestedMember')} · {task.suggestedMembershipId ?? t('noSuggestion')} · {t(task.assignable ? 'activeMember' : 'unassignable')}</p>
       <h4>{t('taskAcceptance')}</h4><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
       <h4>{t('taskArtifacts')}</h4><ul>{task.artifacts.map((text, index) => <li key={index}>{text}</li>)}</ul>
@@ -125,6 +128,8 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
       <div className={css.actions}><Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
         <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button></div>
     </section>}
+    {retainedTask && <AssignmentPanel key={selected} {...props}
+      task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}
     {draft && <section className={css.card}>
       <h4>{t('taskDraft')}</h4>
       {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}
@@ -139,7 +144,8 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
       <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('discardDraft')}</Button>
     </section>}
     {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
-      <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p><p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
+      <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
+      {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
       <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
       <ul>{context.result.snapshot.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
     </section>}

@@ -21,6 +21,7 @@ export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sid
           <IconChevronRightOutlineRegular size={14} />
         </button>
         <p className={css.muted}>{props.t('scope')}</p>
+        {c.inbox && <p>{props.t('inboxCounts', { total: c.inbox.total, unread: c.inbox.unread })}</p>}
         <Button variant="outline" onClick={() => { setOpen(true) }}>{props.t('openWorkspace')}</Button>
       </div>
       : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })}

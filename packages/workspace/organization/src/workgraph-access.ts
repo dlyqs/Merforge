@@ -1,6 +1,7 @@
 /** Current task grants and historical intersections used by every WorkGraph projection. */
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
+import { assignmentSchema } from './assignment-schema.ts'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
 import { readWorkgraphVersion } from './workgraph.ts'
@@ -150,7 +151,7 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
     JOIN organization_plans p ON p.id=e.planId JOIN resource_grants g ON g.projectId=p.projectId
     WHERE p.organizationId=? AND g.membershipId=? AND g.canRead=1 AND e.revision>? AND e.revision<=? ORDER BY e.revision`)
     .all(principal.organizationId ?? null, principal.membershipId ?? null, after, through)
-  return rows.flatMap((row) => {
+  const definitions = rows.flatMap((row) => {
     const { eventRevision, ...head } = row
     const plan = workgraphPlanSchema.parse(head)
     const stored = db.prepare('SELECT revision FROM plan_revisions WHERE planId=? AND eventRevision=?').get(plan.id, Number(eventRevision))
@@ -163,4 +164,26 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
       .map(({ revision: _revision, ...task }) => task).sort((a, b) => a.id.localeCompare(b.id)))
     return content(next) === content(previous) ? [] : [{ revision: Number(eventRevision), planId: plan.id }]
   })
+  const changes = db.prepare(`SELECT a.*, changes.revision AS eventRevision FROM (
+    SELECT id AS assignmentId, createdRevision AS revision FROM task_assignments
+    UNION SELECT id,version FROM task_assignments
+    UNION SELECT assignmentId,revision FROM assignment_actions
+    UNION SELECT assignmentId,version FROM assignment_delegations
+    UNION SELECT assignmentId,version FROM assignment_leases
+  ) changes JOIN task_assignments a ON a.id=changes.assignmentId
+  WHERE a.organizationId=? AND changes.revision>? AND changes.revision<=?`).all(principal.organizationId ?? null, after, through)
+  const qualifications = changes.flatMap((row) => {
+    const { eventRevision, ...fields } = row
+    const assignment = assignmentSchema.parse(fields)
+    try {
+      visibleTasks(db, principal, { organizationId: assignment.organizationId, projectId: assignment.projectId,
+        planId: assignment.planId, taskId: assignment.taskId, revision: assignment.planRevision, search: '', offset: 0 })
+    } catch (error) {
+      if (error instanceof OrganizationError && error.code === 'forbidden') return []
+      throw error
+    }
+    return [{ revision: Number(eventRevision), planId: assignment.planId }]
+  })
+  return [...new Map([...definitions, ...qualifications].map(event => [`${event.revision}:${event.planId}`, event])).values()]
+    .sort((a, b) => a.revision - b.revision)
 }

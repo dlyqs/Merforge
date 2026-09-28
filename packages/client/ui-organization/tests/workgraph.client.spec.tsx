@@ -128,3 +128,19 @@ it('creates a complete single-task definition and opens only the saved read-only
   expect(screen.getByText(zh.contextReadonly)).toBeTruthy()
   expect(screen.queryByRole('textbox', { name: /send|message/i })).toBeNull()
 })
+
+it('shows the saved context revision separately when the current task has changed', async () => {
+  const h = fixture(), original = h.page.items[0]!
+  h.page.items = [{ ...original, revision: workgraphVersionSchema.parse({ ...h.version, revision: 2 }).revision }]
+  h.context.mockResolvedValue({ generation: 1, result: {
+    sessionId: 'organization-context:test' as import('@deepseek-ai/dsh-session').SessionId, mode: 'pre-execution',
+    owner: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()), organizationId: h.project.organizationId,
+      planId: h.version.planId, taskId: original.id, version: 1 }, snapshot: original,
+  } })
+  render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Visible task' }))
+  fireEvent.click(screen.getByRole('button', { name: zh.myContext }))
+  await screen.findByText(zh.contextOldVersion)
+  expect(screen.getByText(zh.contextReadonly)).toBeTruthy()
+  expect(screen.getAllByText('版本 1')).toHaveLength(1)
+})

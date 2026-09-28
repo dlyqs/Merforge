@@ -19,7 +19,7 @@ export const revokeAssignmentSchema = workgraphGrantsSchema.extend({
   kind: z.literal('revoke-assignment'), operationId: id<OperationId>(), assignmentId: assignmentIdSchema,
   expectedVersion: z.number().int().positive(),
 }).strict()
-/** Closed domain action set; HTTP/native exposure belongs to a later phase. */
+/** Closed approval action set shared by authority and fixed transport consumers. */
 export const assignmentCommandSchema = z.discriminatedUnion('kind', [approveAssignmentSchema, revokeAssignmentSchema])
 /** Known-assignment read selector with current task authorization. */
 export const assignmentReadSchema = workgraphGrantsSchema.extend({ assignmentId: assignmentIdSchema }).strict()
@@ -78,3 +78,9 @@ export const delegationSchema = z.object({
   expiresAt: z.number().int().positive(), state: z.enum(['active', 'revoked', 'invalidated', 'expired']),
   createdRevision: z.number().int().positive(), version: z.number().int().positive(),
 }).strict()
+
+/** Approval preview rechecks definition and visibility without granting or dispatching. */
+export const approvalReviewSchema = approveAssignmentSchema.omit({ kind: true, operationId: true }).strict()
+/** Visibility result is bound to the reviewed member and immutable revision. */
+export const approvalReviewResultSchema = approvalReviewSchema.pick({ planRevision: true, assigneeId: true })
+  .extend({ assigneeCanRead: z.boolean() }).strict()

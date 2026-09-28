@@ -3,6 +3,7 @@ import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, ran
 import { mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { deviceChallengeSchema, deviceChallengeText, provenDeviceCommandSchema } from '@deepseek-ai/dsh-organization'
 import type { Principal, Receipt, OperationId } from '@deepseek-ai/dsh-organization/types'
 
@@ -71,6 +72,13 @@ export class OrganizationDeviceMaterial {
     writeFileSync(temporary, encrypted, { flag: 'wx', mode: 0o600 })
     try { renameSync(temporary, this.path) } catch (error) { unlinkSync(temporary); throw error }
   }
+  /** Read the public identity retained with the encrypted key.
+   * @returns Locally registered public identity, or null before registration.
+   */
+  deviceId(): import('@deepseek-ai/dsh-organization').OrganizationDeviceId | null {
+    const id = this.read()?.deviceId
+    return id ? brandString<import('@deepseek-ai/dsh-organization').OrganizationDeviceId>(id) : null
+  }
   /**
    * Persist encrypted keys before returning the exact replayable registration command.
    * @param name - Explicit user device name.
@@ -119,6 +127,17 @@ export class OrganizationDeviceMaterial {
         : command.deviceId !== material.deviceId || challenge.deviceId !== material.deviceId)) throw new Error('device-challenge-mismatch')
     const privateKey = createPrivateKey({ key: Buffer.from(material.privateKey, 'base64'), format: 'der', type: 'pkcs8' })
     return { challengeId: challenge.challengeId, signature: sign(null, Buffer.from(deviceChallengeText(challenge)), privateKey).toString('base64url') }
+  }
+  /**
+   * Retire local keys after a fresh authenticated read confirms revocation.
+   * @param device - Current server metadata for this native key pair.
+   */
+  retire(device: import('@deepseek-ai/dsh-organization').OrganizationDevice): void {
+    const material = this.read()
+    if (!material || device.state !== 'revoked' || device.id !== material.deviceId || device.publicKey !== material.publicKey
+      || device.organizationId !== this.principal.organizationId || device.accountId !== this.principal.accountId
+      || device.membershipId !== this.principal.membershipId) throw new Error('device-revocation-mismatch')
+    unlinkSync(this.path)
   }
   /**
    * Remove old encrypted keys only after explicit, reconciled server revocation.

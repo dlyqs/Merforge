@@ -1,6 +1,6 @@
 # 组织分配协议
 
-本协议覆盖组织任务批准计划的 Phase 1–4。领域层已实现批准/撤销、接受/拒绝、待处理查询、有限委托、设备证明与独占租约；原生包提供加密设备材料所有者。HTTPS、Electron 固定动作、断线核对和续租协调由 Phase 5 接入，UI 由 Phase 6 接入。真实 Agent、Run 和产物闭环属于产品 Phase 7A。
+本协议覆盖组织任务批准计划的 Phase 1–6。领域层已实现批准/撤销、接受/拒绝、待处理查询、有限委托、设备证明与独占租约；HTTPS、Electron 固定动作、OS 加密材料、断线核对与有限续租及工作台已接入。真实 Agent、Run 和产物闭环属于产品 Phase 7A。
 
 ## 权威与数据
 
@@ -58,7 +58,7 @@
 
 ## 设备证明与原生材料
 
-`OrganizationDeviceMaterial` 在原生包产生 Ed25519 密钥，只把经注入 OS 保险库适配器加密后的材料保存到独立原生目录。账号/服务/组织/成员共同绑定加密材料与文件选择；首次发送前保留公钥和登记 operationId，重开使用同一登记命令核对。私钥不写 Renderer、个人 Profile、日志或组织备份；保险库不可用、basic_text 或 unknown backend 均拒绝。签名方法解析固定动作并复核挑战全部绑定，不提供任意字节签名。Phase 5 再由 Electron 接入 safeStorage、固定 IPC 与连接代次；本阶段测试仅替换 OS 保险库，真实 OS 解锁及跨机恢复尚未验收。
+`OrganizationDeviceMaterial` 在原生包产生 Ed25519 密钥，只把经注入 OS 保险库适配器加密后的材料保存到独立原生目录。账号/服务/组织/成员共同绑定加密材料与文件选择；首次发送前保留公钥和登记 operationId，重开使用同一登记命令核对。私钥不写 Renderer、个人 Profile、日志或组织备份；保险库不可用、basic_text 或 unknown backend 均拒绝。签名方法解析固定动作并复核挑战全部绑定，不提供任意字节签名。Electron 已接入 safeStorage、固定 IPC 与连接代次；无页面测试仅替换 OS 保险库，真实 OS 解锁及跨机恢复尚未验收。
 
 服务端 challenge 绑定 serverId、serverEpoch、accountId、membershipId、organizationId、动作、规范请求摘要、operationId、deviceId/公钥及 keyGeneration。签名使用 `deviceChallengeSchema` 固定字段顺序的 JSON UTF-8 字节，协议标记为 `merforge-device-v1`。当前登录、签名、时限及未消费状态在写事务验证，提交成功后在同一串行队列消费挑战；事务回滚可重试原证明。登记证明持有私钥；claim/renew/release 使用已登记公钥。设备撤销是当前账号对本人设备的显式动作，不要求仍能使用遗失的私钥。挑战默认 60 秒，每账号每 TTL 窗口最多 30 个、全服务 3000 个（已消费仍占窗口额度），均可由 Config 修改。字段长度受严格 schema 限制。重试先查回执，新挑战不改变业务指纹；挑战不跨服务重启。
 
@@ -68,8 +68,24 @@
 
 物理 schema 当前为 v6：v4 的批准/请求/通知在 v5 扩展状态及答复、已读字段，并添加委托和参与者动作记录；v6 添加设备、租约历史及设备动作结果。v1–v5 在一个启动事务迁移，失败回滚 user_version 和全部 DDL。启动校验字段、外键、批准/答复作者、准确任务版本、活跃权限、设备归属、租约代次、动作结果与回执关联；不修补损坏数据。备份写 v6，恢复接受 v2–v6，先比较 manifest 与实际 stamp，再迁移 staging。恢复撤销登录、全部设备和活跃资格，保留已答复历史；每次服务启动使 held 租约失效，重新显式 claim 生成更大 fencingEpoch 和新的 serverEpoch。个人 Session 格式不变。
 
-真实入口位置：组织 `src/index.ts` 的串行 service、`database.ts` 启动迁移、`maintenance.ts` 备份恢复；`organization-api/src/transport.ts` 的 HTTPS allowlist、`organization-connection/src/{index,schema,types}.ts` 的固定动作、Desktop `organization-manager.ts` 和两端 `organization-context.ts` 的所属窗口及 IPC 复核。Phase 2 只接领域入口和现有通用回执；新动作的网络/native 接入属于 Phase 5，当前未知动作继续拒绝。
+真实入口位置：组织 `src/index.ts` 的串行 service、`database.ts` 启动迁移、`maintenance.ts` 备份恢复；`organization-api/src/transport.ts` 的 HTTPS allowlist、`organization-connection/src/{index,schema,types}.ts` 的固定动作、Desktop `organization-manager.ts` 和两端 `organization-context.ts` 的所属窗口及 IPC 复核。固定网络/native 动作已接通；未知动作及真实执行动作继续拒绝。
 
 验证使用 `organization/tests` 的真实 Loader + 临时 SQLite，直接通过 service 进行双身份、回执、竞争和重开断言，独立数据库读取原子事实；offline restore 用真实 TLS 身份与维护函数。后续跨进程复用 `apps/desktop-host/tests/organization-workgraph.spec.ts`，不新建应用启动器。测试政策见 [testing](testing.md)，事务与关闭规则见 [defensive-patterns](defensive-patterns.md)。
 
 Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment/planRevision/delegation/device/serverEpoch/fencingEpoch/expiry 与能力预算；模型请求、工具调用、提交和产物验收分别消费资格，拒绝陈旧代次，并记录在途 unknown 副作用。当前没有该执行接口；组织 Session 保持本人隔离、准确旧版本、只读预执行 JSONL。批准不创建员工 Session，接受不委托，领取不运行。
+
+## 固定传输与工作台消费
+
+严格协议由组织包 `./assignment` 提供。`POST /assignment/review` 核验准确叶子版本、批准者权限和目标成员查看权，只返回绑定版本/成员的检查结果；不增加 grant，也不创建分配。`/assignment/command`、`/assignment/participant` 消费批准、撤销、答复、已读和委托。`/assignment/tasks` 按当前任务查看权分页读取历史；`/assignment/inbox` 按本人请求授权后搜索、计数和分页；`/assignment/preparation` 让当前任务查看者读取批准、请求、委托和领取状态。准备查询还返回服务端时间与委托 Config 上限，不能当作执行资格。
+
+`POST /device/challenge`、`/device/command`、`/device/list` 仅消费固定设备协议，JSON 外层也拒绝多余字段。原生 `assignment-delegate` 接收时长，不接受 deviceId/绝对到期；`lease-claim/release/check` 不接受设备证明、fencingEpoch 或 serverEpoch，而是从本机密钥和线上准备查询构造。`device-register/revoke/read` 使用当前成员的本机材料。原生待核对 journal 增加 organizationId 和登记/撤销动作类型，仍不存令牌、任务正文或私钥。登记丢响应可按原 operationId 恢复本机绑定；撤销丢响应先查回执，重新登记也须线上确认旧设备已撤销才轮换。
+
+`GET /assignment/events` 和 `followInboxEvents` 携带 from/cursor/revision，缺口要求重新获取当前快照。WorkGraph 失效流也包含当前有权查看的分配/委托/租约变更，使下发人看到员工答复。一个事务可同时失效多个计划，同一 revision 的多个不同引用合法；重复批次不重复应用。所有流先重新核权再交付。
+
+原生连接当前一次协调一个任务的续租，`renewalFraction` 默认 0.5（允许 0.1–0.8），按服务端返回剩余租期安排下一次核对。每次续租重新读取并签名；退出、休眠、离线、其他代次失效停止计时，不恢复旧 owner。仍有效的本机 held 租约可由用户明确核对并恢复续租；已过期、服务重启或被替代的 owner 只能重新明确领取。进程关闭等待事件、在途动作和续租任务结算，不激活 Agent。
+
+工作台提供核验查看权→确认版本/责任人→批准、持久待处理/已处理和独立接受/拒绝、登记设备→指定能力/时长/预算→有限委托→显式领取。标记已读不答复。原始上下文只读，版本与当前任务或分配不同会提示，不改写 JSONL。账号/组织切换清除草稿和正文；暂时失败保留同身份合法草稿，版本冲突清除批准确认并重读。
+
+## 验证与下一阶段交接
+
+[验收与交接](organization-assignment-acceptance.md)列出 A/B/C 三机剧本、无页面证据范围和 Phase 7A 消费位置。私有服务在普通 Node/Electron Node mode 下验证批准至领取、双设备竞争、重启代次、设备材料持久化、第三主体隔离及恢复失效；测试保险库不代表 OS 解锁已验收。当前准备查询不授予真实执行权限，下一阶段必须在模型、工具、提交与验收入口核验当前资格并持久记录 unknown 副作用。

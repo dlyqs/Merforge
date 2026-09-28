@@ -6,7 +6,7 @@ import { membershipSchema, metadataSchema } from './schema.ts'
 import { OrganizationError } from './error.ts'
 import { authorizeWorkgraph, readWorkgraphVersion } from './workgraph.ts'
 import { visibleTasks } from './workgraph-access.ts'
-import { assignmentSchema, type assignmentCommandSchema, type assignmentReadSchema } from './assignment-schema.ts'
+import { assignmentSchema, type assignmentCommandSchema, type assignmentReadSchema, type approvalReviewSchema } from './assignment-schema.ts'
 import type { OrganizationAssignment } from './assignment-types.ts'
 import type { MembershipId, Principal } from './types.ts'
 
@@ -46,6 +46,35 @@ export function selectedAssignment(db: DatabaseSync, query: z.output<typeof assi
 }
 
 /**
+ * Check the exact leaf definition and the proposed employee's existing read grants.
+ * @param db - Current authority transaction.
+ * @param principal - Current root editor with project write access.
+ * @param query - Exact revision, leaf and proposed employee.
+ * @returns Whether the employee already has all required visibility; no grant is changed.
+ */
+export function reviewAssignment(db: DatabaseSync, principal: Principal, query: z.output<typeof approvalReviewSchema>): boolean {
+  const plan = authorizeWorkgraph(db, principal, query.projectId, query.planId, true)
+  if (plan.currentRevision !== query.planRevision) throw new OrganizationError('version-conflict')
+  const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
+  const task = definition.tasks.find(item => item.id === query.taskId)
+  if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')
+  // Ancestor prerequisites also block a leaf; this phase has no completed-task authority.
+  let ancestor: typeof task | undefined = task
+  while (ancestor) {
+    if (ancestor.dependsOn.length) throw new OrganizationError('invalid-input')
+    const parent: string | null = ancestor.parentTaskId
+    ancestor = definition.tasks.find(item => item.id === parent)
+  }
+  const target = memberPrincipal(db, principal, query.assigneeId)
+  try { visibleTasks(db, target, { ...query, revision: query.planRevision, search: '', offset: 0 }) }
+  catch (error) {
+    if (error instanceof OrganizationError && error.code === 'forbidden') return false
+    throw error
+  }
+  return true
+}
+
+/**
  * Apply an approval or revocation inside the caller's audit and receipt transaction.
  * @param db - Authority write transaction.
  * @param principal - Current root editor, checked again by this executor.
@@ -62,24 +91,12 @@ export function changeAssignment(db: DatabaseSync, principal: Principal, command
     db.prepare("UPDATE assignment_requests SET state='cancelled' WHERE assignmentId=? AND state='pending'").run(assignment.id)
     return { ...assignment, state: 'revoked', version: revision }
   }
-  if (plan.currentRevision !== command.planRevision) throw new OrganizationError('version-conflict')
-  const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
-  const task = definition.tasks.find(item => item.id === command.taskId)
-  if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')
-  // Ancestor prerequisites also block a leaf; this phase has no completed-task authority.
-  let ancestor: typeof task | undefined = task
-  while (ancestor) {
-    if (ancestor.dependsOn.length) throw new OrganizationError('invalid-input')
-    const parent: string | null = ancestor.parentTaskId
-    ancestor = definition.tasks.find(item => item.id === parent)
-  }
-  const target = memberPrincipal(db, principal, command.assigneeId)
-  visibleTasks(db, target, { ...command, revision: command.planRevision, search: '', offset: 0 })
-  if (db.prepare("SELECT id FROM task_assignments WHERE planId=? AND taskId=? AND state IN ('pending','accepted')").get(plan.id, task.id)) {
+  if (!reviewAssignment(db, principal, command)) throw new OrganizationError('forbidden')
+  if (db.prepare("SELECT id FROM task_assignments WHERE planId=? AND taskId=? AND state IN ('pending','accepted')").get(plan.id, command.taskId)) {
     throw new OrganizationError('version-conflict')
   }
   const assignment = assignmentSchema.parse({ id: randomUUID(), organizationId: command.organizationId, projectId: command.projectId,
-    planId: plan.id, planRevision: command.planRevision, taskId: task.id, approvedBy: principal.membershipId,
+    planId: plan.id, planRevision: command.planRevision, taskId: command.taskId, approvedBy: principal.membershipId,
     assigneeId: command.assigneeId, state: 'pending', reason: null, createdAt: Number(db.prepare('SELECT at FROM organization_events WHERE revision=?').get(revision)?.at), createdRevision: revision, version: revision })
   db.prepare('INSERT INTO task_assignments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(assignment.id, assignment.organizationId,
     assignment.projectId, assignment.planId, assignment.planRevision, assignment.taskId, assignment.approvedBy, assignment.assigneeId,

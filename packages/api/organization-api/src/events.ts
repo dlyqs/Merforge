@@ -31,7 +31,7 @@ export class OrganizationStreams {
    * @param domain - Fixed project or WorkGraph invalidation stream.
    * @returns First authority check completion; later polls remain owned until close.
    */
-  open(token: LoginToken, organizationId: OrganizationId, initialCursor: string, response: ServerResponse, domain: 'projects' | 'workgraph' = 'projects'): Promise<void> {
+  open(token: LoginToken, organizationId: OrganizationId, initialCursor: string, response: ServerResponse, domain: 'projects' | 'workgraph' | 'inbox' = 'projects'): Promise<void> {
     if (this.closed || this.subscriptions.size >= this.limits.maxSubscriptions) throw new OrganizationError('rate-limited')
     let cursor = initialCursor
     let running: Promise<void> | undefined
@@ -49,8 +49,9 @@ export class OrganizationStreams {
     const poll = (): Promise<void> => {
       if (ended) return Promise.resolve()
       if (running) { dirty = true; return running }
-      const read = domain === 'workgraph' ? this.ctx.organization.readWorkgraphEvents.bind(this.ctx.organization)
-        : this.ctx.organization.readProjectEvents.bind(this.ctx.organization)
+      const read = domain === 'inbox' ? this.ctx.organization.readInboxEvents.bind(this.ctx.organization)
+        : domain === 'workgraph' ? this.ctx.organization.readWorkgraphEvents.bind(this.ctx.organization)
+          : this.ctx.organization.readProjectEvents.bind(this.ctx.organization)
       const task = read(token, { organizationId, cursor }, (batch) => {
         if (ended || response.destroyed) return
         if (response.writableLength > 0) { close(); return }

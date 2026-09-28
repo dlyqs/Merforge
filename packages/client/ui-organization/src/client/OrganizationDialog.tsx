@@ -8,11 +8,12 @@ import type { ConnectionAction, OrganizationServerAction } from '@deepseek-ai/ds
 import type { OrganizationKey } from './locales.ts'
 import { zh } from './locales.ts'
 import css from './Organization.module.css'
+import { Inbox } from './Inbox.tsx'
 import { Workbench } from './Workbench.tsx'
 import { TaskGrants } from './TaskGrants.tsx'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 
-type Section = 'connection' | 'projects' | 'members' | 'server'
+type Section = 'connection' | 'projects' | 'members' | 'server' | 'inbox'
 type Task = 'login' | 'register' | 'accept' | 'createOrg' | 'passwordChange' | 'createProject' | 'permissions' | 'configure' | 'initialize' | 'recover' | 'restore'
 
 /** @param props - Framework facts, initial section and dismissal callback. @returns Centered organization management workspace. */
@@ -102,7 +103,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const recovery = <><div className={css.notice}>{t('recoveryHint')}</div>{button('secret', async () => { setSecret(await props.secret()); setSaved(false) })}
     {secret && <label className={css.field}>{t('recovery')}<output className={css.secret}>{secret}</output></label>}
     <label className={css.check}><input type="checkbox" checked={saved} onChange={(event) => { setSaved(event.target.checked) }} />{t('savedSecret')}</label></>
-  const sectionLabels: Record<Section, OrganizationKey> = { connection: 'account', projects: 'projects', members: 'members', server: 'server' }
+  const sectionLabels: Record<Section, OrganizationKey> = { inbox: 'inbox', connection: 'account', projects: 'projects', members: 'members', server: 'server' }
   return <Modal open title={t('workspace')} closeLabel={t('close')} onClose={() => { if (!busy) props.onClose() }} className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}
     onKeyDownCapture={(event) => {
       if (event.key === 'Escape') {
@@ -125,7 +126,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['connection', 'projects', 'members', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
+        {(['connection', 'projects', 'inbox', 'members', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
         <div className={css.sectionHeading}>{task && <Button size="sm" aria-label={t('back')} icon={<IconChevronLeftOutlineRegular />} disabled={busy} onClick={() => { navigate(null) }} />}<h3 ref={focusTarget} tabIndex={-1}>{t(task ?? sectionLabels[section])}</h3></div>
@@ -158,6 +159,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
           {task === 'accept' && form(() => command({ kind: 'accept-invitation', invitationToken: value('invitation') }), input('invitation'), !writable || !value('invitation'))}
           {task === 'createOrg' && form(() => command({ kind: 'create-organization', name: value('orgName') }), input('orgName'), !writable || !value('orgName').trim())}
           {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}</>, !writable || !value('password') || value('newPassword').length < 12)}
+          {!task && section === 'inbox' && <Inbox {...props} />}
           {!task && section === 'projects' && !project && <>
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>

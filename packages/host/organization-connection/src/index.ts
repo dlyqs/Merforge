@@ -3,7 +3,9 @@ import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents, followWorkgraphEvents, OrganizationStreamReset, type OrganizationTrust, type CertificateOffer } from '@deepseek-ai/dsh-organization-api/transport'
+import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents, followWorkgraphEvents, followInboxEvents, OrganizationStreamReset, type OrganizationTrust, type CertificateOffer } from '@deepseek-ai/dsh-organization-api/transport'
+import { OrganizationDeviceMaterial, type OrganizationDeviceVault } from './device-material.ts'
+import { approvalReviewSchema, approvalReviewResultSchema, assignmentCommandSchema, participantCommandSchema, delegateSchema, assignmentReadSchema, taskAssignmentsQuerySchema, taskAssignmentsPageSchema, inboxQuerySchema, inboxPageSchema, preparationSchema, deviceCommandSchema, devicesSchema, claimSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-organization/protocol'
 import { projectCommandSchema, grantCommandSchema } from '@deepseek-ai/dsh-organization/resources'
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
@@ -13,7 +15,7 @@ import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, Organizati
 
 /** Configurable request bounds and reconnection interval for a small LAN client. */
 export type Config = z.input<typeof connectionConfig>
-interface Pending { operationId: OperationId; accountId: AccountId; serverId: ServerId; invitationToken?: string }
+interface Pending { operationId: OperationId; accountId: AccountId; serverId: ServerId; invitationToken?: string; organizationId?: OrganizationId | undefined; deviceAction?: 'register-device' | 'revoke-device' | undefined }
 
 /** One native connection; no personal cookie, model credential or filesystem record enters this owner. */
 export class OrganizationConnection {
@@ -26,6 +28,7 @@ export class OrganizationConnection {
   private discardedResponses = 0
   private cancel = new AbortController()
   private readonly streams = new Set<Promise<void>>()
+  private renewal: ReturnType<typeof setTimeout> | undefined
   private retry: ReturnType<typeof setTimeout> | undefined
   private readonly uncertain = new Map<string, Pending>()
   private get pending(): Pending | undefined { return this.uncertain.get(this.identityKey()) }
@@ -36,11 +39,17 @@ export class OrganizationConnection {
   }
   private identityKey(): string { return `${this.state.principal?.serverId}:${this.state.principal?.accountId}` }
   private writing = false
+  private closed = false
+  private readonly operations = new Set<Promise<ConnectionResult>>()
+  private renewingMutation = false
   private journalError = false
   private readonly config: z.output<typeof connectionConfig>
   private readonly listeners = new Set<() => void>()
-  /** @param config - Validated native deployment bounds. */
-  constructor(config: Config = {}) {
+  /**
+   * @param config - Validated native deployment bounds.
+   * @param device - Main-process OS vault and private material directory.
+   */
+  constructor(config: Config = {}, private readonly device?: { directory: string; vault: OrganizationDeviceVault }) {
     this.config = connectionConfig.parse(config)
     if (this.config.trustPath) {
       try {
@@ -55,7 +64,7 @@ export class OrganizationConnection {
       try {
         const saved = z.array(z.object({ operationId: receiptSchema.shape.operationId,
           accountId: loginResultSchema.shape.principal.shape.accountId,
-          serverId: identitySchema.shape.serverId }).strict()).parse(JSON.parse(readFileSync(`${this.config.trustPath}.pending`, 'utf8')))
+          serverId: identitySchema.shape.serverId, organizationId: organizationsSchema.element.shape.id.optional(), deviceAction: z.enum(['register-device', 'revoke-device']).optional() }).strict()).parse(JSON.parse(readFileSync(`${this.config.trustPath}.pending`, 'utf8')))
         for (const entry of saved) this.uncertain.set(`${entry.serverId}:${entry.accountId}`, entry)
       } catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) { this.journalError = true; this.state.error = 'invalid-operation-journal' } }
     }
@@ -66,7 +75,7 @@ export class OrganizationConnection {
     try { renameSync(temporary, path) } catch (error) { unlinkSync(temporary); throw error }
   }
   private savePending(): void {
-    if (this.config.trustPath) this.save(`${this.config.trustPath}.pending`, [...this.uncertain.values()].map(({ operationId, serverId, accountId }) => ({ operationId, serverId, accountId })))
+    if (this.config.trustPath) this.save(`${this.config.trustPath}.pending`, [...this.uncertain.values()].map(({ operationId, serverId, accountId, organizationId, deviceAction }) => ({ operationId, serverId, accountId, organizationId, deviceAction })))
   }
   /** Native deadline shared by private context reads and their authorization requests. */
   get timeoutMs(): number { return this.config.timeoutMs }
@@ -80,16 +89,18 @@ export class OrganizationConnection {
    */
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   private publish(next: Partial<ConnectionSnapshot>): void {
-    if (next.phase && next.phase !== this.state.phase) console.info('organization component=connection phase=%s result=state-change', next.phase)
+    if (next.phase && next.phase !== this.state.phase && (!this.renewingMutation || next.phase === 'offline' || next.phase === 'signed-out')) console.info('organization component=connection phase=%s result=state-change', next.phase)
     this.state = { ...this.state, ...next, revision: this.state.revision + 1 }
     for (const listener of this.listeners) {
       try { listener() } catch (error) { console.error('organization component=connection result=observer-failed', error instanceof Error ? error.name : 'Error') }
     }
   }
   private reset(next: Partial<ConnectionSnapshot>): number {
-    this.cancel.abort(); this.cancel = new AbortController(); clearTimeout(this.retry)
+    this.cancel.abort(); this.cancel = new AbortController()
+    clearTimeout(this.retry); clearTimeout(this.renewal)
     this.generation++
-    this.publish({ generation: this.generation, projects: undefined, members: [], error: undefined, ...next })
+    this.publish({ generation: this.generation, projects: undefined, inbox: undefined, renewing: undefined,
+      members: [], error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
@@ -114,7 +125,7 @@ export class OrganizationConnection {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
-        if (route.startsWith('/workgraph/')) {
+        if (route.startsWith('/workgraph/') || route.startsWith('/assignment/') || route.startsWith('/device/')) {
           const next = this.reset({ phase: 'loading', error: code })
           try { await this.refresh(next) } catch (_error) {
             if (next === this.generation && this.token) this.offline(next)
@@ -132,6 +143,12 @@ export class OrganizationConnection {
    * @returns Safe receipts, invitation or grant metadata for the initiating user.
    */
   async perform(input: ConnectionAction): Promise<ConnectionResult> {
+    if (this.closed) throw new Error('closed')
+    const task = this.performAction(input)
+    this.operations.add(task)
+    try { return await task } finally { this.operations.delete(task) }
+  }
+  private async performAction(input: ConnectionAction): Promise<ConnectionResult> {
     const action = actionSchema.parse(input)
     if (action.kind === 'personal') { this.reset({ mode: 'personal', organizationId: undefined }); return {} }
     if (action.kind === 'logout' || action.kind === 'probe' || action.kind === 'login') {
@@ -143,7 +160,14 @@ export class OrganizationConnection {
         username: undefined,
         organizations: [],
         organizationId: undefined })
-      if (previousTrust && previousToken) void organizationRequest(previousTrust, 'POST', '/organization/v1/logout', {}, previousToken).catch(() => {})
+      if (previousTrust && previousToken) {
+        const logout = organizationRequest(previousTrust, 'POST', '/organization/v1/logout', {}, previousToken)
+          .then(() => {}, (_error: unknown) => {
+            // The identity is already cleared locally; remote expiry bounds a failed logout.
+          })
+        this.streams.add(logout)
+        void logout.finally(() => this.streams.delete(logout))
+      }
     }
     const generation = this.generation
     try {
@@ -205,6 +229,55 @@ export class OrganizationConnection {
             role: action.role, invitationToken }, invitationToken)
         }
         case 'command': return await this.mutate(action.command)
+        case 'assignment-command': return await this.mutate(action.request, undefined, 'assignment')
+        case 'assignment-participant': {
+          const command = participantCommandSchema.parse(action.request)
+          if (command.kind === 'delegate') throw new Error('invalid-input')
+          return await this.mutate(command, undefined, 'participant')
+        }
+        case 'assignment-delegate': {
+          const input = delegateSchema.omit({ deviceId: true, expiresAt: true })
+            .extend({ durationMs: z.number().int().positive() }).strict().parse(action.request)
+          const selector = assignmentReadSchema.parse({ organizationId: input.organizationId, projectId: input.projectId,
+            planId: input.planId, assignmentId: input.assignmentId })
+          this.assertOrganization(selector.organizationId)
+          const preparation = preparationSchema.parse(await this.request('/assignment/preparation', selector))
+          if (input.durationMs > preparation.delegationMaxDurationMs) throw new Error('invalid-input')
+          const { durationMs, ...fields } = input
+          return await this.mutate({ ...fields, deviceId: this.localDeviceId(), expiresAt: preparation.serverTime + durationMs }, undefined, 'participant')
+        }
+        case 'assignment-review':
+        case 'assignment-tasks':
+        case 'assignment-inbox':
+        case 'assignment-preparation': return await this.readAssignmentAction({ kind: action.kind, request: action.request }, generation)
+        case 'device-read': {
+          const value = await this.readLocalDevice()
+          return { assignment: { generation, result: { kind: 'device', value } } }
+        }
+        case 'device-register': {
+          const material = this.material()
+          if (material.deviceId()) {
+            const device = await this.readLocalDevice()
+            if (device?.state === 'revoked') material.retire(device)
+          }
+          const command = material.registration(action.name, brandString<OperationId>(randomUUID()))
+          // A durable registration may have succeeded before the native reply was lost.
+          const receipt = receiptSchema.nullable().parse(await this.request(`/receipts/${command.operationId}`))
+          if (receipt) { material.registered(receipt); return { generation, receipt } }
+          const result = await this.mutate(command, undefined, 'device', material)
+          if (result.receipt) material.registered(result.receipt)
+          return result
+        }
+        case 'device-revoke': {
+          const material = this.material()
+          const result = await this.mutate({ kind: 'revoke-device', organizationId: this.currentOrganization(),
+            operationId: randomUUID(), deviceId: this.localDeviceId(), expectedVersion: action.expectedVersion }, undefined, 'device')
+          if (result.receipt) material.forgetRevoked(result.receipt)
+          return result
+        }
+        case 'lease-claim':
+        case 'lease-release':
+        case 'lease-check': return await this.leaseAction(action.kind, action.request)
         case 'workgraph-save': return await this.mutate(workgraphSaveSchema.parse(action.request), undefined, 'save')
         case 'workgraph-grant': return await this.mutate(workgraphGrantSchema.parse(action.request), undefined, 'grant')
         case 'workgraph-read':
@@ -241,38 +314,113 @@ export class OrganizationConnection {
     return { workgraph: { generation, requestId, principal: { ...principal }, organizationId, result } }
   }
 
+  private assertOrganization(id: OrganizationId): void {
+    if (id !== this.currentOrganization()) throw new Error('forbidden')
+  }
+  private material(): OrganizationDeviceMaterial {
+    const organizationId = this.currentOrganization()
+    const membershipId = this.state.organizations.find(org => org.id === organizationId)?.membershipId
+    if (!this.device || !this.state.principal || !membershipId) throw new Error('device-vault-unavailable')
+    return new OrganizationDeviceMaterial(this.device.directory,
+      { ...this.state.principal, organizationId, membershipId }, this.device.vault)
+  }
+  private localDeviceId() {
+    const id = this.material().deviceId()
+    if (!id) throw new Error('device-registration-required')
+    return id
+  }
+  private async readLocalDevice() {
+    const organizationId = this.currentOrganization(), deviceId = this.material().deviceId()
+    const devices = devicesSchema.parse(await this.request('/device/list', { organizationId }))
+    return devices.find(device => device.id === deviceId) ?? null
+  }
+  private async readAssignmentAction(action: { kind: 'assignment-review' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation'; request: unknown }, generation: number): Promise<ConnectionResult> {
+    const input = (action.kind === 'assignment-review' ? approvalReviewSchema : action.kind === 'assignment-tasks' ? taskAssignmentsQuerySchema : action.kind === 'assignment-inbox' ? inboxQuerySchema : assignmentReadSchema).parse(action.request)
+    this.assertOrganization(input.organizationId)
+    const route = action.kind === 'assignment-review' ? '/assignment/review' : action.kind === 'assignment-tasks' ? '/assignment/tasks' : action.kind === 'assignment-inbox' ? '/assignment/inbox' : '/assignment/preparation'
+    const value = await this.request(route, input, generation)
+    const result: NonNullable<ConnectionResult['assignment']>['result'] = action.kind === 'assignment-review' ? { kind: 'review', value: approvalReviewResultSchema.parse(value) } : action.kind === 'assignment-tasks'
+      ? { kind: 'tasks', value: taskAssignmentsPageSchema.parse(value) } : action.kind === 'assignment-inbox'
+        ? { kind: 'inbox', value: inboxPageSchema.parse(value) } : { kind: 'preparation', value: preparationSchema.parse(value) }
+    return { assignment: { generation, result } }
+  }
+  private async leaseAction(kind: 'lease-claim' | 'lease-release' | 'lease-check', input: unknown): Promise<ConnectionResult> {
+    const query = kind === 'lease-claim' ? claimSchema.omit({ kind: true, operationId: true, deviceId: true }).parse(input) : assignmentReadSchema.parse(input)
+    this.assertOrganization(query.organizationId)
+    const material = this.material(), deviceId = this.localDeviceId()
+    const selector = assignmentReadSchema.parse({ organizationId: query.organizationId, projectId: query.projectId,
+      planId: query.planId, assignmentId: query.assignmentId })
+    const preparation = preparationSchema.parse(await this.request('/assignment/preparation', selector))
+    const lease = preparation.lease
+    const command = kind === 'lease-claim' ? { ...query, kind: 'claim', operationId: randomUUID(), deviceId }
+      : lease && lease.deviceId === deviceId && lease.state === 'held' ? { ...selector, deviceId,
+        kind: kind === 'lease-release' ? 'release' : 'renew', operationId: randomUUID(),
+        fencingEpoch: lease.fencingEpoch, serverEpoch: lease.serverEpoch, expectedVersion: lease.version } : null
+    if (!command) throw new Error('lease-recheck-required')
+    this.renewingMutation = kind === 'lease-check'
+    let result: ConnectionResult
+    try { result = await this.mutate(command, undefined, 'device', material) } finally { this.renewingMutation = false }
+    if (kind !== 'lease-release' && result.receipt?.lease?.state === 'held') {
+      const current = preparationSchema.parse(await this.request('/assignment/preparation', selector))
+      if (current.lease?.state === 'held' && current.lease.deviceId === deviceId
+        && current.lease.fencingEpoch === result.receipt.lease.fencingEpoch) {
+        const generation = this.generation
+        this.publish({ renewing: query.assignmentId })
+        this.renewal = setTimeout(() => {
+          if (generation !== this.generation) return
+          const task = this.leaseAction('lease-check', selector).then(() => {}).catch((error: unknown) => {
+            if (generation === this.generation) this.publish({ renewing: undefined, error: error instanceof Error ? error.message : 'unavailable' })
+          })
+          this.streams.add(task)
+          void task.finally(() => this.streams.delete(task))
+        }, Math.max(1, (current.lease.expiresAt - current.serverTime) * this.config.renewalFraction))
+      }
+    }
+    return result
+  }
+  /** Stop lease renewal before sleep; reconnection requires explicit current-owner checking. */
+  suspend(): void { this.reset({ phase: 'offline', error: 'lease-recheck-required' }) }
+
   private currentOrganization(): OrganizationId {
     if (!this.token || !this.state.organizationId || this.state.phase !== 'ready') throw new Error('unavailable')
     return this.state.organizationId
   }
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant'): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant' | 'assignment' | 'participant' | 'device', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = workgraph === 'save' ? workgraphSaveSchema.parse(input)
-      : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
+    const command = workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
+      : workgraph === 'participant' ? participantCommandSchema.parse(input)
+        : workgraph === 'device' ? deviceCommandSchema.parse(input)
+          : workgraph === 'save' ? workgraphSaveSchema.parse(input)
+            : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
     const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
-    const route = workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
-      : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
+    const route = workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
+      : workgraph === 'device' ? '/device/command' : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
+        : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,
       accountId: this.state.principal.accountId,
-      serverId: this.state.principal.serverId, ...(invitationToken ? { invitationToken } : {}) }
+      serverId: this.state.principal.serverId, ...('organizationId' in command ? { organizationId: command.organizationId } : {}),
+      ...(kind === 'register-device' || kind === 'revoke-device' ? { deviceAction: kind } : {}), ...(invitationToken ? { invitationToken } : {}) }
     this.publish({ pendingOperation: command.operationId })
     this.writing = true
     const generation = this.reset({ phase: 'ready' })
     const pending = this.pending
+    if (kind !== 'renew') console.info('organization component=connection operation=%s operationId=%s generation=%s result=started', kind ?? workgraph, command.operationId, generation)
     try {
-      const receipt = receiptSchema.parse(await this.request(route, command))
+      const body = workgraph === 'device' ? { command, ...(material ? { proof: material.proof(command, await this.request('/device/challenge', command)) } : {}) } : command
+      const receipt = receiptSchema.parse(await this.request(route, body))
       this.pending = undefined; this.publish({ pendingOperation: undefined })
       if (kind === 'change-password') this.invalidate('unauthenticated')
       else {
         try { await this.refresh(this.reset({ phase: 'loading' })) } catch (error) { if (error instanceof Error && error.message === 'superseded') throw error }
       }
-      if (kind !== 'change-password' && `${pending.serverId}:${pending.accountId}` !== this.identityKey()) throw new Error('superseded')
-      return { receipt, ...(invitationToken ? { invitationToken } : {}) }
+      if (kind !== 'change-password' && (`${pending.serverId}:${pending.accountId}` !== this.identityKey() || pending.organizationId && pending.organizationId !== this.state.organizationId)) throw new Error('superseded')
+      if (kind !== 'renew') console.info('organization component=connection operationId=%s generation=%s result=confirmed', command.operationId, this.generation)
+      return { generation: this.generation, receipt, ...(invitationToken ? { invitationToken } : {}) }
     } catch (error) {
-      if (error instanceof Error && ['invalid-input', 'last-admin', 'version-conflict', 'forbidden', 'operation-conflict', 'invalid-credentials'].includes(error.message)) {
+      if (error instanceof Error && ['invalid-input', 'last-admin', 'version-conflict', 'forbidden', 'operation-conflict', 'invalid-credentials', 'rate-limited', 'snapshot-required'].includes(error.message)) {
         this.uncertain.delete(`${pending.serverId}:${pending.accountId}`); this.savePending()
         if (`${pending.serverId}:${pending.accountId}` === this.identityKey()) this.publish({ pendingOperation: this.pending?.operationId })
         if (generation === this.generation) await this.refresh(this.reset({ phase: 'loading' }))
@@ -284,13 +432,22 @@ export class OrganizationConnection {
     if (this.writing) throw new Error('operation-pending')
     const pending = this.pending
     if (!pending || pending.accountId !== this.state.principal?.accountId || pending.serverId !== this.state.principal.serverId) throw new Error('forbidden')
+    const organizationId = this.state.organizationId
+    if (organizationId && pending.organizationId && organizationId !== pending.organizationId) throw new Error('forbidden')
     const receipt = receiptSchema.nullable().parse(await this.request(`/receipts/${pending.operationId}`))
     console.info('organization component=connection operationId=%s result=%s', pending.operationId, receipt ? 'receipt-found' : 'receipt-absent')
     if (!receipt) { this.pending = undefined; this.publish({ pendingOperation: undefined }); throw new Error('operation-not-committed') }
+    if (pending.deviceAction) {
+      if (pending.organizationId !== this.currentOrganization()) throw new Error('forbidden')
+      const material = this.material()
+      if (pending.deviceAction === 'register-device') material.registered(receipt)
+      else material.forgetRevoked(receipt)
+    }
     this.pending = undefined; this.publish({ pendingOperation: undefined })
     await this.refresh(this.reset({ phase: 'loading' }))
-    if (`${pending.serverId}:${pending.accountId}` !== this.identityKey()) throw new Error('superseded')
-    return { receipt, ...(pending.invitationToken ? { invitationToken: pending.invitationToken } : {}) }
+    if (`${pending.serverId}:${pending.accountId}` !== this.identityKey()
+      || organizationId !== this.state.organizationId) throw new Error('superseded')
+    return { generation: this.generation, receipt, ...(pending.invitationToken ? { invitationToken: pending.invitationToken } : {}) }
   }
   private async refresh(generation: number, query = '', offset = 0, cursor?: string): Promise<void> {
     const organizations = organizationsSchema.parse(await this.request('/organizations', undefined, generation))
@@ -299,17 +456,19 @@ export class OrganizationConnection {
     const selected = organizations.find(org => org.id === id)
     if (!selected) { this.reset({ organizations, organizationId: undefined, phase: 'ready', error: 'forbidden' }); return }
     const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=${encodeURIComponent(query)}&offset=${offset}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, undefined, generation))
+    const inbox = inboxPageSchema.parse(await this.request('/assignment/inbox', { organizationId: id }, generation))
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     if (generation !== this.generation) return
-    this.publish({ organizations, projects, members, phase: 'ready', error: undefined })
-    this.follow(generation, id, projects, false)
-    this.follow(generation, id, projects, true)
+    this.publish({ organizations, projects, members, inbox, phase: 'ready', error: undefined })
+    this.follow(generation, id, projects, 'projects')
+    this.follow(generation, id, projects, 'workgraph')
+    this.follow(generation, id, inbox, 'inbox')
   }
   private follow(generation: number,
     id: OrganizationId,
-    page: { cursor: import('@deepseek-ai/dsh-organization/types').OrganizationCursor; revision: number }, workgraph: boolean): void {
+    page: { cursor: import('@deepseek-ai/dsh-organization/types').OrganizationCursor; revision: number }, domain: 'projects' | 'workgraph' | 'inbox'): void {
     if (!this.trust || !this.token) return
-    const stream = (workgraph ? followWorkgraphEvents : followOrganizationEvents)(this.trust, id, this.token, page, this.cancel.signal)
+    const stream = (domain === 'inbox' ? followInboxEvents : domain === 'workgraph' ? followWorkgraphEvents : followOrganizationEvents)(this.trust, id, this.token, page, this.cancel.signal)
     const task = (async () => {
       try {
         for await (const batch of stream) {
@@ -320,7 +479,7 @@ export class OrganizationConnection {
       } catch (error) {
         if (generation !== this.generation) return
         console.info('organization component=connection stream=%s result=reset decisionCode=%s',
-          workgraph ? 'workgraph' : 'projects', error instanceof OrganizationStreamReset ? error.code : 'transport-failed')
+          domain, error instanceof OrganizationStreamReset ? error.code : 'transport-failed')
         if (error instanceof OrganizationStreamReset && error.code === 'snapshot-required') this.scheduleRefresh(generation)
         else if (error instanceof OrganizationStreamReset && ['forbidden', 'unauthenticated'].includes(error.code)) this.invalidate(error.code)
         else {
@@ -357,10 +516,10 @@ export class OrganizationConnection {
   /** Dispose the native connection.
    * @returns Settlement after subscriptions are aborted and credentials erased.
    */
-  async close(): Promise<void> { this.token = undefined; this.reset({ phase: 'disconnected',
+  async close(): Promise<void> { this.closed = true; this.token = undefined; this.reset({ phase: 'disconnected',
     principal: undefined,
     organizations: [],
-    organizationId: undefined }); await Promise.allSettled([...this.streams]); this.listeners.clear() }
+    organizationId: undefined }); this.listeners.clear(); await Promise.allSettled([...this.streams, ...this.operations]) }
 }
 function assertNever(value: never): never { throw new Error(`unknown action ${String(value)}`) }
 

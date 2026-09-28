@@ -1,0 +1,113 @@
+// @vitest-environment jsdom
+/** Explicit preparation gestures and stale-content behavior without opening a browser. */
+import { afterEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { randomUUID } from 'node:crypto'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { preparationSchema, taskAssignmentsPageSchema } from '@deepseek-ai/dsh-organization/assignment'
+import { workgraphPageSchema } from '@deepseek-ai/dsh-organization/workgraph'
+import type { ConnectionResult, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
+import type { OrganizationProps } from '../src/client/contract.ts'
+import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
+import { Inbox } from '../src/client/Inbox.tsx'
+import { zh } from '../src/client/locales.ts'
+afterEach(cleanup)
+
+function fixture(approved: boolean) {
+  const organizationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationId>(randomUUID())
+  const projectId = brandString<import('@deepseek-ai/dsh-organization').OrganizationProjectId>(randomUUID())
+  const memberId = brandString<import('@deepseek-ai/dsh-organization').MembershipId>(randomUUID())
+  const task = workgraphPageSchema.parse({ items: [{ id: randomUUID(), planId: randomUUID(), revision: 1,
+    phaseId: randomUUID(), phaseTitle: 'Preparation', parentTaskId: null, goal: 'Visible target', scope: 'Limited scope', acceptance: ['Review'],
+    artifacts: [], required: true, dependsOn: [], suggestedMembershipId: memberId, assignable: true, hasUndisclosedPrerequisite: false }],
+  total: 1, offset: 0, revision: 1, cursor: 'cursor' }).items[0]!
+  const id = randomUUID()
+  const prep = preparationSchema.parse({ serverTime: 100, delegationMaxBudget: 100, delegationMaxDurationMs: 3600000,
+    assignment: { id, organizationId, projectId, planId: task.planId, taskId: task.id, planRevision: 1,
+      approvedBy: randomUUID(), assigneeId: memberId, state: 'pending', reason: null, createdAt: 1, createdRevision: 2, version: 2 },
+    request: { id: randomUUID(), assignmentId: id, kind: 'accept-assignment', state: 'pending', expiresAt: null, answeredRevision: null },
+    delegations: [], lease: null })
+  const history = taskAssignmentsPageSchema.parse({ items: approved ? [prep.assignment] : [], total: approved ? 1 : 0, offset: 0, revision: 2, cursor: 'cursor' })
+  const item = { assignment: prep.assignment, request: prep.request, notificationId: brandString<import('@deepseek-ai/dsh-organization').OrganizationNotificationId>(randomUUID()), readAt: null }
+  let state: OrganizationDesktopSnapshot = { connection: { revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
+    organizations: [{ id: organizationId, membershipId: memberId, name: 'Team', role: 'member', version: 1 }], members: [] },
+  server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
+  const reply = (result: NonNullable<ConnectionResult['assignment']>['result']): ConnectionResult => ({ assignment: { generation: state.connection.generation, result } })
+  const connection = vi.fn<OrganizationProps['connection']>(async (action) => {
+    if (action.kind === 'assignment-review') return reply({ kind: 'review', value: { planRevision: task.revision, assigneeId: memberId, assigneeCanRead: true } })
+    if (action.kind === 'assignment-tasks') return reply({ kind: 'tasks', value: history })
+    if (action.kind === 'assignment-preparation') return reply({ kind: 'preparation', value: prep })
+    if (action.kind === 'device-read') return reply({ kind: 'device', value: null })
+    if (action.kind === 'assignment-inbox') return reply({ kind: 'inbox', value: { items: [item], total: 1, unread: 1, offset: 0, revision: 2, cursor: brandString('cursor') } })
+    if (action.kind === 'assignment-participant') {
+      const input = action.request as { kind: string }
+      if (input.kind === 'answer-assignment') {
+        prep.assignment.state = 'accepted'; prep.request.state = 'accepted'
+      }
+    }
+    return {}
+  })
+  const props: OrganizationProps = { connection, context: vi.fn(), available: true, server: vi.fn(), secret: vi.fn(),
+    t: makeTranslate(zh), useOrganization: selector => selector(state) }
+  return { props, task, projectId, connection, prep,
+    offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }
+}
+it('requires version confirmation before approval and preserves the assignee draft after a refusal', async () => {
+  const h = fixture(false), base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => { if (action.kind === 'assignment-command') throw new Error('forbidden'); return base(action) })
+  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  const approve = await screen.findByRole('button', { name: zh.approveAssignment })
+  expect((approve as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: zh.reviewApprovalAccess }))
+  await screen.findByText(zh.approvalAccessReady)
+  fireEvent.click(screen.getByRole('checkbox'))
+  fireEvent.click(approve)
+  await screen.findByText(zh.forbidden)
+  expect((screen.getByLabelText(zh.assignee)).value).toBe(h.task.suggestedMembershipId)
+  const writes = h.connection.mock.calls.map(([action]) => action).filter(action => action.kind === 'assignment-command')
+  expect(writes).toHaveLength(1)
+  expect(writes[0]).toMatchObject({ request: { kind: 'approve-assignment', planRevision: 1, taskId: h.task.id } })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-grant' || action.kind === 'command')).toBe(false)
+})
+it('accepts without delegating or claiming and hides old details when offline', async () => {
+  const h = fixture(true)
+  const view = render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.acceptAssignment }))
+  await screen.findByRole('button', { name: zh.registerDevice })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-delegate' || action.kind === 'lease-claim')).toBe(false)
+  expect(screen.getByText(zh.preparationOnly)).toBeTruthy()
+  h.offline(); view.rerender(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current={false} />)
+  expect(screen.queryByText(h.prep.assignment.approvedBy)).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.registerDevice })).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe(zh.qualificationRecheck)
+})
+it('marks a persistent notification read without answering and queries the processed view explicitly', async () => {
+  const h = fixture(true)
+  render(<Inbox {...h.props} />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.markReadOnly }))
+  await waitFor(() => {
+    const action = h.connection.mock.calls.find(([action]) => action.kind === 'assignment-participant')?.[0]
+    expect(action && 'request' in action ? action.request : null).toMatchObject({ kind: 'read-notification' })
+  })
+  expect(h.prep.request.state).toBe('pending')
+  fireEvent.click(screen.getByRole('button', { name: zh['inbox-processed'] }))
+  await waitFor(() => {
+    const action = h.connection.mock.calls.filter(([action]) => action.kind === 'assignment-inbox').at(-1)?.[0]
+    expect(action && 'request' in action ? action.request : null).toMatchObject({ state: 'processed' })
+  })
+})
+
+it('keeps dispatch disabled when the assignee has a visibility gap', async () => {
+  const h = fixture(false), base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => {
+    const result = await base(action)
+    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = false
+    return result
+  })
+  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.reviewApprovalAccess }))
+  await screen.findByText(zh.approvalAccessMissing)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.approveAssignment }).disabled).toBe(true)
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
+})
