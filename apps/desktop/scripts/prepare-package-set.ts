@@ -84,7 +84,7 @@ export function desktopWorkspacePackageDirectories(root: string = REPOSITORY_ROO
   for (const path of globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: root })) {
     const manifest = JSON.parse(readFileSync(join(root, path), 'utf8')) as Record<string, unknown>
     if (typeof manifest.name !== 'string') throw new Error(`desktop package set: ${path} has no package name`)
-    manifests.set(manifest.name, { directory: path.slice(0, -'/package.json'.length), manifest })
+    manifests.set(manifest.name, { directory: path.replaceAll('\\', '/').slice(0, -'/package.json'.length), manifest })
   }
   const selected = new Set<string>()
   const visit = (name: string): void => {

@@ -151,12 +151,14 @@ function npmPackageOf(id: string): string | undefined {
   return first
 }
 
+const desktopOnly = process.env.DSH_DESKTOP_BUILD_ONLY === '1'
+
 export default defineConfig({
   // Relative asset URLs: preview.html mounts the same output under any base
   // directory, and the served index resolves identically from the site root.
   base: './',
   plugins: [
-    rejectStandaloneServe(), clientDocumentTitle(), react(), emitPreviewPage(),
+    rejectStandaloneServe(), clientDocumentTitle(), react(), ...desktopOnly ? [] : [emitPreviewPage()],
     productWebBundleIsolation(src('../..'), src('.')),
   ],
   build: {
@@ -170,7 +172,7 @@ export default defineConfig({
         // Standalone entry, not an index.html script tag: Vite folds every
         // module tag of one page into a single synthetic entry, and only a
         // separate input keeps the shared page chunks bootstrap-free.
-        bootstrap: src('./src/preview.ts'),
+        ...desktopOnly ? {} : { bootstrap: src('./src/preview.ts') },
       },
       output: {
         // The worker-preview surface groups under dist/preview/ (the page

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "lib/tsconfig.desktop.tsbuildinfo"
+  },
+  "include": ["src"],
+  "exclude": ["src/preview.ts"],
+  "references": [
+    { "path": "../../packages/client/store" },
+    { "path": "../../packages/client/web" },
+    { "path": "../../packages/client/modules" }
+  ]
+}

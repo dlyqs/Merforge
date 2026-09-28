@@ -27,6 +27,8 @@ describe('desktop package-set selection', () => {
     expect(directories).toContain('apps/desktop-host')
     expect(directories).toContain('packages/bundle/web-app')
     expect(directories).toContain('apps/web')
+    expect(directories.every(directory => !directory.includes('\\'))).toBe(true)
+    expect(directories.some(directory => directory.startsWith('vendor/') || directory.startsWith('native/'))).toBe(false)
     expect(directories).not.toContain('apps/cli')
     expect(directories).not.toContain('packages/bundle/headless')
     expect(directories).not.toContain('packages/bundle/sdk-app')

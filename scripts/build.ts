@@ -1,8 +1,8 @@
 /** Build repository or Desktop artifacts and record their public client environment. */
 
 import { spawnSync } from 'node:child_process'
-import { rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, rmSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import {
   CLIENT_BUILD_RECORD_PATH,
@@ -14,6 +14,19 @@ import {
 } from './client-build-environment.ts'
 import { pnpmInvocation } from './pnpm-invocation.ts'
 import { desktopWorkspacePackageDirectories } from '../apps/desktop/scripts/prepare-package-set.ts'
+import { faceConfigs, type CompilerFace } from './ts-project.ts'
+
+/**
+ * Select package compiler configs from the corresponding repository aggregate.
+ * @param root - Repository directory containing the compiler aggregates.
+ * @param directories - Repository-relative Desktop dependency directories.
+ * @param face - Compiler phase whose source files are ready to compile.
+ * @returns Explicit compiler configs belonging to the selected phase and packages.
+ */
+export function desktopProjects(root: string, directories: readonly string[], face: CompilerFace): string[] {
+  const selected = new Set(directories.map(directory => resolve(root, directory)))
+  return [...faceConfigs(root, face).byPath.keys()].filter(path => selected.has(dirname(resolve(path))))
+}
 
 /** Run one package script through the package manager that invoked this build. */
 function runScript(script: string, environment: NodeJS.ProcessEnv): void {
@@ -55,16 +68,20 @@ function main(): void {
     const directories = desktopWorkspacePackageDirectories()
     runTypeScriptProjects([
       'packages/typert/generator/tsconfig.json',
-      ...directories.map(directory => `${directory}/tsconfig.json`),
-      'apps/desktop/tsconfig.json',
+      ...readdirSync(resolve(root, 'vendor'), { withFileTypes: true })
+        .filter(entry => entry.isDirectory()).map(entry => `vendor/${entry.name}/tsconfig.json`),
+      ...desktopProjects(root, directories, 'host'),
+      'apps/desktop/tsconfig.host.json',
     ], buildEnvironment)
     const selectedEnvironment = { ...buildEnvironment, DSH_DESKTOP_BUILD_ONLY: '1' }
     runScript('bundle:lib:host', selectedEnvironment)
+    runTypeScriptProjects(desktopProjects(root, directories, 'client').map(path =>
+      resolve(path) === resolve(root, 'apps/web/tsconfig.json') ? 'apps/web/tsconfig.desktop.json' : path), buildEnvironment)
     runScript('bundle:lib:client', selectedEnvironment)
   } else {
     runScript('build:lib', buildEnvironment)
   }
-  runScript('build:web', buildEnvironment)
+  runScript('build:web', values.desktop === true ? { ...buildEnvironment, DSH_DESKTOP_BUILD_ONLY: '1' } : buildEnvironment)
   const record = writeClientBuildRecord(root, clientEnvironment)
   console.log(
     `build: recorded ${String(record.artifacts.fileCount)} client artifact(s) with ${String(Object.keys(record.environment).length)} public value(s)`,

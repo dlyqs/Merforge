@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown'
 import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
-import { desktopWorkspacePackageDirectories } from './apps/desktop/scripts/prepare-package-set.ts'
+import { desktopBundleDirectories } from './scripts/desktop-build-projects.ts'
 
 function isBuildFaceClient(value: unknown): boolean {
   if (value === undefined || value === 'host') return false
@@ -16,8 +16,10 @@ function isBuildFaceClient(value: unknown): boolean {
  */
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
-  const desktopOnly = env?.DSH_DESKTOP_BUILD_ONLY === '1'
-  const selected = desktopOnly ? desktopWorkspacePackageDirectories() : ['packages/*/*']
+  const desktopOnly = (env?.DSH_DESKTOP_BUILD_ONLY ?? process.env.DSH_DESKTOP_BUILD_ONLY) === '1'
+  const selected = desktopOnly
+    ? desktopBundleDirectories(import.meta.dirname)
+    : ['packages/*/*']
   return {
     workspace: client
       ? ['vendor/*', ...selected]
