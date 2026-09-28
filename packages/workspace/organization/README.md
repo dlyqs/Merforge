@@ -40,7 +40,7 @@ Defaults serve a small LAN deployment, and validated Config fields allow adjustm
 
 ## Persistence and replay
 
-`ORGANIZATION_SCHEMA_VERSION = 3` and a dedicated SQLite application ID identify this database. Known v1 identity and v2 project databases upgrade transactionally by adding missing project/WorkGraph tables; unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
+`ORGANIZATION_SCHEMA_VERSION = 6` and a dedicated SQLite application ID identify this database. Known v1-v5 databases upgrade transactionally, preserving approvals and null acceptance deadlines while adding participant, device and lease records; unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
 
 WAL, `synchronous=FULL`, foreign keys and synchronous `BEGIN IMMEDIATE` transactions ensure business records, their monotonically sequenced audit event and receipt commit together. Cross-connection writes recheck permission, entity version and invitation state under the write lock. No asynchronous work runs inside a SQL transaction. SQL faults and commit failures roll back, and process termination leaves uncommitted changes invisible after reopening.
 
@@ -60,7 +60,7 @@ Business records, resource invalidations, audit events and receipts share one tr
 
 ## WorkGraph definitions
 
-`savePlan` accepts a strict complete definition with a stable plan ID, expected definition revision and OperationId. Creation requires project read/write and atomically grants the creator root-subtree read/edit. Editing additionally requires current root read/edit. `readPlan` delivers a complete current version to a current root reader; explicit historical revisions require root edit. All reads use synchronous callbacks. Fixed organization HTTPS routes and native actions consume these methods; task GUI and local context bindings are deferred. [WorkGraph design](../../../../docs/organization-workgraph.md) owns the protocol and task-view rules.
+`savePlan` accepts a strict complete definition with a stable plan ID, expected definition revision and OperationId. Creation requires project read/write and atomically grants the creator root-subtree read/edit. Editing additionally requires current root read/edit. `readPlan` delivers a complete current version to a current root reader; explicit historical revisions require root edit. All reads use synchronous callbacks. Fixed organization HTTPS routes, native actions, the task workspace and isolated local context bindings consume these methods. [WorkGraph design](../../../../docs/organization-workgraph.md) owns the protocol and task-view rules.
 
 Versions are immutable rows with server-derived authorship. Removed task IDs remain reserved. Task membership suggestions are checked within the organization and grant no access. New suggestions must be enabled; existing disabled references may remain unchanged. Shared `dsh-task-graph` checks hierarchy and effective completion cycles without loading personal runtime services. No definition accepts execution, cwd, permission or approval fields.
 
@@ -68,7 +68,25 @@ Structural changes invalidate all old task grants except the current editor's ex
 
 `grantTask` manages explicit node/subtree read and root-subtree edit with optimistic grant versions. Management responses from `readTaskGrants` never include task text. `readTasks` intersects current and historical covered task IDs, filters hidden parents, phases and dependencies, then searches and paginates. A hidden prerequisite is represented by one boolean, without identity or count. Empty permission sets and inaccessible detail IDs return forbidden. `readWorkgraphEvents` compares authorized projections and omits edits confined to hidden tasks. Account/member/project/task-grant or structural epoch changes invalidate cursors; delivery reauthenticates inside the serialized authority operation. Current member/account state determines suggestion assignability.
 
-Offline backups now write schema 3; restore also accepts validated schema 2 backups, checks the actual stamp and upgrades staging before swapping directories. Existing login revocation and recovery rotation still apply.
+Offline backups write schema 6; restore also accepts validated schema 2-5 backups, checks the actual stamp and upgrades staging before swapping directories. Login revocation and recovery rotation still apply; pending/accepted assignments, devices, delegations and leases are permanently invalidated during restore; prior human answers remain historical facts.
+
+## Assignment approval
+
+`assignmentCommand` accepts `approve-assignment` with exact planRevision, taskId and assigneeId, or `revoke-assignment` with assignmentId and expectedVersion. Both require current project read/write and root-subtree read/edit, independently of administrator role. Approval requires a leaf without its own or ancestor prerequisites, an enabled target account/member, and explicit target project/task read. No completion authority exists yet, so prerequisites cannot be satisfied by approval. The exact version supplies scope and acceptance requirements. Authorship comes from the authenticated member.
+
+One transaction stores the approval, its minimal acceptance request, durable notification, audit event and receipt. A partial unique index permits one pending/accepted approval per task. Request expiry is explicitly null in this phase. `readAssignment` requires current project/task read and historical visibility intersection. `participantCommand` answers or acknowledges requests and independently grants/revokes finite delegations. `readInbox` filters by current employee visibility before search, count and pagination. `readInboxEvents` emits identifier-only invalidations; `readPreparation` returns current delegation and ownership metadata. [Assignment design](../../../../docs/organization-assignment.md) defines participant authorization, device proof and deferred transport consumers.
+
+New plan revisions invalidate every old pending/accepted approval. Grant/account/member mutations check pending/accepted approvals before committing; loss of either the approver's approval authority or assignee's visibility permanently cancels unanswered requests and invalidates approval, delegation and lease; answered requests retain their answer. Regrant never revives history. Explicit revocation allows a new approval with a new operation ID. Identical retries and `receipt` report the historical write after checking current approval authority; callers must read current state before further actions. Ordinary restart preserves pending facts; offline restore retires them. Startup validates assignment/request/notification relations and current pending/accepted authority.
+
+## Device identity and ownership
+
+`deviceChallenge` issues one-use Ed25519 challenges bound to the service activation, account, member, organization, action and normalized request digest. `deviceCommand` verifies signatures for registration and claim/renew/release; current accounts may revoke their own devices without a lost private key. Each public key has one immutable registration, and key rotation creates a new ID. Revocation or member/account disablement retires its delegations and leases in the same transaction.
+
+Delegations bind accepted work, the employee and one registered device. The only executor is `desktop-builtin`; `task-read` and `draft` are task-scoped preparation capabilities, not executable tools. `delegationMaxDurationMs` (one hour) and `delegationMaxBudget` (100 action units) limit requests. Multiple devices may hold separate delegations, but the assignment has one held lease. `leaseTtlMs` (30 seconds) bounds each claim/renewal and cannot extend delegation expiry. No action budget is consumed and no Runner starts in this phase.
+
+Claim increments a branded fencing epoch; renewal/release must match device, epoch, server activation, version and current unexpired qualifications. Historical lease results remain in receipts; replay never restores ownership. Every service activation retires held leases and generates a new server epoch. Expiry is committed before the next authority operation, including operations that subsequently fail. Restore revokes devices and all active preparation qualifications. No timer renews leases in this package.
+
+Challenge limits are `deviceChallengeTtlMs` (60 seconds), `deviceChallengeMaxPerAccount` (30 per TTL window) and `deviceChallengeMaxTotal` (3000). Used challenges count until expiry; failed transaction writes do not consume them. Request parsers bound key/signature/name fields. The authority serializes proof verification, writes and post-commit consumption.
 
 ## Model Experience
 
@@ -76,7 +94,7 @@ This package contributes no model requests, tools, prompt text or Session events
 
 ## Known Limitations and Deferred Work
 
-Local context isolation/bindings and task GUI remain for WorkGraph Phases 5–7.
+HTTPS/native assignment actions, Electron vault wiring, reconnect/renewal coordination and assignment UI remain for assignment Phases 5–6. No approval activates an Agent or creates an employee Session.
 
 GUI and native connection ownership live in `ui-organization`, `organization-connection` and Desktop. `./maintenance` owns the offline directory lock, checked backups and staged restore, which revokes old logins/invitations and rotates recovery. `receipt` checks current authority before resolving an uncertain account operation. HTTPS ingress and private Electron lifecycle live in `organization-api` and Desktop; this domain package never starts a listener. The API must bound queued requests before calling this service. This service owns no file-import or personal-data migration path. Disk access by a principal who can replace the database is outside its confidentiality guarantees.
 

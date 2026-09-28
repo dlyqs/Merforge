@@ -1,4 +1,6 @@
 /** Organization-only SQLite schema, transaction ownership and durable validation. */
+import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
+import { assignmentDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, openSync, closeSync } from 'node:fs'
 import { dirname, isAbsolute } from 'node:path'
@@ -9,7 +11,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 3
+export const ORGANIZATION_SCHEMA_VERSION = 6
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -78,13 +80,17 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
-        db.exec(ddl + resourceDdl + workgraphDdl)
+        db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl + deviceDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
-      } else if ((stamp === 1 || stamp === 2) && app === applicationId) {
-        validateDatabase(db, stamp === 2, false)
+      } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 || stamp === 5) && app === applicationId) {
+        if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
-        db.exec(workgraphDdl)
+        if (stamp < 3) db.exec(workgraphDdl)
+        if (stamp === 4) migrateAssignmentV4(db)
+        else if (stamp < 4) db.exec(assignmentDdl)
+        if (stamp < 5) db.exec(delegationDdl)
+        db.exec(deviceDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -99,9 +105,10 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
   }
 }
 
-function validateDatabase(db: DatabaseSync, resources = true, workgraph = true): void {
+function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, assignments = true): void {
   try {
     if (workgraph) validateWorkgraphDatabase(db)
+    if (assignments) { validateAssignmentDatabase(db); validateDeviceDatabase(db) }
     if (resources) {
       for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)
       for (const row of db.prepare('SELECT * FROM resource_grants').all()) grantSchema.parse(row)
@@ -121,7 +128,40 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true):
     for (const row of db.prepare('SELECT * FROM login_attempts').all()) attemptSchema.strict().parse(row)
     for (const row of db.prepare('SELECT * FROM organization_events').all()) eventSchema.strict().parse(row)
     for (const row of db.prepare('SELECT * FROM operation_receipts').all()) {
-      const receipt = receiptSchema.parse(JSON.parse(receiptRowSchema.strict().parse(row).response))
+      const stored = receiptRowSchema.strict().parse(row)
+      const receipt = receiptSchema.parse(JSON.parse(stored.response))
+      if (receipt.operationId !== stored.operationId) throw new OrganizationError('incompatible-store')
+      if (receipt.deviceId !== undefined) {
+        if (!assignments) throw new OrganizationError('incompatible-store')
+        const action = db.prepare('SELECT x.*,d.organizationId FROM device_actions x JOIN organization_devices d ON d.id=x.deviceId WHERE x.revision=?').get(receipt.revision)
+        if (!action || action.deviceId !== receipt.deviceId || action.organizationId !== receipt.organizationId
+          || JSON.stringify(receipt.lease ?? null) !== (action.lease ?? 'null')) throw new OrganizationError('incompatible-store')
+        if (receipt.lease) {
+          const assignment = db.prepare('SELECT * FROM task_assignments WHERE id=?').get(receipt.lease.assignmentId)
+          if (!assignment || receipt.assignmentId !== receipt.lease.assignmentId || receipt.delegationId !== receipt.lease.delegationId
+            || receipt.projectId !== assignment.projectId || receipt.planId !== assignment.planId
+            || receipt.planRevision !== assignment.planRevision) throw new OrganizationError('incompatible-store')
+        } else if (receipt.assignmentId || receipt.delegationId || receipt.projectId || receipt.planId || receipt.planRevision) {
+          throw new OrganizationError('incompatible-store')
+        }
+        continue
+      }
+      if (receipt.assignmentId !== undefined) {
+        if (!assignments) throw new OrganizationError('incompatible-store')
+        const valid = db.prepare(`SELECT 1 FROM task_assignments a JOIN organization_events e ON e.revision=?
+          JOIN memberships m ON m.accountId=e.actorId AND m.organizationId=a.organizationId
+          WHERE a.id=? AND a.organizationId=? AND a.projectId=? AND a.planId=? AND a.planRevision=?
+          AND ((e.kind='approve-assignment' AND a.createdRevision=e.revision AND a.approvedBy=m.id)
+            OR (e.kind='revoke-assignment' AND a.version=e.revision AND a.state='revoked')
+            OR (e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation') AND a.assigneeId=m.id
+              AND EXISTS (SELECT 1 FROM assignment_actions x WHERE x.revision=e.revision AND x.assignmentId=a.id)))`)
+          .get(receipt.revision, receipt.assignmentId, receipt.organizationId ?? null, receipt.projectId ?? null,
+            receipt.planId ?? null, receipt.planRevision ?? null)
+        if (!valid) throw new OrganizationError('incompatible-store')
+        const action = db.prepare('SELECT delegationId FROM assignment_actions WHERE revision=?').get(receipt.revision)
+        if ((receipt.delegationId ?? null) !== (action?.delegationId ?? null)) throw new OrganizationError('incompatible-store')
+        continue
+      }
       if (receipt.planId !== undefined || receipt.planRevision !== undefined) {
         const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
         const valid = event?.kind === 'set-task-grant' && receipt.planRevision === undefined

@@ -41,6 +41,10 @@ export interface Receipt {
   invitationId?: InvitationId | undefined
   projectId?: OrganizationProjectId | undefined
   planId?: OrganizationPlanId | undefined
+  deviceId?: import('./assignment-types.ts').OrganizationDeviceId | undefined
+  lease?: import('./device-types.ts').OrganizationLease | undefined
+  delegationId?: import('./assignment-types.ts').OrganizationDelegationId | undefined
+  assignmentId?: import('./assignment-types.ts').OrganizationAssignmentId | undefined
   planRevision?: OrganizationPlanRevision | undefined
 }
 /** Successful login; the token is delivered once and held by the local Host. */

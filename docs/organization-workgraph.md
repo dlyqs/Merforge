@@ -1,6 +1,6 @@
 # 组织 WorkGraph 与预执行上下文
 
-本文定稿[施工计划](organization-workgraph-plan.md)的协议与权限设计。Phase 1–8 已实现完整定义/版本、SQLite v3、纯图规则、任务授权投影、HTTPS/原生动作、本机预执行上下文隔离与持久绑定、任务工作台和无页面集成。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
+本文定稿[施工计划](organization-workgraph-plan.md)的协议与权限设计。Phase 1–8 已实现完整定义/版本、WorkGraph 表、纯图规则、任务授权投影、HTTPS/原生动作、本机预执行上下文隔离与持久绑定、任务工作台和无页面集成。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
 
 ## 定义及版本
 
@@ -39,7 +39,7 @@
 
 `savePlan(token, {operationId,organizationId,projectId,planId,expectedRevision,definition})` 是领域方法；0 创建，正整数更新。创建需项目 read+write，事务写入创建者的根范围 read+edit。更新还需当前根 subtree read+edit。完整定义读取 `readPlan(token,{organizationId,projectId,planId,revision?},deliver)` 要求项目 read 与当前根 subtree read；deliver 必须同步交付。没有任务 grant 的管理员和建议责任人也被拒绝。此方法返回完整编辑材料，不能拿局部 TaskView 调用保存。
 
-v1/v2 启动时先校验旧结构，再在同一事务增加缺失表，最后校验 v3；失败回滚，未知版本、外来 application_id、损坏图、跨组织引用、历史断档或错误索引拒绝打开。不开启个人 Session 数据迁移。停服备份使用同一验证器；新 manifest 写 schema=3，恢复接受 schema=2/3，先核对 manifest 与实际 user_version，再在 staging 升级。恢复仍撤销全部登录和邀请、清除回执并轮换恢复凭据，旧目录保留。
+v1/v2 启动时先校验旧结构，再在同一事务增加缺失表，最后校验 v3；失败回滚，未知版本、外来 application_id、损坏图、跨组织引用、历史断档或错误索引拒绝打开。不开启个人 Session 数据迁移。停服备份使用同一验证器；当前分配阶段已将物理库升级至 v6（见[分配协议](organization-assignment.md)）；新 manifest 写 schema=6，恢复接受 schema=2–6，先核对 manifest 与实际 user_version，再在 staging 升级。恢复仍撤销全部登录和邀请、清除回执并轮换恢复凭据，旧目录保留。
 
 `Config.workgraphMaxTasks=1000` 同时限制任务和阶段条目；`workgraphMaxDepth=100`；`workgraphMaxBytes=1048576` 限制完整版本 JSON 的 UTF-8 字节（含作者、时间和版本元数据）。写入和读取均应用限额；超限明确失败，不截断图。Phase 3 查询在这些限额外应用 pageSize，Phase 4 还需核对 HTTP response 包装及原生 maxResponseBytes，过大返回失败。配置缩小不破坏磁盘历史校验，但可能阻止读取较大的版本。
 

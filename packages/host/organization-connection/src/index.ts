@@ -363,3 +363,5 @@ export class OrganizationConnection {
     organizationId: undefined }); await Promise.allSettled([...this.streams]); this.listeners.clear() }
 }
 function assertNever(value: never): never { throw new Error(`unknown action ${String(value)}`) }
+
+export { OrganizationDeviceMaterial, type OrganizationDeviceVault } from './device-material.ts'

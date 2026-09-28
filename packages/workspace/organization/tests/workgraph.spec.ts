@@ -221,14 +221,14 @@ describe('organization WorkGraph definitions', () => {
     await h.close(); cleanup.pop()
     const old = new DatabaseSync(h.path)
     try {
-      old.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans; PRAGMA user_version=2')
+      old.exec('DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments; DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans; PRAGMA user_version=2')
     } finally { old.close() }
     const migrated = await openHarness(h.root)
     cleanup.push(migrated.close)
     await migrated.service.readProject(h.owner.token, { organizationId: h.owner.organizationId, projectId: h.request.projectId }, (value) => { expect(value.name).toBe('CSV report') })
     await migrated.service.savePlan(h.owner.token, h.request)
     const db = new DatabaseSync(h.path)
-    try { expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(3) } finally { db.close() }
+    try { expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(6) } finally { db.close() }
   })
 
   it('refuses damaged graph data and unknown database versions on open', async () => {

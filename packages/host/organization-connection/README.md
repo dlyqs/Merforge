@@ -19,6 +19,12 @@ A denied WorkGraph request invalidates the generation and clears displayed facts
 
 Switches clear projects/members synchronously and abort the previous request generation. Events trigger fresh authorized reads; revoked or invalid certificates erase visible data. Offline writes reject immediately. An unconfirmed mutation blocks further writes for that server/account until `reconcile` checks its committed receipt. Reconciliation never resends a command. The journal contains account/server/operation IDs only; a generated invitation secret survives an uncertain response only while the native client remains alive.
 
+## Native device material
+
+`OrganizationDeviceMaterial` owns Ed25519 private material in a separate native directory, encrypted by an injected OS vault adapter. It refuses unavailable encryption, `basic_text` and unknown backends. Files and encrypted envelopes bind server, account, organization and member. Registration persists its operation ID and public key before network transmission; reopening preserves that command for reconciliation. Fixed-action signing verifies the entire service challenge and request digest and exposes no arbitrary-byte signer. Explicit reconciled revocation permits deleting old material before a fresh registration.
+
+The material implementation is exercised against the real Loader/SQLite authority, with only the OS vault replaced in tests. Electron safeStorage wiring and fixed device/assignment IPC actions belong to assignment Phase 5; this package does not yet automatically register devices, claim, reconcile or renew leases through `perform`. Actual OS vault unlock and cross-machine behavior still require platform acceptance.
+
 ## Model Experience
 
 No model tools, prompts, token use or KV-cache changes. Organization facts do not enter personal Sessions.

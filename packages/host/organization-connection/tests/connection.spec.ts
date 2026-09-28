@@ -2,7 +2,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import * as fs from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
+import { deviceChallengeText } from '@deepseek-ai/dsh-organization'
 import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -215,7 +216,7 @@ it('preserves the current directory when validation or the final restore rename 
   expect(await readFile(join(h.directory, 'organization.sqlite'))).toEqual(original)
 }, 30000)
 
-it('preserves immutable WorkGraph revisions through stopped backup and restore', async () => {
+it.each(['pending', 'held'])('preserves WorkGraph history and permanently retires %s assignments through backup restore', async (state) => {
   const h = await setup()
   const login = await h.app.authority.login({ username: 'owner', password })
   const organizationId = h.initialized.organizationId!
@@ -228,10 +229,34 @@ it('preserves immutable WorkGraph revisions through stopped backup and restore',
       goal: 'Persistent work', scope: 'Text', acceptance: ['Readable after restore'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null }] } }
   await h.app.authority.savePlan(login.token, request)
   await h.app.authority.savePlan(login.token, { ...request, operationId: randomUUID(), expectedRevision: 1 })
+  const approvalOperation = randomUUID()
+  const assignment = await h.app.authority.assignmentCommand(login.token, { kind: 'approve-assignment',
+    organizationId, projectId: project.projectId, planId, taskId, planRevision: 2,
+    assigneeId: h.initialized.membershipId, operationId: approvalOperation })
+  if (state === 'held') {
+    const selector = { organizationId, projectId: project.projectId, planId, assignmentId: assignment.assignmentId }
+    let requestId = ''
+    await h.app.authority.readInbox(login.token, { organizationId }, (page) => { requestId = page.items[0]!.request.id })
+    const accepted = await h.app.authority.participantCommand(login.token, { ...selector, kind: 'answer-assignment',
+      operationId: randomUUID(), requestId, answer: 'accepted', expectedVersion: assignment.revision })
+    const pair = generateKeyPairSync('ed25519')
+    const registration = { kind: 'register-device', organizationId, operationId: randomUUID(), name: 'Backup device', keyGeneration: 1,
+      publicKey: pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64') }
+    const write = async (command: unknown) => {
+      const challenge = await h.app.authority.deviceChallenge(login.token, command)
+      return h.app.authority.deviceCommand(login.token, command, { challengeId: challenge.challengeId,
+        signature: sign(null, Buffer.from(deviceChallengeText(challenge)), pair.privateKey).toString('base64url') })
+    }
+    const device = await write(registration)
+    const delegation = await h.app.authority.participantCommand(login.token, { ...selector, kind: 'delegate', operationId: randomUUID(),
+      expectedVersion: accepted.revision, deviceId: device.deviceId, executorId: 'desktop-builtin', capabilities: ['draft'], budget: 1,
+      expiresAt: Date.now() + 60000 })
+    await write({ ...selector, kind: 'claim', operationId: randomUUID(), deviceId: device.deviceId, delegationId: delegation.delegationId })
+  }
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 3 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 6 })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)
@@ -243,11 +268,25 @@ it('preserves immutable WorkGraph revisions through stopped backup and restore',
       expect(value.definition).toEqual(request.definition)
     })
   }
+  await restored.authority.readAssignment(current.token, { ...query, assignmentId: assignment.assignmentId }, (value) => {
+    expect(value).toMatchObject({ state: 'invalidated', reason: 'restored', planRevision: 2 })
+  })
+  expect(await restored.authority.receipt(current.token, approvalOperation)).toBeNull()
+  const restoredDb = new DatabaseSync(join(h.directory, 'organization.sqlite'), { readOnly: true })
+  try {
+    expect(restoredDb.prepare('SELECT state FROM assignment_requests').get()?.state).toBe(state === 'held' ? 'accepted' : 'cancelled')
+    expect(restoredDb.prepare('SELECT count(*) AS n FROM assignment_notifications').get()?.n).toBe(1)
+    if (state === 'held') {
+      expect(restoredDb.prepare('SELECT state FROM organization_devices').get()?.state).toBe('revoked')
+      expect(restoredDb.prepare('SELECT state FROM assignment_delegations').get()?.state).toBe('invalidated')
+      expect(restoredDb.prepare('SELECT state FROM assignment_leases').get()?.state).toBe('invalidated')
+    }
+  } finally { restoredDb.close() }
   await expect(restored.authority.readPlan(login.token, query, () => { throw new Error('old login') })).rejects.toMatchObject({ code: 'unauthenticated' })
 })
 
 
-it('restores a schema v2 backup by upgrading staging and retaining project grants', async () => {
+it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining project grants', async (schema) => {
   const h = await setup()
   const login = await h.app.authority.login({ username: 'owner', password })
   const organizationId = h.initialized.organizationId!
@@ -258,16 +297,18 @@ it('restores a schema v2 backup by upgrading staging and retaining project grant
   const backup = backupOrganization(h.directory, join(h.root, 'legacy-backup'), 5000)
   const db = new DatabaseSync(join(backup, 'organization.sqlite'))
   try {
-    db.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans; PRAGMA user_version=2')
+    db.exec('DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments')
+    if (schema === 2) db.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans')
+    db.exec(`PRAGMA user_version=${schema}`)
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } finally { db.close() }
   const hashes = {
     'organization.sqlite': createHash('sha256').update(await readFile(join(backup, 'organization.sqlite'))).digest('hex'),
     'tls-identity.json': createHash('sha256').update(await readFile(join(backup, 'tls-identity.json'))).digest('hex'),
   }
-  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 3, hashes }))
+  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 4, hashes }))
   expect(() => restoreOrganization(backup, h.directory, 5000)).toThrow('invalid-backup-schema')
-  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 2, hashes }))
+  await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema, hashes }))
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)

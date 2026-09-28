@@ -1,5 +1,7 @@
 /** Strict JSON and durable-row parsers for the organization authority. */
 import { z } from 'zod'
+import { assignmentIdSchema, delegationIdSchema, deviceIdSchema } from './assignment-schema.ts'
+import { leaseSchema } from './device-schema.ts'
 import { planRevisionSchema } from './workgraph-schema.ts'
 import type { OrganizationPlanId } from './workgraph-types.ts'
 import type { Branded } from '@deepseek-ai/dsh-brand'
@@ -33,6 +35,12 @@ export const configSchema = z.object({
   workgraphMaxTasks: z.number().int().min(1).max(100000).default(1000),
   workgraphMaxDepth: z.number().int().min(1).max(10000).default(100),
   workgraphMaxBytes: z.number().int().min(256).max(104857600).default(1048576),
+  delegationMaxDurationMs: z.number().int().min(1000).max(604800000).default(3600000),
+  delegationMaxBudget: z.number().int().min(1).max(1000000).default(100),
+  deviceChallengeTtlMs: z.number().int().min(1000).max(300000).default(60000),
+  deviceChallengeMaxPerAccount: z.number().int().min(1).max(1000).default(30),
+  deviceChallengeMaxTotal: z.number().int().min(1).max(100000).default(3000),
+  leaseTtlMs: z.number().int().min(1000).max(300000).default(30000),
   busyTimeoutMs: z.number().int().min(1).max(60000).default(5000),
 }).strict()
 /** Input validator for the private initialization channel. */
@@ -97,6 +105,10 @@ export const receiptSchema = z.object({
   projectId: id<OrganizationProjectId>().optional(),
   planId: id<OrganizationPlanId>().optional(),
   planRevision: planRevisionSchema.optional(),
+  assignmentId: assignmentIdSchema.optional(),
+  delegationId: delegationIdSchema.optional(),
+  deviceId: deviceIdSchema.optional(),
+  lease: leaseSchema.optional(),
 }).strict()
 /** Rate-window persistence parser. */
 export const attemptSchema = z.object({
@@ -105,7 +117,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })
