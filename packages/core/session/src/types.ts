@@ -33,7 +33,7 @@ export function SessionId(id: string): SessionId {
  * @param id - Identity presented to a personal Session operation.
  */
 export function assertPersonalSessionId(id: string): void {
-  if (id.startsWith('organization-context:')) throw new Error('organization-context: personal access forbidden')
+  if (id.startsWith('organization-context:') || id.startsWith('organization-execution:')) throw new Error('organization-context: personal access forbidden')
 }
 
 /** Sequence number of one existing event in a Session log. */

@@ -14,6 +14,7 @@ function createProductApi(): DshDesktopProductApi {
     protocolVersion: 1,
     browser: createDesktopBrowserBridge(),
     organization: {
+      execution: request => ipcRenderer.invoke(DESKTOP_IPC.organizationExecution, request),
       context: request => ipcRenderer.invoke(DESKTOP_IPC.organizationContext, request),
       snapshot: () => ipcRenderer.invoke(DESKTOP_IPC.organizationSnapshot) as Promise<OrganizationDesktopSnapshot>,
       connection: action => ipcRenderer.invoke(DESKTOP_IPC.organizationConnection, action) as Promise<ConnectionResult>,

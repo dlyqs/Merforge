@@ -19,7 +19,7 @@ export const connectionConfig = z.object({
 /** Parsed public server identity. */
 export const identitySchema = z.object({ serverId: z.uuid().transform(v => brandString<ServerId>(v)),
   protocolVersion: z.literal(1) }).strict()
-/** Parsed bearer response, retained only in native memory. */
+/** Parsed bearer response, available only to the native owner and its OS-encrypted session store. */
 export const loginResultSchema = z.object({ token: z.string().regex(/^[\w-]{43}$/).transform(v => brandString<LoginToken>(v)),
   expiresAt: version,
   principal: z.object({ serverId: identitySchema.shape.serverId, accountId: account }).strict() }).strict()
@@ -42,7 +42,7 @@ revision: version,
 cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.enum(['assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),
+  z.object({ kind: z.enum(['execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('device-register'), name: z.string().trim().min(1).max(120) }).strict(),
   z.object({ kind: z.literal('device-revoke'), expectedVersion: z.number().int().positive() }).strict(),
   z.object({ kind: z.literal('device-read') }).strict(),

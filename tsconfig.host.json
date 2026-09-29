@@ -284,6 +284,7 @@
     { "path": "./packages/workspace/personal-project" },
     { "path": "./packages/workspace/personal-workflow" },
     { "path": "./packages/workspace/organization-context" },
+    { "path": "./packages/workspace/organization-execution" },
     { "path": "./packages/session/session-title" },
     { "path": "./packages/session/session-title-llm" },
     { "path": "./packages/session/session-title-first-prompt-llm" },

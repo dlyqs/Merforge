@@ -6,6 +6,7 @@ import type { OrganizationTaskView, OrganizationDevice } from '@deepseek-ai/dsh-
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionAction, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
+import { MemberSelect } from './MemberSelect.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
@@ -27,13 +28,17 @@ export function AssignmentPanel(props: OrganizationProps & {
   const [assignee, setAssignee] = useState(task.suggestedMembershipId ?? '')
   const [review, setReview] = useState<Extract<NonNullable<ConnectionResult['assignment']>['result'], { kind: 'review' }>['value'] & { generation: number }>()
   const [confirmedRevision, setConfirmedRevision] = useState<number>()
-  const [deviceName, setDeviceName] = useState('')
+  const [deviceName, setDeviceName] = useState(t('deviceDefaultName'))
   const [duration, setDuration] = useState(''), [budget, setBudget] = useState('')
   const [draftCapability, setDraftCapability] = useState(false)
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const readSequence = useRef(0)
+  const reviewSequence = useRef(0)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const blockedReview = useRef(false)
   const alive = useRef(true)
-  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  useEffect(() => { alive.current = true; return () => { alive.current = false; reviewSequence.current++ } }, [])
+  const isAlive = () => alive.current
   const ready = props.current && c.phase === 'ready' && c.mode === 'organization'
   const query = { organizationId: c.organizationId, projectId: props.projectId, planId: task.planId, taskId: task.id }
   const currentHistory = ready && history?.generation === c.generation ? history.value : undefined
@@ -81,13 +86,65 @@ export function AssignmentPanel(props: OrganizationProps & {
     } finally { if (alive.current) setBusy(false) }
   }
   const reviewApproval = async () => {
-    setBusy(true); setNotice(''); setReview(undefined); setConfirmedRevision(undefined)
+    if (reviewBusy) return
+    const sequence = ++reviewSequence.current
+    setReviewBusy(true); blockedReview.current = false
+    setNotice(''); setReview(undefined); setConfirmedRevision(undefined)
     try {
       const result = await props.connection({ kind: 'assignment-review', request: { ...query, planRevision: task.revision, assigneeId: assignee } })
-      if (alive.current && result.assignment?.result.kind === 'review') setReview({ ...result.assignment.result.value, generation: result.assignment.generation })
-    } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
-    finally { if (alive.current) setBusy(false) }
+      if (result.assignment?.result.kind !== 'review') throw new Error('unavailable')
+      if (alive.current && sequence === reviewSequence.current) {
+        setReview({ ...result.assignment.result.value, generation: result.assignment.generation })
+      }
+    } catch (error) {
+      if (sequence === reviewSequence.current) blockedReview.current = true
+      if (alive.current && sequence === reviewSequence.current) setNotice(t(workgraphError(error)))
+    } finally { if (alive.current) setReviewBusy(false) }
   }
+  const shareAccess = async () => {
+    setBusy(true); setNotice(''); setReview(undefined); setConfirmedRevision(undefined)
+    let changed = false
+    try {
+      const project = await props.connection({ kind: 'grants', projectId: props.projectId })
+      if (!isAlive()) return
+      if (!project.grants) throw new Error('unavailable')
+      const grant = project.grants.find(row => row.membershipId === assignee)
+      if (!grant?.actions.includes('read')) {
+        await props.connection({ kind: 'command', command: { kind: 'set-grant', organizationId: c.organizationId,
+          projectId: props.projectId, membershipId: assignee, expectedVersion: grant?.version ?? 0,
+          actions: grant?.actions.includes('write') ? ['read', 'write'] : ['read'], operationId: randomUUID() } })
+        if (!isAlive()) return
+        changed = true
+      }
+      const check = await props.connection({ kind: 'assignment-review', request: { ...query, planRevision: task.revision, assigneeId: assignee } })
+      if (!isAlive()) return
+      if (check.assignment?.result.kind !== 'review') throw new Error('unavailable')
+      if (!check.assignment.result.value.assigneeCanRead) {
+        const result = await props.connection({ kind: 'workgraph-grants', request: { organizationId: c.organizationId, projectId: props.projectId, planId: task.planId } })
+        if (!isAlive()) return
+        if (result.workgraph?.result.kind !== 'grants') throw new Error('unavailable')
+        const node = result.workgraph.result.value.find(row => row.membershipId === assignee && row.taskId === task.id && row.scope === 'node')
+        await props.connection({ kind: 'workgraph-grant', request: { ...query, membershipId: assignee, scope: 'node', actions: ['read'],
+          expectedVersion: node?.version ?? 0, operationId: randomUUID() } })
+        if (!isAlive()) return
+        changed = true
+      }
+      const verified = await props.connection({ kind: 'assignment-review', request: { ...query, planRevision: task.revision, assigneeId: assignee } })
+      if (!isAlive()) return
+      if (verified.assignment?.result.kind !== 'review') throw new Error('unavailable')
+      blockedReview.current = false
+      setReview({ ...verified.assignment.result.value, generation: verified.assignment.generation })
+    } catch (error) {
+      blockedReview.current = true
+      if (alive.current) setNotice(`${changed ? t('partialAccessSaved') + ' ' : ''}${t(workgraphError(error))}`)
+    } finally { if (alive.current) setBusy(false) }
+  }
+  const canReview = !!currentHistory && !currentHistory.items.some(item => item.state === 'pending' || item.state === 'accepted')
+  useEffect(() => {
+    if (ready && canReview && !busy && !reviewBusy && !reviewCurrent && !blockedReview.current
+      && /^[0-9a-f-]{36}$/i.test(assignee)) void reviewApproval()
+  }, [ready, canReview, assignee, task.revision, c.generation, reviewBusy, reviewCurrent, busy])
+  const memberName = (id: string) => c.members.find(member => member.id === id)?.username ?? (id === memberId ? c.username ?? t('me') : t('selectedMember'))
   const participant = (fields: Record<string, unknown>) => { void run({ kind: 'assignment-participant', request: {
     ...selector, operationId: randomUUID(), ...fields } }) }
   const active = current?.assignment.state === 'pending' || current?.assignment.state === 'accepted'
@@ -99,17 +156,17 @@ export function AssignmentPanel(props: OrganizationProps & {
     {notice && <p role="status">{notice}</p>}
     <Button disabled={!writable} onClick={() => { void load().catch((error: unknown) =>{  setNotice(t(workgraphError(error))) }) }}>{t('refreshAssignment')}</Button>
     {currentHistory && !currentHistory.items.length && <p>{t('notDispatched')}</p>}
-    {currentHistory && <div className={css.actions}>
+    {currentHistory && currentHistory.total > 1 && <details className={css.advanced}><summary>{t('assignmentHistory')}</summary><div className={css.actions}>
       {currentHistory.items.map(item => <Button key={item.id} disabled={!writable} onClick={() => {
         void loadPreparation(item.id).catch((error: unknown) =>{  setNotice(t(workgraphError(error))) })
       }}>{t('assignmentVersion', { revision: item.planRevision })} · {t(`assignment-${item.state}`)}</Button>)}
       <Button disabled={!writable || currentHistory.offset === 0} onClick={() => { void load().catch((error: unknown) =>{  setNotice(t(workgraphError(error))) }) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentHistory.offset + currentHistory.items.length >= currentHistory.total}
         onClick={() => { void load(currentHistory.offset + currentHistory.items.length).catch((error: unknown) =>{  setNotice(t(workgraphError(error))) }) }}>{t('next')}</Button>
-    </div>}
+    </div></details>}
     {current && <>
       <p>{t('assignmentVersion', { revision: current.assignment.planRevision })} · {t(`assignment-${current.assignment.state}`)}</p>
-      <p>{t('dispatcher')}: {current.assignment.approvedBy}</p><p>{t('assignee')}: {current.assignment.assigneeId}</p>
+      <p>{t('dispatcher')}: {memberName(current.assignment.approvedBy)}</p><p>{t('assignee')}: {memberName(current.assignment.assigneeId)}</p>
       {current.assignment.reason && <p>{t(current.assignment.reason)}</p>}
       {!sameVersion && <p role="alert">{t('assignmentOldVersion')}</p>}
       <p>{t(current.assignment.state === 'pending' ? 'waitingEmployee' : current.assignment.state === 'accepted' ? 'waitingPreparation' : 'waitingDispatcher')}</p>
@@ -124,7 +181,7 @@ export function AssignmentPanel(props: OrganizationProps & {
       <h4>{t('delegationTitle')}</h4>
       {!current.delegations.length && <p>{t('noDelegation')}</p>}
       {current.delegations.map(item => <div key={item.id}>
-        <p>{t(`delegation-${item.state}`)} · {t('deviceId')}: {item.deviceId} · {t('delegationBudget')}: {item.budget}</p>
+        <p>{t(`delegation-${item.state}`)} · {item.deviceId === device?.id ? device.name : t('otherDevice')} · {t('delegationBudget')}: {item.budget}</p>
         <p>{t('expiresAt')}: {new Date(item.expiresAt).toLocaleString()}</p>
         <p>{item.capabilities.map(capability => t(capability === 'draft' ? 'draftCapability' : 'readCapability')).join(', ')}</p>
         {mine && item.state === 'active' && <Button disabled={!writable} onClick={() =>{  participant({ kind: 'revoke-delegation', delegationId: item.id,
@@ -132,7 +189,7 @@ export function AssignmentPanel(props: OrganizationProps & {
       </div>)}
       <h4>{t('leaseTitle')}</h4>
       <p>{t(current.lease ? `lease-${current.lease.state}` : 'noLease')}</p>
-      {current.lease && <p>{t('deviceId')}: {current.lease.deviceId} · {t('ownershipEpoch')}: {current.lease.fencingEpoch} · {t('expiresAt')}: {new Date(current.lease.expiresAt).toLocaleString()}</p>}
+      {current.lease && <><p>{t('expiresAt')}: {new Date(current.lease.expiresAt).toLocaleString()}</p><details className={css.advanced}><summary>{t('technicalDetails')}</summary><p>{t('deviceId')}: {current.lease.deviceId} · {t('ownershipEpoch')}: {current.lease.fencingEpoch}</p></details></>}
       {mine && <>
         <p>{t(c.renewing === current.assignment.id ? 'renewingLease' : 'qualificationRecheck')}</p>
         {current.lease?.state === 'held' && current.lease.deviceId === device?.id && <div className={css.actions}>
@@ -145,7 +202,7 @@ export function AssignmentPanel(props: OrganizationProps & {
             <label>{t('deviceName')}<Input value={deviceName} onChange={(event) =>{  setDeviceName(event.target.value) }} /></label>
             <Button type="submit" disabled={!writable || !deviceName.trim()}>{t('registerDevice')}</Button>
           </form>}
-          {device?.state === 'active' && <Button disabled={!writable} onClick={() => { void run({ kind: 'device-revoke', expectedVersion: device.version }) }}>{t('revokeDevice')}</Button>}
+          {device?.state === 'active' && <details className={css.advanced}><summary>{t('deviceSettings')}</summary><Button disabled={!writable} onClick={() => { void run({ kind: 'device-revoke', expectedVersion: device.version }) }}>{t('revokeDevice')}</Button></details>}
           {device?.state === 'revoked' && <p>{t('deviceRevoked')}</p>}
           {device?.state === 'active' && !localDelegation && <form className={css.form} onSubmit={(event) => {
             event.preventDefault(); void run({ kind: 'assignment-delegate', request: { ...selector, operationId: randomUUID(), kind: 'delegate',
@@ -168,9 +225,14 @@ export function AssignmentPanel(props: OrganizationProps & {
         planRevision: task.revision, assigneeId: assignee } })
     }}>
       <h4>{t('approveAssignment')}</h4><p>{t('approvalAccessHint')}</p>
-      <label>{t('assignee')}<Input value={assignee} onChange={(event) => { setAssignee(event.target.value); setConfirmedRevision(undefined) }} /></label>
-      <Button disabled={!writable || !assignee} onClick={() => { void reviewApproval() }}>{t('reviewApprovalAccess')}</Button>
+      <MemberSelect t={t} connection={c} labelKey="assignee" disabled={!writable} value={assignee} change={(value) => {
+        reviewSequence.current++; blockedReview.current = false; setReview(undefined); setAssignee(value); setConfirmedRevision(undefined)
+      }} />
+      {!reviewCurrent && <Button disabled={!writable || !assignee} onClick={() => { void reviewApproval() }}>{t('reviewApprovalAccess')}</Button>}
       {reviewCurrent && <p role="status">{t(review.assigneeCanRead ? 'approvalAccessReady' : 'approvalAccessMissing')}</p>}
+      {reviewCurrent && !review.assigneeCanRead && c.organizations.find(org => org.id === c.organizationId)?.role === 'admin' && <div className={css.notice}>
+        <p>{t('shareAccessHint')}</p><Button disabled={!writable} onClick={() => { void shareAccess() }}>{t('shareTaskAccess')}</Button>
+      </div>}
       <label><input type="checkbox" disabled={!reviewCurrent || !review.assigneeCanRead} checked={confirmedRevision === task.revision} onChange={(event) =>{  setConfirmedRevision(event.target.checked ? task.revision : undefined) }} />{t('confirmApproval', { revision: task.revision })}</label>
       <Button type="submit" disabled={!writable || !reviewCurrent || !review.assigneeCanRead || confirmedRevision !== task.revision}>{t('approveAssignment')}</Button>
     </form>}

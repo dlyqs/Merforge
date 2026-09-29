@@ -1,4 +1,5 @@
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
+import { installOrganizationExecutionControl } from './organization-execution.ts'
 
 import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -69,6 +70,11 @@ async function main(): Promise<void> {
     on: (event, listener) => process.on(event, listener),
     off: (event, listener) => process.off(event, listener),
     send: (message) => { if (!process.connected || !process.send) throw new Error('organization-context: disconnected'); process.send(message) },
+  })
+  installOrganizationExecutionControl(ctx, {
+    on: (event, listener) => process.on(event, listener),
+    off: (event, listener) => process.off(event, listener),
+    send: (message) => { if (!process.connected || !process.send) throw new Error('organization-execution: disconnected'); process.send(message) },
   })
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   const url = ctx.connection.authenticatedUrl(`http://127.0.0.1:${String(ctx.webServer.port)}`)

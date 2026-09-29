@@ -88,7 +88,7 @@ export interface Config {
   /** Physical encoding; defaults to checksummed Zstandard frames. */
   compression?: JsonlCompression
   /** Isolated organization store; never mount this instance into personal services. */
-  namespace?: 'personal' | 'organization-context'
+  namespace?: 'personal' | 'organization-context' | 'organization-execution'
 }
 
 /** One stored event graph whose producer has established immutable sharing. */
@@ -174,7 +174,7 @@ class JsonlSessionPersistence extends SessionPersistence {
   static Config: z<Config> = z.object({
     root: z.string().required(),
     compression: JsonlCompressionSchema,
-    namespace: z.union([z.const('personal'), z.const('organization-context')]).default('personal'),
+    namespace: z.union([z.const('personal'), z.const('organization-context'), z.const('organization-execution')]).default('personal'),
   })
 
   /** Backend label for diagnostics and effects; shadows `Service.name` without changing the service key. */
@@ -219,7 +219,8 @@ class JsonlSessionPersistence extends SessionPersistence {
   }
 
   private admit(id: SessionId): void {
-    if (id.startsWith('organization-context:') !== (this.config.namespace === 'organization-context')) {
+    const namespace = id.startsWith('organization-context:') ? 'organization-context' : id.startsWith('organization-execution:') ? 'organization-execution' : 'personal'
+    if (namespace !== this.config.namespace) {
       throw new Error('organization-context: persistence access forbidden')
     }
   }

@@ -1,9 +1,11 @@
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
+import { executionCommandSchema, executionReadSchema, executionViewSchema } from '@deepseek-ai/dsh-organization/execution'
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents, followWorkgraphEvents, followInboxEvents, OrganizationStreamReset, type OrganizationTrust, type CertificateOffer } from '@deepseek-ai/dsh-organization-api/transport'
+import { OrganizationLoginSession } from './login-session.ts'
 import { OrganizationDeviceMaterial, type OrganizationDeviceVault } from './device-material.ts'
 import { approvalReviewSchema, approvalReviewResultSchema, assignmentCommandSchema, participantCommandSchema, delegateSchema, assignmentReadSchema, taskAssignmentsQuerySchema, taskAssignmentsPageSchema, inboxQuerySchema, inboxPageSchema, preparationSchema, deviceCommandSchema, devicesSchema, claimSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-organization/protocol'
@@ -22,6 +24,9 @@ export class OrganizationConnection {
   private state: ConnectionSnapshot = { revision: 0, generation: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] }
   private trust: OrganizationTrust | undefined
   private offer: (CertificateOffer & { origin: string }) | undefined
+  private readonly loginSession: OrganizationLoginSession | undefined
+  private loginExpiresAt: number | undefined
+  private loginExpiry: ReturnType<typeof setTimeout> | undefined
   private token: LoginToken | undefined
   private serverId: ServerId | undefined
   private generation = 0
@@ -51,6 +56,7 @@ export class OrganizationConnection {
    */
   constructor(config: Config = {}, private readonly device?: { directory: string; vault: OrganizationDeviceVault }) {
     this.config = connectionConfig.parse(config)
+    this.loginSession = this.config.trustPath && device ? new OrganizationLoginSession(`${this.config.trustPath}.login`, device.vault) : undefined
     if (this.config.trustPath) {
       try {
         const saved = z.object({ origin: z.url(),
@@ -68,6 +74,39 @@ export class OrganizationConnection {
         for (const entry of saved) this.uncertain.set(`${entry.serverId}:${entry.accountId}`, entry)
       } catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) { this.journalError = true; this.state.error = 'invalid-operation-journal' } }
     }
+  }
+  /** Restore encrypted login and recheck current access with the authority.
+   * @returns Settlement of the first verification; temporary outages use normal reconnection.
+   */
+  async restoreLogin(): Promise<void> {
+    if (this.closed || this.token || !this.trust || !this.serverId) return
+    const saved = this.loginSession?.read()
+    if (!saved) return
+    if (saved.expiresAt <= Date.now() || saved.origin !== this.trust.origin
+      || saved.fingerprint !== this.trust.fingerprint || saved.principal.serverId !== this.serverId) {
+      this.clearLogin(); return
+    }
+    this.token = saved.token
+    this.armLoginExpiry(saved.expiresAt)
+    const generation = this.reset({ phase: 'loading', principal: saved.principal, username: saved.username })
+    this.publish({ pendingOperation: this.pending?.operationId })
+    const task = this.refresh(generation).then(() => ({})).catch((_error: unknown) => {
+      if (generation === this.generation && this.state.phase === 'loading') this.invalidate('unauthenticated')
+      return {}
+    })
+    this.operations.add(task)
+    try { await task } finally { this.operations.delete(task) }
+  }
+  private armLoginExpiry(expiresAt: number): void {
+    clearTimeout(this.loginExpiry)
+    this.loginExpiresAt = expiresAt
+    this.loginExpiry = setTimeout(() => { this.invalidate('unauthenticated') }, Math.max(0, expiresAt - Date.now()))
+    this.loginExpiry.unref()
+  }
+  private clearLogin(): void {
+    this.token = undefined; this.loginExpiresAt = undefined
+    clearTimeout(this.loginExpiry)
+    try { this.loginSession?.clear() } catch (_error) { console.error('organization component=login-session result=clear-failed') }
   }
   private save(path: string, data: unknown): void {
     const temporary = `${path}.${randomUUID()}`
@@ -104,6 +143,7 @@ export class OrganizationConnection {
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
+    if (this.loginExpiresAt !== undefined && this.loginExpiresAt <= Date.now()) { this.invalidate('unauthenticated'); throw new Error('unauthenticated') }
     if (!this.trust) throw new Error('untrusted')
     let response: Awaited<ReturnType<typeof organizationRequest>>
     try { response = await organizationRequest(this.trust, body === undefined ? 'GET' : 'POST', `/organization/v1${route}`, body, this.token, this.cancel.signal) }
@@ -153,7 +193,7 @@ export class OrganizationConnection {
     if (action.kind === 'personal') { this.reset({ mode: 'personal', organizationId: undefined }); return {} }
     if (action.kind === 'logout' || action.kind === 'probe' || action.kind === 'login') {
       const previousTrust = this.trust; const previousToken = this.token
-      this.token = undefined
+      this.clearLogin()
       this.reset({ phase: this.trust ? 'signed-out' : 'disconnected',
         mode: 'personal',
         principal: undefined,
@@ -195,6 +235,12 @@ export class OrganizationConnection {
           const result = loginResultSchema.parse(await this.request('/login', { username: action.username, password: action.password }))
           if (result.principal.serverId !== this.serverId) throw new Error('certificate-changed')
           this.token = result.token
+          this.armLoginExpiry(result.expiresAt)
+          if (this.trust) {
+            try { this.loginSession?.save({ ...result, format: 1, origin: this.trust.origin,
+              fingerprint: this.trust.fingerprint, username: action.username }) }
+            catch (_error) { console.warn('organization component=login-session result=save-unavailable') }
+          }
           this.publish({ principal: result.principal, username: action.username, phase: 'loading' })
           this.publish({ pendingOperation: this.pending?.operationId })
           await this.refresh(generation)
@@ -233,6 +279,18 @@ export class OrganizationConnection {
             role: action.role, invitationToken }, invitationToken)
         }
         case 'command': return await this.mutate(action.command)
+        case 'execution-command': {
+          const input = z.record(z.string(), z.unknown()).parse(action.request)
+          if ('deviceId' in input) throw new Error('invalid-input')
+          return await this.mutate({ ...input, deviceId: this.localDeviceId() }, undefined, 'execution', this.material())
+        }
+        case 'execution-read': {
+          const request = executionReadSchema.parse(action.request)
+          this.assertOrganization(request.organizationId)
+          const value = executionViewSchema.parse(await this.request('/execution/read', request, generation))
+          if (generation !== this.generation) throw new Error('superseded')
+          return { generation, execution: value }
+        }
         case 'assignment-command': return await this.mutate(action.request, undefined, 'assignment')
         case 'assignment-participant': {
           const command = participantCommandSchema.parse(action.request)
@@ -389,18 +447,18 @@ export class OrganizationConnection {
     if (!this.token || !this.state.organizationId || this.state.phase !== 'ready') throw new Error('unavailable')
     return this.state.organizationId
   }
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant' | 'assignment' | 'participant' | 'device', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
+    const command = workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
       : workgraph === 'participant' ? participantCommandSchema.parse(input)
         : workgraph === 'device' ? deviceCommandSchema.parse(input)
           : workgraph === 'save' ? workgraphSaveSchema.parse(input)
             : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
     const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
-    const route = workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
+    const route = workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
       : workgraph === 'device' ? '/device/command' : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
         : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,
@@ -413,7 +471,8 @@ export class OrganizationConnection {
     const pending = this.pending
     if (kind !== 'renew') console.info('organization component=connection operation=%s operationId=%s generation=%s result=started', kind ?? workgraph, command.operationId, generation)
     try {
-      const body = workgraph === 'device' ? { command, ...(material ? { proof: material.proof(command, await this.request('/device/challenge', command)) } : {}) } : command
+      if (workgraph === 'execution' && !material) throw new Error('device-vault-unavailable')
+      const body = workgraph === 'execution' && material ? { command, proof: material.proof(command, await this.request('/execution/challenge', command)) } : workgraph === 'device' ? { command, ...(material ? { proof: material.proof(command, await this.request('/device/challenge', command)) } : {}) } : command
       const receipt = receiptSchema.parse(await this.request(route, body))
       this.pending = undefined; this.publish({ pendingOperation: undefined })
       if (kind === 'change-password') this.invalidate('unauthenticated')
@@ -502,7 +561,7 @@ export class OrganizationConnection {
     void this.refresh(next).catch(() => { this.offline(next) })
   }
   private invalidate(error: string): void {
-    this.token = undefined
+    this.clearLogin()
     this.reset({ phase: this.trust ? 'signed-out' : 'disconnected',
       principal: undefined,
       organizations: [],
@@ -518,9 +577,9 @@ export class OrganizationConnection {
     }) }, this.config.reconnectMs)
   }
   /** Dispose the native connection.
-   * @returns Settlement after subscriptions are aborted and credentials erased.
+   * @returns Settlement after subscriptions are aborted and in-memory credentials erased; encrypted login survives shutdown.
    */
-  async close(): Promise<void> { this.closed = true; this.token = undefined; this.reset({ phase: 'disconnected',
+  async close(): Promise<void> { this.closed = true; this.token = undefined; clearTimeout(this.loginExpiry); this.reset({ phase: 'disconnected',
     principal: undefined,
     organizations: [],
     organizationId: undefined }); this.listeners.clear(); await Promise.allSettled([...this.streams, ...this.operations]) }

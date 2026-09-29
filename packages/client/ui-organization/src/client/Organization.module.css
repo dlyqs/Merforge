@@ -15,7 +15,7 @@
 .launchCard:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .launchCard strong { color: var(--dsw-alias-label-primary); font-size: 16px; line-height: 24px; font-weight: 500; }
 .cardLink { display: flex; align-items: center; gap: 4px; margin-top: auto; padding-top: 12px; color: var(--dsw-alias-label-primary); font-weight: 500; }
-.dialog { width: min(760px, 100%); max-height: 100%; padding-bottom: 0; }
+.dialog { width: min(960px, 100%); max-height: 100%; padding-bottom: 0; }
 .dialogContent { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .workspace { display: flex; flex-direction: column; min-width: 0; color: var(--dsw-alias-label-primary); font-size: 14px; line-height: 22px; }
 .workspaceHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 24px; }
@@ -90,3 +90,21 @@
 .passwordField { position: relative; }
 .passwordField .input { padding-right: 44px; }
 .passwordToggle { position: absolute; right: 4px; top: 3px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+
+.advanced { border: 0; padding: 12px 0; color: var(--dsw-alias-label-secondary); }
+.advanced > summary { cursor: pointer; font-size: 13px; line-height: 22px; }
+.advanced[open] > summary { margin-bottom: 16px; }
+.accessList { display: flex; flex-direction: column; gap: 8px; }
+.accessMember { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 10px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); font: inherit; text-align: start; cursor: pointer; }
+.accessMember:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.badge { padding: 3px 8px; border-radius: 6px; background: var(--dsw-alias-bg-module-platform); font-size: 12px; color: var(--dsw-alias-label-secondary); }
+
+.projectGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.projectGrid > .eyebrow, .projectGrid > .empty { grid-column: 1 / -1; }
+.projectGrid .listRow { flex-wrap: wrap; align-content: flex-start; padding: 20px; border: 0.5px solid var(--dsw-alias-border-l2); border-radius: 14px; background: var(--dsw-alias-bg-layer-1); }
+.projectGrid .listRow > .actions { flex-basis: 100%; padding-top: 8px; }
+.taskList { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
+.taskList li { border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
+.taskList button { flex: 1; padding: 8px 10px; border-radius: 8px; }
+.taskList button:hover, .taskList button[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
+@media (max-width: 600px) { .cardHeading, .search { flex-wrap: wrap; } .search .input { flex-basis: 100%; } }

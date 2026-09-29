@@ -999,6 +999,7 @@ export class SessionStore extends Service {
    */
   prepare(id?: SessionId, options?: PrepareSessionOptions): Session {
     if (id !== undefined) assertPersonalSessionId(id)
+    if (options?.meta?.parentSession !== undefined) assertPersonalSessionId(options.meta.parentSession)
     let sessionId: SessionId
     if (id === undefined) {
       do sessionId = brandString<SessionId>(`session-${++this.counter}`)

@@ -89,3 +89,7 @@ Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment
 ## 验证与下一阶段交接
 
 [验收与交接](organization-assignment-acceptance.md)列出 A/B/C 三机剧本、无页面证据范围和 Phase 7A 消费位置。私有服务在普通 Node/Electron Node mode 下验证批准至领取、双设备竞争、重启代次、设备材料持久化、第三主体隔离及恢复失效；测试保险库不代表 OS 解锁已验收。当前准备查询不授予真实执行权限，下一阶段必须在模型、工具、提交与验收入口核验当前资格并持久记录 unknown 副作用。
+
+## Execution handoff
+
+SQLite v7 retains preparation delegations without expanding `task-read` or `draft`. The employee separately grants finite execution capabilities bound to a preparation delegation, device and configuration digest. Run creation and action reservation use current exact-version and dual-epoch qualification. Claiming or opening a prepared execution Session never starts a model. See the [execution protocol](organization-execution.md).

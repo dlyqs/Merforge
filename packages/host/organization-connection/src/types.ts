@@ -7,7 +7,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
-  | { kind: 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
+  | { kind: 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
   | { kind: 'device-read' }
@@ -44,6 +44,7 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  execution?: import('@deepseek-ai/dsh-organization').OrganizationExecutionView
   generation?: number
   assignment?: {
     generation: number
@@ -96,6 +97,11 @@ export type OrganizationServerAction =
 export interface OrganizationDesktopSnapshot { connection: ConnectionSnapshot; server: OrganizationServerSnapshot }
 /** Sandboxed preload operations, restricted to the owning Desktop top frame. */
 export interface OrganizationDesktopBridge {
+  execution(request: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionRequest): Promise<{
+    generation: number
+    result: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionResult
+  }>
+
   context(request: import('@deepseek-ai/dsh-organization-context/protocol').ContextRequest): Promise<{
     generation: number
     result: import('@deepseek-ai/dsh-organization-context/protocol').ContextResult

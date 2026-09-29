@@ -33,6 +33,7 @@ export interface Principal {
 }
 /** Persisted mutation result without credentials or private profile data. */
 export interface Receipt {
+  execution?: import('./execution-types.ts').OrganizationExecutionReceipt | undefined
   operationId: OperationId
   revision: number
   accountId?: AccountId | undefined

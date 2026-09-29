@@ -37,6 +37,10 @@
       disabled: true
 
 - insert:
+    - id: organization-execution
+      name: '@deepseek-ai/dsh-organization-execution'
+      config:
+        root: !!js dshHomePath('organization-execution-sessions')
     - id: organization-context
       name: '@deepseek-ai/dsh-organization-context'
       config:

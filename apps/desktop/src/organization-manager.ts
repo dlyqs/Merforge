@@ -60,11 +60,12 @@ export class DesktopOrganizationManager {
     return { connection: this.connection.snapshot(), server: { ...state, settings: this.settings,
       ...(this.settingsError ? { phase: 'failed', error: this.settingsError } : {}) } }
   }
-  /** @returns Startup attempt only when the user explicitly saved restoreOnLaunch. */
+  /** @returns Local service startup when enabled, followed by saved-login verification. */
   async restoreOnLaunch(): Promise<void> {
     if (this.settings.restoreOnLaunch && !this.settingsError) {
       try { await this.perform({ kind: 'start' }) } catch (error) { console.error('organization component=launch result=failed', error instanceof Error ? error.name : 'Error') }
     }
+    await this.connection.restoreLogin()
   }
   /**
    * Execute local settings or maintenance under single-operation admission.

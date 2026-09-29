@@ -1,4 +1,5 @@
 /** Native-only Ed25519 material encrypted by the OS vault; no plaintext fallback. */
+import { signedOrganizationCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -115,7 +116,7 @@ export class OrganizationDeviceMaterial {
    * @returns Signature envelope; the private key never leaves this owner.
    */
   proof(input: unknown, challengeInput: unknown): { challengeId: string; signature: string } {
-    const command = provenDeviceCommandSchema.parse(input)
+    const command = signedOrganizationCommandSchema.parse(input)
     const challenge = deviceChallengeSchema.parse(challengeInput)
     const material = this.read()
     const digest = createHash('sha256').update(JSON.stringify(command)).digest('hex')

@@ -39,7 +39,8 @@
     "zod": "^4.4.3",
     "@deepseek-ai/dsh-organization": "workspace:*",
     "@deepseek-ai/dsh-organization-api": "workspace:*",
-    "@deepseek-ai/dsh-organization-context": "workspace:*"
+    "@deepseek-ai/dsh-organization-context": "workspace:*",
+    "@deepseek-ai/dsh-organization-execution": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

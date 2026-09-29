@@ -1,4 +1,8 @@
 /** Transactional organization identity authority, independent of personal Host services. */
+import { executionCommandSchema, executionReadSchema } from './execution-schema.ts'
+import { changeExecution, readExecution, invalidateExecution } from './execution.ts'
+import type { OrganizationExecutionView } from './execution-types.ts'
+export type * from './execution-types.ts'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID, randomBytes } from 'node:crypto'
@@ -88,6 +92,7 @@ export class OrganizationService extends Service {
       transaction(db, () => {
         if (db.prepare("SELECT 1 FROM assignment_leases WHERE state='held'").get()) {
           const revision = this.event(db, 'server-start', null, null)
+          invalidateExecution(db, revision, true)
           db.prepare("UPDATE assignment_leases SET state='invalidated',version=? WHERE state='held'").run(revision)
         }
       })
@@ -205,6 +210,7 @@ export class OrganizationService extends Service {
     invalidateAssignments(db, revision)
     invalidateDelegations(db, revision)
     invalidateDevicesAndLeases(db, revision)
+    invalidateExecution(db, revision)
     db.prepare('INSERT INTO operation_receipts VALUES (?,?,?,?)').run(scope, input.operationId, fingerprint, JSON.stringify(receipt))
     return receipt
   }
@@ -220,6 +226,8 @@ export class OrganizationService extends Service {
       receipt.operationId, receipt.deviceId, receipt.revision)
     if (receipt.lease) this.ctx.logger.info('organization component=lease operationId=%s fencingEpoch=%s revision=%s result=committed',
       receipt.operationId, receipt.lease.fencingEpoch, receipt.revision)
+    if (receipt.execution) this.ctx.logger.info('organization component=execution operationId=%s runId=%s actionId=%s revision=%s result=committed',
+      receipt.operationId, receipt.execution.runId ?? 'none', receipt.execution.actionId ?? 'none', receipt.revision)
     if (receipt.assignmentId) this.ctx.logger.info('organization component=assignment operationId=%s assignmentId=%s revision=%s result=committed',
       receipt.operationId, receipt.assignmentId, receipt.revision)
     this.publishCommit(receipt.revision)
@@ -784,17 +792,84 @@ export class OrganizationService extends Service {
 
   private expireQualifications(db: DatabaseSync): void {
     const now = Date.now()
-    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? LIMIT 1").get(now, now)
+    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? LIMIT 1").get(now, now, now, now)
     if (!expired) return
     const revision = transaction(db, () => {
       const revision = this.event(db, 'qualification-expired', null, null)
       db.prepare("UPDATE assignment_delegations SET state='expired',version=? WHERE state='active' AND expiresAt<=?").run(revision, now)
       db.prepare("UPDATE assignment_leases SET state='expired',version=? WHERE state='held' AND expiresAt<=?").run(revision, now)
       invalidateDevicesAndLeases(db, revision)
+      invalidateExecution(db, revision)
       return revision
     })
     this.ctx.logger.info('organization component=lease operation=expire revision=%s result=committed', revision)
     this.publishCommit(revision)
+  }
+
+  /**
+   * Issue an action-bound device challenge for the closed execution command set.
+   * @param token - Current employee login.
+   * @param input - Strict execution mutation.
+   * @returns Short-lived single-use challenge.
+   */
+  executionChallenge(token: LoginToken, input: unknown): Promise<OrganizationDeviceChallenge> {
+    return this.enqueue('execution-challenge', async (db) => {
+      const command = parse(executionCommandSchema, input)
+      const digest = await requestFingerprint('execution', command)
+      return transaction(db, () => {
+        const principal = this.principal(db, token, command.organizationId)
+        authorizeParticipant(db, principal, selectedAssignment(db, command))
+        return this.deviceChallenges.issue(db, principal, command, digest)
+      })
+    })
+  }
+  /**
+   * Commit a signed execution mutation and its account-scoped receipt atomically.
+   * @param token - Current employee login.
+   * @param input - Strict execution command.
+   * @param proofInput - Native device signature; replay still requires current read authority.
+   * @returns Historical operation receipt; new actions always recheck qualification.
+   */
+  executionCommand(token: LoginToken, input: unknown, proofInput?: unknown): Promise<Receipt> {
+    return this.enqueue('execution-command', async (db) => {
+      const command = parse(executionCommandSchema, input)
+      const fingerprint = await requestFingerprint('execution', command)
+      const result = transaction(db, () => {
+        const principal = this.principal(db, token, command.organizationId)
+        authorizeParticipant(db, principal, selectedAssignment(db, command))
+        ownedDevice(db, principal, command.deviceId, false)
+        const scope = `account:${principal.accountId}`
+        const previous = this.previous(db, scope, command.operationId, fingerprint)
+        if (previous) return { receipt: previous, challengeId: null }
+        const proof = parse(deviceProofSchema, proofInput)
+        this.deviceChallenges.verify(principal, command, fingerprint, proof)
+        const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId,
+          fingerprint, (revision) => {
+            const execution = changeExecution(db, principal, command, revision, this.serverEpoch, this.config)
+            db.prepare('INSERT INTO execution_events VALUES (?,?,?)').run(revision, command.assignmentId, JSON.stringify(execution))
+            return { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId,
+              planRevision: command.planRevision, assignmentId: command.assignmentId, execution }
+          })
+        return { receipt, challengeId: proof.challengeId }
+      })
+      if (result.challengeId) { this.deviceChallenges.consume(result.challengeId); return this.recordCommit(result.receipt) }
+      return result.receipt
+    })
+  }
+  /**
+   * Deliver a shared Run summary under current task visibility.
+   * @param token - Current reader login.
+   * @param input - Assignment and Run selector.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after bounded metadata delivery.
+   */
+  readExecution(token: LoginToken, input: unknown, deliver: (value: OrganizationExecutionView) => void): Promise<void> {
+    return this.enqueue('execution-read', (db) => {
+      const query = parse(executionReadSchema, input)
+      const value = transaction(db, () => this.boundedWorkgraph(readExecution(db,
+        this.principal(db, token, query.organizationId), query, this.serverEpoch)))
+      deliver(value)
+    })
   }
 
   /**

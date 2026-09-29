@@ -1,4 +1,5 @@
 /** Electron Node-mode child lifecycle for the shared Web application. */
+import { executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 
 import { randomUUID } from 'node:crypto'
 import { contextNativeMessageSchema, contextRequestSchema, type ContextRequest, type ContextAuthority, type ContextResult } from '@deepseek-ai/dsh-organization-context/protocol'
@@ -110,6 +111,11 @@ export class DesktopHostProcess {
     resolve: (result: ContextResult) => void
     reject: (error: Error) => void
   }>()
+  private readonly executionQueries = new Map<string, {
+    authorize: () => Promise<ExecutionAuthority>
+    resolve: (result: ExecutionResult) => void
+    reject: (error: Error) => void
+  }>()
   private nextControlId = 1
   private readonly taskQueries = new Map<number, { resolve: (active: boolean) => void; reject: (error: Error) => void }>()
 
@@ -178,6 +184,25 @@ export class DesktopHostProcess {
         }
         return
       }
+      const execution = executionNativeMessageSchema.safeParse(message)
+      if (execution.success) {
+        const response = execution.data
+        const query = this.executionQueries.get(response.requestId)
+        if (!query || response.nonce !== this.contextNonce) return
+        if (response.type === 'organization-execution-result') {
+          if (response.result && !response.error) query.resolve(response.result)
+          else query.reject(new Error('organization-execution-unavailable'))
+        } else {
+          void query.authorize().then((authority) => {
+            if (this.executionQueries.get(response.requestId) === query && child.connected) {
+              child.send({ type: 'organization-execution-authorized', requestId: response.requestId, nonce: response.nonce, authorizationId: response.authorizationId, authority })
+            }
+          }, () => {
+            if (child.connected) child.send({ type: 'organization-execution-authorized', requestId: response.requestId, nonce: response.nonce, authorizationId: response.authorizationId, error: 'denied' })
+          }).catch(() => { query.reject(new Error('organization-execution-unavailable')) })
+        }
+        return
+      }
       if (!isDesktopHostEvent(message)) {
         this.fail(new Error('dsh desktop host sent an invalid IPC event'))
         child.kill('SIGTERM')
@@ -243,6 +268,42 @@ export class DesktopHostProcess {
   }
 
   /**
+   * Request a read-only binding through the private Host channel.
+   * @param input - Task selector; identities and snapshots are not accepted.
+   * @param authorize - Native online task read bound to the initiating connection generation.
+   * @param timeoutMs - Native request deadline.
+   * @param signal - Native identity lifetime cancellation.
+   * @returns Durable context after online rechecks; no execution capability.
+   */
+  async openOrganizationExecution(input: ExecutionRequest, authorize: () => Promise<ExecutionAuthority>,
+    timeoutMs: number, signal: AbortSignal): Promise<ExecutionResult> {
+    signal.throwIfAborted()
+    const request = executionRequestSchema.parse(input)
+    const child = this.child
+    if (!child?.connected || this.stopping || this.failureReported) throw new Error('organization-execution-unavailable')
+    const requestId = randomUUID()
+    const abort = () => { this.executionQueries.get(requestId)?.reject(new Error('organization-execution-cancelled')) }
+    signal.addEventListener('abort', abort, { once: true })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await new Promise<ExecutionResult>((resolve, reject) => {
+        this.executionQueries.set(requestId, { authorize, resolve, reject })
+        timer = setTimeout(() => { reject(new Error('organization-execution-timeout')) }, timeoutMs)
+        child.send({ type: 'organization-execution-open', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => {
+          if (error !== null) reject(error)
+        })
+      })
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+      this.executionQueries.delete(requestId)
+      // IPC may disconnect during the awaited operation.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition
+      if (child.connected) child.send({ type: 'organization-execution-cancel', requestId, nonce: this.contextNonce }, () => {})
+    }
+  }
+
+  /**
    * Inspect active work or lock request admission for update handoff.
    * @param action - Read-only inspection, admission lock, or recovery unlock.
    * @returns Whether live tasks would be affected. Locking drains admitted API requests before inspecting tasks;
@@ -298,6 +359,8 @@ export class DesktopHostProcess {
     this.readyReject(error)
     for (const query of this.contextQueries.values()) query.reject(error)
     this.contextQueries.clear()
+    for (const query of this.executionQueries.values()) query.reject(error)
+    this.executionQueries.clear()
     for (const query of this.taskQueries.values()) query.reject(error)
     this.taskQueries.clear()
     if (!this.failureReported && !this.stopping) {

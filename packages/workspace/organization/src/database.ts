@@ -1,4 +1,5 @@
 /** Organization-only SQLite schema, transaction ownership and durable validation. */
+import { executionDdl, validateExecutionDatabase } from './execution-database.ts'
 import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
 import { assignmentDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
 import { DatabaseSync } from 'node:sqlite'
@@ -11,7 +12,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 6
+export const ORGANIZATION_SCHEMA_VERSION = 7
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -80,17 +81,18 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
-        db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl + deviceDdl)
+        db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl + deviceDdl + executionDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
-      } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 || stamp === 5) && app === applicationId) {
+      } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 || stamp === 5 || stamp === 6) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
         if (stamp === 4) migrateAssignmentV4(db)
         else if (stamp < 4) db.exec(assignmentDdl)
         if (stamp < 5) db.exec(delegationDdl)
-        db.exec(deviceDdl)
+        if (stamp < 6) db.exec(deviceDdl)
+        db.exec(executionDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -108,7 +110,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
 function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, assignments = true): void {
   try {
     if (workgraph) validateWorkgraphDatabase(db)
-    if (assignments) { validateAssignmentDatabase(db); validateDeviceDatabase(db) }
+    if (assignments) { validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db) }
     if (resources) {
       for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)
       for (const row of db.prepare('SELECT * FROM resource_grants').all()) grantSchema.parse(row)
@@ -131,6 +133,14 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
       const stored = receiptRowSchema.strict().parse(row)
       const receipt = receiptSchema.parse(JSON.parse(stored.response))
       if (receipt.operationId !== stored.operationId) throw new OrganizationError('incompatible-store')
+      if (receipt.execution) {
+        const x = db.prepare('SELECT * FROM execution_events WHERE revision=?').get(receipt.revision)
+        const a = db.prepare('SELECT * FROM task_assignments WHERE id=?').get(receipt.assignmentId ?? null)
+        if (!x || x.assignmentId !== receipt.assignmentId || x.result !== JSON.stringify(receipt.execution)
+          || a?.organizationId !== receipt.organizationId || a?.projectId !== receipt.projectId
+          || a?.planId !== receipt.planId || a?.planRevision !== receipt.planRevision || receipt.deviceId || receipt.lease) throw new OrganizationError('incompatible-store')
+        continue
+      }
       if (receipt.deviceId !== undefined) {
         if (!assignments) throw new OrganizationError('incompatible-store')
         const action = db.prepare('SELECT x.*,d.organizationId FROM device_actions x JOIN organization_devices d ON d.id=x.deviceId WHERE x.revision=?').get(receipt.revision)

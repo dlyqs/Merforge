@@ -1,4 +1,5 @@
 /** Authority-owned key registrations, bounded challenges and transaction-local leases. */
+import type { executionCommandSchema } from './execution-schema.ts'
 import { createPublicKey, randomUUID, verify } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
@@ -60,14 +61,14 @@ export class DeviceChallenges {
    * @returns Challenge fields to be signed in their canonical order.
    */
   issue(
-    db: DatabaseSync, principal: Principal, command: z.output<typeof provenDeviceCommandSchema>,
+    db: DatabaseSync, principal: Principal, command: z.output<typeof provenDeviceCommandSchema> | z.output<typeof executionCommandSchema>,
     digest: string): OrganizationDeviceChallenge {
     const now = Date.now()
     for (const [id, entry] of this.challenges) if (entry.value.expiresAt <= now) this.challenges.delete(id)
     if (this.challenges.size >= this.limits.deviceChallengeMaxTotal
       || [...this.challenges.values()].filter(entry => entry.value.accountId === principal.accountId).length >= this.limits.deviceChallengeMaxPerAccount) throw new OrganizationError('rate-limited')
-    const device = command.kind === 'register-device' ? null : ownedDevice(db, principal, command.deviceId)
-    const publicKey = command.kind === 'register-device' ? command.publicKey : ownedDevice(db, principal, command.deviceId).publicKey
+    const device = command.kind === 'register-device' ? null : ownedDevice(db, principal, command.deviceId, command.kind !== 'settle-action')
+    const publicKey = command.kind === 'register-device' ? command.publicKey : ownedDevice(db, principal, command.deviceId, command.kind !== 'settle-action').publicKey
     validateDeviceKey(publicKey)
     const challenge = deviceChallengeSchema.parse({ protocol: 'merforge-device-v1',
       challengeId: randomUUID(), serverId: principal.serverId,
@@ -85,7 +86,7 @@ export class DeviceChallenges {
    * @param digest - Stable command fingerprint.
    * @param proof - Strict signature envelope.
    */
-  verify(principal: Principal, command: z.output<typeof provenDeviceCommandSchema>,
+  verify(principal: Principal, command: z.output<typeof provenDeviceCommandSchema> | z.output<typeof executionCommandSchema>,
     digest: string, proof: z.output<typeof deviceProofSchema>): void {
     const entry = this.challenges.get(proof.challengeId)
     if (!entry || entry.used || entry.value.expiresAt <= Date.now()) throw new OrganizationError('version-conflict')

@@ -1,4 +1,5 @@
 /** Strict JSON and durable-row parsers for the organization authority. */
+import { executionReceiptSchema } from './execution-schema.ts'
 import { z } from 'zod'
 import { assignmentIdSchema, delegationIdSchema, deviceIdSchema } from './assignment-schema.ts'
 import { leaseSchema } from './device-schema.ts'
@@ -36,6 +37,7 @@ export const configSchema = z.object({
   workgraphMaxDepth: z.number().int().min(1).max(10000).default(100),
   workgraphMaxBytes: z.number().int().min(256).max(104857600).default(1048576),
   delegationMaxDurationMs: z.number().int().min(1000).max(604800000).default(3600000),
+  actionPermitTtlMs: z.number().int().min(100).max(60000).default(10000),
   delegationMaxBudget: z.number().int().min(1).max(1000000).default(100),
   deviceChallengeTtlMs: z.number().int().min(1000).max(300000).default(60000),
   deviceChallengeMaxPerAccount: z.number().int().min(1).max(1000).default(30),
@@ -109,6 +111,7 @@ export const receiptSchema = z.object({
   delegationId: delegationIdSchema.optional(),
   deviceId: deviceIdSchema.optional(),
   lease: leaseSchema.optional(),
+  execution: executionReceiptSchema.optional(),
 }).strict()
 /** Rate-window persistence parser. */
 export const attemptSchema = z.object({
@@ -117,7 +120,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })

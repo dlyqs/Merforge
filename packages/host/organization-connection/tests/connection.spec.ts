@@ -1,8 +1,9 @@
 /** Real shipped organization YAML, SQLite, TLS and independent native clients; no renderer. */
 import { afterEach, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import * as fs from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
-import { createHash, generateKeyPairSync, sign } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { deviceChallengeText } from '@deepseek-ai/dsh-organization'
 import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -329,4 +330,122 @@ it('reports invalid addresses and clears the previous error when probing again',
   await h.owner.perform({ kind: 'probe', origin: `127.0.0.1:${h.app.ready.port}` })
   expect(h.owner.snapshot().error).toBeUndefined()
   expect(h.owner.snapshot().offer?.fingerprint).toBe(h.app.ready.fingerprint)
+})
+
+function loginVault() {
+  // Only the OS credential vault is substituted; transport and authority remain real.
+  const key = randomBytes(32)
+  return {
+    isEncryptionAvailable: () => true,
+    getSelectedStorageBackend: () => 'test-os-vault',
+    encryptString(text: string) {
+      const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key, iv)
+      const bytes = Buffer.concat([cipher.update(text), cipher.final()])
+      return Buffer.concat([iv, cipher.getAuthTag(), bytes])
+    },
+    decryptString(bytes: Buffer) {
+      const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12))
+      decipher.setAuthTag(bytes.subarray(12, 28))
+      return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8')
+    },
+  }
+}
+async function persistentLogin() {
+  const h = await setup(), vault = loginVault(), trustPath = join(h.root, 'saved-trust.json')
+  const reopen = () => {
+    const client = new OrganizationConnection({ trustPath, reconnectMs: 100 }, { directory: join(h.root, 'devices'), vault })
+    cleanup.push(() => client.close())
+    return client
+  }
+  const client = reopen()
+  await client.perform({ kind: 'probe', origin: `https://127.0.0.1:${h.app.ready.port}` })
+  await client.perform({ kind: 'trust', fingerprint: h.app.ready.fingerprint })
+  await client.perform({ kind: 'login', username: 'owner', password })
+  return { ...h, client, reopen, vault, path: `${trustPath}.login` }
+}
+it('restores encrypted login after native restart and removes it on explicit logout', async () => {
+  const h = await persistentLogin()
+  const encrypted = await readFile(h.path)
+  expect(encrypted.toString()).not.toContain(password)
+  expect(encrypted.toString()).not.toContain('token')
+  await h.client.close()
+  const next = h.reopen()
+  expect(next.snapshot().phase).toBe('signed-out')
+  await next.restoreLogin()
+  expect(next.snapshot()).toMatchObject({ phase: 'ready', username: 'owner' })
+  expect(next.snapshot().organizations).toHaveLength(1)
+  expect(JSON.stringify(next.snapshot())).not.toContain('token')
+  await next.perform({ kind: 'logout' })
+  expect(fs.existsSync(h.path)).toBe(false)
+  const last = h.reopen()
+  await last.restoreLogin()
+  expect(last.snapshot().phase).toBe('signed-out')
+})
+it('rejects revoked sessions on restart and clears saved credentials', async () => {
+  const h = await persistentLogin()
+  const saved = JSON.parse(h.vault.decryptString(await readFile(h.path))) as LoginResult
+  await h.client.close()
+  await h.app.authority.logout(saved.token)
+  const next = h.reopen()
+  await next.restoreLogin()
+  expect(next.snapshot().phase).toBe('signed-out')
+  expect(next.snapshot().principal).toBeUndefined()
+  expect(fs.existsSync(h.path)).toBe(false)
+})
+it('expires a restored login while idle without extending its deadline', async () => {
+  const h = await persistentLogin()
+  await h.client.close()
+  const saved = JSON.parse(h.vault.decryptString(await readFile(h.path))) as LoginResult
+  saved.expiresAt = Date.now() + 500
+  await writeFile(h.path, h.vault.encryptString(JSON.stringify(saved)))
+  const next = h.reopen()
+  await next.restoreLogin()
+  expect(next.snapshot().phase).toBe('ready')
+  await expect.poll(() => next.snapshot().phase).toBe('signed-out')
+  expect(fs.existsSync(h.path)).toBe(false)
+  expect(next.snapshot().organizations).toEqual([])
+})
+it('rejects expired or differently scoped saved logins before restoring private facts', async () => {
+  const h = await persistentLogin()
+  await h.client.close()
+  const saved = z.record(z.string(), z.unknown()).parse(JSON.parse(h.vault.decryptString(await readFile(h.path))))
+  for (const patch of [{ expiresAt: Date.now() - 1 }, { fingerprint: 'different-certificate' }, { origin: 'https://other.invalid' }]) {
+    await writeFile(h.path, h.vault.encryptString(JSON.stringify({ ...saved, ...patch })))
+    const next = h.reopen()
+    await next.restoreLogin()
+    expect(next.snapshot().phase).toBe('signed-out')
+    expect(next.snapshot().principal).toBeUndefined()
+    expect(fs.existsSync(h.path)).toBe(false)
+  }
+})
+
+it('retries saved login after temporary network failure and discards a restore superseded by logout', async () => {
+  const h = await persistentLogin()
+  await h.client.close()
+  const next = h.reopen()
+  const request = vi.spyOn(transport, 'organizationRequest').mockRejectedValueOnce(new Error('offline'))
+  try { await next.restoreLogin() } finally { request.mockRestore() }
+  expect(next.snapshot().phase).toBe('offline')
+  expect(fs.existsSync(h.path)).toBe(true)
+  await expect.poll(() => next.snapshot().phase).toBe('ready')
+  await next.close()
+  const last = h.reopen()
+  const restoring = last.restoreLogin()
+  await last.perform({ kind: 'logout' })
+  await restoring
+  expect(last.snapshot().phase).toBe('signed-out')
+  expect(last.snapshot().principal).toBeUndefined()
+  expect(fs.existsSync(h.path)).toBe(false)
+})
+it('uses only in-memory login when secure OS encryption is unavailable', async () => {
+  const h = await persistentLogin()
+  await h.client.perform({ kind: 'logout' })
+  h.vault.isEncryptionAvailable = () => false
+  await h.client.perform({ kind: 'login', username: 'owner', password })
+  expect(h.client.snapshot().phase).toBe('ready')
+  expect(fs.existsSync(h.path)).toBe(false)
+  await h.client.close()
+  const next = h.reopen()
+  await next.restoreLogin()
+  expect(next.snapshot().phase).toBe('signed-out')
 })

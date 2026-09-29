@@ -158,3 +158,24 @@ it('does not repeat a denied task request after native generation refresh and al
   await screen.findByRole('button', { name: 'Visible task' })
   expect(h.connection).toHaveBeenCalledTimes(2)
 })
+
+
+it('edits selected task access using names and the displayed grant version without identifier inputs', async () => {
+  const h = fixture(), task = h.page.items[0]!, memberId = h.version.createdBy
+  h.setState({ members: [{ id: memberId, accountId: brandString(randomUUID()), username: 'Alice', enabled: true,
+    accountEnabled: true, accountVersion: 1, role: 'member', version: 1 }] })
+  h.connection.mockImplementation(async action => action.kind === 'workgraph-grants' ? h.reply({ kind: 'grants', value: [{
+    planId: task.planId, taskId: task.id, membershipId: memberId, scope: 'node', actions: ['read'], active: true, version: 8,
+  }] }) : {})
+  render(<TaskGrants {...h.props} projectId={h.project.id} task={task} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Alice/ }))
+  expect(screen.queryByLabelText(zh.planId)).toBeNull()
+  expect(screen.queryByLabelText(zh.taskId)).toBeNull()
+  fireEvent.change(screen.getByRole('combobox', { name: zh.accessLevel }), { target: { value: 'none' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.saveAccess }))
+  await screen.findByText(zh.accessSaved)
+  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-grant')?.[0]).toMatchObject({ request: {
+    planId: task.planId, taskId: task.id, membershipId: memberId, scope: 'node', actions: [], expectedVersion: 8,
+  } })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-read')).toBe(false)
+})

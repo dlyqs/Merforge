@@ -10,6 +10,7 @@ import { zh } from './locales.ts'
 import css from './Organization.module.css'
 import { Inbox } from './Inbox.tsx'
 import { Workbench } from './Workbench.tsx'
+import { ProjectAccess } from './ProjectAccess.tsx'
 import { TaskGrants } from './TaskGrants.tsx'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 
@@ -113,12 +114,6 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const launch = (next: Task, disabled = false) => <Button variant="outline" disabled={busy || disabled} onClick={() => { navigate(next) }}>{t(next)}</Button>
   const writable = c.phase === 'ready' && !c.pendingOperation
   const admin = org?.role === 'admin'
-  const grant = async (actions: ('read' | 'write')[]) => {
-    const projectId = value('projectId'); const membershipId = value('memberId')
-    const result = await connect({ kind: 'grants', projectId })
-    const expectedVersion = result.grants?.find(row => row.membershipId === membershipId)?.version ?? 0
-    await command({ kind: 'set-grant', organizationId: c.organizationId, projectId, membershipId, expectedVersion, actions })
-  }
   const form = (submit: () => Promise<unknown>, children: ReactNode, disabled = false) => <form onSubmit={(event) => {
     event.preventDefault()
     if (!busy && !disabled) void run(submit)
@@ -151,7 +146,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['connection', 'projects', 'inbox', 'members', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
+        {(['projects', 'inbox', 'members', 'connection', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
         <div className={css.sectionHeading}>{task && <Button size="sm" aria-label={t('back')} icon={<IconChevronLeftOutlineRegular />} disabled={busy} onClick={() => { navigate(null) }} />}<h3 ref={focusTarget} tabIndex={-1}>{t(task ?? sectionLabels[section])}</h3></div>
@@ -190,15 +185,32 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>
               <form className={css.search} onSubmit={(event) => { event.preventDefault(); if (!busy && c.phase === 'ready') void run(() => connect({ kind: 'search', query: value('search'), offset: 0 })) }}><Input className={css.input ?? ''} icon={<IconSearchOutlineRegular />} aria-label={t('search')} placeholder={t('search')} value={value('search')} onChange={(event) => { set('search', event.target.value) }} /><Button type="submit" variant="outline" disabled={busy || c.phase !== 'ready'}>{t('searchAction')}</Button></form>
-              {admin && <div className={css.actions}>{launch('createProject', !writable)}{launch('permissions', !writable)}</div>}
-              {projects && <><div className={css.list}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{project.id}</small></div><Button variant="outline" onClick={() => { setProject(project) }}>{t('tasks')}</Button></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
+              {admin && <div className={css.actions}>{launch('createProject', !writable)}</div>}
+              {admin && <details className={css.advanced}><summary>{t('advancedAccess')}</summary>{launch('permissions', !writable)}</details>}
+              {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { setProject(project) }}>{t('tasks')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions'); set('projectId', project.id) }}>{t('projectMembers')}</Button>}</div></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
                 <div className={css.pagination}>{button('firstPage', () => connect({ kind: 'search', query: value('search'), offset: 0 }), c.phase !== 'ready' || projects.offset === 0)}{button('next', () => connect({ kind: 'search', query: value('search'), offset: projects.offset + projects.items.length }), c.phase !== 'ready' || projects.offset + projects.items.length >= projects.total)}</div></>}
             </>}
           </>}
           {!task && section === 'projects' && project && <Workbench key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, c.mode, project.id].join(':')} {...props} project={project} onBack={() => { setProject(null) }} />}
-          {task === 'createProject' && form(async () => { await command({ kind: 'create-project', organizationId: c.organizationId, name: value('projectName') }); navigate(null) }, <>{input('projectName')}{value('projectId') && <label className={css.field}>{t('projectId')}<output className={css.secret}>{value('projectId')}</output></label>}</>, !admin || !writable || !value('projectName').trim())}
-          {task === 'permissions' && <fieldset className={css.form} disabled={busy || !admin || !writable}><p className={css.muted}>{t('permissionsHint')}</p>{input('projectId')}<label className={css.field}>{t('memberId')}<select value={value('memberId')} onChange={(event) => { set('memberId', event.target.value) }}><option value="">{t('memberId')}</option>{c.members.map(member => <option key={member.id} value={member.id}>{member.username}</option>)}</select></label><div className={css.actions}>{button('read', () => grant(['read']), !value('projectId') || !value('memberId'))}{button('write', () => grant(['read', 'write']), !value('projectId') || !value('memberId'), true)}{button('revoke', () => grant([]), !value('projectId') || !value('memberId'))}</div></fieldset>}
-          {task === 'permissions' && admin && value('projectId') && <TaskGrants key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, value('projectId')].join(':')} {...props} projectId={value('projectId')} />}
+          {task === 'createProject' && form(async () => {
+            const name = value('projectName').trim()
+            const result = await command({ kind: 'create-project', organizationId: c.organizationId, name })
+            navigate(null)
+            if (result.receipt?.projectId && result.receipt.organizationId) setProject({ id: result.receipt.projectId,
+              organizationId: result.receipt.organizationId, name, version: result.receipt.revision })
+          }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !admin || !writable || !value('projectName').trim())}
+          {task === 'permissions' && admin && <>
+            <label className={css.field}>{t('chooseProject')}<select value={value('projectId')} disabled={busy} onChange={(event) => { set('projectId', event.target.value) }}>
+              <option value="">{t('chooseProject')}</option>
+              {value('projectId') && !projects?.items.some(item => item.id === value('projectId')) && <option value={value('projectId')}>{t('selectedProject')}</option>}
+              {projects?.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select></label>
+            {value('projectId') && <ProjectAccess key={value('projectId')} {...props} projectId={value('projectId')} />}
+            <details className={css.advanced}><summary>{t('advancedAccess')}</summary>
+              <p className={css.muted}>{t('advancedAccessHint')}</p>{input('projectId')}
+              {value('projectId') && <TaskGrants key={value('projectId')} {...props} projectId={value('projectId')} />}
+            </details>
+          </>}
           {!task && section === 'members' && <>
             <p className={css.muted}>{t('membersDescription')}</p>
             {!admin ? <p className={css.empty}>{t('adminRequired')}</p> : <>

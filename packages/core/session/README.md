@@ -197,4 +197,4 @@ None.
 
 </details>
 
-Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.
+Personal operations reject the reserved `organization-context:` and `organization-execution:` Session namespaces and organization parent Session IDs. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.

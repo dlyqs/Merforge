@@ -22,6 +22,7 @@ The workspace family lets a host product keep an ordered list of named projects 
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`organization-execution`](organization-execution/README.md) | Isolated local Run/Session preparation | `ctx.organizationExecution` |
 | [`organization`](organization/README.md) | Transactional organization identity authority; isolated from personal storage | `ctx.organization` |
 | [`personal-workflow`](personal-workflow/README.md) | Versioned personal task plans and exact-version approval | `ctx.personalWorkflow` |
 | [`workspace`](workspace/README.md) | Provides named, ordered projects with the sessions that ran in each directory | `ctx.workspaceRegistry` |

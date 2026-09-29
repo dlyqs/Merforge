@@ -40,7 +40,7 @@ Choose this backend when consumers benefit from one artifact per session — nav
     root: /absolute/path/to/session-logs
 ```
 
-`namespace` defaults to `personal`, which refuses `organization-context:` IDs on create/open/stat/delete and refuses a mixed listing. The isolated organization-context owner uses `namespace: organization-context` with its own directory and service instance; this admits only reserved IDs and must never replace personal persistence.
+`namespace` defaults to `personal`, which refuses `organization-context:` and `organization-execution:` IDs on create/open/stat/delete and refuses a mixed listing. The isolated organization-context owner uses `namespace: organization-context` with its own directory and service instance; this admits only reserved IDs and must never replace personal persistence.
 
 `root` is required and has no default: a `process.cwd()` default would scatter session files as the process's cwd changes. An existing root must be a readable directory; an absent root is created on first materialization.
 
@@ -155,3 +155,5 @@ These limits define when this backend is a poor fit or needs special operational
 None.
 
 </details>
+
+The execution owner uses `namespace: organization-execution` in a third independent directory. Each namespace admits only its own IDs and rejects mixed listings; a profile cannot substitute an organization provider for personal persistence.

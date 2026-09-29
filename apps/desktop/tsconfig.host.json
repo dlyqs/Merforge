@@ -34,6 +34,9 @@
     },
     {
       "path": "../../packages/workspace/organization-context"
+    },
+    {
+      "path": "../../packages/workspace/organization-execution"
     }
   ]
 }

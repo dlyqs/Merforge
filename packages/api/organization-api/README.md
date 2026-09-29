@@ -31,3 +31,5 @@ The native connection and Desktop UI consume these routes. `GET /receipts/:opera
 No invariant companion is published: sockets and admitted requests are owned directly by the service lifecycle; authorization reads the authority's committed SQLite records with no separate projection to compare.
 
 Certificate probes return stable errors for malformed origins, refused connections, unresolved hosts, timeouts, failed TLS connections and invalid certificates. The native setup UI localizes these errors; probes still require explicit trust before any credential is sent.
+
+Execution uses only `/execution/challenge`, `/execution/command` and `/execution/read` under the existing authenticated HTTPS prefix. Commands use a strict device-signature envelope; reads return bounded currently authorized Run/action metadata, never local Session logs. These routes do not invoke models or tools. See the [execution protocol](../../../../docs/organization-execution.md).

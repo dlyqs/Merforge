@@ -9997,6 +9997,402 @@
       }
     },
     {
+      "key": "event:organization/execution-binding",
+      "kind": "event",
+      "event": "organization/execution-binding",
+      "surface": false,
+      "digest": "055ff214b7e8e1966375fbaf40571cecdb7b73db42adc684090af37932b29928",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 26,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 27,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "contextSessionId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "inputs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "run",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 22,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "capabilities",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "materials",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "configDigest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "state",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 24,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              25
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/execution-binding"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:organization/task-snapshot",
       "kind": "event",
       "event": "organization/task-snapshot",
@@ -21430,6 +21826,400 @@
       "sources": []
     },
     {
+      "digest": "055ff214b7e8e1966375fbaf40571cecdb7b73db42adc684090af37932b29928",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 26,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 27,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "contextSessionId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "inputs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "run",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 22,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "capabilities",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "materials",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "configDigest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "state",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 24,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              25
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/execution-binding"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "05a2796621b1ee6c03ef7abe560b25116bb4da4d592312117242a78415a32b04",
       "schema": {
         "root": 0,
@@ -21485,10 +22275,12 @@
       },
       "names": [
         "packages/core/session/src/types.ts#SessionSeq",
+        "packages/workspace/organization/src/device-types.ts#OrganizationFencingEpoch",
         "packages/workspace/organization/src/workgraph-types.ts#OrganizationPlanRevision"
       ],
       "sources": [
         "packages/core/session/src/types.ts:40",
+        "packages/workspace/organization/src/device-types.ts:8",
         "packages/workspace/organization/src/workgraph-types.ts:12"
       ]
     },
@@ -21595,6 +22387,20 @@
           {
             "kind": "literal",
             "value": "system-prompt"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "097d6dd70daedbace3a8c63f24d2c05d63753c85406791b809b840a2cb43bb6e",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "shell"
           }
         ]
       },
@@ -26152,6 +26958,20 @@
           {
             "kind": "literal",
             "value": "assistant/attempt"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "1609190997dbdbe12ac172f8f1cb84002e608c9558af018c4095594e95d4fc0f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "organization/execution-binding"
           }
         ]
       },
@@ -46261,9 +47081,15 @@
         "packages/webhook/webhook/src/brand.ts#WebhookRuleId",
         "packages/webhook/webhook/src/brand.ts#WebhookSourceId",
         "packages/workflow/workflow/src/types.ts#WorkflowRunId",
+        "packages/workspace/organization/src/assignment-types.ts#OrganizationAssignmentId",
+        "packages/workspace/organization/src/assignment-types.ts#OrganizationDeviceId",
+        "packages/workspace/organization/src/device-types.ts#OrganizationServerEpoch",
+        "packages/workspace/organization/src/execution-types.ts#OrganizationExecutionDelegationId",
+        "packages/workspace/organization/src/execution-types.ts#OrganizationRunId",
         "packages/workspace/organization/src/types.ts#AccountId",
         "packages/workspace/organization/src/types.ts#MembershipId",
         "packages/workspace/organization/src/types.ts#OrganizationId",
+        "packages/workspace/organization/src/types.ts#OrganizationProjectId",
         "packages/workspace/organization/src/types.ts#ServerId",
         "packages/workspace/organization/src/workgraph-types.ts#OrganizationPhaseId",
         "packages/workspace/organization/src/workgraph-types.ts#OrganizationPlanId",
@@ -46297,10 +47123,16 @@
         "packages/webhook/webhook/src/brand.ts:6",
         "packages/webhook/webhook/src/brand.ts:9",
         "packages/workflow/workflow/src/types.ts:13",
+        "packages/workspace/organization/src/assignment-types.ts:32",
+        "packages/workspace/organization/src/assignment-types.ts:7",
+        "packages/workspace/organization/src/device-types.ts:10",
+        "packages/workspace/organization/src/execution-types.ts:6",
+        "packages/workspace/organization/src/execution-types.ts:8",
         "packages/workspace/organization/src/types.ts:10",
         "packages/workspace/organization/src/types.ts:12",
         "packages/workspace/organization/src/types.ts:6",
         "packages/workspace/organization/src/types.ts:8",
+        "packages/workspace/organization/src/types.ts:83",
         "packages/workspace/organization/src/workgraph-types.ts:10",
         "packages/workspace/organization/src/workgraph-types.ts:6",
         "packages/workspace/organization/src/workgraph-types.ts:8",
@@ -57082,6 +57914,135 @@
       "sources": []
     },
     {
+      "digest": "69dca6c32b1b0f5c4e5829fbe6df4d39dfc5b571fb2ccbf0fcfadafb071455ad",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "configDigest",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "state",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "6a4f72e2e179e17b922f2a9392c0e1c8f8c707f32494372454850a3eb184a6e7",
       "schema": {
         "root": 0,
@@ -63005,6 +63966,79 @@
       ]
     },
     {
+      "digest": "8457de88b072e17e8b5c525236f15d2eb307129f949175463448e91896c20fcd",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "capabilities",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "materials",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 8,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              4,
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "array",
+            "element": 8
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "8465ece5e9d9007c038b357015d849c15262cb0bc25abc59e47692d87ee01a15",
       "schema": {
         "root": 0,
@@ -64626,6 +65660,20 @@
       ]
     },
     {
+      "digest": "8ccf3f772efd81da785e5e9441bba72d1613c8c523307b08d3ae8de70d43a42c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "8cdd3fdd295cee53035de16a1b23411716f75e9f994fe9510cac5d7fef605c76",
       "schema": {
         "root": 0,
@@ -64822,6 +65870,45 @@
       "sources": [
         "packages/schedule/schedule/src/types.ts:88"
       ]
+    },
+    {
+      "digest": "8ec6e93e409cfb39305f8759d7601469cbbd59a6a7faf9919411027ab7000290",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "8f6d609794bf5afc01d7ccf3e03811d32f4b8047f58a2c9a98db0154c2ad7cb9",
@@ -66798,6 +67885,51 @@
           {
             "kind": "literal",
             "value": 2
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "a0fcf092a78d2d3f696d5fcfc9c9b15127971ebc8629c41616266362f28c9442",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
           }
         ]
       },
@@ -77357,6 +78489,34 @@
       "sources": []
     },
     {
+      "digest": "c43b119ce579b3e9983a0d3adc4ba402ebb9ba773d89738a2dab01ecf5813943",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "paused"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "c4ed9098365a9d4d9adbb8c8aad0f8b894f85aed5eb4a39c7f37df4ffdcd0695",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "prepared"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "c5228b7a55498d84f529591744a0ab26e0b93ade18a70a26db1377a1ecfa6b49",
       "schema": {
         "root": 0,
@@ -77501,6 +78661,20 @@
       "sources": [
         "packages/util/values/src/index.ts:4"
       ]
+    },
+    {
+      "digest": "c6e4fa548c431804f6adebfaed3e343205c813699d2a191f990a7b1133e8c5ba",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "running"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "c6f48bedc81bd115c76c5edab192d92e80b5a858c297c090575812e6bea41e35",
@@ -80409,6 +81583,20 @@
       "sources": []
     },
     {
+      "digest": "cb9583ddb95b19bf2828ef3edb6858788eedd89064d2fb9cab94c9a1a73f7468",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "cbca49bde16b656d5b8fbe4a8a507769f7b594c6287782b809c03814941bc5e3",
       "schema": {
         "root": 0,
@@ -80806,6 +81994,361 @@
           {
             "kind": "literal",
             "value": "web/deepseek-search-llm-request"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "cfadc28a2c5f3b00b31ba80d20d7046f280cb2bc468ff08a7bf392dc7fd2541d",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "contextSessionId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "inputs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "run",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 21,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "capabilities",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "materials",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 4
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 11,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "configDigest",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "state",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 13,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "union",
+            "types": [
+              15,
+              16,
+              17,
+              18,
+              19,
+              20
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 23,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              24
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
           }
         ]
       },
@@ -83865,6 +85408,41 @@
           {
             "kind": "literal",
             "value": "parent"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e6b34e968248146b420edf09e95866dca857a348f141b9b29f2806fc716bcfd3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
           }
         ]
       },
@@ -91834,6 +93412,20 @@
           {
             "kind": "literal",
             "value": "pending"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "fd76feed4d7a307fc89fe24260cefa8f0918a558e58d2b589f0041d4d64954e2",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "succeeded"
           }
         ]
       },

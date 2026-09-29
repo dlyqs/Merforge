@@ -43,6 +43,10 @@
     "./assignment": {
       "types": "./lib/types/assignment-protocol.d.ts",
       "default": "./lib/types/assignment-protocol.js"
+    },
+    "./execution": {
+      "types": "./lib/types/execution-schema.d.ts",
+      "default": "./lib/types/execution-schema.js"
     }
   },
   "files": [

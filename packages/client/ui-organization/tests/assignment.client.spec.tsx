@@ -14,7 +14,7 @@ import { Inbox } from '../src/client/Inbox.tsx'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
-function fixture(approved: boolean) {
+function fixture(approved: boolean, admin = false) {
   const organizationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationId>(randomUUID())
   const projectId = brandString<import('@deepseek-ai/dsh-organization').OrganizationProjectId>(randomUUID())
   const memberId = brandString<import('@deepseek-ai/dsh-organization').MembershipId>(randomUUID())
@@ -31,7 +31,7 @@ function fixture(approved: boolean) {
   const history = taskAssignmentsPageSchema.parse({ items: approved ? [prep.assignment] : [], total: approved ? 1 : 0, offset: 0, revision: 2, cursor: 'cursor' })
   const item = { assignment: prep.assignment, request: prep.request, notificationId: brandString<import('@deepseek-ai/dsh-organization').OrganizationNotificationId>(randomUUID()), readAt: null }
   let state: OrganizationDesktopSnapshot = { connection: { revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
-    organizations: [{ id: organizationId, membershipId: memberId, name: 'Team', role: 'member', version: 1 }], members: [] },
+    organizations: [{ id: organizationId, membershipId: memberId, name: 'Team', role: admin ? 'admin' : 'member', version: 1 }], members: admin ? [{ id: memberId, username: 'Alice', accountId: brandString(randomUUID()), accountVersion: 1, accountEnabled: true, enabled: true, version: 1, role: 'member' }] : [] },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
   const reply = (result: NonNullable<ConnectionResult['assignment']>['result']): ConnectionResult => ({ assignment: { generation: state.connection.generation, result } })
   const connection = vi.fn<OrganizationProps['connection']>(async (action) => {
@@ -59,7 +59,6 @@ it('requires version confirmation before approval and preserves the assignee dra
   render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
   const approve = await screen.findByRole('button', { name: zh.approveAssignment })
   expect((approve as HTMLButtonElement).disabled).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: zh.reviewApprovalAccess }))
   await screen.findByText(zh.approvalAccessReady)
   fireEvent.click(screen.getByRole('checkbox'))
   fireEvent.click(approve)
@@ -106,8 +105,54 @@ it('keeps dispatch disabled when the assignee has a visibility gap', async () =>
     return result
   })
   render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
-  fireEvent.click(await screen.findByRole('button', { name: zh.reviewApprovalAccess }))
   await screen.findByText(zh.approvalAccessMissing)
   expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.approveAssignment }).disabled).toBe(true)
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
+})
+
+
+it('grants only missing read access in place, preserves project write and still requires explicit dispatch', async () => {
+  const h = fixture(false, true), base = h.connection.getMockImplementation()!
+  let shared = false
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'grants') return { grants: [{
+      projectId: h.projectId, membershipId: h.prep.assignment.assigneeId, actions: ['write'], version: 7,
+    }] }
+    if (action.kind === 'workgraph-grants') return { workgraph: { generation: 1, requestId: brandString(randomUUID()),
+      organizationId: h.prep.assignment.organizationId,
+      principal: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()) },
+      result: { kind: 'grants', value: [] } } }
+    if (action.kind === 'workgraph-grant') { shared = true; return {} }
+    const result = await base(action)
+    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = shared
+    return result
+  })
+  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  expect(await screen.findByRole('option', { name: /Alice/ })).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button', { name: zh.shareTaskAccess }))
+  await screen.findByText(zh.approvalAccessReady)
+  expect(h.connection.mock.calls.find(([action]) => action.kind === 'command')?.[0]).toMatchObject({ command: {
+    kind: 'set-grant', membershipId: h.prep.assignment.assigneeId, actions: ['read', 'write'], expectedVersion: 7,
+  } })
+  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-grant')?.[0]).toMatchObject({ request: {
+    taskId: h.task.id, planId: h.task.planId, membershipId: h.prep.assignment.assigneeId, scope: 'node', actions: ['read'], expectedVersion: 0,
+  } })
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.approveAssignment }).disabled).toBe(true)
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
+})
+
+it('reports a partial access update without dispatching or replaying the failed write', async () => {
+  const h = fixture(false, true), base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'grants') return { grants: [] }
+    if (action.kind === 'workgraph-grants') throw new Error('unavailable')
+    const result = await base(action)
+    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = false
+    return result
+  })
+  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.shareTaskAccess }))
+  await screen.findByText(`${zh.partialAccessSaved} ${zh.unavailable}`)
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'command')).toHaveLength(1)
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
 })

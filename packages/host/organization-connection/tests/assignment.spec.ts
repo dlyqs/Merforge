@@ -218,3 +218,27 @@ it('keeps revoked read authority terminal after granting it again and clears inb
   expect(h.worker.snapshot().renewing).toBeUndefined()
   await expect(h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).rejects.toThrow()
 })
+
+it('uses fixed signed execution actions over HTTPS and preserves preparation-only permissions', async () => {
+  const h = await setup(), delegation = await acceptAndDelegate(h)
+  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
+  const lease = claimed.receipt!.lease!
+  const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
+  expect(current.delegations[0]?.capabilities).toEqual(['task-read'])
+  const base = { ...h.selector, planRevision: 1 }
+  const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
+    delegationId: delegation.delegationId, capabilities: ['model'], budget: 1, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
+  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
+    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run', operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
+  const runId = created.receipt!.execution!.runId!
+  const read = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
+  expect(read.execution?.run.state).toBe('prepared'); expect(read.execution?.delegation.used).toBe(0)
+  await h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'transition-run', state: 'running', operationId: randomUUID() } })
+  await h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'reserve-action', operationId: randomUUID(),
+    actionId: randomUUID(), capability: 'model', requestDigest: 'b'.repeat(64) } })
+  const after = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
+  expect(after.execution?.delegation.used).toBe(1)
+  await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, deviceId: randomUUID(), runId,
+    kind: 'transition-run', state: 'cancelled', operationId: randomUUID() } })).rejects.toThrow('invalid-input')
+})

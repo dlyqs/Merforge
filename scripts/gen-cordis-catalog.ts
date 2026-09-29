@@ -44,6 +44,7 @@ export { REGION_BEGIN, REGION_END }
  */
 export const SERVICE_PAGE: Record<string, string> = {
   organizationContext: 'session.md',
+  organizationExecution: 'session.md',
   speechToText: 'voice-input.md',
   speechController: 'voice-input.md',
   productTelemetry: 'product-telemetry.md',

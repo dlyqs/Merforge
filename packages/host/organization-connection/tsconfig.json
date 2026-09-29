@@ -22,6 +22,9 @@
     },
     {
       "path": "../../workspace/organization-context"
+    },
+    {
+      "path": "../../workspace/organization-execution"
     }
   ]
 }
