@@ -32,7 +32,7 @@ Electron 是唯一进程所有者。组织子进程从 Desktop Host 发行根解
 
 ## 身份和授权
 
-跨进程 ID 使用 `Branded`：ServerId、AccountId、OrganizationId、MembershipId、InvitationId、OperationId、OrganizationProjectId、OrganizationCursor；LoginToken 与 InvitationToken 也不能互换。账号名是实例内唯一、转小写的 ASCII `[a-z0-9][a-z0-9_.-]{2,63}`；密码保留原文字符，不 trim，12–1024 字符。组织名 1–120 字符。实例 ID 与账号 ID 一起标识身份，不按用户名跨服务合并。
+跨进程 ID 使用 `Branded`：ServerId、AccountId、OrganizationId、MembershipId、InvitationId、OperationId、OrganizationProjectId、OrganizationCursor；LoginToken 与 InvitationToken 也不能互换。账号名是实例内唯一、转小写的 ASCII `[a-z0-9][a-z0-9_.-]{2,63}`；密码保留原文字符，不 trim，8–1024 字符。组织名 1–120 字符。实例 ID 与账号 ID 一起标识身份，不按用户名跨服务合并。
 
 Account 含账号状态、密码摘要、版本；Membership 含组织、账号、`admin|member`、启用状态和版本，组织内账号唯一。首个账号是唯一服务恢复/账号管理员（bootstrap account）；组织管理员仅管理自己的组织。服务账号管理员可禁用其他账号；组织管理员不能凭组织身份影响该账号在其他组织的登录。禁用账号撤销全部登录；成员停用只影响该组织。任一组织始终保留至少一个启用账号下的启用管理员，禁止普通操作删去最后一个。管理权限不产生项目内容读取权限。
 

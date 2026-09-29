@@ -174,10 +174,12 @@ export class OrganizationConnection {
       switch (action.kind) {
         case 'probe': {
           this.trust = undefined; this.offer = undefined; this.serverId = undefined
-          this.publish({ origin: action.origin, offer: undefined, pendingOperation: undefined })
-          const offer = await probeOrganizationCertificate(action.origin, this.config.timeoutMs)
+          const input = action.origin.trim()
+          const origin = /^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : `https://${input}`
+          this.publish({ origin, offer: undefined, pendingOperation: undefined, error: undefined })
+          const offer = await probeOrganizationCertificate(origin, this.config.timeoutMs)
           if (generation !== this.generation) return {}
-          this.offer = { ...offer, origin: action.origin }
+          this.offer = { ...offer, origin }
           this.publish({ phase: 'untrusted', offer: { fingerprint: offer.fingerprint, expiresAt: offer.expiresAt } })
           return {}
         }

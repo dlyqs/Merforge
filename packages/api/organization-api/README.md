@@ -29,3 +29,5 @@ No model requests, tools, prompt text, tokens, Session events or KV-cache change
 The native connection and Desktop UI consume these routes. `GET /receipts/:operationId` resolves an uncertain write under the current account and applicable permission; it never resubmits a command. Stopped-service maintenance stays on the native private control surface. This API provides no personal file or attachment routes and no arbitrary URL proxy. A local principal able to replace service identity files is outside transport confidentiality guarantees.
 
 No invariant companion is published: sockets and admitted requests are owned directly by the service lifecycle; authorization reads the authority's committed SQLite records with no separate projection to compare.
+
+Certificate probes return stable errors for malformed origins, refused connections, unresolved hosts, timeouts, failed TLS connections and invalid certificates. The native setup UI localizes these errors; probes still require explicit trust before any credential is sent.

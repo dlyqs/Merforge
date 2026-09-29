@@ -1,5 +1,11 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  'invalid-origin': '服务地址无效，请填写 IP 或域名及端口，例如 192.168.1.100:19487。仅支持 HTTPS。',
+  'connection-refused': '无法连接此端口，请确认组织服务已启用，并核对 IP 和端口。',
+  'host-not-found': '找不到服务地址，请检查 IP 或域名。',
+  'connection-timeout': '连接超时，请检查网络、服务地址和防火墙。',
+  'connection-failed': '连接未能建立，请检查组织服务、网络及 HTTPS 配置。',
+  'certificate-invalid': '证书与连接地址不匹配或已过期，请检查服务端证书中的 IP / DNS、有效期及系统时间。',
   reviewApprovalAccess: '核验责任人查看权',
   approvalAccessReady: '责任人已具备项目和任务查看权；批准时仍会再次核验。',
   approvalAccessMissing: '责任人缺少项目或任务查看权。请先补齐授权，再重新核验；尚未下发。',
@@ -142,7 +148,7 @@ export const zh = {
   host: '绑定 IP', port: '端口', names: '客户端连接的 IP / DNS（逗号分隔）', save: '保存设置', autoStart: '随应用启动恢复服务',
   start: '启用服务', stop: '停止服务', fingerprint: '证书 SHA-256 指纹', expiry: '证书到期时间', renewal: '证书即将到期，请停服轮换并让客户端重新核验。',
   rotate: '停服后轮换证书', backup: '备份到新目录', restore: '从备份恢复', restoreConfirm: '恢复将保留当前库副本，撤销所有旧登录与邀请并更换恢复凭证。确认继续？',
-  initialize: '首次初始化', orgName: '组织名称', username: '账号名', password: '密码（至少 12 字符）', recovery: '恢复凭证',
+  initialize: '首次初始化', orgName: '组织名称', username: '账号名', password: '密码（至少 8 字符）', recovery: '恢复凭证',
   secret: '生成恢复凭证', savedSecret: '我已另行安全保存此恢复凭证', recover: '恢复管理员', oldRecovery: '原恢复凭证', newPassword: '新密码',
   origin: '服务地址（https://IP:端口）', probe: '测试连接并查看证书', trust: '已与服务机核对指纹，信任此证书',
   verify: '请通过服务机设置核对完整指纹，再允许发送账号和密码。', login: '登录', logout: '退出账号', register: '使用邀请创建账号', invitation: '一次性邀请凭证', accept: '当前账号接受邀请',
@@ -163,6 +169,12 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  'invalid-origin': 'Invalid service address. Enter an IP or hostname and port, such as 192.168.1.100:19487. Only HTTPS is supported.',
+  'connection-refused': 'Connection refused. Check that the organization service is running and verify its IP and port.',
+  'host-not-found': 'Service address not found. Check the IP or hostname.',
+  'connection-timeout': 'Connection timed out. Check the network, service address and firewall.',
+  'connection-failed': 'Connection could not be established. Check the organization service, network and HTTPS settings.',
+  'certificate-invalid': 'The certificate does not match the address or has expired. Check its IP / DNS names, validity and the system clock.',
   reviewApprovalAccess: 'Check assignee visibility',
   approvalAccessReady: 'The assignee can read the project and task. Approval will check again.',
   approvalAccessMissing: 'The assignee lacks project or task read access. Add grants, then check again. Nothing has been dispatched.',
@@ -305,7 +317,7 @@ export const en: Record<OrganizationKey, string> = {
   host: 'Bind IP', port: 'Port', names: 'Connection IP / DNS names (comma separated)', save: 'Save settings', autoStart: 'Restore service on application startup',
   start: 'Start service', stop: 'Stop service', fingerprint: 'Certificate SHA-256 fingerprint', expiry: 'Certificate expires', renewal: 'Certificate expires soon. Stop and rotate it, then verify again on each client.',
   rotate: 'Rotate stopped certificate', backup: 'Back up to a new directory', restore: 'Restore from backup', restoreConfirm: 'Restore preserves the current database, revokes old logins and invitations, and rotates the recovery secret. Continue?',
-  initialize: 'Initialize once', orgName: 'Organization name', username: 'Username', password: 'Password (at least 12 characters)', recovery: 'Recovery secret',
+  initialize: 'Initialize once', orgName: 'Organization name', username: 'Username', password: 'Password (at least 8 characters)', recovery: 'Recovery secret',
   secret: 'Generate recovery secret', savedSecret: 'I have saved this recovery secret securely', recover: 'Recover administrator', oldRecovery: 'Previous recovery secret', newPassword: 'New password',
   origin: 'Service address (https://IP:port)', probe: 'Test connection and inspect certificate', trust: 'I verified the fingerprint on the server; trust this certificate',
   verify: 'Compare the full fingerprint with the server settings before sending credentials.', login: 'Sign in', logout: 'Sign out', register: 'Create account with invitation', invitation: 'Single-use invitation', accept: 'Accept invitation as current account',

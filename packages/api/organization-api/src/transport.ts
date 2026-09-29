@@ -16,7 +16,11 @@ export interface CertificateOffer { certificate: string; fingerprint: string; ex
 export interface OrganizationTrust extends CertificateOffer { origin: string; timeoutMs: number; maxResponseBytes: number }
 
 function originUrl(origin: string): URL {
-  const url = new URL(origin)
+  let url: URL
+  try { url = new URL(origin) } catch (error) {
+    if (error instanceof TypeError) throw new Error('invalid-origin')
+    throw error
+  }
   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid-origin')
   return url
 }
@@ -36,7 +40,13 @@ export async function probeOrganizationCertificate(origin: string, timeoutMs: nu
     const socket = connect({ host: hostname(url), port: Number(url.port || 443), rejectUnauthorized: false,
       servername: isIP(hostname(url)) ? undefined : hostname(url) })
     socket.setTimeout(timeoutMs, () => socket.destroy(new Error('connection-timeout')))
-    socket.once('error', reject)
+    socket.once('error', (error: NodeJS.ErrnoException) => {
+      const code = error.code
+      reject(new Error(code === 'ECONNREFUSED' ? 'connection-refused'
+        : code === 'ENOTFOUND' || code === 'EAI_AGAIN' ? 'host-not-found'
+          : code === 'ETIMEDOUT' || error.message === 'connection-timeout' ? 'connection-timeout'
+            : 'connection-failed'))
+    })
     socket.once('secureConnect', () => {
       try {
         const certificate = new X509Certificate(socket.getPeerCertificate().raw)

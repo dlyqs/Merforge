@@ -22,7 +22,7 @@ vi.mock('node:fs', async (importOriginal) => {
 
 const cleanup: (() => unknown)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
-const password = 'correct horse battery staple'
+const password = 'eight123'
 const token = () => randomBytes(32).toString('base64url')
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'org-connection-'))
@@ -39,7 +39,8 @@ async function setup() {
   const connect = async () => {
     const connection = new OrganizationConnection({ reconnectMs: 100, trustPath: join(root, `client-${clientNumber++}.json`) })
     cleanup.push(() => connection.close())
-    await connection.perform({ kind: 'probe', origin: `https://127.0.0.1:${app.ready.port}` })
+    await connection.perform({ kind: 'probe', origin: `  127.0.0.1:${app.ready.port}  ` })
+    expect(connection.snapshot().origin).toBe(`https://127.0.0.1:${app.ready.port}`)
     expect(connection.snapshot().phase).toBe('untrusted')
     await connection.perform({ kind: 'trust', fingerprint: app.ready.fingerprint })
     return connection
@@ -316,4 +317,13 @@ it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining
   await restored.authority.readProject(current.token, { organizationId, projectId: project.projectId }, (value) => {
     expect(value.name).toBe('Legacy project')
   })
+})
+
+it('reports invalid addresses and clears the previous error when probing again', async () => {
+  const h = await setup()
+  await expect(h.owner.perform({ kind: 'probe', origin: 'https://' })).rejects.toThrow('invalid-origin')
+  expect(h.owner.snapshot().error).toBe('invalid-origin')
+  await h.owner.perform({ kind: 'probe', origin: `127.0.0.1:${h.app.ready.port}` })
+  expect(h.owner.snapshot().error).toBeUndefined()
+  expect(h.owner.snapshot().offer?.fingerprint).toBe(h.app.ready.fingerprint)
 })

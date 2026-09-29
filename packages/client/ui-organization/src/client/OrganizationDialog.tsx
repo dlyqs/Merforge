@@ -43,7 +43,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const root = useRef<HTMLDivElement>(null)
   const focusTarget = useRef<HTMLHeadingElement>(null)
   const value = (key: string) => fields[key] ?? ''
-  const set = (key: string, text: string) => { setFields(previous => ({ ...previous, [key]: text })) }
+  const set = (key: string, text: string) => { setNotice(null); setFields(previous => ({ ...previous, [key]: text })) }
   useEffect(() => { setInvitation(''); setNotice(null); setFields({}); setProject(null) }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   useEffect(() => { setAutoStart(state.server.settings.restoreOnLaunch) }, [state.server.settings.restoreOnLaunch])
   useEffect(() => {
@@ -57,6 +57,18 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     const code = Object.keys(zh).find(key => message === key || message.endsWith(`: ${key}`)) as OrganizationKey | undefined
     return t(code ?? 'failure')
   }
+  useEffect(() => {
+    if (c.error) setNotice({ text: labelError(new Error(c.error)), error: true })
+  }, [c.error])
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => { setNotice(null) }, 6000)
+    return () => { clearTimeout(timer) }
+  }, [notice])
+  useEffect(() => {
+    const origin = c.origin
+    if (origin) setFields(previous => ({ ...previous, origin }))
+  }, [c.origin])
   const run = async (operation: () => Promise<unknown>) => {
     setBusy(true); setNotice(null)
     try { await operation(); setNotice({ text: t('success'), error: false }) }
@@ -131,8 +143,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
       <div className={css.content}>
         <div className={css.sectionHeading}>{task && <Button size="sm" aria-label={t('back')} icon={<IconChevronLeftOutlineRegular />} disabled={busy} onClick={() => { navigate(null) }} />}<h3 ref={focusTarget} tabIndex={-1}>{t(task ?? sectionLabels[section])}</h3></div>
         {!props.available ? <p className={css.empty}>{t('desktopOnly')}</p> : <>
-          {c.error && <p className={css.error} role="alert">{labelError(new Error(c.error))}</p>}
-          {notice && <p className={notice.error ? css.error : css.notice} role={notice.error ? 'alert' : 'status'}>{notice.text}</p>}
+          {notice && <p className={notice.error ? css.error : css.notice} role={notice.error ? 'alert' : 'status'}>{notice.text} <Button size="sm" onClick={() => { setNotice(null) }}>{t('close')}</Button></p>}
           {busy && <p className={css.muted} role="status">{t('working')}</p>}
           {c.pendingOperation && <div className={css.notice}><p>{t('pending')}</p>{button('reconcile', () => connect({ kind: 'reconcile' }), !c.principal)}</div>}
           {invitation && <label className={css.field}>{t('invitation')}<output className={css.secret}>{invitation}</output><small>{t('invitationHint')}</small></label>}
@@ -155,10 +166,10 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             </section>
             {form(() => connect({ kind: 'login', username: value('username'), password: value('password') }), <>{input('username')}{input('password', 'password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('username') || !value('password'))}
           </>}
-          {task === 'register' && form(() => connect({ kind: 'register', invitationToken: value('invitation'), username: value('username'), password: value('password') }), <><p className={css.muted}>{t('registerHint')}</p>{input('invitation')}{input('username')}{input('password', 'password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('invitation') || !value('username') || value('password').length < 12)}
+          {task === 'register' && form(() => connect({ kind: 'register', invitationToken: value('invitation'), username: value('username'), password: value('password') }), <><p className={css.muted}>{t('registerHint')}</p>{input('invitation')}{input('username')}{input('password', 'password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('invitation') || !value('username') || value('password').length < 8)}
           {task === 'accept' && form(() => command({ kind: 'accept-invitation', invitationToken: value('invitation') }), input('invitation'), !writable || !value('invitation'))}
           {task === 'createOrg' && form(() => command({ kind: 'create-organization', name: value('orgName') }), input('orgName'), !writable || !value('orgName').trim())}
-          {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}</>, !writable || !value('password') || value('newPassword').length < 12)}
+          {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}</>, !writable || !value('password') || value('newPassword').length < 8)}
           {!task && section === 'inbox' && <Inbox {...props} />}
           {!task && section === 'projects' && !project && <>
             <p className={css.muted}>{t('scope')}</p>
@@ -193,8 +204,8 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <section className={css.card}><h4>{t('maintenance')}</h4><p className={css.muted}>{t('maintenanceHint')}</p><div className={css.actions}>{button('backup', () => server({ kind: 'backup' }), !stopped)}{launch('restore', !stopped)}{button('rotate', () => server({ kind: 'rotate-certificate' }), !stopped)}</div></section>
           </>}
           {task === 'configure' && form(() => server({ kind: 'configure', settings: { host: fields.host ?? state.server.settings.host, port: Number(fields.port ?? state.server.settings.port), names: (fields.names ?? state.server.settings.names.join(',')).split(',').map(name => name.trim()), restoreOnLaunch: autoStart } }), <div className={css.fieldsGrid}>{input('host', 'text', state.server.settings.host)}{input('port', 'number', String(state.server.settings.port))}<div className={css.fullWidth}>{input('names', 'text', state.server.settings.names.join(','))}</div><label className={css.check}><input type="checkbox" checked={autoStart} onChange={(event) => { setAutoStart(event.target.checked) }} />{t('autoStart')}</label></div>, !stopped)}
-          {task === 'initialize' && form(() => server({ kind: 'initialize', username: value('username'), password: value('password'), organizationName: value('orgName'), recoveryToken: secret }), <>{input('orgName')}<div className={css.fieldsGrid}>{input('username')}{input('password', 'password')}</div>{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('orgName').trim() || !value('username') || value('password').length < 12)}
-          {task === 'recover' && form(() => server({ kind: 'recover', recoveryToken: value('oldRecovery'), newRecoveryToken: secret, newPassword: value('newPassword') }), <>{input('oldRecovery', 'password')}{input('newPassword', 'password')}{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('oldRecovery') || value('newPassword').length < 12)}
+          {task === 'initialize' && form(() => server({ kind: 'initialize', username: value('username'), password: value('password'), organizationName: value('orgName'), recoveryToken: secret }), <>{input('orgName')}<div className={css.fieldsGrid}>{input('username')}{input('password', 'password')}</div>{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('orgName').trim() || !value('username') || value('password').length < 8)}
+          {task === 'recover' && form(() => server({ kind: 'recover', recoveryToken: value('oldRecovery'), newRecoveryToken: secret, newPassword: value('newPassword') }), <>{input('oldRecovery', 'password')}{input('newPassword', 'password')}{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('oldRecovery') || value('newPassword').length < 8)}
           {task === 'restore' && <><p className={css.notice}>{t('restoreConfirm')}</p>{button('restore', () => server({ kind: 'restore' }), !stopped, true)}{secret && <label className={css.field}>{t('recovery')}<output className={css.secret}>{secret}</output><small>{t('recoveryHint')}</small></label>}</>}
         </>}
       </div>

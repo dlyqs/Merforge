@@ -34,3 +34,5 @@ The [WorkGraph acceptance script](../../../docs/organization-workgraph-acceptanc
 No invariant companion is published: this plugin renders the native owner's snapshot and has no second authority. The composition test checks registration/disposal without mounting a page; native integration tests own isolation and race coverage.
 
 The circular avatar occupies `sidebar.account` at the primary rail top. It opens a centered account dialog listing Personal and available organizations, with the active workspace marked from native state. Failed selections remain open. Account management opens the connection workspace. Keyboard focus remains inside the dialog and returns to the avatar on dismissal; motion respects reduced-motion preferences.
+
+Organization setup accepts an address without a scheme; the native connection trims it and adds HTTPS before probing, and the form shows the normalized address. Password creation and changes require at least eight characters. Operation feedback appears once, clears on editing or navigation, can be dismissed, and expires after six seconds; connection status and pending-write reconciliation remain visible.

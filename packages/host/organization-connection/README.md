@@ -40,3 +40,5 @@ One selected service per Desktop at a time. No offline mutation queue, permanent
 No invariant companion is published: the owner has one generation-controlled snapshot and no independent replicated authority to compare. The server rechecks access on each read and delivery; real YAML/TLS tests cover this relationship.
 
 The Desktop bridge also declares the fixed read-only `context` selector. Electron coordinates it with its personal Host over private Node IPC, using this connection’s online task reads, generation and timeout. This connection never uploads local Session IDs or snapshots to the organization authority.
+
+Certificate probes trim entered addresses and add HTTPS when the scheme is omitted. Explicit non-HTTPS schemes remain invalid. The normalized address is published before probing; certificate hostname and validity checks still apply. Probe errors distinguish invalid addresses, refused connections, missing hosts, timeouts and invalid certificates.
