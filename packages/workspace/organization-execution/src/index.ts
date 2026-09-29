@@ -1,4 +1,5 @@
 /** Isolated, durable Run/Session coordination and restricted execution intervals. */
+import { inspectDirectory, inspectActions } from './recovery.ts'
 import { localModelSchema, executionAdapter } from './model.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import type { LlmAdapter } from '@deepseek-ai/dsh-llm'
@@ -114,17 +115,23 @@ export default class OrganizationExecution extends Service {
       const state = this.state
       if (!state || this.closing) throw new Error('organization-execution: unavailable')
       const saved = state.get(), binding = saved.bindings.find(item => item.sessionId === prepared.sessionId)
-      if (!binding || binding.state !== 'ready') throw new Error('organization-execution: explicit-reconciliation-required')
+      if (!binding || (!request.resume && binding.state !== 'ready') || (request.resume && !['stopped', 'executing'].includes(binding.state))) throw new Error('organization-execution: explicit-reconciliation-required')
       const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = prepared.run
       const transition = (status: 'running' | 'paused' | 'succeeded') => online(executionCommandSchema.parse({
         ...selector, runId: id, kind: 'transition-run', state: status, operationId: randomUUID(),
       }))
+      if (request.resume && !await this.reconcileActions(prepared, online, request.resume.baselineDigest, limits.maxBytes, lifetime)) {
+        throw new Error('organization-execution: reconciliation-required')
+      }
       await state.set({ ...saved, bindings: saved.bindings.map(item => item.sessionId === prepared.sessionId ? { ...item, state: 'executing' } : item) })
       try {
-        const authority = executionAuthoritySchema.parse(await transition('running'))
+        const authority = executionAuthoritySchema.parse(await (request.resume
+          ? online(executionCommandSchema.parse({ ...selector, runId: id, kind: 'resume-run', operationId: randomUUID() }))
+          : transition('running')))
         lifetime.throwIfAborted()
-        await runExecution(prepared, authority, online, runtime.adapter, this.config.root, runtime.directory, limits, lifetime)
-        await transition('succeeded')
+        const result = await runExecution(prepared, authority, online, runtime.adapter, this.config.root, runtime.directory,
+          limits, lifetime, request.resume?.baselineDigest)
+        if (result === 'completed') await transition('succeeded')
       } catch (error) {
         // Stopping cannot restore an old lease; failed transport leaves authority reconciliation pending.
         await transition('paused').catch((stopError: unknown) => {
@@ -140,6 +147,53 @@ export default class OrganizationExecution extends Service {
     const settled = execute.finally(() => { this.running.delete(cancel) })
     this.tail = settled.then(() => {}, () => {})
     return settled
+  }
+  /**
+   * Report historical device evidence without granting permission or starting a model.
+   * @param request - Original inputs and explicitly reviewed local baseline.
+   * @param bridge - Fresh native task read and historical device settlement channel.
+   * @param signal - Native request and identity lifetime.
+   * @returns Original local binding after evidence reporting; unresolved effects remain unknown.
+   */
+  async reconcile(request: ExecutionRequest, bridge: ExecutionBridge, signal: AbortSignal): Promise<ExecutionResult> {
+    if (!request.reconcile || !request.resume || request.start) throw new Error('organization-execution: invalid-reconciliation')
+    const prepared = await this.open(request, () => bridge(), signal)
+    const limits = this.config.executionLimits
+    if (!limits) throw new Error('organization-execution: execution-disabled')
+    const cancel = new AbortController(), lifetime = AbortSignal.any([signal, cancel.signal])
+    this.running.add(cancel)
+    const baseline = request.resume.baselineDigest
+    const work = this.tail.then(async () => {
+      if (this.closing) throw new Error('organization-execution: unavailable')
+      await this.reconcileActions(prepared, bridge, baseline, limits.maxBytes, lifetime)
+      return prepared
+    }).finally(() => { this.running.delete(cancel) })
+    this.tail = work.then(() => {}, () => {})
+    return work
+  }
+  private async reconcileActions(binding: ExecutionResult, online: ExecutionBridge, baseline: string,
+    maxBytes: number, signal: AbortSignal): Promise<boolean> {
+    signal.throwIfAborted()
+    if (!binding.inputs.execution) throw new Error('organization-execution: explicit-local-authorization-required')
+    const observed = await inspectDirectory(binding.inputs.execution.directory, maxBytes)
+    if (observed.digest !== baseline) throw new Error('organization-execution: baseline-changed')
+    const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = binding.run
+    let authority = await online()
+    if (authority.execution.run.state === 'running') authority = await online(executionCommandSchema.parse({ ...selector, runId: id,
+      kind: 'transition-run', state: 'paused', operationId: randomUUID() }))
+    const reader = await this.isolated.sessionPersistence.open(binding.sessionId, 'read')
+    try {
+      const facts = inspectActions((await reader.read()).events, authority, observed.files)
+      for (const record of facts.settlements) {
+        signal.throwIfAborted()
+        await online(executionCommandSchema.parse({ ...selector, runId: id, kind: 'settle-action', operationId: randomUUID(),
+          actionId: record.action.actionId, outcome: record.outcome, evidenceDigest: record.evidenceDigest }))
+      }
+      signal.throwIfAborted()
+      const unknown = facts.actions.filter(a => a.status === 'unknown').length
+      this.ctx.logger.info('organization component=recovery runId=%s reported=%s unknown=%s result=checked', id, facts.settlements.length, unknown)
+      return unknown === 0
+    } finally { await reader.close() }
   }
   /**
    * Execute through the configured local model and current organization outbound policy.
@@ -206,12 +260,21 @@ export default class OrganizationExecution extends Service {
       for (const event of events) {
         if (event.type === 'assistant/message') {
           report.entries.push({ role: 'assistant', text: event.data.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
+        } else if (event.type === 'tool/call') {
+          report.entries.push({ role: 'tool', text: `${event.data.name}\n${event.data.arguments}` })
+        } else if (event.type === 'user/message') {
+          report.entries.push({ role: 'user', text: event.data.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
         } else if (event.type === 'tool/result') {
           report.entries.push({ role: 'tool', text: event.data.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
         }
       }
       const limit = this.config.executionLimits?.maxBytes
       if (!limit) throw new Error('organization-execution: execution-disabled')
+      if (binding.inputs.execution && ['executing', 'stopped'].includes(binding.state)) {
+        const directory = await inspectDirectory(binding.inputs.execution.directory, limit).catch((_error: unknown) => undefined)
+        report.recovery = { inputs: binding.inputs, baselineDigest: directory?.digest ?? null,
+          actions: inspectActions(events, first, directory?.files).actions }
+      }
       while (Buffer.byteLength(JSON.stringify(report)) > limit && report.entries.length) {
         report.truncated = true; report.entries.shift()
       }
@@ -243,7 +306,9 @@ export default class OrganizationExecution extends Service {
           || action.executionDelegationId !== binding.run.executionDelegationId || action.deviceId !== binding.run.deviceId
           || action.planRevision !== binding.run.planRevision || action.serverEpoch !== binding.run.serverEpoch
           || action.fencingEpoch !== binding.run.fencingEpoch || !binding.inputs.capabilities.includes(action.capability)
-          || (previous && JSON.stringify(previous.action) !== JSON.stringify(action))
+          || (previous && (JSON.stringify(previous.action) !== JSON.stringify(action)
+            || JSON.stringify(previous.file) !== JSON.stringify(evidence.file)))
+          || (evidence.file !== undefined && action.capability !== 'fs-write')
           || (evidence.stage === 'reserved' ? previous !== undefined
             : evidence.stage === 'issued' ? previous?.stage !== 'reserved'
               : previous === undefined || previous.stage === 'settled'
@@ -284,6 +349,33 @@ export default class OrganizationExecution extends Service {
     const check = () => { signal.throwIfAborted(); if (!this.state || this.closing) throw new Error('organization-execution: unavailable') }
     check()
     const first = executionAuthoritySchema.parse(await authorize()); check()
+    if (request.resume) {
+      const binding = this.state?.get().bindings.find(b => b.run.id === request.runId
+        && b.owner.serverId === first.serverId && b.owner.accountId === first.accountId)
+      const validateResume = (authority: ExecutionAuthority) => {
+        check()
+        if (!binding || (!request.start && !request.reconcile) || (!request.reconcile && !authority.execution.eligible)
+          || (!request.reconcile && !['running', 'paused', 'waiting-human'].includes(authority.execution.run.state))
+          || !['executing', 'stopped'].includes(binding.state)
+          || authority.serverId !== first.serverId || authority.accountId !== first.accountId || authority.generation !== first.generation
+          || authority.execution.run.id !== request.runId || authority.execution.run.assignmentId !== request.assignmentId
+          || authority.execution.run.planId !== request.planId || authority.execution.run.projectId !== request.projectId
+          || authority.execution.run.organizationId !== request.organizationId
+          || authority.execution.run.serverEpoch !== binding.run.serverEpoch
+          || authority.execution.run.fencingEpoch !== binding.run.fencingEpoch
+          || authority.execution.run.deviceId !== binding.run.deviceId
+          || authority.execution.run.executionDelegationId !== binding.run.executionDelegationId
+          || authority.task.revision !== binding.run.planRevision
+          || (!request.reconcile && authority.execution.delegation.used >= authority.execution.delegation.budget)
+          || executionInputsDigest(request.inputs) !== binding.run.configDigest) throw new Error('organization-execution: resume-qualification-required')
+      }
+      validateResume(first)
+      if (!binding) throw new Error('organization-execution: unavailable')
+      await this.verify(binding, false)
+      validateResume(executionAuthoritySchema.parse(await authorize()))
+      const { createdAt: _createdAt, state: _state, ...result } = binding
+      return executionResultSchema.parse(result)
+    }
     const validate = (a: ExecutionAuthority) => {
       const r = a.execution.run, original = a.context.owner
       if (!a.execution.eligible || r.state !== 'prepared' || r.id !== request.runId || r.assignmentId !== request.assignmentId

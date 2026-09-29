@@ -2,19 +2,21 @@
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { executionReadSchema, executionViewSchema, executionCapabilitySchema, executionModelSchema, executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
+import { executionReadSchema, executionActionSchema, executionViewSchema, executionCapabilitySchema, executionModelSchema, executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import { contextAuthoritySchema, contextResultSchema, contextRequestSchema } from '@deepseek-ai/dsh-organization-context/protocol'
 /** Non-secret local model selection and exact user-authorized inputs. */
 export const executionInputsSchema = z.object({ model: z.string().min(1).max(200),
   endpoint: executionModelSchema.shape.endpoint.optional(),
   capabilities: z.array(executionCapabilitySchema).min(1).max(4),
+  requireWriteApproval: z.boolean().optional(),
   execution: z.object({ directory: z.string().min(1), maxActions: z.number().int().positive(),
     maxSteps: z.number().int().positive(), maxDurationMs: z.number().int().positive() }).strict().optional(),
   materials: z.array(z.string().max(32768)).max(32), messages: z.array(z.string().max(32768)).max(32),
 }).strict()
 /** Exact Run and local inputs; execution starts only with the explicit start flag. */
 export const executionRequestSchema = executionReadSchema.extend({ operationId: contextRequestSchema.shape.operationId,
-  inputs: executionInputsSchema, start: z.boolean().optional() }).strict()
+  inputs: executionInputsSchema, start: z.boolean().optional(), reconcile: z.boolean().optional(),
+  resume: z.object({ baselineDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional() }).strict()
 /** Native identity, current task view, original context and online execution qualification. */
 export const executionAuthoritySchema = contextAuthoritySchema.extend({ context: contextResultSchema,
   execution: executionViewSchema }).strict()
@@ -43,6 +45,9 @@ export const executionReadAuthoritySchema = contextAuthoritySchema.pick({ server
 /** Bounded local conversation page, visible only to its original employee. */
 export const executionReportSchema = z.object({ runId: executionReadSchema.shape.runId,
   entries: z.array(z.object({ role: z.enum(['user', 'assistant', 'tool']), text: z.string() }).strict()),
+  recovery: z.object({ inputs: executionInputsSchema, baselineDigest: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+    actions: z.array(z.object({ actionId: executionActionSchema.shape.actionId, status: z.enum(['not-issued', 'confirmed', 'unknown']), reason: z.enum(['journal-before-issue', 'durable-result', 'file-matches', 'file-changed', 'missing-evidence', 'unobservable']) }).strict()),
+  }).strict().optional(),
   truncated: z.boolean(), state: z.enum(['reserved', 'ready', 'executing', 'stopped']),
 }).strict()
 /** Exact Run selector for a local report. */

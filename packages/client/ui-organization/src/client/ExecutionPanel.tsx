@@ -7,6 +7,7 @@ import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionResult, OrganizationDesktopBridge } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
 import type { OrganizationKey } from './locales.ts'
+import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
@@ -19,6 +20,8 @@ function executionError(error: unknown): OrganizationKey {
   if (/action-limit|step-limit|duration-limit|size-limit|explicit-local-authorization-required/.test(code)) return 'executionLimitReached'
   if (/directory-|path-escape|linked-path|invalid-relative-path/.test(code)) return 'executionDirectoryDenied'
   if (/reconciliation-required|permit-unconfirmed/.test(code)) return 'executionUnknown'
+  if (/baseline-changed/.test(code)) return 'executionBaselineChanged'
+  if (/resume-qualification-required/.test(code)) return 'executionRenewRequired'
   if (/authority-lost|permit-expired|permit-revoked|superseded/.test(code)) return 'qualificationRecheck'
   return workgraphError(error)
 }
@@ -34,6 +37,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   const [model, setModel] = useState(''), [endpoint, setEndpoint] = useState(''), [directory, setDirectory] = useState('')
   const [actions, setActions] = useState(''), [steps, setSteps] = useState(''), [minutes, setMinutes] = useState('')
   const [message, setMessage] = useState(''), [read, setRead] = useState(false), [write, setWrite] = useState(false)
+  const [writeApproval, setWriteApproval] = useState(false)
+  const [resumeConfirmed, setResumeConfirmed] = useState(false)
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [stopping, setStopping] = useState(false)
   const [notice, setNotice] = useState('')
   const [report, setReport] = useState<Awaited<ReturnType<OrganizationDesktopBridge['executionReport']>>>()
@@ -86,6 +91,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       const delegation = p.delegations.find(d => d.deviceId === lease.deviceId && d.state === 'active')
       if (!delegation) throw new Error('forbidden')
       const inputs: Inputs = { model, endpoint, capabilities: ['model', ...(read ? ['fs-read' as const] : []), ...(write ? ['fs-write' as const] : [])],
+        requireWriteApproval: writeApproval,
         execution: { directory, maxActions: Number(actions), maxSteps: Number(steps), maxDurationMs: Number(minutes) * 60000 },
         materials: [], messages: [message] }
       const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(inputs))); current()
@@ -113,8 +119,21 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       const r = view.run
       const result = await props.executionReport({ organizationId: r.organizationId, projectId: r.projectId,
         planId: r.planId, assignmentId: r.assignmentId, runId: r.id })
-      if (alive.current) setReport(result)
+      if (alive.current) { setReport(result); setResumeConfirmed(false) }
     } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
+  }
+  const resume = async (view: OrganizationExecutionView, reconcile = false) => {
+    const recovery = report?.report.recovery
+    if (!resumeConfirmed || !recovery?.baselineDigest || report?.report.runId !== view.run.id) return
+    setBusy(true)
+    try {
+      const r = view.run
+      await props.execution({ organizationId: r.organizationId, projectId: r.projectId, planId: r.planId,
+        assignmentId: r.assignmentId, runId: r.id, operationId: randomUUID() as Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'],
+        inputs: recovery.inputs, start: !reconcile, reconcile, resume: { baselineDigest: recovery.baselineDigest } })
+      if (alive.current) { setReport(undefined); await load() }
+    } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
+    finally { if (alive.current) { setBusy(false); setResumeConfirmed(false) } }
   }
   const stop = async (view: OrganizationExecutionView, state: 'paused' | 'cancelled') => {
     setStopping(true)
@@ -140,6 +159,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       <label>{t('executionMessage')}<Input required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
       <Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
       <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
+      <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} />
       <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
       <Button type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button>
     </form>}
@@ -149,8 +169,23 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
       {!view.eligible && <p>{t('qualificationRecheck')}</p>}
       {view.actions.some(a => a.state === 'unknown') && <p role="alert">{t('executionUnknown')}</p>}
+      {preparation && view.humanRequests.map(request => <ExecutionHumanRequest key={`${c.generation}:${request.id}`} {...props} request={request} assignment={preparation.assignment} refresh={load} />)}
       {mine && <Button onClick={() => { void readReport(view) }}>{t('executionTranscript')}</Button>}
-      {mine && ['prepared', 'running', 'paused'].includes(view.run.state) && <div className={css.actions}>
+      {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section>
+        <h5>{t('executionRecovery')}</h5><p>{t('executionRecoveryHint')}</p>
+        <p>{t('executionDirectory')}: {report.report.recovery.inputs.execution?.directory}</p>
+        <code>{report.report.recovery.baselineDigest}</code>
+        {!report.report.recovery.baselineDigest && <p role="alert">{t('executionBaselineUnavailable')}</p>}
+        {report.report.recovery.actions.map(action => <p key={action.actionId}>{action.actionId} · {t(`recovery-${action.reason}`)}</p>)}
+        {!view.eligible && <p role="alert">{t('executionRenewRequired')}</p>}
+        <Checkbox label={t('executionResumeConfirm')} checked={resumeConfirmed} onChange={setResumeConfirmed} />
+        <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !report.report.recovery.baselineDigest}
+          onClick={() => { void resume(view, true) }}>{t('executionReconcile')}</Button>
+        <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !view.eligible || !report.report.recovery.baselineDigest
+          || report.report.recovery.actions.some(a => a.status === 'unknown') || view.humanRequests.some(h => !['answered', 'approved', 'denied'].includes(h.state))}
+        onClick={() => { void resume(view) }}>{t('executionResume')}</Button>
+      </section>}
+      {mine && ['prepared' , 'running', 'paused', 'waiting-human'].includes(view.run.state) && <div className={css.actions}>
         <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'paused') }}>{t('executionPause')}</Button>
         <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'cancelled') }}>{t('executionCancel')}</Button>
       </div>}

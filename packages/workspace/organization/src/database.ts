@@ -1,5 +1,5 @@
 /** Organization-only SQLite schema, transaction ownership and durable validation. */
-import { executionDdl, validateExecutionDatabase } from './execution-database.ts'
+import { executionHumanDdl, executionDdl, validateExecutionDatabase } from './execution-database.ts'
 import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
 import { assignmentDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
 import { DatabaseSync } from 'node:sqlite'
@@ -12,7 +12,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 7
+export const ORGANIZATION_SCHEMA_VERSION = 8
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -81,10 +81,11 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
-        db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl + deviceDdl + executionDdl)
+        db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl + deviceDdl + executionDdl + executionHumanDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
-      } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 || stamp === 5 || stamp === 6) && app === applicationId) {
+      } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
+        stamp === 5 || stamp === 6 || stamp === 7) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -92,7 +93,8 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         else if (stamp < 4) db.exec(assignmentDdl)
         if (stamp < 5) db.exec(delegationDdl)
         if (stamp < 6) db.exec(deviceDdl)
-        db.exec(executionDdl)
+        if (stamp < 7) db.exec(executionDdl)
+        db.exec(executionHumanDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -163,6 +165,7 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
           WHERE a.id=? AND a.organizationId=? AND a.projectId=? AND a.planId=? AND a.planRevision=?
           AND ((e.kind='approve-assignment' AND a.createdRevision=e.revision AND a.approvedBy=m.id)
             OR (e.kind='revoke-assignment' AND a.version=e.revision AND a.state='revoked')
+            OR (e.kind IN ('answer-execution-question','approve-execution-tool') AND EXISTS (SELECT 1 FROM execution_human_requests h WHERE h.assignmentId=a.id AND json_extract(h.data,'$.handlerId')=m.id AND json_extract(h.data,'$.answeredRevision')=e.revision))
             OR (e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation') AND a.assigneeId=m.id
               AND EXISTS (SELECT 1 FROM assignment_actions x WHERE x.revision=e.revision AND x.assignmentId=a.id)))`)
           .get(receipt.revision, receipt.assignmentId, receipt.organizationId ?? null, receipt.projectId ?? null,

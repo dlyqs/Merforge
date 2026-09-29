@@ -1,5 +1,7 @@
 /** Fixed execution requests and durable facts; preparation permissions remain unchanged. */
 import { z } from 'zod'
+import { executionHumanSchema } from './execution-human-schema.ts'
+export { executionHumanSchema } from './execution-human-schema.ts'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { assignmentReadSchema, delegationIdSchema, deviceIdSchema } from './assignment-schema.ts'
 import { serverEpochSchema, fencingEpochSchema, deviceProofSchema, provenDeviceCommandSchema } from './device-schema.ts'
@@ -29,16 +31,26 @@ export const executionReadSchema = assignmentReadSchema.extend({ runId: id<Organ
 const runCommand = owner.extend({ runId: id<OrganizationRunId>() })
 /** Allocate one charged permission per actual attempt. */
 export const reserveActionSchema = runCommand.extend({ kind: z.literal('reserve-action'), actionId: id<OrganizationActionId>(),
-  capability: executionCapabilitySchema, requestDigest: executionDigestSchema }).strict()
+  capability: executionCapabilitySchema, requestDigest: executionDigestSchema,
+  approvalId: executionHumanSchema.shape.id.optional() }).strict()
 /** Original device reports only facts about a previously reserved action. */
 export const settleActionSchema = runCommand.extend({ kind: z.literal('settle-action'), actionId: id<OrganizationActionId>(),
   outcome: z.enum(['succeeded', 'failed', 'not-issued', 'unknown']), evidenceDigest: executionDigestSchema }).strict()
 /** Terminal Run facts are independent of submission and acceptance. */
 export const transitionRunSchema = runCommand.extend({ kind: z.literal('transition-run'),
   state: z.enum(['running', 'paused', 'succeeded', 'failed', 'cancelled']) }).strict()
+/** Persist a designated question or approval and stop this Run before further actions. */
+export const requestExecutionHumanSchema = runCommand.extend({ kind: z.literal('request-execution-human'),
+  requestId: executionHumanSchema.shape.id, handlerId: executionHumanSchema.shape.handlerId,
+  requestKind: executionHumanSchema.shape.kind, prompt: executionHumanSchema.shape.prompt,
+  expiresAt: executionHumanSchema.shape.expiresAt, actionId: executionHumanSchema.shape.actionId,
+  requestDigest: executionHumanSchema.shape.requestDigest,
+}).strict()
+/** Explicit continuation rechecks the current lease, budget and all outstanding facts. */
+export const resumeExecutionSchema = runCommand.extend({ kind: z.literal('resume-run') }).strict()
 /** Closed set of signed organization execution mutations. */
 export const executionCommandSchema = z.discriminatedUnion('kind', [grantExecutionSchema, revokeExecutionSchema, createRunSchema,
-  reserveActionSchema, settleActionSchema, transitionRunSchema])
+  reserveActionSchema, settleActionSchema, transitionRunSchema, requestExecutionHumanSchema, resumeExecutionSchema])
 /** Native signing accepts only fixed device or execution commands. */
 export const signedOrganizationCommandSchema = z.union([provenDeviceCommandSchema, executionCommandSchema])
 /** Strict HTTPS mutation envelope. */
@@ -50,7 +62,7 @@ export const executionDelegationSchema = grantExecutionSchema.omit({ kind: true,
 }).strict()
 /** Shared Run summary; contains neither local directory nor conversation. */
 export const executionRunSchema = createRunSchema.omit({ kind: true, operationId: true }).extend({
-  id: id<OrganizationRunId>(), state: z.enum(['prepared', 'running', 'paused', 'succeeded', 'failed', 'cancelled']),
+  id: id<OrganizationRunId>(), state: z.enum(['prepared', 'running', 'paused', 'waiting-human', 'succeeded', 'failed', 'cancelled']),
   createdRevision: integer.positive(), version: integer.positive(),
 }).strict()
 /** Charged action identity and retained result evidence. */
@@ -60,7 +72,8 @@ export const executionActionSchema = reserveActionSchema.omit({ kind: true, oper
 }).strict()
 /** Receipts refer to immutable operation snapshots; they never grant a fresh permission. */
 export const executionReceiptSchema = z.object({ executionDelegationId: id<OrganizationExecutionDelegationId>(),
-  runId: id<OrganizationRunId>().optional(), actionId: id<OrganizationActionId>().optional() }).strict()
+  runId: id<OrganizationRunId>().optional(), actionId: id<OrganizationActionId>().optional(),
+  requestId: executionHumanSchema.shape.id.optional() }).strict()
 /** Deployment-approved text model and exact HTTPS Messages root; redirects are forbidden. */
 export const executionModelSchema = z.object({ model: z.string().min(1).max(200),
   endpoint: z.url().refine((value) => {
@@ -71,7 +84,8 @@ export const executionModelSchema = z.object({ model: z.string().min(1).max(200)
 }).strict()
 /** Authorized Run read includes retained action facts and current delegation usage. */
 export const executionViewSchema = z.object({ run: executionRunSchema, delegation: executionDelegationSchema,
-  actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean(),
+  assigneeId: executionHumanSchema.shape.handlerId, approvedBy: executionHumanSchema.shape.handlerId,
+  humanRequests: z.array(executionHumanSchema), actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean(),
   modelPolicy: z.array(executionModelSchema).max(100) }).strict()
 
 /** Bounded current-authority Run history for one assignment. */

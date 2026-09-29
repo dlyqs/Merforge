@@ -4,7 +4,9 @@
 
 ## 下一阶段计划入口
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–4 工程完成；用户最新要求“做完 phase4 停下”，当前为 manual，Phase 5、6 未开始。SQLite v7 保存明确执行委托、Run、动作预算与结果。Desktop 已接通独立 Session、持续原生通道、模型与地址策略交集、逐动作许可、目录锁及有界文件读写，并提供显式开始、暂停、取消、分页预算摘要与本人本机记录。普通刷新不会取消自身 Run，身份失效仍阻止新动作，停止等待本机区间退出。真实 HTTPS/native/私有 IPC 与确定性模型组合已验证；收尾 71 项回归及新增记录读取关闭测试通过，相关编译和定向构建通过，未启动页面。真实模型测试因无密钥跳过。人工请求、恢复、产物、提交、验收与父级集成属于后续阶段。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–5 工程完成；按用户“请完成 phase5”的范围保持 manual，不进入 Phase 6。SQLite v8 新增准确 Run/版本的持久工作问题和文件审批，Inbox 与任务详情显示指定处理人及等待状态。资料答复、文件审批、正式验收各自独立；答复不自动唤醒模型。私有 Host 把答复写入持久 user/message 后才发送给模型。
+
+本机报告提供逐动作核对原因和有界目录指纹；恢复前重新读取实际文件、补报已有结果并检查权限、预算与目录变化，unknown 不自动重发。只核对历史动作在租约失效后仍可使用，但不会启动模型。原 server/fencing epoch 不能复活；失效后需核对并取消旧 Run，重新明确委托、领取并创建新 Run。Renderer 已禁止直接提交动作结果。完整日志、工具参数和目录信息仍仅本人本机可见。产物、员工正式提交、下发人验收与父级集成属于后续阶段。 本轮 146 项聚焦回归与补充的 19 项请求/原生回归通过，相关 TypeScript、局部 lint、i18n/配置/事件/类型路径门禁、Host/Client 定向构建及无窗口产物 smoke 通过。真实模型因缺少密钥跳过；既有 file-upload 依赖分类与 login-session 两处 JSDoc 缺项仍单列。用户可见验收待用户执行。
 
 领域、原生 HTTPS、真实 Loader/IPC、JSONL 重开、备份恢复、权限拒绝和 invariant 测试通过；Desktop 类型、局部 lint、入口、配置组合与事件门禁通过。全仓 file-upload 依赖分类、四处旧 invariant README、目录生成器解析限制和工作区另一项 login-session JSDoc 问题，单列于执行计划的 Phase 3 记录。完整发行构建、真实模型和用户可见验收留给后续阶段。
 
@@ -37,7 +39,7 @@ Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有
 | `packages/client/ui-organization` | 组织设置、账号/邀请、成员/项目/任务授权、共享任务工作台与本人只读上下文。 |
 | `packages/workspace/organization` | 独立 SQLite 账号/组织/成员/邀请/登录权威、WorkGraph 定义/版本/授权投影，事务回执、审计、限流和恢复；通过 Desktop 私有组织组合启动。 |
 | `packages/workspace/organization-context` | 本机预执行 Session 的隔离、原子预留、准确任务快照、在线权限复核与持久恢复。 |
-| `packages/workspace/organization-execution` | 本机 Run/Session 预留、独立 JSONL、逐动作许可、模型地址策略及有界执行；Desktop 显式开始/停止与本人记录读取。 |
+| `packages/workspace/organization-execution` | 本机 Run/Session 预留、独立 JSONL、逐动作许可、模型地址策略及有界执行；Desktop 显式开始/停止、持久人工请求、本人动作核对与显式继续。 |
 | `packages/workspace/personal-workflow` | 持久 Task、独立父子树/依赖图、原子计划版本与审核、幂等回执、Session 快照、Markdown 导出、任务领取、执行预算、证据和同机接力恢复。 |
 | `packages/client/ui-personal-workflow` | 任务树、阶段并列分支、详情编辑、准确版本审核、导出、输入框模式开关、任务选择与授权、暂停/取消/恢复和接力入口。 |
 | `packages/skill/skill-dev-workflow` | 固定版本的包内方法、模式上下文及受约束的目标评估/提案工具。 |
@@ -71,7 +73,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v7 身份、项目、计划定义、分配与执行记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v8 身份、项目、计划定义、分配与执行记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
 产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，尚无正式提交和验收。
 

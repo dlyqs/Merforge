@@ -13,10 +13,10 @@ const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
 const limits = { maxActions: 20, maxSteps: 10, maxDurationMs: 10000, maxBytes: 100000, recheckMs: 100 }
 async function setup(budget = 20, capabilities: ('model' | 'fs-read' | 'fs-write' | 'shell')[] = ['model', 'fs-read', 'fs-write'],
-  deployment = limits) {
+  deployment = limits, requireWriteApproval = false) {
   const local = await boot(undefined, deployment), directory = join(local.root, 'work')
   await mkdir(directory)
-  const inputs = { ...fixture().request.inputs, capabilities,
+  const inputs = { ...fixture().request.inputs, capabilities, requireWriteApproval,
     execution: { directory, maxActions: 20, maxSteps: 10, maxDurationMs: 10000 } }
   const parsedInputs = executionRequestSchema.shape.inputs.parse(inputs)
   const remote = await setupExecution(cleanup, budget, executionInputsDigest(parsedInputs), [...inputs.capabilities])
@@ -95,7 +95,7 @@ it('denies a revocation between reservation and dispatch, leaving zero file writ
   const adapter = new MockAdapter([toolCallResponse('write', 'write_file', { path: 'denied', content: 'no' })])
   await expect(h.service.execute(h.request, bridge, { adapter, directory: h.directory }, signal())).rejects.toThrow()
   expect(await readdir(h.directory)).toEqual([])
-  expect((await h.remote.read()).actions.at(-1)?.state).toBe('unknown')
+  expect((await h.remote.read()).actions.at(-1)?.state).toBe('not-issued')
 })
 it('does not replay a successful write when its settlement response is lost', async () => {
   const h = await setup()
@@ -220,4 +220,104 @@ it('refuses a byte ceiling smaller than an empty model response before issuing t
   await expect(h.service.execute(h.request, h.bridge, { adapter, directory: h.directory }, signal())).rejects.toThrow()
   expect(adapter.requests).toEqual([])
   expect((await h.remote.read()).actions.at(-1)?.state).toBe('not-issued')
+})
+
+async function readAuthority(bridge: ExecutionBridge) {
+  const { serverId, accountId, generation, execution } = await bridge()
+  return { serverId, accountId, generation, execution }
+}
+async function recovery(h: Awaited<ReturnType<typeof setup>>) {
+  const report = await h.service.report({ ...h.remote.selector, runId: h.request.runId }, () => readAuthority(h.bridge), signal())
+  expect(report.recovery?.baselineDigest).toBeTruthy()
+  return { ...h.request, operationId: randomUUID() as typeof h.request.operationId, start: true,
+    resume: { baselineDigest: report.recovery!.baselineDigest! } }
+}
+it('waits durably for a human, logs the answer before the resumed model call and never auto-wakes', async () => {
+  const h = await setup()
+  const adapter = new MockAdapter([toolCallResponse('question', 'request_human', { prompt: 'Please verify the expected total.', recipient: 'employee' })])
+  await h.service.execute(h.request, h.bridge, { adapter, directory: h.directory }, signal())
+  const view = await h.remote.read()
+  expect(view.run.state).toBe('waiting-human')
+  expect(adapter.requests).toHaveLength(1)
+  const request = view.humanRequests[0]!
+  const resume = await recovery(h)
+  await expect(h.service.execute(resume, h.bridge, { adapter, directory: h.directory }, signal())).rejects.toThrow()
+  const answer = { ...h.remote.selector, operationId: randomUUID(), runId: h.request.runId,
+    planRevision: 1, requestId: request.id, kind: 'answer-execution-question', answer: 'Human verified total 42.' }
+  await h.remote.service.participantCommand(h.remote.other.token, answer)
+  await h.remote.service.participantCommand(h.remote.other.token, answer)
+  expect((await h.remote.read()).run.state).toBe('waiting-human')
+  await h.ctx.fiber.dispose()
+  const cold = await boot(h.root, limits)
+  const continued = new MockAdapter([textResponse('Done with the verified total.')])
+  await cold.service.execute(resume, h.bridge, { adapter: continued, directory: h.directory }, signal())
+  expect(JSON.stringify(continued.requests[0]?.messages)).toContain('Human verified total 42.')
+  expect((await h.remote.read()).run.state).toBe('succeeded')
+  await cold.service.verifyBindings()
+})
+it('independently confirms an unreported file result before resuming without a second write', async () => {
+  const h = await setup()
+  const bridge: ExecutionBridge = async (command) => {
+    if (command?.kind === 'settle-action' && (await h.remote.read()).actions.find(a => a.actionId === command.actionId)?.capability === 'fs-write') throw new Error('offline-before-report')
+    return h.bridge(command)
+  }
+  const adapter = new MockAdapter([toolCallResponse('write', 'write_file', { path: 'once.csv', content: 'n\n42\n' })])
+  await expect(h.service.execute(h.request, bridge, { adapter, directory: h.directory }, signal())).rejects.toThrow()
+  expect((await h.remote.read()).actions.at(-1)?.state).toBe('unknown')
+  const resume = await recovery(h)
+  await h.ctx.fiber.dispose()
+  const cold = await boot(h.root, limits)
+  const continued = new MockAdapter([textResponse('Already written.')])
+  await cold.service.execute(resume, h.bridge, { adapter: continued, directory: h.directory }, signal())
+  expect(await readFile(join(h.directory, 'once.csv'), 'utf8')).toBe('n\n42\n')
+  expect((await h.remote.read()).actions.filter(a => a.capability === 'fs-write')).toHaveLength(1)
+  await cold.service.verifyBindings()
+})
+it('refuses a changed directory and distinguishes a confirmed cancelled model result', async () => {
+  const h = await setup()
+  await h.service.execute(h.request, h.bridge, { adapter: new MockAdapter([toolCallResponse('q', 'request_human', { prompt: 'Question', recipient: 'employee' })]), directory: h.directory }, signal())
+  const resume = await recovery(h)
+  await writeFile(join(h.directory, 'external'), 'changed')
+  await expect(h.service.execute(resume, h.bridge, { adapter: new MockAdapter([]), directory: h.directory }, signal())).rejects.toThrow('baseline-changed')
+  const other = await setup()
+  const cancel = new AbortController(), model = new MockAdapter(['hang-slow'])
+  const running = other.service.execute(other.request, other.bridge, { adapter: model, directory: other.directory }, cancel.signal)
+  const failed = expect(running).rejects.toThrow()
+  await expect.poll(() => model.requests.length).toBe(1); cancel.abort(); await failed
+  const report = await other.service.report({ ...other.remote.selector, runId: other.request.runId },
+    () => readAuthority(other.bridge), signal())
+  expect(report.recovery?.actions.every(a => a.status === 'confirmed')).toBe(true)
+})
+it('holds a write for exact employee approval and consumes it once after explicit continuation', async () => {
+  const h = await setup(20, ['model', 'fs-write'], limits, true)
+  const call = toolCallResponse('write', 'write_file', { path: 'approved.txt', content: 'approved bytes' })
+  await h.service.execute(h.request, h.bridge, { adapter: new MockAdapter([call]), directory: h.directory }, signal())
+  expect(await readdir(h.directory)).toEqual([])
+  const request = (await h.remote.read()).humanRequests[0]!
+  expect(request.kind).toBe('tool-approval')
+  await h.remote.service.participantCommand(h.remote.other.token, { ...h.remote.selector,
+    runId: h.request.runId, planRevision: 1, requestId: request.id, operationId: randomUUID(), kind: 'approve-execution-tool', approved: true })
+  const adapter = new MockAdapter([call, textResponse('Written')])
+  await h.service.execute(await recovery(h), h.bridge, { adapter, directory: h.directory }, signal())
+  expect(await readFile(join(h.directory, 'approved.txt'), 'utf8')).toBe('approved bytes')
+  expect((await h.remote.read()).actions.filter(a => a.approvalId === request.id)).toHaveLength(1)
+})
+it('settles durable historical evidence after lease loss without reactivating the old Run', async () => {
+  const h = await setup()
+  const bridge: ExecutionBridge = async (command) => {
+    if (command?.kind === 'settle-action' && (await h.remote.read()).actions.find(a => a.actionId === command.actionId)?.capability === 'fs-write') throw new Error('reply-lost')
+    return h.bridge(command)
+  }
+  await expect(h.service.execute(h.request, bridge, { adapter: new MockAdapter([
+    toolCallResponse('write', 'write_file', { path: 'historical.txt', content: 'observed' }),
+  ]), directory: h.directory }, signal())).rejects.toThrow()
+  h.remote.db.prepare("UPDATE assignment_leases SET state='released'").run()
+  const request = { ...await recovery(h), start: false, reconcile: true }
+  await h.service.reconcile(request, h.bridge, signal())
+  const view = await h.remote.read()
+  expect(view.eligible).toBe(false)
+  expect(view.run.state).toBe('paused')
+  expect(view.actions.at(-1)?.state).toBe('succeeded')
+  await expect(h.service.execute({ ...request, reconcile: false, start: true }, h.bridge,
+    { adapter: new MockAdapter([]), directory: h.directory }, signal())).rejects.toThrow('resume-qualification-required')
 })

@@ -2,11 +2,13 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
+import { membershipSchema, accountSchema } from './schema.ts'
 import { OrganizationError } from './error.ts'
 import { selectedAssignment, assignmentInvalidation, authorizeAssignmentRead } from './assignment.ts'
 import { authorizeParticipant, parseDelegation } from './assignment-participant.ts'
 import { ownedDevice } from './device.ts'
 import { leaseSchema } from './device-schema.ts'
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { executionRunSchema, executionDelegationSchema, executionActionSchema, type executionCommandSchema, type executionReadSchema } from './execution-schema.ts'
 import type { Principal } from './types.ts'
 import type { OrganizationServerEpoch } from './device-types.ts'
@@ -83,7 +85,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   if (c.kind === 'create-run') {
     owner(db, principal, d, c, epoch)
     if (c.configDigest !== d.configDigest) throw new OrganizationError('forbidden')
-    if (db.prepare("SELECT 1 FROM execution_runs WHERE assignmentId=? AND json_extract(data,'$.state') IN ('prepared','running','paused')").get(a.id)) fail()
+    if (db.prepare("SELECT 1 FROM execution_runs WHERE assignmentId=? AND json_extract(data,'$.state') IN ('prepared','running','paused','waiting-human')").get(a.id)) fail()
     const { kind: _kind, operationId: _operation, ...fields } = c
     const run = executionRunSchema.parse({ ...fields, id: randomUUID(), state: 'prepared', createdRevision: revision, version: revision })
     db.prepare('INSERT INTO execution_runs VALUES (?,?,?,?)').run(run.id, a.id, d.id, JSON.stringify(run))
@@ -97,13 +99,39 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     const action = read(db, 'execution_actions', c.actionId, executionActionSchema)
     if (action.runId !== run.id) throw new OrganizationError('forbidden')
     if (action.state === c.outcome && action.evidenceDigest === c.evidenceDigest) return { ...result, actionId: action.actionId }
-    if (action.state !== 'reserved' && !(action.state === 'unknown' && ['succeeded', 'failed'].includes(c.outcome))) fail()
-    if (c.outcome === 'not-issued') { owner(db, principal, d, c, epoch); if (action.expiresAt <= Date.now()) fail() }
+    if (action.state !== 'reserved' && !(action.state === 'unknown' && ['succeeded', 'failed', 'not-issued'].includes(c.outcome))) fail()
+    // Historical device evidence never refunds budget or reactivates permission.
     save(db, 'execution_actions', action.actionId, { ...action, state: c.outcome, evidenceDigest: c.evidenceDigest, version: revision })
     return { ...result, actionId: action.actionId }
   }
+  if (c.kind === 'request-execution-human') {
+    owner(db, principal, d, c, epoch)
+    if (run.state !== 'running' || c.expiresAt <= Date.now() || c.expiresAt - Date.now() > limits.delegationMaxDurationMs) fail()
+    if (![a.assigneeId, a.approvedBy].includes(c.handlerId)
+      || (c.requestKind === 'tool-approval' && (c.handlerId !== a.assigneeId || !c.requestDigest))) throw new OrganizationError('forbidden')
+    const handler = membershipSchema.parse(db.prepare('SELECT * FROM memberships WHERE id=?').get(c.handlerId))
+    const account = accountSchema.parse(db.prepare('SELECT * FROM accounts WHERE id=?').get(handler.accountId))
+    if (!handler.enabled || !account.enabled) throw new OrganizationError('forbidden')
+    authorizeAssignmentRead(db, { ...principal, membershipId: c.handlerId, accountId: handler.accountId, role: handler.role }, a)
+    if (c.actionId && read(db, 'execution_actions', c.actionId, executionActionSchema).runId !== run.id) throw new OrganizationError('forbidden')
+    const human = executionHumanSchema.parse({ id: c.requestId, assignmentId: a.id, runId: run.id, planRevision: run.planRevision,
+      handlerId: c.handlerId, kind: c.requestKind, prompt: c.prompt, actionId: c.actionId, requestDigest: c.requestDigest,
+      state: 'pending', expiresAt: c.expiresAt, answer: null, createdRevision: revision, version: revision, answeredRevision: null })
+    db.prepare('INSERT INTO execution_human_requests VALUES (?,?,?,?)').run(human.id, a.id, run.id, JSON.stringify(human))
+    save(db, 'execution_runs', run.id, { ...run, state: 'waiting-human', version: revision })
+    return { ...result, requestId: human.id }
+  }
+  if (c.kind === 'resume-run') {
+    owner(db, principal, d, c, epoch)
+    if (!['paused', 'waiting-human'].includes(run.state) || d.used >= d.budget
+      || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id)
+      || db.prepare("SELECT 1 FROM execution_human_requests WHERE runId=? AND json_extract(data,'$.state') NOT IN ('answered','approved','denied')").get(run.id)) fail()
+    save(db, 'execution_runs', run.id, { ...run, state: 'running', version: revision })
+    return result
+  }
   if (c.kind === 'transition-run') {
     if (terminal(run.state)) fail()
+    if (run.state === 'waiting-human' && c.state === 'paused') return result
     // Stopping does not renew ownership; old devices may stop their own historical Run only.
     if (c.state === 'running') { owner(db, principal, d, c, epoch); if (run.state !== 'prepared') fail() }
     if (['succeeded', 'failed'].includes(c.state) && (run.state !== 'running'
@@ -116,8 +144,14 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   const old = db.prepare('SELECT data FROM execution_actions WHERE id=?').get(c.actionId)
   if (old) {
     const action = executionActionSchema.parse(JSON.parse(String(old.data)))
-    if (action.runId !== run.id || action.capability !== c.capability || action.requestDigest !== c.requestDigest) throw new OrganizationError('operation-conflict')
+    if (action.runId !== run.id || action.capability !== c.capability || action.requestDigest !== c.requestDigest || action.approvalId !== c.approvalId) throw new OrganizationError('operation-conflict')
     return { ...result, actionId: action.actionId }
+  }
+  if (c.approvalId) {
+    const approval = read(db, 'execution_human_requests', c.approvalId, executionHumanSchema)
+    if (c.capability !== 'fs-write' || approval.runId !== run.id || approval.kind !== 'tool-approval' || approval.state !== 'approved'
+      || approval.expiresAt <= Date.now() || approval.requestDigest !== c.requestDigest
+      || db.prepare("SELECT 1 FROM execution_actions WHERE json_extract(data,'$.approvalId')=?").get(approval.id)) fail()
   }
   if (d.used >= d.budget) fail()
   const { kind: _kind, operationId: _operation, ...fields } = c
@@ -145,11 +179,14 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
   if (run.assignmentId !== a.id) throw new OrganizationError('forbidden')
   const delegation = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
   let eligible = false
-  try { owner(db, principal, delegation, run, epoch); eligible = ['prepared', 'running'].includes(run.state) }
+  try { owner(db, principal, delegation, run, epoch); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
   catch (error) { if (!(error instanceof OrganizationError)) throw error }
   const actions = db.prepare('SELECT data FROM execution_actions WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionActionSchema.parse(JSON.parse(String(row.data))))
-  return { run, delegation, actions, serverTime: Date.now(), eligible, modelPolicy }
+  const humanRequests = db.prepare('SELECT data FROM execution_human_requests WHERE runId=? ORDER BY rowid').all(run.id)
+    .map(row => executionHumanSchema.parse(JSON.parse(String(row.data))))
+  return { run, delegation, actions, humanRequests, assigneeId: a.assigneeId, approvedBy: a.approvedBy,
+    serverTime: Date.now(), eligible, modelPolicy }
 }
 /**
  * Retire stale execution authority and mark unconfirmed attempts unknown without refunding.
@@ -163,6 +200,14 @@ export function invalidateExecution(db: DatabaseSync, revision: number, restart 
     const prep = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(d.delegationId))
     if (d.state === 'active' && (prep.state !== 'active' || d.expiresAt <= Date.now())) {
       save(db, 'execution_delegations', d.id, { ...d, state: d.expiresAt <= Date.now() ? 'expired' : 'invalidated', version: revision })
+    }
+  }
+  for (const row of db.prepare('SELECT data FROM execution_human_requests').all()) {
+    const human = executionHumanSchema.parse(JSON.parse(String(row.data)))
+    const a = selectedAssignment(db, read(db, 'execution_runs', human.runId, executionRunSchema))
+    const run = read(db, 'execution_runs', human.runId, executionRunSchema)
+    if (human.state === 'pending' && (human.expiresAt <= Date.now() || assignmentInvalidation(db, a) || a.state !== 'accepted' || terminal(run.state))) {
+      save(db, 'execution_human_requests', human.id, { ...human, state: human.expiresAt <= Date.now() ? 'expired' : 'cancelled', version: revision })
     }
   }
   for (const row of db.prepare('SELECT data FROM execution_runs').all()) {

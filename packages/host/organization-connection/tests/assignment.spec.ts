@@ -235,9 +235,14 @@ it('uses fixed signed execution actions over HTTPS and preserves preparation-onl
   const runId = created.receipt!.execution!.runId!
   const read = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
   expect(read.execution?.run.state).toBe('prepared'); expect(read.execution?.delegation.used).toBe(0)
-  await h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'transition-run', state: 'running', operationId: randomUUID() } })
-  await h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'reserve-action', operationId: randomUUID(),
-    actionId: randomUUID(), capability: 'model', requestDigest: 'b'.repeat(64) } })
+  const channel = h.worker.executionChannel({ ...h.selector, runId })
+  await channel.command(executionCommandSchema.parse({ ...owner, runId, deviceId: lease.deviceId,
+    kind: 'transition-run', state: 'running', operationId: randomUUID() }))
+  await channel.command(executionCommandSchema.parse({ ...owner, runId, deviceId: lease.deviceId,
+    kind: 'reserve-action', operationId: randomUUID(), actionId: randomUUID(), capability: 'model', requestDigest: 'b'.repeat(64) }))
+  await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'settle-action',
+    actionId: randomUUID(), outcome: 'succeeded', evidenceDigest: 'c'.repeat(64), operationId: randomUUID() } })).rejects.toThrow('forbidden')
+  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
   const after = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
   expect(after.execution?.delegation.used).toBe(1)
   await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, deviceId: randomUUID(), runId,
@@ -345,4 +350,22 @@ it('does not acknowledge native cancellation until the owned Host interval drain
   await rejected
   expect((await stopping).receipt?.execution?.runId).toBe(runId)
   expect(acknowledged).toBe(true)
+})
+it('delivers a durable execution question through HTTPS, keeps replies separate and rechecks continuation', async () => {
+  const { h, channel, command, runId } = await executionChannelFixture()
+  await channel.command(command({ kind: 'transition-run', state: 'running' }))
+  const view = await channel.read(), requestId = randomUUID()
+  await channel.command(command({ kind: 'request-execution-human', requestId, handlerId: view.approvedBy,
+    requestKind: 'work-question', prompt: 'Please verify the report.', actionId: null, requestDigest: null,
+    expiresAt: view.delegation.expiresAt }))
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items.some(i => i.request.id === requestId)).toBe(true) })
+  const answer = { ...h.selector, kind: 'answer-execution-question', requestId, runId, planRevision: 1,
+    answer: 'Report verified.', operationId: randomUUID() }
+  await h.owner.perform({ kind: 'assignment-participant', request: answer })
+  await h.owner.perform({ kind: 'assignment-participant', request: answer })
+  expect((await channel.read()).run.state).toBe('waiting-human')
+  await channel.command(command({ kind: 'resume-run' }))
+  expect((await channel.read()).run.state).toBe('running')
+  h.worker.suspend()
+  await expect(channel.command(command({ kind: 'resume-run' }))).rejects.toThrow()
 })

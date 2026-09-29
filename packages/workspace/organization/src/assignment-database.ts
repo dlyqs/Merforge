@@ -102,15 +102,17 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
     JOIN organization_events e ON e.revision=x.revision`).all()) {
     const a = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(String(action.assignmentId)))
     const member = db.prepare('SELECT accountId FROM memberships WHERE id=?').get(a.assigneeId)
-    if (action.actorId !== member?.accountId || action.organizationId !== a.organizationId
-      || !['answer-assignment','read-notification','delegate','revoke-delegation'].includes(String(action.kind))) fail()
+    const human = db.prepare("SELECT m.accountId FROM execution_human_requests h JOIN memberships m ON m.id=json_extract(h.data,'$.handlerId') WHERE json_extract(h.data,'$.answeredRevision')=? AND h.assignmentId=?").get(action.revision ?? null, a.id)
+    const actor = ['answer-execution-question', 'approve-execution-tool'].includes(String(action.kind)) ? human?.accountId : member?.accountId
+    if (action.actorId !== actor || action.organizationId !== a.organizationId
+      || !['answer-assignment','read-notification','delegate','revoke-delegation','answer-execution-question','approve-execution-tool'].includes(String(action.kind))) fail()
     if (['delegate','revoke-delegation'].includes(String(action.kind))) {
       const d = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(String(action.delegationId)))
       if (d.assignmentId !== a.id || action.kind === 'delegate' && d.createdRevision !== action.revision) fail()
     } else if (action.delegationId !== null) fail()
   }
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN assignment_actions x ON x.revision=e.revision
-    WHERE e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation') AND x.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation','answer-execution-question','approve-execution-tool') AND x.revision IS NULL LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN task_assignments a ON a.createdRevision=e.revision
     WHERE e.kind='approve-assignment' AND a.id IS NULL LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN task_assignments a ON a.version=e.revision AND a.state='revoked'

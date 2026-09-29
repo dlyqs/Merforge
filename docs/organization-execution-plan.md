@@ -70,8 +70,8 @@
 | Phase 1 | 协议与消费位置 | 固定 Run/动作/证据/验收规则和隔离设计 | completed | organization-execution.md | 状态与消费者已逐项追踪 |
 | Phase 2 | Run 与动作权威 | 持久动作许可、预算、结果及固定传输 | completed | SQLite v7、独立执行委托、签名动作与预算 | 85 项领域测试及真实 HTTPS 原生测试通过 |
 | Phase 3 | 本机执行宿主 | 隔离 Session、私有 IPC 和模型上下文 | completed | 独立 Session、持久输入、Desktop IPC 与冷启动 invariant | Loader/HTTPS/IPC/JSONL 通过；真实副作用关闭 |
-| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | completed | loop/动作 guard、原生持续通道、模型策略、开始/停止与本机记录 UI | 聚焦回归、编译与定向构建通过；按最新要求停在本阶段 |
-| Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | pending | — | 依赖 4 |
+| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | completed | loop/动作 guard、原生持续通道、模型策略、开始/停止与本机记录 UI | 聚焦回归、编译与定向构建通过；后续按阶段独立授权执行 |
+| Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | completed | SQLite v8 人工请求、持久 Inbox、历史动作核对与显式恢复 | 聚焦回归、静态检查、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | pending | — | 依赖 5 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | pending | — | 依赖 6；单叶完整闭环 |
 | Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | pending | — | 依赖 7 |
@@ -196,7 +196,7 @@
 - `verify-client-ui-i18n`（834 源文件）、`verify-application-entrypoints`、`verify-cordis-config`（21 配置）与 `verify-tsconfig-paths` 通过。`verify-export-jsdoc` 仍仅报告既有 `OrganizationLoginSession.read/save` 两项；历史依赖分类及目录生成器问题保留，不视为通过。
 - `pnpm exec vitest run --config vitest.e2e.config.ts packages/llm/llm-deepseek/tests/adapter.e2e.ts -t 'cancels an active stream'` 因无 `DEEPSEEK_API_KEY` 自跳过；文件内 13 项均未执行，不声称真实模型通过。
 
-实际完成：Phase 4 工程验收完成。shell、子进程、subagent、后台 job 和终端仍明确拒绝；Windows 强隔离、真实模型和用户可见行为待验，不声称双平台产品验收完成。运行列表支持授权分页，本机报告在关闭时取消并等待读取退出。日志继续只保存操作标识与结果，完整文本留在本人 JSONL。用户最新要求“做完 phase4 停下”，已改回 manual，停止于 Phase 4；Phase 5、6 未开始。
+实际完成：Phase 4 工程验收完成。shell、子进程、subagent、后台 job 和终端仍明确拒绝；Windows 强隔离、真实模型和用户可见行为待验，不声称双平台产品验收完成。运行列表支持授权分页，本机报告在关闭时取消并等待读取退出。日志继续只保存操作标识与结果，完整文本留在本人 JSONL。该阶段按当时指令“做完 phase4 停下”改回 manual 并停止；后续阶段以主表与本轮授权为准。
 
 ## Phase 5：持久人工请求、unknown 核对与恢复
 
@@ -206,15 +206,31 @@
 
 验收清单：
 
-- [ ] 请求绑定准确 Run/版本、指定处理人和必要动作/产物；工作答复、工具审批与任务验收具有不同命令。审批不能扩大原委托或越过组织策略。
-- [ ] 等待状态和答复持久；同答复重复提交不重复唤醒，错误处理人、旧版本、过期/撤销请求及旧连接答复拒绝；答复内容进入模型前先写日志。
-- [ ] 在发出前、发出后无结果、结果本地落盘未上报等位置中断，重开可区分未执行/已确认/unknown；先查服务回执及本机外部事实，不自动重发。
-- [ ] waiting-human 暂停有关分支；租约/委托在等待期间过期时重新明确领取或委托，答复不复活旧 epoch。恢复在权限、基线、预算重新核对后由员工显式确认。
-- [ ] 待处理显示“需要谁处理”和核对原因；无法观测的外部副作用保持 unknown，手工说明不能伪造机器已验证的成功证据。
+- [x] 请求绑定准确 Run/版本、指定处理人和必要动作/产物；工作答复、工具审批与任务验收具有不同命令。审批不能扩大原委托或越过组织策略。
+- [x] 等待状态和答复持久；同答复重复提交不重复唤醒，错误处理人、旧版本、过期/撤销请求及旧连接答复拒绝；答复内容进入模型前先写日志。
+- [x] 在发出前、发出后无结果、结果本地落盘未上报等位置中断，重开可区分未执行/已确认/unknown；先查服务回执及本机外部事实，不自动重发。
+- [x] waiting-human 暂停有关分支；租约/委托在等待期间过期时重新明确领取或委托，答复不复活旧 epoch。恢复在权限、基线、预算重新核对后由员工显式确认。
+- [x] 待处理显示“需要谁处理”和核对原因；无法观测的外部副作用保持 unknown，手工说明不能伪造机器已验证的成功证据。
 
 助理验证：请求答复竞争、事件重复、断线丢响应、Host/服务重启和 dispose 收敛测试；独立读取临时文件或测试进程效果核对，不根据 Agent 文本判定。用户检查：人工问题→答复→显式恢复、unknown 提示和恢复失败原因。依赖：Phase 4。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-30）：
+
+- `organization` 增加 SQLite v8 人工请求、指定处理人、工作答复/文件审批独立命令、请求过期/撤销、Inbox 投影与版本化失效事件。迁移和 v7 备份升级保留旧记录，不扩大准备权限；启动校验覆盖请求归属、答复作者和单次审批消费。
+- `organization-execution` 通过 user-questions 扩展点持久提出问题并结束 waiting-human 区间；可选文件写入审批绑定请求摘要。答复在员工明确继续时进入正常 user/message 日志。新增 `recovery.ts` 从真实文件和动作日志核对结果，不重发副作用；本机日志保留文件字节数与预期哈希。核对日志只记 Run、结果数与 unknown 数，不记正文或路径。
+- Desktop 私有 IPC、原生持续通道、ExecutionPanel 和 Inbox 接通处理人、答复、审批、本机参数预览、核对原因、目录指纹与显式恢复。Renderer 只能发出委托/创建/停止类执行命令，不能伪造 reserve/settle/resume。原设备在失去租约后仍可选择“只核对历史动作”，不会重新取得执行权限。
+- 实施语义：同一有效双 epoch 下可重开原 Session；组织服务重启或委托/租约失效后，先核对并取消旧 Run，再重新明确委托、领取和创建新 Run，旧 epoch 永不复活。新 Run 不自动复制或重放旧对话。目录核对受部署 maxBytes 限额约束；超限、链接、特殊文件或无法观测的结果拒绝恢复，保留 unknown。文件匹配证明目标内容满足，不能证明崩溃瞬间 syscall 是否发生。
+
+已执行验证：
+
+- `pnpm exec vitest run packages/workspace/organization/tests packages/workspace/organization-execution/tests packages/host/organization-connection/tests/assignment.spec.ts`：13 文件、146 项通过。覆盖请求答复竞争/重复、错误处理人/版本/种类、撤销、一次审批、发出前证据与未知模型效果、结果本机落盘未上报、真实文件独立读取、Host 重开、目录变化拒绝、失租历史核对、取消/dispose、原生 Renderer 伪造结果拒绝、真实 HTTPS/native/私有 IPC 的问题→答复→显式继续，以及 v7 备份升级。
+- 增补持久请求过期及其失效事件后，`pnpm exec vitest run packages/workspace/organization/tests/execution-human.spec.ts packages/host/organization-connection/tests/assignment.spec.ts`：19 项通过。前次全领域回归中一个双夹具测试在并行负载下超过默认 5 秒；已为此组显式设置 15 秒，后续组合回归通过。没有放宽行为断言。
+- `pnpm exec tsc -b packages/workspace/organization-execution packages/host/organization-connection packages/client/ui-organization apps/desktop-host apps/desktop --pretty false` 通过。修改的 organization 源码、新增领域测试、execution 源码/测试、native connection 与测试、三个 Client 组件及两个 Desktop IPC 文件的 `run-oxlint.ts` 通过；`git diff --check` 通过。
+- `verify-client-ui-i18n.ts`、`verify-cordis-config.ts`、`gen-scoped-events.ts --check`、`gen-tsconfig-paths.ts --check` 通过。`verify-export-jsdoc.ts` 仅余既有 login-session.read/save 两处说明缺项；`verify-package-dependencies.ts` 仍因既有 file-upload 的 assertPersonalSessionId 导入未分类失败。两项均未计为通过，未扩大例外或修改无关实现。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host -F packages/workspace/organization -F packages/workspace/organization-execution -F packages/host/organization-connection -F packages/api/organization-api -F apps/desktop-host -F apps/desktop --logLevel warn` 与 Client 的 `-F packages/client/ui-organization` 定向构建通过。`node packages/workspace/organization/tests/built-smoke.mjs` 无窗口产物 smoke 通过；未做完整发行构建。
+- `pnpm exec vitest run --config vitest.e2e.config.ts packages/llm/llm-deepseek/tests/adapter.e2e.ts -t 'cancels an active stream'` 因缺少 DEEPSEEK_API_KEY 自跳过，文件内 13 项均未执行。真实模型与用户可见验收未计为通过。
+
+用户侧待验：Desktop 中提出工作问题→指定人答复→员工核对并显式继续；审批前查看本机参数；unknown/目录变化/过期资格的拒绝原因。没有启动页面、使用 Playwright/GitNexus、创建 Agent Notes 或提交推送。计划、协议、包 README、格式说明和 overview 已同步。保持 manual，停止于 Phase 5，不进入 Phase 6。
 
 ## Phase 6：持久产物与员工正式提交
 
@@ -335,7 +351,7 @@
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- 计划评审：用户最新要求“做完 phase4 停下”；本轮仅完成 Phase 4，不进入 Phase 5、6。
+- 本轮授权：用户要求“请完成 phase5”；仅执行 Phase 5，保持 manual，不进入 Phase 6。
 - 使用技能：`/Users/git_local/dev-workflow-skill/SKILL.md`；本文件是本任务执行入口，暂不创建额外 executor skill。
 
 1. 执行前先读本文、overview 和适用 AGENTS；实现 `packages/` 前读架构，生命周期/并发/进程工作读防御规则，Client 修改按其目录规则读相应架构页。保持路线图与本计划内部编号分开。
@@ -348,4 +364,4 @@
 8. 每个执行阶段都更新本计划和 `docs/overview.md`；实际记录写清改动/文件、命令与结果、跳过项、偏差、日志、残余风险和下一阶段。未开始阶段不填写虚构完成证据；已完成阶段不另建全局重复进度表。
 9. 自动执行仅限本计划范围，不授权部署、生产变更、提交推送或新业务范围。relay 当前关闭，不新建会话、不生成交接文件；未来只有明确授权才加载技能 relay/worktree-return 参考，记录批次与交付目录，验证每批返回及回执后才转交。若届时返回阻塞，保留自动范围，不把实现完成当成交付完成。
 
-授权变更：用户最初要求“请自动完成 phase4-6”，后改为“做完 phase4 停下”。自动范围已撤销；完成 Phase 4 后停止，Phase 5、6 保持 pending。
+授权变更：此前自动范围已按“做完 phase4 停下”撤销。本轮用户要求“请完成 phase5”，只授权 Phase 5；manual 和 relay off 不变，Phase 6 保持 pending。

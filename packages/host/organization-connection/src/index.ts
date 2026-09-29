@@ -248,7 +248,7 @@ export class OrganizationConnection {
       if (!('runId' in command) || command.runId !== selector.runId
         || command.organizationId !== selector.organizationId || command.projectId !== selector.projectId
         || command.planId !== selector.planId || command.assignmentId !== selector.assignmentId
-        || command.deviceId !== deviceId || !['reserve-action', 'settle-action', 'transition-run'].includes(command.kind)) throw new Error('forbidden')
+        || command.deviceId !== deviceId || !['reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run'].includes(command.kind)) throw new Error('forbidden')
       if (this.journalError) throw new Error('invalid-operation-journal')
       if (this.writing || this.pending) throw new Error('operation-pending')
       this.writing = true
@@ -380,6 +380,8 @@ export class OrganizationConnection {
         case 'execution-command': {
           const input = z.record(z.string(), z.unknown()).parse(action.request)
           if ('deviceId' in input) throw new Error('invalid-input')
+          if (!['grant-execution', 'revoke-execution', 'create-run', 'transition-run'].includes(String(input.kind))
+            || input.kind === 'transition-run' && input.state !== 'paused' && input.state !== 'cancelled') throw new Error('forbidden')
           return await this.mutate({ ...input, deviceId: this.localDeviceId() }, undefined, 'execution', this.material())
         }
         case 'execution-list': {

@@ -68,7 +68,7 @@ Structural changes invalidate all old task grants except the current editor's ex
 
 `grantTask` manages explicit node/subtree read and root-subtree edit with optimistic grant versions. Management responses from `readTaskGrants` never include task text. `readTasks` intersects current and historical covered task IDs, filters hidden parents, phases and dependencies, then searches and paginates. A hidden prerequisite is represented by one boolean, without identity or count. Project-wide lists may be empty. Inaccessible plan/task detail selections return forbidden. `readWorkgraphEvents` compares authorized projections and omits edits confined to hidden tasks. Account/member/project/task-grant or structural epoch changes invalidate cursors; delivery reauthenticates inside the serialized authority operation. Current member/account state determines suggestion assignability.
 
-Offline backups write schema 6; restore also accepts validated schema 2-5 backups, checks the actual stamp and upgrades staging before swapping directories. Login revocation and recovery rotation still apply; pending/accepted assignments, devices, delegations and leases are permanently invalidated during restore; prior human answers remain historical facts.
+Offline backups write schema 8; restore also accepts validated schema 2–7 backups, checks the actual stamp and upgrades staging before swapping directories. Login revocation and recovery rotation still apply; pending/accepted assignments, devices, delegations and leases are permanently invalidated during restore; prior human answers remain historical facts.
 
 ## Assignment approval
 
@@ -109,3 +109,9 @@ Each new action charges one unit atomically across all Runs of its execution del
 Startup and offline backup/restore validate independent references, receipt snapshots, epochs and action counts. Restore retires execution authority alongside devices and leases. The [execution protocol](../../../../docs/organization-execution.md) defines later submissions, acceptance and integration; Run terminal states do not imply any of them.
 
 `executionModels` configures the outbound text-model allowlist delivered with current-authority Run reads. Defaults allow `deepseek-flash` and `deepseek-v4-pro` only at `https://api.deepseek.com/anthropic/v1`; an empty list disables model dispatch. Local credential destinations and the explicit employee model selection must also match. `/execution/list` pages exact-assignment Run history under current task authorization, without returning local configuration or conversation text.
+
+## Execution human requests
+
+SQLite v8 stores designated questions and exact file-write approvals independently of assignment acceptance. `request-execution-human` atomically creates the request and changes its Run to `waiting-human`. `participantCommand` accepts separate question-answer and tool-approval commands from the designated current task reader. Replies never resume execution or change capabilities. Inbox filtering includes these requests before counting and pagination; content-free invalidations cover their changes.
+
+`resume-run` requires the original current lease/delegation, budget, decided requests and no unresolved actions. Historical `not-issued` evidence may settle an unknown action but retains its charge. Tool approvals bind one fs-write request digest and are consumed once. Startup and backup/restore validate request/Run/version/actor relationships and approval consumption. Model execution, local directory checks and transcript evidence remain owned by the private execution Host.

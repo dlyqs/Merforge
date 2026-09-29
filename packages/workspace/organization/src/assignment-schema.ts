@@ -1,5 +1,6 @@
 /** Strict approval commands and durable assignment records. */
 import { z } from 'zod'
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { workgraphGrantsSchema, planRevisionSchema } from './workgraph-schema.ts'
 import type { OrganizationAssignmentId, OrganizationHumanRequestId, OrganizationNotificationId, OrganizationDelegationId, OrganizationDeviceId } from './assignment-types.ts'
@@ -63,8 +64,16 @@ export const delegateSchema = participantBase.extend({ kind: z.literal('delegate
 export const revokeDelegationSchema = participantBase.extend({ kind: z.literal('revoke-delegation'),
   delegationId: delegationIdSchema, expectedVersion: z.number().int().positive(),
 }).strict()
+const executionAnswerBase = participantBase.extend({ requestId: executionHumanSchema.shape.id,
+  planRevision: planRevisionSchema, runId: executionHumanSchema.shape.runId })
+/** Work information is distinct from approval and formal acceptance. */
+export const answerExecutionQuestionSchema = executionAnswerBase.extend({ kind: z.literal('answer-execution-question'),
+  answer: z.string().min(1).max(32768) }).strict()
+/** Approve only the already granted exact request digest, without expanding capability. */
+export const approveExecutionToolSchema = executionAnswerBase.extend({ kind: z.literal('approve-execution-tool'),
+  approved: z.boolean() }).strict()
 /** Participant actions remain distinct from root-editor approval. */
-export const participantCommandSchema = z.discriminatedUnion('kind', [answerAssignmentSchema, readNotificationSchema, delegateSchema, revokeDelegationSchema])
+export const participantCommandSchema = z.discriminatedUnion('kind', [answerAssignmentSchema, readNotificationSchema, delegateSchema, revokeDelegationSchema, answerExecutionQuestionSchema, approveExecutionToolSchema])
 /** Pending and processed views share authorization-before-search and cursor rules. */
 export const inboxQuerySchema = workgraphGrantsSchema.pick({ organizationId: true }).extend({
   state: z.enum(['pending', 'processed', 'all']).default('all'), search: z.string().max(200).default(''),

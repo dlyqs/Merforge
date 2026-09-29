@@ -1,9 +1,14 @@
 /** SQLite execution storage and validation of independently persisted relationships. */
 import type { DatabaseSync } from 'node:sqlite'
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { executionDelegationSchema, executionRunSchema, executionActionSchema, executionReceiptSchema } from './execution-schema.ts'
 import { assignmentSchema } from './assignment-schema.ts'
 import { parseDelegation } from './assignment-participant.ts'
 import { OrganizationError } from './error.ts'
+/** v8 adds durable execution questions without changing historical Run ownership. */
+export const executionHumanDdl = `CREATE TABLE execution_human_requests (
+  id TEXT PRIMARY KEY, assignmentId TEXT NOT NULL REFERENCES task_assignments(id),
+  runId TEXT NOT NULL REFERENCES execution_runs(id), data TEXT NOT NULL) STRICT;`
 /** v7 adds execution records without altering or expanding preparation grants. */
 export const executionDdl = `
 CREATE TABLE execution_delegations (id TEXT PRIMARY KEY, assignmentId TEXT NOT NULL REFERENCES task_assignments(id), data TEXT NOT NULL) STRICT;
@@ -43,10 +48,17 @@ export function validateExecutionDatabase(db: DatabaseSync): void {
       || db.prepare("SELECT json_extract(result,'$.runId') AS id FROM execution_events WHERE revision=?").get(r.createdRevision)?.id !== r.id
       || db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(r.createdRevision)?.kind !== 'create-run') fail()
   }
+  const approvals = new Set<string>()
   for (const row of db.prepare('SELECT * FROM execution_actions').all()) {
     const a = executionActionSchema.parse(JSON.parse(String(row.data)))
     const r = executionRunSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_runs WHERE id=?').get(a.runId)?.data)))
     const d = executionDelegationSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_delegations WHERE id=?').get(r.executionDelegationId)?.data)))
+    if (a.approvalId) {
+      const h = executionHumanSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_human_requests WHERE id=?').get(a.approvalId)?.data)))
+      if (approvals.has(h.id) || a.capability !== 'fs-write' || h.runId !== a.runId || h.state !== 'approved'
+        || h.kind !== 'tool-approval' || h.requestDigest !== a.requestDigest || !h.answeredRevision || h.answeredRevision >= a.createdRevision) fail()
+      approvals.add(h.id)
+    }
     if (row.id !== a.actionId || row.runId !== r.id || a.assignmentId !== r.assignmentId || a.deviceId !== r.deviceId
       || a.executionDelegationId !== r.executionDelegationId || a.planRevision !== r.planRevision || a.serverEpoch !== r.serverEpoch
       || a.fencingEpoch !== r.fencingEpoch || a.organizationId !== r.organizationId || a.projectId !== r.projectId || a.planId !== r.planId
@@ -56,16 +68,28 @@ export function validateExecutionDatabase(db: DatabaseSync): void {
       || db.prepare("SELECT json_extract(result,'$.actionId') AS id FROM execution_events WHERE revision=?").get(a.createdRevision)?.id !== a.actionId
       || db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(a.createdRevision)?.kind !== 'reserve-action') fail()
   }
+  for (const row of db.prepare('SELECT * FROM execution_human_requests').all()) {
+    const h = executionHumanSchema.parse(JSON.parse(String(row.data)))
+    const r = executionRunSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_runs WHERE id=?').get(h.runId)?.data)))
+    const a = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(h.assignmentId))
+    if (row.id !== h.id || row.runId !== r.id || row.assignmentId !== a.id || r.assignmentId !== a.id
+      || h.planRevision !== r.planRevision || ![a.assigneeId, a.approvedBy].includes(h.handlerId)
+      || (h.kind === 'tool-approval' && (!h.requestDigest || h.handlerId !== a.assigneeId))
+      || db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(h.createdRevision)?.kind !== 'request-execution-human'
+      || db.prepare("SELECT json_extract(result,'$.requestId') AS id FROM execution_events WHERE revision=?").get(h.createdRevision)?.id !== h.id
+      || (h.answeredRevision !== null && !db.prepare('SELECT 1 FROM assignment_actions WHERE revision=? AND assignmentId=?').get(h.answeredRevision, a.id))) fail()
+    if (h.actionId && db.prepare('SELECT runId FROM execution_actions WHERE id=?').get(h.actionId)?.runId !== r.id) fail()
+  }
   for (const row of db.prepare('SELECT * FROM execution_events').all()) {
     const result = executionReceiptSchema.parse(JSON.parse(String(row.result)))
     const d = db.prepare('SELECT assignmentId FROM execution_delegations WHERE id=?').get(result.executionDelegationId)
     const e = db.prepare('SELECT * FROM organization_events WHERE revision=?').get(row.revision ?? null)
     const a = db.prepare('SELECT a.organizationId,m.accountId FROM task_assignments a JOIN memberships m ON m.id=a.assigneeId WHERE a.id=?').get(row.assignmentId ?? null)
     if (d?.assignmentId !== row.assignmentId || e?.organizationId !== a?.organizationId || e?.actorId !== a?.accountId
-      || !['grant-execution','revoke-execution','create-run','reserve-action','settle-action','transition-run'].includes(String(e?.kind))) fail()
+      || !['grant-execution','revoke-execution','create-run','reserve-action','settle-action','transition-run','request-execution-human','resume-run'].includes(String(e?.kind))) fail()
     if (result.runId && db.prepare('SELECT delegationId FROM execution_runs WHERE id=?').get(result.runId)?.delegationId !== result.executionDelegationId) fail()
     if (result.actionId && db.prepare('SELECT runId FROM execution_actions WHERE id=?').get(result.actionId)?.runId !== result.runId) fail()
   }
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN execution_events x ON x.revision=e.revision
-    WHERE e.kind IN ('grant-execution','revoke-execution','create-run','reserve-action','settle-action','transition-run') AND x.revision IS NULL`).get()) fail()
+    WHERE e.kind IN ('grant-execution','revoke-execution','create-run','reserve-action','settle-action','transition-run','request-execution-human','resume-run') AND x.revision IS NULL`).get()) fail()
 }

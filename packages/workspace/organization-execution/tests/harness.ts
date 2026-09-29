@@ -66,7 +66,7 @@ export function fixture() {
     execution: { run, delegation: { organizationId: request.organizationId, projectId: request.projectId, planId: request.planId,
       assignmentId: request.assignmentId, planRevision: 1, deviceId: run.deviceId, delegationId: randomUUID(), capabilities: ['model'],
       budget: 3, expiresAt: Date.now() + 10000, configDigest: run.configDigest, id: run.executionDelegationId, used: 0,
-      state: 'active', createdRevision: 1, version: 1 }, modelPolicy: [], actions: [], eligible: true, serverTime: Date.now() } })
+      state: 'active', createdRevision: 1, version: 1 }, modelPolicy: [], assigneeId: randomUUID(), approvedBy: randomUUID(), humanRequests: [], actions: [], eligible: true, serverTime: Date.now() } })
   return { request, authority }
 }
 export const signal = () => new AbortController().signal

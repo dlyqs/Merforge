@@ -62,7 +62,9 @@ export function installOrganizationExecutionControl(ctx: Context, channel: {
           channel.send({ type: 'organization-execution-result', requestId: message.requestId, nonce: message.nonce, report })
         } else {
           const authorize = async (command?: ExecutionCommand) => executionAuthoritySchema.parse(await bridge(command))
-          const result = await ctx.organizationExecution.open(message.request, authorize, cancel.signal)
+          const result = message.request.reconcile
+            ? await ctx.organizationExecution.reconcile(message.request, authorize, cancel.signal)
+            : await ctx.organizationExecution.open(message.request, authorize, cancel.signal)
           if (message.request.start) {
             await ctx.organizationExecution.executeConfigured(message.request, authorize, cancel.signal)
             result.mode = 'finished'

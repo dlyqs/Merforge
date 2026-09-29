@@ -38,11 +38,11 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
   }
   const authorize = async (): Promise<ExecutionAuthority> => {
     current()
-    const { inputs: _inputs, operationId: _operation, start: _start, ...selector } = request
+    const { inputs: _inputs, operationId: _operation, start: _start, resume: _resume, reconcile: _reconcile, ...selector } = request
     const response = await connection.perform({ kind: 'execution-read', request: selector })
     current()
     const execution = response.execution
-    if (!execution?.eligible || execution.run.state !== 'prepared' || response.generation !== generation) throw new Error('forbidden')
+    if (!execution || (!request.reconcile && (!execution.eligible || !(request.resume ? ['running', 'paused', 'waiting-human'].includes(execution.run.state) : execution.run.state === 'prepared'))) || response.generation !== generation) throw new Error('forbidden')
     const preparation = await connection.perform({ kind: 'assignment-preparation', request: {
       organizationId: request.organizationId, projectId: request.projectId, planId: request.planId, assignmentId: request.assignmentId } })
     current()
@@ -61,7 +61,7 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
     return { ...read.principal, organizationId: request.organizationId, requestId: read.requestId, generation, task,
       context: context.result, execution }
   }
-  if (request.start) {
+  if (request.start || request.reconcile) {
     const initial = await authorize()
     current()
     const channel = connection.executionChannel({ organizationId: request.organizationId, projectId: request.projectId,
@@ -75,7 +75,7 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
       check()
       return { ...initial, generation: channel.generation, execution }
     }
-    const duration = request.inputs.execution?.maxDurationMs
+    const duration = request.reconcile ? connection.timeoutMs : request.inputs.execution?.maxDurationMs
     if (!duration || duration > 2147483647 - connection.timeoutMs) throw new Error('invalid-input')
     const result = await channel.run(async () => {
       const value = await host.openOrganizationExecution(request, bridge, duration + connection.timeoutMs, signal)

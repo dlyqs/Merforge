@@ -1,4 +1,5 @@
 /** Transactional acceptance, notification acknowledgement and bounded delegation. */
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
@@ -46,6 +47,10 @@ export function changeParticipant(
   limits: { delegationMaxDurationMs: number; delegationMaxBudget: number },
 ): { assignment: OrganizationAssignment; delegationId?: OrganizationDelegation['id'] } {
   const assignment = selectedAssignment(db, command)
+  if (command.kind === 'answer-execution-question' || command.kind === 'approve-execution-tool') {
+    answerExecutionHuman(db, principal, command, revision)
+    return { assignment }
+  }
   authorizeParticipant(db, principal, assignment)
   const now = Date.now()
   if (command.kind === 'read-notification') {
@@ -95,7 +100,8 @@ export function changeParticipant(
  * @param query - State filter and literal task search.
  * @returns Authorized matching facts only.
  */
-export function visibleInbox(db: DatabaseSync, principal: Principal, query: { state: 'pending' | 'processed' | 'all'; search: string }): OrganizationInboxItem[] {
+export function visibleInbox(db: DatabaseSync, principal: Principal,
+  query: { state: 'pending' | 'processed' | 'all'; search: string }): OrganizationInboxItem[] {
   const items: OrganizationInboxItem[] = []
   for (const row of db.prepare('SELECT * FROM task_assignments WHERE organizationId=? AND assigneeId=? ORDER BY createdRevision DESC')
     .all(principal.organizationId ?? null, principal.membershipId ?? null)) {
@@ -109,9 +115,27 @@ export function visibleInbox(db: DatabaseSync, principal: Principal, query: { st
     }
     const request = assignmentRequestSchema.parse(db.prepare('SELECT * FROM assignment_requests WHERE assignmentId=?').get(assignment.id))
     if (request.state === 'pending' && request.expiresAt !== null && request.expiresAt <= Date.now()) request.state = 'expired'
-    if (query.state === 'pending' && request.state !== 'pending' || query.state === 'processed' && request.state === 'pending') continue
+    if (query.state === 'pending' && request.state !== 'pending'
+      || query.state === 'processed' && request.state === 'pending') continue
     const notification = assignmentNotificationSchema.parse(db.prepare('SELECT * FROM assignment_notifications WHERE requestId=?').get(request.id))
     items.push({ assignment, request, notificationId: notification.id, readAt: notification.readAt })
+  }
+  for (const row of db.prepare("SELECT data FROM execution_human_requests WHERE json_extract(data,'$.handlerId')=?").all(principal.membershipId ?? null)) {
+    const request = executionHumanSchema.parse(JSON.parse(String(row.data)))
+    const assignment = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(request.assignmentId))
+    if (assignment.organizationId !== principal.organizationId) continue
+    try {
+      const tasks = visibleTasks(db, principal, { ...assignment, revision: assignment.planRevision, search: query.search, offset: 0 })
+      if (!tasks.length) continue
+    } catch (error) {
+      if (error instanceof OrganizationError && error.code === 'forbidden') continue
+      throw error
+    }
+    if (request.state === 'pending' && request.expiresAt <= Date.now()) request.state = 'expired'
+    if (query.state === 'pending' && request.state !== 'pending'
+      || query.state === 'processed' && request.state === 'pending') continue
+    const answerEvent = db.prepare('SELECT at FROM organization_events WHERE revision=?').get(request.answeredRevision)
+    items.push({ assignment, request, notificationId: null, readAt: typeof answerEvent?.at === 'number' ? answerEvent.at : null })
   }
   return items
 }
@@ -124,4 +148,32 @@ export function visibleInbox(db: DatabaseSync, principal: Principal, query: { st
 export function invalidateDelegations(db: DatabaseSync, revision: number): void {
   db.prepare(`UPDATE assignment_delegations SET state='invalidated',version=? WHERE state='active'
     AND assignmentId IN (SELECT id FROM task_assignments WHERE state<>'accepted')`).run(revision)
+}
+
+/**
+ * Authorize the designated request handler, including receipt reads after an answer.
+ * @param db - Authority transaction.
+ * @param principal - Current authenticated handler.
+ * @param command - Exact request selector.
+ */
+export function authorizeExecutionAnswer(db: DatabaseSync, principal: Principal,
+  command: Extract<z.output<typeof participantCommandSchema>, { kind: 'answer-execution-question' | 'approve-execution-tool' }>): void {
+  const a = selectedAssignment(db, command)
+  authorizeAssignmentRead(db, principal, a)
+  const row = db.prepare('SELECT data FROM execution_human_requests WHERE id=? AND assignmentId=?').get(command.requestId, a.id)
+  if (!row) throw new OrganizationError('forbidden')
+  const h = executionHumanSchema.parse(JSON.parse(String(row.data)))
+  if (h.handlerId !== principal.membershipId || h.runId !== command.runId || h.planRevision !== command.planRevision
+    || (h.kind === 'work-question') !== (command.kind === 'answer-execution-question')) throw new OrganizationError('forbidden')
+}
+function answerExecutionHuman(db: DatabaseSync, principal: Principal,
+  c: Extract<z.output<typeof participantCommandSchema>, { kind: 'answer-execution-question' | 'approve-execution-tool' }>, revision: number): void {
+  authorizeExecutionAnswer(db, principal, c)
+  const a = selectedAssignment(db, c)
+  const h = executionHumanSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_human_requests WHERE id=?').get(c.requestId)?.data)))
+  if (a.state !== 'accepted' || assignmentInvalidation(db, a) || h.expiresAt <= Date.now()
+    || h.state !== 'pending') throw new OrganizationError('version-conflict')
+  const state = c.kind === 'answer-execution-question' ? 'answered' : c.approved ? 'approved' : 'denied'
+  db.prepare('UPDATE execution_human_requests SET data=? WHERE id=?').run(JSON.stringify({ ...h, state,
+    answer: c.kind === 'answer-execution-question' ? c.answer : null, answeredRevision: revision, version: revision }), h.id)
 }

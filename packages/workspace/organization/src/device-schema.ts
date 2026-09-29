@@ -42,7 +42,7 @@ export const deviceChallengeSchema = z.object({ protocol: z.literal('merforge-de
   challengeId: z.uuid().transform(brandString<OrganizationChallengeId>), serverId: z.uuid().transform(brandString<ServerId>),
   serverEpoch: serverEpochSchema,
   accountId: z.uuid().transform(brandString<AccountId>), membershipId: z.uuid().transform(brandString<MembershipId>),
-  organizationId: base.shape.organizationId, action: z.enum(['register-device', 'claim', 'renew', 'release', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run']),
+  organizationId: base.shape.organizationId, action: z.enum(['register-device', 'claim', 'renew', 'release', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run']),
   requestDigest: z.string().regex(/^[a-f0-9]{64}$/), operationId: base.shape.operationId,
   deviceId: deviceIdSchema.nullable(), publicKey: devicePublicKeySchema, keyGeneration: z.literal(1),
   issuedAt: z.number().int().nonnegative(), expiresAt: z.number().int().positive(),

@@ -1,6 +1,7 @@
 import { writeFile, readdir, readFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { readSessionLogText } from '@deepseek-ai/dsh-session-log-export'
 import { expect, it, vi } from 'vitest'
@@ -82,7 +83,8 @@ it('rejects independently corrupted logs through its executed invariant and on c
   const cold = await boot(root)
   expect(cold.ctx.get('organizationExecution')).toBeUndefined()
 })
-it.each([false, true])('uses real HTTPS/native/private Host IPC with execution=%s', async (start) => {
+it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/private Host IPC with execution=%s', async (mode) => {
+  const start = mode !== 'prepare'
   const { workgraphHarness, password } = await import('../../../api/organization-api/tests/workgraph-harness.ts')
   const { OrganizationConnection } = await import('../../../host/organization-connection/src/index.ts')
   const { openOrganizationExecution, readOrganizationExecution } = await import('../../../../apps/desktop/src/organization-execution.ts')
@@ -98,10 +100,19 @@ it.each([false, true])('uses real HTTPS/native/private Host IPC with execution=%
   const { LocalCredentialProvider } = await import('@deepseek-ai/dsh-credentials-local')
   await local.ctx.plugin(LocalCredentialProvider, { path: credentialPath, watch: false })
   const { textEvents } = await import('../../../llm/llm-deepseek/tests/mock-server.ts')
+  let requests = 0
   const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
     expect(typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).toBe(`${route.endpoint}/messages`)
     expect(options?.redirect).toBe('error')
-    return new Response(textEvents.map(data => `data: ${data}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
+    const events = mode === 'human' && requests++ === 0 ? [
+      JSON.stringify({ type: 'message_start', message: { id: 'question', model: route.model, usage: { input_tokens: 3, output_tokens: 0 } } }),
+      JSON.stringify({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'question', name: 'request_human', input: {} } }),
+      JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ prompt: 'Confirm the total.', recipient: 'employee' }) } }),
+      JSON.stringify({ type: 'content_block_stop', index: 0 }),
+      JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 1 } }),
+      JSON.stringify({ type: 'message_stop' }),
+    ] : textEvents
+    return new Response(events.map(data => `data: ${data}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
   })
   const directory = join(local.root, 'work'); await mkdir(directory)
   const connection = new OrganizationConnection({ reconnectMs: 100 }, { directory: join(local.root, 'device'), vault: {
@@ -181,7 +192,20 @@ it.each([false, true])('uses real HTTPS/native/private Host IPC with execution=%
     await vi.waitFor(() => { expect(connection.snapshot().phase).toBe('ready') })
     const report = await readOrganizationExecution(connection, host, { ...selector, runId: request.runId }, () => {}, signal())
     expect(report.report.entries[0]?.text).toBe(inputs.messages[0])
-    if (start) expect(report.report.entries).toContainEqual({ role: 'assistant', text: 'hello' })
+    if (start && mode !== 'human') expect(report.report.entries).toContainEqual({ role: 'assistant', text: 'hello' })
+    if (mode === 'human') {
+      const current = await connection.perform({ kind: 'execution-read', request: { ...selector, runId: request.runId } })
+      expect(current.execution?.run.state).toBe('waiting-human')
+      const human = current.execution!.humanRequests[0]!
+      await connection.perform({ kind: 'assignment-participant', request: { ...selector, kind: 'answer-execution-question',
+        operationId: randomUUID(), runId: request.runId, requestId: human.id, planRevision: 1, answer: 'Confirmed total 42.' } })
+      await vi.waitFor(() => { expect(connection.snapshot().phase).toBe('ready') })
+      const resumed = await openOrganizationExecution(connection, host, { ...request, operationId: randomUUID(),
+        resume: { baselineDigest: report.report.recovery!.baselineDigest! } }, () => {})
+      expect(resumed.result.mode).toBe('finished')
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(fetch.mock.calls[1]?.[1]?.body).toContain('Confirmed total 42.')
+    }
     const shared = await connection.perform({ kind: 'execution-read', request: { ...selector, runId: request.runId } })
     expect(JSON.stringify(shared)).not.toContain(inputs.messages[0])
     await connection.perform({ kind: 'personal' })
@@ -193,6 +217,14 @@ it.each([false, true])('uses real HTTPS/native/private Host IPC with execution=%
     const { backupOrganization, restoreOrganization } = await import('../../organization/src/maintenance.ts')
     const { openOrganizationDatabase } = await import('../../organization/src/database.ts')
     const backup = backupOrganization(remote.config.api.directory, join(remote.root, 'backup'), 100)
+    if (!start) {
+      const legacy = new DatabaseSync(join(backup, 'organization.sqlite'))
+      legacy.exec('DROP TABLE execution_human_requests; PRAGMA user_version=7')
+      legacy.close()
+      const hashes = { 'organization.sqlite': createHash('sha256').update(await readFile(join(backup, 'organization.sqlite'))).digest('hex'),
+        'tls-identity.json': createHash('sha256').update(await readFile(join(backup, 'tls-identity.json'))).digest('hex') }
+      await writeFile(join(backup, 'manifest.json'), JSON.stringify({ format: 1, schema: 7, hashes }))
+    }
     restoreOrganization(backup, remote.config.api.directory, 100)
     const db = openOrganizationDatabase(join(remote.config.api.directory, 'organization.sqlite'), 100)
     try {

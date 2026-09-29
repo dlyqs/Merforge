@@ -26,7 +26,7 @@ it('pages authorized Run history without starting execution and hides it when of
       configDigest: 'a'.repeat(64), state: 'paused', createdRevision: 3, version: 3 },
     delegation: { ...selector, id: executionDelegationId, delegationId: randomUUID(), capabilities: ['model'],
       configDigest: 'a'.repeat(64), state: 'active', budget: 10, used: 1, expiresAt: Date.now() + 60000,
-      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [],
+      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [], assigneeId: a.assigneeId, approvedBy: a.approvedBy, humanRequests: [],
   })
   h.connection.mockImplementation(async (action) => {
     if (action.kind === 'execution-list') return { generation: 1, executions: { items: [view.run], total: 2,

@@ -10,6 +10,8 @@ type Capability = z.output<typeof executionActionSchema>['capability']
 type Outcome = Exclude<z.output<typeof executionActionSchema>['state'], 'reserved'>
 /** Durable local evidence is written before dispatch and before reporting a result. */
 export const actionEvidenceSchema = z.object({ action: executionActionSchema,
+  file: z.object({ path: z.string().min(1), bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
   stage: z.enum(['reserved', 'issued', 'settled']), outcome: z.enum(['succeeded', 'failed', 'not-issued', 'unknown']).optional(),
   evidenceDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict().superRefine((record, ctx) => {
@@ -95,10 +97,29 @@ export class ActionGuard {
     if (this.attempts >= this.limits.maxActions) throw new Error('organization-execution: action-limit')
     await this.checkOnline()
     const actionId = randomUUID(), requestDigest = actionDigest(request)
+    const fileRequest = capability === 'fs-write' ? z.object({ path: z.string(), content: z.string() }).parse(request) : undefined
+    const file = fileRequest ? { path: fileRequest.path, bytes: Buffer.byteLength(fileRequest.content),
+      sha256: createHash('sha256').update(fileRequest.content).digest('hex') } : undefined
+    const evidence = file ? { file } : {}
+    let approvalId: string | undefined
+    if (capability === 'fs-write' && this.binding.inputs.requireWriteApproval) {
+      const current = await this.bridge()
+      const approval = current.execution.humanRequests.find(h => h.kind === 'tool-approval' && h.requestDigest === requestDigest
+        && h.state === 'approved' && h.expiresAt > current.execution.serverTime
+        && !current.execution.actions.some(a => a.approvalId === h.id))
+      if (!approval) {
+        if (!current.execution.assigneeId) throw new Error('organization-execution: handler-required')
+        await this.bridge(this.command({ kind: 'request-execution-human', requestId: randomUUID(),
+          handlerId: current.execution.assigneeId, requestKind: 'tool-approval', prompt: 'Approve the pending file replacement.',
+          actionId: null, requestDigest, expiresAt: current.execution.delegation.expiresAt }))
+        throw new Error('organization-execution: waiting-human')
+      }
+      approvalId = approval.id
+    }
     // Count ambiguous reservation responses against the local ceiling too.
     this.attempts++
     const started = performance.now()
-    const authority = executionAuthoritySchema.parse(await this.bridge(this.command({ kind: 'reserve-action', actionId, capability, requestDigest })))
+    const authority = executionAuthoritySchema.parse(await this.bridge(this.command({ kind: 'reserve-action', actionId, capability, requestDigest, ...(approvalId ? { approvalId } : {}) })))
     const action = authority.execution.actions.find(item => item.actionId === actionId)
     if (!action || action.runId !== this.binding.run.id || action.requestDigest !== requestDigest || action.capability !== capability
       || action.state !== 'reserved') throw new Error('organization-execution: permit-unconfirmed')
@@ -109,7 +130,7 @@ export class ActionGuard {
     let evidenceDigest = actionDigest({ outcome })
     let value: T
     try {
-      await this.record({ action, stage: 'reserved' })
+      await this.record({ action, ...evidence, stage: 'reserved' })
       this.validate(authority); check()
       let issuing = false
       const issue = async () => {
@@ -121,7 +142,7 @@ export class ActionGuard {
         if (!current || current.state !== 'reserved' || current.requestDigest !== requestDigest) throw new Error('organization-execution: permit-revoked')
         check()
         // A crash from this point is unknown even if the syscall had not begun.
-        await this.record({ action, stage: 'issued' }); check()
+        await this.record({ action, ...evidence, stage: 'issued' }); check()
         dispatchState.issued = true
         return check
       }
@@ -131,13 +152,13 @@ export class ActionGuard {
     } catch (error) {
       outcome = dispatchState.issued ? 'unknown' : 'not-issued'
       evidenceDigest = actionDigest({ outcome })
-      await this.record({ action, stage: 'settled', outcome, evidenceDigest })
+      await this.record({ action, ...evidence, stage: 'settled', outcome, evidenceDigest })
       // If cancellation or expiry prevents a not-issued report, retain the local fact;
       // the server's charged unknown record must be reconciled, never refunded here.
       await this.bridge(this.command({ kind: 'settle-action', actionId, outcome, evidenceDigest })).catch((_reportError: unknown) => { /* The durable local settlement remains pending server reconciliation. */ })
       throw error
     }
-    await this.record({ action, stage: 'settled', outcome, evidenceDigest })
+    await this.record({ action, ...evidence, stage: 'settled', outcome, evidenceDigest })
     await this.bridge(this.command({ kind: 'settle-action', actionId, outcome, evidenceDigest }))
     return value
   }

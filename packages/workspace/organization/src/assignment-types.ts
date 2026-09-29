@@ -41,9 +41,9 @@ export interface OrganizationHumanRequest {
 }
 /** One assignee-visible inbox entry; readAt never implies acceptance. */
 export interface OrganizationInboxItem {
-  request: OrganizationHumanRequest
+  request: OrganizationHumanRequest | import('zod').z.output<typeof import('./execution-human-schema.ts').executionHumanSchema>
   assignment: OrganizationAssignment
-  notificationId: OrganizationNotificationId
+  notificationId: OrganizationNotificationId | null
   readAt: number | null
 }
 /** Current-authority snapshot; pagination must retain its cursor. */

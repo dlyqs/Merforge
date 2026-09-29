@@ -64,6 +64,9 @@
     },
     {
       "path": "../../llm/llm-deepseek"
+    },
+    {
+      "path": "../../interaction/user-questions"
     }
   ]
 }

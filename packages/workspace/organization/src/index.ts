@@ -1,3 +1,4 @@
+import { authorizeExecutionAnswer } from './assignment-participant.ts'
 /** Transactional organization identity authority, independent of personal Host services. */
 import { executionCommandSchema, executionReadSchema, executionListSchema, executionPageSchema, executionRunSchema } from './execution-schema.ts'
 import { changeExecution, readExecution, invalidateExecution } from './execution.ts'
@@ -228,6 +229,8 @@ export class OrganizationService extends Service {
       receipt.operationId, receipt.lease.fencingEpoch, receipt.revision)
     if (receipt.execution) this.ctx.logger.info('organization component=execution operationId=%s runId=%s actionId=%s revision=%s result=committed',
       receipt.operationId, receipt.execution.runId ?? 'none', receipt.execution.actionId ?? 'none', receipt.revision)
+    if (receipt.execution?.requestId) this.ctx.logger.info('organization component=human-request runId=%s requestId=%s result=waiting-human',
+      receipt.execution.runId, receipt.execution.requestId)
     if (receipt.assignmentId) this.ctx.logger.info('organization component=assignment operationId=%s assignmentId=%s revision=%s result=committed',
       receipt.operationId, receipt.assignmentId, receipt.revision)
     this.publishCommit(receipt.revision)
@@ -654,7 +657,8 @@ export class OrganizationService extends Service {
       const fingerprint = await requestFingerprint('participant', request)
       const result = transaction(db, () => {
         const current = this.principal(db, token, request.organizationId)
-        authorizeParticipant(db, current, selectedAssignment(db, request))
+        if (request.kind === 'answer-execution-question' || request.kind === 'approve-execution-tool') authorizeExecutionAnswer(db, current, request)
+        else authorizeParticipant(db, current, selectedAssignment(db, request))
         const scope = `account:${current.accountId}`
         const previous = this.previous(db, scope, request.operationId, fingerprint)
         if (previous) return { receipt: previous, committed: false }
@@ -723,7 +727,9 @@ export class OrganizationService extends Service {
             UNION ALL SELECT revision FROM assignment_actions WHERE assignmentId=?
             UNION ALL SELECT version FROM assignment_delegations WHERE assignmentId=?
             UNION ALL SELECT version FROM assignment_leases WHERE assignmentId=?
-          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
+            UNION ALL SELECT revision FROM execution_events WHERE assignmentId=?
+            UNION ALL SELECT json_extract(data,'$.version') FROM execution_human_requests WHERE assignmentId=?
+          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
           return typeof row?.revision === 'number' ? [{ assignmentId: assignment.id, revision: row.revision }] : []
         })
         return this.boundedWorkgraph({ from: brandString<import('./types.ts').OrganizationCursor>(query.cursor), cursor: createCursor(this.cursorSecret, principal, version, revision), revision, events: events.sort((a, b) => a.revision - b.revision) })
@@ -792,7 +798,7 @@ export class OrganizationService extends Service {
 
   private expireQualifications(db: DatabaseSync): void {
     const now = Date.now()
-    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? LIMIT 1").get(now, now, now, now)
+    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_human_requests WHERE json_extract(data,'$.state')='pending' AND json_extract(data,'$.expiresAt')<=? LIMIT 1").get(now, now, now, now, now)
     if (!expired) return
     const revision = transaction(db, () => {
       const revision = this.event(db, 'qualification-expired', null, null)

@@ -1,4 +1,8 @@
 /** Restricted organization composition using the standard Agent loop and tool registry. */
+import { randomUUID } from 'node:crypto'
+import { executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
+import { inspectDirectory } from './recovery.ts'
+import UserQuestions from '@deepseek-ai/dsh-user-questions'
 import { Context } from '@deepseek-ai/cordis'
 import Sessions from '@deepseek-ai/dsh-session'
 import Agents from '@deepseek-ai/dsh-agent'
@@ -48,10 +52,11 @@ export interface RuntimeLimits {
  * @param directory - Employee-selected local working directory.
  * @param limits - Explicit deployment and employee limit intersection.
  * @param signal - Native identity, window and request cancellation.
- * @returns Completion after the Agent and every admitted action have drained.
+ * @param resumeBaseline - Explicitly reviewed directory digest required for continuation.
+ * @returns Whether the drained interval completed or durably waits for a person.
  */
 export async function runExecution(binding: ExecutionResult, authority: ExecutionAuthority, bridge: ExecutionBridge,
-  adapter: LlmAdapter, root: string, directory: string, limits: RuntimeLimits, signal: AbortSignal): Promise<void> {
+  adapter: LlmAdapter, root: string, directory: string, limits: RuntimeLimits, signal: AbortSignal, resumeBaseline?: string): Promise<'completed' | 'waiting-human'> {
   if (binding.inputs.capabilities.includes('shell')) throw new Error('organization-execution: shell-confinement-unavailable')
   if (!binding.inputs.capabilities.includes('model')) throw new Error('organization-execution: model-capability-required')
   const lock = await acquireDirectory(directory), ctx = new Context(), cancel = new AbortController()
@@ -63,10 +68,12 @@ export async function runExecution(binding: ExecutionResult, authority: Executio
   let guard: ActionGuard | undefined
   try {
     signal.throwIfAborted()
+    if (resumeBaseline && (await inspectDirectory(lock.root, limits.maxBytes)).digest !== resumeBaseline) throw new Error('organization-execution: baseline-changed')
     await ctx.plugin(ExecutionSessions)
     await ctx.plugin(ExecutionAgents)
     await ctx.plugin(Projections)
     await ctx.plugin(SystemPrompt)
+    await ctx.plugin(UserQuestions)
     await ctx.plugin(Tools, { mode: 'native' })
     await ctx.plugin(Llm)
     await ctx.plugin(Jsonl, { root, compression: 'none', namespace: 'organization-execution' })
@@ -101,6 +108,25 @@ export async function runExecution(binding: ExecutionResult, authority: Executio
       output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
       execute: async args => JSON.stringify(await files.write(args.path, args.content)),
     }))
+    ctx.on('user-questions/request', async (request, next) => {
+      if (request.agent !== agent) return next()
+      await admitted.checkOnline()
+      const view = (await bridge()).execution
+      const handlerId = request.questions[0]?.id === 'issuer' ? view.approvedBy : view.assigneeId
+      if (!handlerId) throw new Error('organization-execution: handler-required')
+      const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = binding.run
+      await bridge(executionCommandSchema.parse({ ...selector, runId: id, operationId: randomUUID(),
+        kind: 'request-execution-human', requestId: randomUUID(), handlerId, requestKind: 'work-question',
+        prompt: request.questions.map(q => q.question).join('\n'), actionId: null, requestDigest: null, expiresAt: view.delegation.expiresAt }))
+      throw new Error('organization-execution: waiting-human')
+    })
+    ctx.tools.register(defineTool({ name: 'request_human',
+      description: 'Ask the employee or task issuer for missing work information or a manual test. Execution waits for their answer and explicit employee continuation. Share only the necessary question.',
+      parameters: { prompt: { type: 'string', required: true }, recipient: { type: 'string', enum: ['employee', 'issuer'], required: true } },
+      output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
+      execute: async args => JSON.stringify(await ctx.userQuestions.ask({ agent, signal: cancel.signal,
+        questions: [{ id: args.recipient, question: args.prompt }] })),
+    }))
     let steps = 0
     ctx.on('llm/stream', (options, next) => (async function* () {
       if (++steps > limits.maxSteps) throw new Error('organization-execution: step-limit')
@@ -133,11 +159,18 @@ export async function runExecution(binding: ExecutionResult, authority: Executio
       // This input enters the normal durable user/message path before any model request.
       agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: JSON.stringify({
         task: binding.snapshot, materials: binding.inputs.materials, messages: binding.inputs.messages,
+        ...(resumeBaseline ? { continuation: 'Continue from the durable history. Do not repeat completed side effects.',
+          humanAnswers: authority.execution.humanRequests.filter(h => ['answered', 'approved', 'denied'].includes(h.state)) } : {}),
       }) }] }))
       await agent.whenIdle()
+      if ((await bridge()).execution.run.state === 'waiting-human') {
+        if (!await ctx.sessions.flush(agent.session)) throw new Error('organization-execution: log-not-durable')
+        return 'waiting-human'
+      }
       cancel.signal.throwIfAborted()
       if (!outcome.completed) throw new Error('organization-execution: turn-not-completed')
       if (!await ctx.sessions.flush(agent.session)) throw new Error('organization-execution: log-not-durable')
+      return 'completed'
     } finally {
       cancel.signal.removeEventListener('abort', stop)
       await handle.dispose()

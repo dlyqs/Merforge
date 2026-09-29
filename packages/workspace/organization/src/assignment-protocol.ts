@@ -1,5 +1,6 @@
 /** Fixed assignment transport requests and authorized response validation. */
 import { z } from 'zod'
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { OrganizationCursor } from './types.ts'
 import { assignmentSchema, assignmentRequestSchema, assignmentNotificationSchema, delegationSchema } from './assignment-schema.ts'
@@ -15,8 +16,9 @@ export const taskAssignmentsQuerySchema = assignmentSchema.pick({ organizationId
 export const taskAssignmentsPageSchema = z.object({ items: z.array(assignmentSchema), total: integer,
   offset: integer, revision: integer, cursor }).strict()
 /** Persistent inbox page, reconstructed after every stream reset. */
-export const inboxPageSchema = z.object({ items: z.array(z.object({ request: assignmentRequestSchema, assignment: assignmentSchema,
-  notificationId: assignmentNotificationSchema.shape.id, readAt: integer.nullable() }).strict()),
+export const inboxPageSchema = z.object({ items: z.array(z.object({
+  request: z.union([assignmentRequestSchema, executionHumanSchema]), assignment: assignmentSchema,
+  notificationId: assignmentNotificationSchema.shape.id.nullable(), readAt: integer.nullable() }).strict()),
 total: integer, unread: integer, offset: integer, revision: integer, cursor }).strict()
 /** Preparation metadata never grants execution permission. */
 export const preparationSchema = z.object({ serverTime: integer, delegationMaxDurationMs: integer, delegationMaxBudget: integer,
