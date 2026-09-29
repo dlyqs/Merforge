@@ -70,7 +70,7 @@
 | Phase 1 | 协议与消费位置 | 固定 Run/动作/证据/验收规则和隔离设计 | completed | organization-execution.md | 状态与消费者已逐项追踪 |
 | Phase 2 | Run 与动作权威 | 持久动作许可、预算、结果及固定传输 | completed | SQLite v7、独立执行委托、签名动作与预算 | 85 项领域测试及真实 HTTPS 原生测试通过 |
 | Phase 3 | 本机执行宿主 | 隔离 Session、私有 IPC 和模型上下文 | completed | 独立 Session、持久输入、Desktop IPC 与冷启动 invariant | Loader/HTTPS/IPC/JSONL 通过；真实副作用关闭 |
-| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | pending | — | 依赖 3；首个可执行叶子任务 |
+| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | in_progress | 内部 loop/动作 guard/文件消费者及测试 | 原生通道、模型策略与 UI 未接通 |
 | Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | pending | — | 依赖 4 |
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | pending | — | 依赖 5 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | pending | — | 依赖 6；单叶完整闭环 |
@@ -165,7 +165,27 @@
 
 用户检查：选择目录/模型、开始、暂停、取消与状态显示；平台限制提示是否准确。依赖：Phase 3。仅 UI 待验不阻塞后续工程；核心动作隔离或拒绝证据缺失则本阶段不得 completed。
 
-实际完成：未开始，执行后填写。
+当前进展（2026-09-30，`in_progress`，未完成 Phase 4）：
+
+- `organization-execution` 新增内部 `execute` 消费者、`action-guard.ts`、`runtime.ts`、`resources.ts`；复用真实 loop、tool registry、LLM retry 和 local filesystem。显式本机目录/动作/步数/时长进入输入摘要；部署 `executionLimits` 控制上限，缺省仍拒绝执行。每次模型重试重新收费，动作 reserved/issued/settled 先落本机日志，回执丢失停止新增动作。
+- Agent/Session 默认注册域继续拒绝组织 ID；只有独立执行注册域覆盖受保护的命名空间准入。原 Session 元数据负例暴露了祖先 ID 在解析前被调用字符串方法的问题，已把祖先准入移至元数据解析后，保留个人拒绝。冷启动 invariant 同时检查绑定、动作归属与日志阶段顺序；新增必需事件及生成目录已更新。
+- 文件消费者拒绝相对路径逃逸、符号链接、硬链接与 Windows 额外路径形式，目录锁覆盖父子重叠目录；取消、dispose 等待模型和日志收敛。当前不注册 shell/subprocess/job/terminal/subagent；即使委托包含 shell 也明确拒绝。macOS 现有 Seatbelt 的写限制实测通过，但其读取/网络能力不足以开放本计划的严格 shell。
+- 日志在 `organization component=action runId=... actionId=... operation=<stage> result=...` 记录阶段；正文留在独立 JSONL，服务端仍只接收摘要与动作记录。运行结束未新增任何提交或验收动作。
+
+已运行的验证：
+
+- `pnpm exec vitest run packages/workspace/organization-execution/tests packages/workspace/organization/tests/execution.spec.ts packages/core/session/tests/session.spec.ts`：4 文件、108 项通过；包含真实 Loader/SQLite/签名许可/文件写入、模型重试、越界拒绝、授权后撤销、响应丢失、dispose、日志重开和篡改拒绝。
+- `pnpm exec vitest run packages/workspace/organization-execution/tests/runtime.spec.ts -t "complete serialized model byte ceiling"`：完整模型响应数组的多字节精确上限和越界 2 项通过，其余 16 项按过滤条件跳过。
+- `pnpm exec vitest run packages/workspace/organization-execution/tests/runtime.spec.ts -t "byte ceiling smaller"`：低于最小响应表示的上限在真实模型发出前拒绝，1 项通过，其余 18 项按过滤条件跳过。
+- `pnpm exec vitest run packages/core/agent/tests/agent.spec.ts packages/core/session/tests/fork.spec.ts`：2 文件、40 项通过，补充注册域和 fork 回归。
+- `pnpm exec vitest run --config vitest.e2e.config.ts packages/sandbox/sandbox-local/tests/seatbelt.e2e.ts`：当前 macOS 5 项通过。此前使用默认测试配置未匹配 `.e2e.ts`，不记为通过。
+- `pnpm exec tsc -b packages/workspace/organization-execution --pretty false`、针对 organization-execution 源码/测试、execution authority 测试夹具及修改的 Agent/Session 源码运行 `run-oxlint.ts --fix`、`pnpm run verify-tsconfig-paths`、`pnpm run verify-scoped-events`、`git diff --check` 通过。
+- `pnpm exec tsx scripts/gen-persistence-catalog.ts` 成功更新事件词汇、Markdown 和 JSON 目录。`pnpm run gen-config-catalog` 仍被既有 organization-api/tls.ts、organization/schema.ts 本地 schema 导入限制阻断。
+- `verify-package-dependencies.ts` 仍仅报告既有 file-upload 对 `assertPersonalSessionId` 的导入分类；`verify-export-jsdoc.ts` 仍仅报告既有 `OrganizationLoginSession.read/save` 两项缺少正文。未修改无关门禁例外。
+
+尚未完成：Desktop 私有执行命令通道、组织模型/出站策略、执行配置/对话/开始/暂停/取消 UI，以及这些入口的真实 HTTPS 组合验证。现有 native `mutate` 每次写入都会 reset 连接 generation，不能直接用它承载持续 Run 的 reserve/settle；须先完成独立动作通道的身份寿命与撤权语义，不能绕过代次检查开放执行。当前 shipping 配置没有 `executionLimits`，IPC 仍只准备 Session，产品副作用入口保持关闭。未运行完整发行构建、真实模型或任何页面验证。
+
+Phase 4 继续 `in_progress`；Phase 5–6 尚未开始，不标 completed，也不虚构外部阻塞。自动授权仍为 Phase 4–6，下一步先补原生动作通道及模型策略，再接 UI，随后按依赖推进 Phase 5 和 Phase 6。
 
 ## Phase 5：持久人工请求、unknown 核对与恢复
 
@@ -300,11 +320,11 @@
 
 ## 后续执行规则
 
-- execution mode: manual
-- automatic start phase: none
-- automatic stop phase: none
+- execution mode: auto_until
+- automatic start phase: Phase 4
+- automatic stop phase: Phase 6
 - conversation relay: off
-- 计划评审：用户已明确授权自动完成 Phase 1–3；Phase 4 及以后未授权。
+- 计划评审：用户已明确授权自动完成 Phase 4–6；Phase 7 及以后未授权。
 - 使用技能：`/Users/git_local/dev-workflow-skill/SKILL.md`；本文件是本任务执行入口，暂不创建额外 executor skill。
 
 1. 执行前先读本文、overview 和适用 AGENTS；实现 `packages/` 前读架构，生命周期/并发/进程工作读防御规则，Client 修改按其目录规则读相应架构页。保持路线图与本计划内部编号分开。
@@ -317,6 +337,4 @@
 8. 每个执行阶段都更新本计划和 `docs/overview.md`；实际记录写清改动/文件、命令与结果、跳过项、偏差、日志、残余风险和下一阶段。未开始阶段不填写虚构完成证据；已完成阶段不另建全局重复进度表。
 9. 自动执行仅限本计划范围，不授权部署、生产变更、提交推送或新业务范围。relay 当前关闭，不新建会话、不生成交接文件；未来只有明确授权才加载技能 relay/worktree-return 参考，记录批次与交付目录，验证每批返回及回执后才转交。若届时返回阻塞，保留自动范围，不把实现完成当成交付完成。
 
-本次自动授权：用户原话“请自动完成 phase1-3”；范围为 Phase 1 至 Phase 3，Phase 2 依赖 1、Phase 3 依赖 2。不得继续 Phase 4。
-
-授权停止点已到达：Phase 1–3 工程完成，恢复 manual，清空自动边界；Phase 4 保持 pending，未开始真实执行。
+本次自动授权：用户原话“请自动完成 phase4-6”；范围为 Phase 4 至 Phase 6。Phase 3 已完成；Phase 5 依赖 4、Phase 6 依赖 5。连续推进至 Phase 6，不进入 Phase 7。

@@ -7,6 +7,8 @@ import { contextAuthoritySchema, contextResultSchema, contextRequestSchema } fro
 /** Non-secret local model selection and exact user-authorized inputs. */
 export const executionInputsSchema = z.object({ model: z.string().min(1).max(200),
   capabilities: z.array(executionCapabilitySchema).min(1).max(4),
+  execution: z.object({ directory: z.string().min(1), maxActions: z.number().int().positive(),
+    maxSteps: z.number().int().positive(), maxDurationMs: z.number().int().positive() }).strict().optional(),
   materials: z.array(z.string().max(32768)).max(32), messages: z.array(z.string().max(32768)).max(32),
 }).strict()
 /** Fixed prepare selector; no model invocation or side-effect flag exists. */

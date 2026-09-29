@@ -55,3 +55,9 @@ reserved 过期或资格失效转 unknown，不自动退款。not-issued 仅可�
 | 目标核验 | 后续原生固定动作 → 本机读取 → organization 回执 | 缺目标授权、基线冲突、实际内容不一致；Phase 8 |
 
 macOS Seatbelt 当前主要强制写限制，不能据此声称全盘读取或网络隔离。Windows ACL 报告 partial，读取与硬链接限制未满足完整要求。涉及这些要求的动作必须拒绝；Phase 4 在真实 provider 环境验证越界拒绝，Windows 与三机可见总验收留给产品 Phase 8。Phase 1–3 只验证静态、SQLite、HTTPS、Loader、IPC 和 JSONL，不启动页面。
+
+## 当前内部执行消费者（Phase 4 进行中）
+
+`OrganizationExecution.execute` 已消费标准 Agent loop 和独立模型适配器，按动作调用在线 bridge，复用真实 filesystem 完成有界 UTF-8 文件读写。调用还必须有部署 `executionLimits` 和输入摘要内的显式本机目录/动作/步数/时长；旧准备输入无法启动执行。动作日志保存 reserved/issued/settled，各次模型重试独立授权。失去资格或回执不明后停止，已运行绑定不能未经核对再次执行。
+
+Desktop 原生 IPC 和 UI 仍只开放准备，未将内部 executor 接成产品入口。模型/出站策略和原生持续动作通道尚未实现，不能将内部组合测试视为 Phase 4 完成。当前拒绝 shell：现有 Seatbelt 的写限制实测不代表具有读取/网络隔离。HumanRequest、产物与正式提交仍待 Phase 5–6。

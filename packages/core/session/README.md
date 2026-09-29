@@ -175,6 +175,8 @@ Zero duplicate tokens from logging. The system nodes and schemas still incur the
 
 Logging causes no invalidation, and exact reconstruction preserves request-prefix identity. A later header with changed config or schemas may invalidate reuse from its first difference; a prompt change that replaces surface node 0 invalidates reuse from the first token, while an in-history append keeps the prefix through the cached history reusable.
 
+The default store rejects organization Session IDs. Application-owned isolated subclasses may override protected `assertSessionId`; preparation, publication and lookup all enforce it. Parent metadata is parsed before namespace admission, so invalid wire fields retain their normal validation errors. Organization execution owns a separate store and JSONL namespace; personal consumers remain unable to read it.
+
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>

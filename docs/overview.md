@@ -4,7 +4,7 @@
 
 ## 下一阶段计划入口
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–3 工程完成，已到达用户授权边界并恢复 manual。SQLite v7 新增明确执行委托、Run、原子动作预算与结果，固定 HTTPS 和原生签名动作已有真实集成测试；旧准备委托不自动扩权。`organization-execution` 使用独立域和 JSONL，保存准确任务与显式输入，经 Desktop 私有 IPC 在线复核后交付本人。真实模型和工具副作用仍关闭，后续 Phase 4 接入实际消费者 guard。提交、验收、父级集成和外部执行器尚未实现。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–3 工程完成；用户已授权自动执行内部 Phase 4–6，当前为 auto_until，Phase 4 进行中。SQLite v7 新增明确执行委托、Run、原子动作预算与结果，固定 HTTPS 和原生签名动作已有真实集成测试；旧准备委托不自动扩权。`organization-execution` 使用独立域和 JSONL，保存准确任务与显式输入，经 Desktop 私有 IPC 在线复核后交付本人。Phase 4 已新增内部标准 loop、逐次模型/工具许可、本机动作日志、目录锁与有界文件消费者，测试使用真实 SQLite 和文件系统；Desktop 原生执行命令生命周期、模型/出站策略和开始/停止 UI 尚未接通，产品入口仍关闭。提交、验收、父级集成和外部执行器尚未实现。
 
 领域、原生 HTTPS、真实 Loader/IPC、JSONL 重开、备份恢复、权限拒绝和 invariant 测试通过；Desktop 类型、局部 lint、入口、配置组合与事件门禁通过。全仓 file-upload 依赖分类、四处旧 invariant README、目录生成器解析限制和工作区另一项 login-session JSDoc 问题，单列于执行计划的 Phase 3 记录。完整发行构建、真实模型和用户可见验收留给后续阶段。
 
@@ -37,7 +37,7 @@ Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有
 | `packages/client/ui-organization` | 组织设置、账号/邀请、成员/项目/任务授权、共享任务工作台与本人只读上下文。 |
 | `packages/workspace/organization` | 独立 SQLite 账号/组织/成员/邀请/登录权威、WorkGraph 定义/版本/授权投影，事务回执、审计、限流和恢复；通过 Desktop 私有组织组合启动。 |
 | `packages/workspace/organization-context` | 本机预执行 Session 的隔离、原子预留、准确任务快照、在线权限复核与持久恢复。 |
-| `packages/workspace/organization-execution` | 本机 Run/Session 预留、独立 JSONL、显式模型与输入记录、私有在线复核及冷启动一致性；尚不执行真实动作。 |
+| `packages/workspace/organization-execution` | 本机 Run/Session 预留、独立 JSONL、逐动作许可与日志、内部有界执行器；Desktop 入口仍只支持准备。 |
 | `packages/workspace/personal-workflow` | 持久 Task、独立父子树/依赖图、原子计划版本与审核、幂等回执、Session 快照、Markdown 导出、任务领取、执行预算、证据和同机接力恢复。 |
 | `packages/client/ui-personal-workflow` | 任务树、阶段并列分支、详情编辑、准确版本审核、导出、输入框模式开关、任务选择与授权、暂停/取消/恢复和接力入口。 |
 | `packages/skill/skill-dev-workflow` | 固定版本的包内方法、模式上下文及受约束的目标评估/提案工具。 |

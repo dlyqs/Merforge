@@ -931,6 +931,12 @@ export class SessionStore extends Service {
     }, 'sessions.registerMessageProjection()')
   }
 
+  /**
+   * Enforce the registry's identity namespace before creating or publishing a Session.
+   * @param id - Identity selected by the owning application composition.
+   */
+  protected assertSessionId(id: string): void { assertPersonalSessionId(id) }
+
   constructor(ctx: Context) {
     super(ctx, 'sessions')
     ctx.inject(['typert'], (typeCtx) => {
@@ -998,8 +1004,11 @@ export class SessionStore extends Service {
    *   non-absolute path.
    */
   prepare(id?: SessionId, options?: PrepareSessionOptions): Session {
-    if (id !== undefined) assertPersonalSessionId(id)
-    if (options?.meta?.parentSession !== undefined) assertPersonalSessionId(options.meta.parentSession)
+    if (id !== undefined) this.assertSessionId(id)
+    const admitParent = (session: Session) => {
+      if (session.header.parentSession !== undefined) this.assertSessionId(session.header.parentSession)
+      return session
+    }
     let sessionId: SessionId
     if (id === undefined) {
       do sessionId = brandString<SessionId>(`session-${++this.counter}`)
@@ -1013,14 +1022,14 @@ export class SessionStore extends Service {
       switch (eventState) {
         case 'detached':
         case 'shared-frozen':
-          return Session.fromRestore(
+          return admitParent(Session.fromRestore(
             sessionId,
             options.seed,
             options.meta,
             options.inheritedEventCount,
             eventState,
             this.projections,
-          )
+          ))
         case undefined:
           break
         /* v8 ignore next -- closed-union exhaustiveness guard */
@@ -1041,7 +1050,7 @@ export class SessionStore extends Service {
       ...meta?.delegationDepth === undefined ? {} : { delegationDepth: meta.delegationDepth },
       ...meta?.agentPreset === undefined ? {} : { agentPreset: meta.agentPreset },
     }
-    return Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections)
+    return admitParent(Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections))
   }
 
   /**
@@ -1067,7 +1076,7 @@ export class SessionStore extends Service {
    * @throws if a session with this id is already in the store.
    */
   enter(session: Session): () => void {
-    assertPersonalSessionId(session.id)
+    this.assertSessionId(session.id)
     const id = session.id
     const carrier = scopeTarget(session, scopeOf(this.ctx))
     // This is the authoritative collision boundary after arbitrary unpublished
@@ -1210,7 +1219,7 @@ export class SessionStore extends Service {
    * @returns the session, or undefined when no live session has that id.
    */
   get(id: SessionId): Session | undefined {
-    assertPersonalSessionId(id)
+    this.assertSessionId(id)
     return this.store.get(id)?.session
   }
 

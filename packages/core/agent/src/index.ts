@@ -253,6 +253,12 @@ export class AgentRegistry extends Service {
   private initiatorDrain: PromiseWithResolvers<void> | undefined
   private initiatorDisposal: Promise<void> | undefined
 
+  /**
+   * Enforce the registry's identity namespace before creating or publishing a Session.
+   * @param id - Identity selected by the owning application composition.
+   */
+  protected assertSessionId(id: string): void { assertPersonalSessionId(id) }
+
   constructor(ctx: Context) {
     super(ctx, 'agents')
     ctx.inject(['typert'], (typeCtx) => {
@@ -390,7 +396,7 @@ export class AgentRegistry extends Service {
    * @returns the handle after setup, rollback-covered publication, and loop start complete.
    */
   async create(options: CreateAgentOptions): Promise<AgentHandle> {
-    assertPersonalSessionId(options.sessionId)
+    this.assertSessionId(options.sessionId)
     const ownerCtx = this.ctx
     // Re-trace a Service-backed factory through the accessing context
     // explicitly. This preserves AgentLoop's dependency origin while binding
@@ -410,7 +416,7 @@ export class AgentRegistry extends Service {
    * @returns the handle after setup, rollback-covered publication, and loop start complete.
    */
   async resume(options: ResumeAgentOptions): Promise<AgentHandle> {
-    assertPersonalSessionId(options.resumeSessionId)
+    this.assertSessionId(options.resumeSessionId)
     const ownerCtx = this.ctx
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
@@ -460,7 +466,7 @@ export class AgentRegistry extends Service {
    *   creation dispatch settles.
    */
   enter(agent: Agent, owner: Agent | undefined): () => void {
-    assertPersonalSessionId(agent.id)
+    this.assertSessionId(agent.id)
     const id = agent.id
     if (id !== agent.session.id) {
       throw new Error(`agent id "${id}" does not match session id "${agent.session.id}"`)
@@ -568,7 +574,7 @@ export class AgentRegistry extends Service {
    * @returns the agent, or undefined when no live agent has that id.
    */
   get(id: SessionId): Agent | undefined {
-    assertPersonalSessionId(id)
+    this.assertSessionId(id)
     return this.store.get(id)?.agent
   }
 

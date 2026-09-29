@@ -163,6 +163,8 @@ Each provider/model switch adds one short retained user-role notice. Other scope
 
 The switch notice appends after the previous history, preserving that prefix, while the route change can prevent the new provider or model from reusing it. Setup or reload that changes prompt sections, tool definitions, or request listeners may invalidate reuse from the first affected request token.
 
+The default registry rejects organization Session IDs. Application-owned isolated subclasses may override the protected `assertSessionId` admission method; create, resume, publication and lookup all use it. Organization execution uses a separate Context and registry, leaving personal admission unchanged.
+
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
