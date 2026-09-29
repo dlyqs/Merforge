@@ -1,5 +1,5 @@
 /** Electron owns all online execution preparation reads and their window lifetime. */
-import { executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
+import { executionReportRequestSchema, type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionCommand, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 import type { OrganizationConnection } from '@deepseek-ai/dsh-organization-connection'
 import { openOrganizationContext, type ContextHost } from './organization-context.ts'
 /** Private Host operation; no public remote receives the authorization callback. */
@@ -12,7 +12,8 @@ export interface ExecutionHost extends ContextHost {
    * @param signal - Window and identity cancellation.
    * @returns Local prepared context with all real effects disabled.
    */
-  openOrganizationExecution(request: ExecutionRequest, authorize: () => Promise<ExecutionAuthority>, timeoutMs: number,
+  openOrganizationExecution(request: ExecutionRequest, authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority>,
+    timeoutMs: number,
     signal: AbortSignal): Promise<ExecutionResult>
 }
 /**
@@ -37,7 +38,7 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
   }
   const authorize = async (): Promise<ExecutionAuthority> => {
     current()
-    const { inputs: _inputs, operationId: _operation, ...selector } = request
+    const { inputs: _inputs, operationId: _operation, start: _start, ...selector } = request
     const response = await connection.perform({ kind: 'execution-read', request: selector })
     current()
     const execution = response.execution
@@ -60,6 +61,30 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
     return { ...read.principal, organizationId: request.organizationId, requestId: read.requestId, generation, task,
       context: context.result, execution }
   }
+  if (request.start) {
+    const initial = await authorize()
+    current()
+    const channel = connection.executionChannel({ organizationId: request.organizationId, projectId: request.projectId,
+      planId: request.planId, assignmentId: request.assignmentId, runId: request.runId })
+    const signal = lifetime ? AbortSignal.any([lifetime, channel.signal]) : channel.signal
+    const check = () => { signal.throwIfAborted(); assertCurrent() }
+    const bridge = async (command?: ExecutionCommand): Promise<ExecutionAuthority> => {
+      check()
+      if (command) await channel.command(command)
+      const execution = await channel.read()
+      check()
+      return { ...initial, generation: channel.generation, execution }
+    }
+    const duration = request.inputs.execution?.maxDurationMs
+    if (!duration || duration > 2147483647 - connection.timeoutMs) throw new Error('invalid-input')
+    const result = await channel.run(async () => {
+      const value = await host.openOrganizationExecution(request, bridge, duration + connection.timeoutMs, signal)
+      await channel.read(); check()
+      return value
+    })
+    lifetime?.throwIfAborted(); assertCurrent()
+    return { generation: connection.snapshot().generation, result }
+  }
   const cancel = new AbortController()
   const abort = () => { cancel.abort() }
   lifetime?.throwIfAborted()
@@ -70,4 +95,42 @@ export async function openOrganizationExecution(connection: OrganizationConnecti
     await authorize(); cancel.signal.throwIfAborted(); current()
     return { generation, result }
   } finally { unsubscribe(); lifetime?.removeEventListener('abort', abort) }
+}
+
+/**
+ * Read only this employee's local Run transcript after fresh exact-task authorization.
+ * @param connection - Native identity and fixed online transport.
+ * @param host - Private Host owning the local logs.
+ * @param input - Strict Run selector, never a local Session ID.
+ * @param assertCurrent - Initiating top-frame and Host ownership check.
+ * @param lifetime - Initiating window lifetime.
+ * @returns Generation-scoped private transcript.
+ */
+export async function readOrganizationExecution(connection: OrganizationConnection, host: {
+  readOrganizationExecution(request: ExecutionReportRequest, authorize: () => Promise<ExecutionReadAuthority>,
+    timeoutMs: number, signal: AbortSignal): Promise<ExecutionReport>
+}, input: unknown, assertCurrent: () => void, lifetime: AbortSignal): Promise<{ generation: number; report: ExecutionReport }> {
+  const request = executionReportRequestSchema.parse(input), initial = connection.snapshot()
+  const cancel = new AbortController(), signal = AbortSignal.any([lifetime, cancel.signal])
+  const current = () => {
+    assertCurrent(); signal.throwIfAborted()
+    const state = connection.snapshot()
+    if (state.generation !== initial.generation || state.phase !== 'ready' || state.organizationId !== request.organizationId
+      || state.mode !== 'organization' || !state.principal) throw new Error('superseded')
+    return state.principal
+  }
+  const authorize = async (): Promise<ExecutionReadAuthority> => {
+    const principal = current()
+    const result = await connection.perform({ kind: 'execution-read', request })
+    current()
+    if (!result.execution || result.generation !== initial.generation) throw new Error('forbidden')
+    return { ...principal, generation: initial.generation, execution: result.execution }
+  }
+  const unsubscribe = connection.subscribe(() => { if (connection.snapshot().generation !== initial.generation) cancel.abort() })
+  try {
+    current()
+    const report = await host.readOrganizationExecution(request, authorize, connection.timeoutMs, signal)
+    await authorize(); current()
+    return { generation: initial.generation, report }
+  } finally { unsubscribe() }
 }

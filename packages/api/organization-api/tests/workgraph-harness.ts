@@ -11,10 +11,10 @@ import { organizationRequest } from '../src/transport.ts'
 import { expect } from 'vitest'
 
 export { password }
-export async function workgraphHarness() {
+export async function workgraphHarness(authority?: Omit<import('@deepseek-ai/dsh-organization').Config, 'path'>) {
   const root = await mkdtemp(join(tmpdir(), 'organization-workgraph-https-'))
   const config = { api: { directory: join(root, 'service'), host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
-  const app = await bootOrganization(config)
+  const app = await bootOrganization({ ...config, ...(authority ? { authority } : {}) })
   const close = async () => { await app.close(); await rm(root, { recursive: true, force: true }) }
   try {
     const owner = await initialize(app.authority)

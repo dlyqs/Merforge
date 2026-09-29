@@ -10,9 +10,48 @@ import { workgraphPageSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { ConnectionResult, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from '../src/client/contract.ts'
 import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
+import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
+import { executionViewSchema } from '@deepseek-ai/dsh-organization/execution'
 import { Inbox } from '../src/client/Inbox.tsx'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
+
+it('pages authorized Run history without starting execution and hides it when offline', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment, deviceId = randomUUID(), executionDelegationId = randomUUID()
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, planRevision: a.planRevision, deviceId }
+  const view = executionViewSchema.parse({
+    run: { ...selector, id: randomUUID(), executionDelegationId, serverEpoch: randomUUID(), fencingEpoch: 1,
+      configDigest: 'a'.repeat(64), state: 'paused', createdRevision: 3, version: 3 },
+    delegation: { ...selector, id: executionDelegationId, delegationId: randomUUID(), capabilities: ['model'],
+      configDigest: 'a'.repeat(64), state: 'active', budget: 10, used: 1, expiresAt: Date.now() + 60000,
+      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [],
+  })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'execution-list') return { generation: 1, executions: { items: [view.run], total: 2,
+      offset: (action.request as { offset: number }).offset } }
+    if (action.kind === 'execution-read') return { generation: 1, execution: view }
+    return base(action)
+  })
+  const rendered = render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.next }))
+  await waitFor(() => {
+    expect(h.connection.mock.calls.some(([action]) => action.kind === 'execution-list'
+      && (action.request as { offset: number }).offset === 1)).toBe(true)
+  })
+  expect(h.props.execution).not.toHaveBeenCalled()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'execution-command')).toBe(false)
+  h.offline(); rendered.rerender(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current={false} />)
+  expect(screen.queryByRole('button', { name: zh.executionTranscript })).toBeNull()
+})
+
+it('reports a failed execution history read instead of silently hiding the failure', async () => {
+  const h = fixture(true)
+  h.connection.mockRejectedValue(new Error('forbidden'))
+  render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  await screen.findByText(zh.forbidden)
+})
 
 function fixture(approved: boolean, admin = false) {
   const organizationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationId>(randomUUID())
@@ -48,7 +87,8 @@ function fixture(approved: boolean, admin = false) {
     }
     return {}
   })
-  const props: OrganizationProps = { connection, context: vi.fn(), available: true, server: vi.fn(), secret: vi.fn(),
+  const props: OrganizationProps = { connection, context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
+    available: true, server: vi.fn(), secret: vi.fn(),
     t: makeTranslate(zh), useOrganization: selector => selector(state) }
   return { props, task, projectId, connection, prep,
     offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }

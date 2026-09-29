@@ -1,5 +1,5 @@
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
-import { executionCommandSchema, executionReadSchema, executionViewSchema } from '@deepseek-ai/dsh-organization/execution'
+import { executionCommandSchema, executionReadSchema, executionViewSchema, executionListSchema, executionPageSchema } from '@deepseek-ai/dsh-organization/execution'
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -13,7 +13,7 @@ import { projectCommandSchema, grantCommandSchema } from '@deepseek-ai/dsh-organ
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
-import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId } from './types.ts'
+import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId, OrganizationExecutionChannel } from './types.ts'
 
 /** Configurable request bounds and reconnection interval for a small LAN client. */
 export type Config = z.input<typeof connectionConfig>
@@ -32,6 +32,8 @@ export class OrganizationConnection {
   private generation = 0
   private discardedResponses = 0
   private cancel = new AbortController()
+  private executionLifetime = new AbortController()
+  private readonly executionWork = new Map<string, { cancel: AbortController; done: Promise<unknown> }>()
   private readonly streams = new Set<Promise<void>>()
   private renewal: ReturnType<typeof setTimeout> | undefined
   private retry: ReturnType<typeof setTimeout> | undefined
@@ -45,7 +47,7 @@ export class OrganizationConnection {
   private identityKey(): string { return `${this.state.principal?.serverId}:${this.state.principal?.accountId}` }
   private writing = false
   private closed = false
-  private readonly operations = new Set<Promise<ConnectionResult>>()
+  private readonly operations = new Set<Promise<unknown>>()
   private renewingMutation = false
   private journalError = false
   private readonly config: z.output<typeof connectionConfig>
@@ -127,7 +129,15 @@ export class OrganizationConnection {
    * @returns Observer removal.
    */
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
+  private stopExecution(): void {
+    this.executionLifetime.abort(); this.executionLifetime = new AbortController()
+    clearTimeout(this.renewal)
+    this.state = { ...this.state, renewing: undefined }
+  }
   private publish(next: Partial<ConnectionSnapshot>): void {
+    if (next.phase === 'offline' || next.phase === 'signed-out' || next.phase === 'disconnected'
+      || ('organizationId' in next && next.organizationId !== this.state.organizationId)
+      || (next.mode !== undefined && next.mode !== this.state.mode)) this.stopExecution()
     if (next.phase && next.phase !== this.state.phase && (!this.renewingMutation || next.phase === 'offline' || next.phase === 'signed-out')) console.info('organization component=connection phase=%s result=state-change', next.phase)
     this.state = { ...this.state, ...next, revision: this.state.revision + 1 }
     for (const listener of this.listeners) {
@@ -136,9 +146,9 @@ export class OrganizationConnection {
   }
   private reset(next: Partial<ConnectionSnapshot>): number {
     this.cancel.abort(); this.cancel = new AbortController()
-    clearTimeout(this.retry); clearTimeout(this.renewal)
+    clearTimeout(this.retry)
     this.generation++
-    this.publish({ generation: this.generation, projects: undefined, inbox: undefined, renewing: undefined,
+    this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
       members: [], error: undefined, ...next })
     return this.generation
   }
@@ -165,7 +175,7 @@ export class OrganizationConnection {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
-        if (route.startsWith('/workgraph/') || route.startsWith('/assignment/') || route.startsWith('/device/')) {
+        if (route.startsWith('/execution/') || route.startsWith('/workgraph/') || route.startsWith('/assignment/') || route.startsWith('/device/')) {
           const next = this.reset({ phase: 'loading', error: code })
           try { await this.refresh(next) } catch (_error) {
             if (next === this.generation && this.token) this.offline(next)
@@ -188,8 +198,96 @@ export class OrganizationConnection {
     this.operations.add(task)
     try { return await task } finally { this.operations.delete(task) }
   }
+  /**
+   * Capture a native-only Run channel whose lifetime survives projection refreshes.
+   * @param input - Exact authorized Run selector, parsed before capture.
+   * @returns Fixed online read/command operations and identity cancellation signal.
+   */
+  executionChannel(input: z.input<typeof executionReadSchema>): OrganizationExecutionChannel {
+    const selector = executionReadSchema.parse(input)
+    this.assertOrganization(selector.organizationId)
+    const trust = this.trust, token = this.token, principal = this.state.principal
+    if (!trust || !token || !principal || this.closed) throw new Error('unavailable')
+    const material = this.material(), deviceId = this.localDeviceId()
+    const cancellation = new AbortController()
+    const signal = AbortSignal.any([this.executionLifetime.signal, cancellation.signal])
+    const generation = this.generation
+    const current = () => {
+      signal.throwIfAborted()
+      if (this.closed || this.token !== token || this.trust !== trust
+        || this.state.organizationId !== selector.organizationId || this.state.mode !== 'organization'
+        || !['ready', 'loading'].includes(this.state.phase)) throw new Error('superseded')
+      if (this.loginExpiresAt === undefined || this.loginExpiresAt <= Date.now()) {
+        this.invalidate('unauthenticated'); throw new Error('unauthenticated')
+      }
+    }
+    const request = async (route: '/execution/read' | '/execution/challenge' | '/execution/command', body: unknown) => {
+      current()
+      let response: Awaited<ReturnType<typeof organizationRequest>>
+      try { response = await organizationRequest(trust, 'POST', `/organization/v1${route}`, body, token, signal) }
+      catch (error) {
+        current()
+        const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+        if (/CERT|TLS|SELF_SIGNED/.test(code)) { this.trust = undefined; this.invalidate('certificate-changed') }
+        else this.offline(this.generation)
+        throw new Error('unavailable')
+      }
+      current()
+      if (response.status !== 200) {
+        const code = z.object({ error: z.string() }).parse(response.body).error
+        if (code === 'unauthenticated') this.invalidate(code)
+        else if (response.status >= 500) this.offline(this.generation)
+        throw new Error(code)
+      }
+      return response.body
+    }
+    const read = async () => executionViewSchema.parse(await request('/execution/read', selector))
+    const command = async (input: z.output<typeof executionCommandSchema>) => {
+      current()
+      const command = executionCommandSchema.parse(input)
+      if (!('runId' in command) || command.runId !== selector.runId
+        || command.organizationId !== selector.organizationId || command.projectId !== selector.projectId
+        || command.planId !== selector.planId || command.assignmentId !== selector.assignmentId
+        || command.deviceId !== deviceId || !['reserve-action', 'settle-action', 'transition-run'].includes(command.kind)) throw new Error('forbidden')
+      if (this.journalError) throw new Error('invalid-operation-journal')
+      if (this.writing || this.pending) throw new Error('operation-pending')
+      this.writing = true
+      const key = `${principal.serverId}:${principal.accountId}`
+      try {
+        this.pending = { ...principal, operationId: command.operationId, organizationId: selector.organizationId }
+        this.publish({ pendingOperation: command.operationId })
+        const challenge = await request('/execution/challenge', command)
+        current()
+        const receipt = receiptSchema.parse(await request('/execution/command', { command, proof: material.proof(command, challenge) }))
+        this.uncertain.delete(key); this.savePending(); this.publish({ pendingOperation: undefined })
+        return receipt
+      } catch (error) {
+        if (error instanceof Error && ['invalid-input', 'version-conflict', 'forbidden', 'operation-conflict', 'rate-limited'].includes(error.message)) {
+          this.uncertain.delete(key); this.savePending()
+          if (key === this.identityKey()) this.publish({ pendingOperation: this.pending?.operationId })
+        }
+        throw error
+      } finally { this.writing = false }
+    }
+    const track = async <T>(operation: () => Promise<T>): Promise<T> => {
+      const task = operation()
+      this.operations.add(task)
+      try { return await task } finally { this.operations.delete(task) }
+    }
+    const run = async <T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+      current()
+      if (this.executionWork.has(selector.runId)) throw new Error('operation-pending')
+      const done = Promise.resolve().then(() => work(signal))
+      this.executionWork.set(selector.runId, { cancel: cancellation, done })
+      try { return await track(() => done) }
+      finally { this.executionWork.delete(selector.runId); cancellation.abort() }
+    }
+    return { generation, signal, run, read: () => track(read),
+      command: (input: z.output<typeof executionCommandSchema>) => track(() => command(input)) }
+  }
   private async performAction(input: ConnectionAction): Promise<ConnectionResult> {
     const action = actionSchema.parse(input)
+    if (['personal', 'select', 'reconnect', 'logout', 'probe', 'login'].includes(action.kind)) this.stopExecution()
     if (action.kind === 'personal') { this.reset({ mode: 'personal', organizationId: undefined }); return {} }
     if (action.kind === 'logout' || action.kind === 'probe' || action.kind === 'login') {
       const previousTrust = this.trust; const previousToken = this.token
@@ -283,6 +381,12 @@ export class OrganizationConnection {
           const input = z.record(z.string(), z.unknown()).parse(action.request)
           if ('deviceId' in input) throw new Error('invalid-input')
           return await this.mutate({ ...input, deviceId: this.localDeviceId() }, undefined, 'execution', this.material())
+        }
+        case 'execution-list': {
+          const request = executionListSchema.parse(action.request)
+          this.assertOrganization(request.organizationId)
+          const executions = executionPageSchema.parse(await this.request('/execution/list', request, generation))
+          return { generation, executions }
         }
         case 'execution-read': {
           const request = executionReadSchema.parse(action.request)
@@ -426,16 +530,26 @@ export class OrganizationConnection {
       const current = preparationSchema.parse(await this.request('/assignment/preparation', selector))
       if (current.lease?.state === 'held' && current.lease.deviceId === deviceId
         && current.lease.fencingEpoch === result.receipt.lease.fencingEpoch) {
-        const generation = this.generation
+        const lifetime = this.executionLifetime.signal
+        const expires = performance.now() + current.lease.expiresAt - current.serverTime
         this.publish({ renewing: query.assignmentId })
-        this.renewal = setTimeout(() => {
-          if (generation !== this.generation) return
+        const renew = () => {
+          if (lifetime.aborted) return
+          if (performance.now() >= expires || this.pending && !this.writing) {
+            this.publish({ renewing: undefined, error: 'lease-recheck-required' }); return
+          }
+          if (this.writing || this.state.phase === 'loading') {
+            this.renewal = setTimeout(renew, Math.min(this.config.reconnectMs, Math.max(1, expires - performance.now())))
+            return
+          }
           const task = this.leaseAction('lease-check', selector).then(() => {}).catch((error: unknown) => {
-            if (generation === this.generation) this.publish({ renewing: undefined, error: error instanceof Error ? error.message : 'unavailable' })
+            if (!lifetime.aborted) this.publish({ renewing: undefined, error: error instanceof Error ? error.message : 'unavailable' })
           })
           this.streams.add(task)
           void task.finally(() => this.streams.delete(task))
-        }, Math.max(1, (current.lease.expiresAt - current.serverTime) * this.config.renewalFraction))
+        }
+        clearTimeout(this.renewal)
+        this.renewal = setTimeout(renew, Math.max(1, (current.lease.expiresAt - current.serverTime) * this.config.renewalFraction))
       }
     }
     return result
@@ -475,6 +589,12 @@ export class OrganizationConnection {
       const body = workgraph === 'execution' && material ? { command, proof: material.proof(command, await this.request('/execution/challenge', command)) } : workgraph === 'device' ? { command, ...(material ? { proof: material.proof(command, await this.request('/device/challenge', command)) } : {}) } : command
       const receipt = receiptSchema.parse(await this.request(route, body))
       this.pending = undefined; this.publish({ pendingOperation: undefined })
+      if (workgraph === 'execution' && 'kind' in command && command.kind === 'transition-run'
+        && (command.state === 'paused' || command.state === 'cancelled')) {
+        const work = this.executionWork.get(command.runId)
+        work?.cancel.abort()
+        if (work) await work.done.catch((_error: unknown) => { /* The stop receipt is independent of the drained interval's outcome. */ })
+      }
       if (kind === 'change-password') this.invalidate('unauthenticated')
       else {
         try { await this.refresh(this.reset({ phase: 'loading' })) } catch (error) { if (error instanceof Error && error.message === 'superseded') throw error }

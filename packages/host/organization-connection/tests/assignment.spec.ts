@@ -7,6 +7,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { bootOrganization } from '../../../../apps/desktop-host/src/organization-boot.ts'
 import { OrganizationConnection } from '../src/index.ts'
 import * as transport from '@deepseek-ai/dsh-organization-api/transport'
+import { executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import type { ConnectionResult } from '../src/types.ts'
 import type { OrganizationTaskGrant } from '@deepseek-ai/dsh-organization'
 
@@ -241,4 +242,107 @@ it('uses fixed signed execution actions over HTTPS and preserves preparation-onl
   expect(after.execution?.delegation.used).toBe(1)
   await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, deviceId: randomUUID(), runId,
     kind: 'transition-run', state: 'cancelled', operationId: randomUUID() } })).rejects.toThrow('invalid-input')
+})
+
+async function executionChannelFixture() {
+  const h = await setup(), delegation = await acceptAndDelegate(h)
+  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
+  const lease = claimed.receipt!.lease!
+  const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
+  const base = { ...h.selector, planRevision: 1 }
+  const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
+    delegationId: delegation.delegationId, capabilities: ['model'], budget: 2, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
+  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
+    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run', operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
+  const runId = created.receipt!.execution!.runId!
+  const channel = h.worker.executionChannel({ ...h.selector, runId })
+  const run = (await channel.read()).run
+  const command = (fields: object) => executionCommandSchema.parse({ ...owner, runId, deviceId: run.deviceId,
+    operationId: randomUUID(), ...fields })
+  return { h, channel, command, runId }
+}
+it('keeps Run commands alive across projection refreshes but permanently retires the channel before sleep', async () => {
+  const { h, channel, command } = await executionChannelFixture()
+  await channel.command(command({ kind: 'transition-run', state: 'running' }))
+  await vi.waitFor(() => { expect(h.worker.snapshot().generation).toBeGreaterThan(channel.generation) })
+  expect(channel.signal.aborted).toBe(false)
+  const initial = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease!
+  await vi.waitFor(async () => {
+    const latest = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease!
+    expect(latest.version).toBeGreaterThan(initial.version)
+  }, { timeout: 5000 })
+  expect(channel.signal.aborted).toBe(false)
+  const actionId = randomUUID()
+  await channel.command(command({ kind: 'reserve-action', actionId, capability: 'model', requestDigest: 'b'.repeat(64) }))
+  await channel.command(command({ kind: 'settle-action', actionId, outcome: 'succeeded', evidenceDigest: 'c'.repeat(64) }))
+  expect((await channel.read()).actions).toMatchObject([{ actionId, state: 'succeeded' }])
+  await expect(channel.command(command({ kind: 'transition-run', runId: randomUUID(), state: 'cancelled' }))).rejects.toThrow('forbidden')
+  h.worker.suspend()
+  expect(channel.signal.aborted).toBe(true)
+  await h.worker.perform({ kind: 'reconnect' })
+  await expect(channel.read()).rejects.toThrow()
+  await expect(channel.command(command({ kind: 'transition-run', state: 'cancelled' }))).rejects.toThrow()
+})
+
+it('rejects delayed Run reads after logout and does not reuse the channel on a same-account login', async () => {
+  const { h, channel } = await executionChannelFixture()
+  const original = transport.organizationRequest
+  const admitted = Promise.withResolvers<boolean>(), release = Promise.withResolvers<boolean>()
+  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
+    const response = await original(...args)
+    if (args[2] === '/organization/v1/execution/read') { admitted.resolve(true); await release.promise }
+    return response
+  })
+  const reading = channel.read(), rejected = expect(reading).rejects.toThrow()
+  await admitted.promise
+  await h.worker.perform({ kind: 'logout' })
+  release.resolve(true)
+  await rejected
+  await h.worker.perform({ kind: 'login', username: 'employee', password })
+  await h.worker.perform({ kind: 'select', organizationId: h.query.organizationId })
+  expect(channel.signal.aborted).toBe(true)
+  await expect(channel.read()).rejects.toThrow()
+})
+it('retains an ambiguous Run command for receipt reconciliation without replay', async () => {
+  const { h, channel, command } = await executionChannelFixture()
+  const original = transport.organizationRequest
+  let sent = 0
+  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
+    const response = await original(...args)
+    if (args[2] === '/organization/v1/execution/command') { sent++; throw new Error('reply-lost') }
+    return response
+  })
+  await expect(channel.command(command({ kind: 'transition-run', state: 'running' }))).rejects.toThrow('unavailable')
+  expect(channel.signal.aborted).toBe(true)
+  expect(h.worker.snapshot().pendingOperation).toBeDefined()
+  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
+  await h.worker.perform({ kind: 'reconcile' })
+  expect(sent).toBe(1)
+  await expect(channel.read()).rejects.toThrow()
+})
+
+it('does not acknowledge native cancellation until the owned Host interval drains', async () => {
+  const { h, channel, command, runId } = await executionChannelFixture()
+  await channel.command(command({ kind: 'transition-run', state: 'running' }))
+  const entered = Promise.withResolvers<boolean>(), aborted = Promise.withResolvers<boolean>(), release = Promise.withResolvers<boolean>()
+  const running = channel.run(async (signal) => {
+    entered.resolve(true)
+    await new Promise<void>((resolve) =>{  signal.addEventListener('abort', () => { aborted.resolve(true); resolve() }, { once: true }) })
+    await release.promise
+    signal.throwIfAborted()
+  })
+  const rejected = expect(running).rejects.toThrow()
+  await entered.promise
+  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
+  const { deviceId: _device, ...request } = command({ kind: 'transition-run', state: 'cancelled' })
+  let acknowledged = false
+  const stopping = h.worker.perform({ kind: 'execution-command', request }).then((result) => { acknowledged = true; return result })
+  try {
+    await aborted.promise
+    expect(acknowledged).toBe(false)
+  } finally { release.resolve(true) }
+  await rejected
+  expect((await stopping).receipt?.execution?.runId).toBe(runId)
+  expect(acknowledged).toBe(true)
 })

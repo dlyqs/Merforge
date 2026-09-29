@@ -134,10 +134,11 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
  * @param principal - Current task reader.
  * @param query - Exact Run selector.
  * @param epoch - Current service activation.
+ * @param modelPolicy - Current deployment-approved outbound model routes.
  * @returns Shared metadata only; no full local log.
  */
 export function readExecution(db: DatabaseSync, principal: Principal, query: z.output<typeof executionReadSchema>,
-  epoch: OrganizationServerEpoch): OrganizationExecutionView {
+  epoch: OrganizationServerEpoch, modelPolicy: OrganizationExecutionView['modelPolicy']): OrganizationExecutionView {
   const a = selectedAssignment(db, query)
   authorizeAssignmentRead(db, principal, a)
   const run = read(db, 'execution_runs', query.runId, executionRunSchema)
@@ -148,7 +149,7 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
   catch (error) { if (!(error instanceof OrganizationError)) throw error }
   const actions = db.prepare('SELECT data FROM execution_actions WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionActionSchema.parse(JSON.parse(String(row.data))))
-  return { run, delegation, actions, serverTime: Date.now(), eligible }
+  return { run, delegation, actions, serverTime: Date.now(), eligible, modelPolicy }
 }
 /**
  * Retire stale execution authority and mark unconfirmed attempts unknown without refunding.

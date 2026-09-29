@@ -1,4 +1,5 @@
 /** Isolated, durable Run/Session coordination and restricted execution intervals. */
+import { localModelSchema, executionAdapter } from './model.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import type { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import { runExecution, type RuntimeLimits } from './runtime.ts'
@@ -9,7 +10,9 @@ import { z } from 'zod'
 import { defineDomain, type DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { SESSION_FORMAT_VERSION, SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
-import { executionRequestSchema, executionAuthoritySchema, executionBindingSchema, executionResultSchema,
+import { executionReportRequestSchema, executionReadAuthoritySchema, executionReportSchema,
+  type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionInputsSchema, executionRequestSchema,
+  executionAuthoritySchema, executionBindingSchema, executionResultSchema,
   type ExecutionRequest, type ExecutionAuthority, type ExecutionResult } from './protocol.ts'
 export * from './protocol.ts'
 declare module '@deepseek-ai/cordis' { interface Context { organizationExecution: OrganizationExecution } }
@@ -29,13 +32,15 @@ export interface Config {
   root: string
   /** Optional deployment ceilings; omission keeps actual execution disabled. */
   executionLimits?: RuntimeLimits
+  /** Explicit local text model routes and credential destinations. */
+  models?: z.output<typeof localModelSchema>[]
 }
 /**
  * Hash exactly the non-secret, validated configuration and inputs retained in the local log.
  * @param inputs - Parsed employee selection.
  * @returns Shared digest; does not disclose local materials or model text.
  */
-export function executionInputsDigest(inputs: ExecutionRequest['inputs']): string { return createHash('sha256').update(JSON.stringify(inputs)).digest('hex') }
+export function executionInputsDigest(inputs: ExecutionRequest['inputs']): string { return createHash('sha256').update(JSON.stringify(executionInputsSchema.parse(inputs))).digest('hex') }
 /** Private local Run coordinator; execution requires an explicit application-owned adapter and deployment limits. */
 export default class OrganizationExecution extends Service {
   static inject = ['storageDomain']
@@ -45,17 +50,18 @@ export default class OrganizationExecution extends Service {
     maxDurationMs: z.number().int().positive().max(2147483647),
     maxBytes: z.number().int().positive().max(2147483647),
     recheckMs: z.number().int().positive().max(2147483647),
-  }).strict().optional() }).strict()
+  }).strict().optional(), models: z.array(localModelSchema).max(100).optional() }).strict()
   private readonly isolated = new Context()
   private state?: DomainGlobal<z.output<typeof stateSchema>>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
   private readonly running = new Set<AbortController>()
+  private readonly reports = new Set<Promise<ExecutionReport>>()
   constructor(ctx: Context, private readonly config: Config) { super(ctx, 'organizationExecution') }
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(spec)
     this.state = domain.global
-    this.ctx.effect(() => async () => { this.closing = true; for (const run of this.running) run.abort(); await this.tail; await this.isolated.fiber.dispose(); await domain.close() }, 'organization-execution.close')
+    this.ctx.effect(() => async () => { this.closing = true; for (const run of this.running) run.abort(); await this.tail; await Promise.allSettled([...this.reports]); await this.isolated.fiber.dispose(); await domain.close() }, 'organization-execution.close')
     await this.isolated.plugin(JsonlSessionPersistence, { root: this.config.root, compression: 'none', namespace: 'organization-execution' })
     await this.verifyBindings()
   }
@@ -134,6 +140,85 @@ export default class OrganizationExecution extends Service {
     const settled = execute.finally(() => { this.running.delete(cancel) })
     this.tail = settled.then(() => {}, () => {})
     return settled
+  }
+  /**
+   * Execute through the configured local model and current organization outbound policy.
+   * @param request - Explicit employee selection and immutable task inputs.
+   * @param bridge - Private online authority channel.
+   * @param signal - Native identity and window lifetime.
+   * @returns Completion after all local execution consumers have drained.
+   */
+  async executeConfigured(request: ExecutionRequest, bridge: ExecutionBridge,
+    signal: AbortSignal): Promise<void> {
+    const selection = request.inputs.execution
+    if (!selection) throw new Error('organization-execution: explicit-local-authorization-required')
+    let pending: Promise<void> = Promise.resolve()
+    const online: ExecutionBridge = (command) => {
+      const response = pending.then(() => bridge(command))
+      pending = response.then(() => {}, () => {})
+      return response
+    }
+    const adapter = executionAdapter(this.ctx, request, this.config.models ?? [], online, signal)
+    const authority = await online()
+    if (!authority.execution.modelPolicy.some(p => p.model === request.inputs.model && p.endpoint === request.inputs.endpoint)) {
+      throw new Error('organization-execution: organization-model-policy-denied')
+    }
+    await this.execute(request, online, { adapter, directory: selection.directory }, signal)
+  }
+  /**
+   * Read the employee's local transcript under fresh exact-task access.
+   * @param input - Exact Run selector, never a caller-selected Session ID.
+   * @param authorize - Native read qualification under the current identity.
+   * @param signal - Native identity and request cancellation.
+   * @returns Bounded text entries; the organization server receives no transcript.
+   */
+  report(input: ExecutionReportRequest, authorize: () => Promise<ExecutionReadAuthority>,
+    signal: AbortSignal): Promise<ExecutionReport> {
+    if (this.closing) return Promise.reject(new Error('organization-execution: unavailable'))
+    const cancel = new AbortController()
+    this.running.add(cancel)
+    const result = this.readReport(input, authorize, AbortSignal.any([signal, cancel.signal]))
+      .finally(() => { this.running.delete(cancel); this.reports.delete(result) })
+    this.reports.add(result)
+    return result
+  }
+  private async readReport(input: ExecutionReportRequest, authorize: () => Promise<ExecutionReadAuthority>,
+    signal: AbortSignal): Promise<ExecutionReport> {
+    const request = executionReportRequestSchema.parse(input), first = executionReadAuthoritySchema.parse(await authorize())
+    const binding = this.state?.get().bindings.find(b => b.run.id === request.runId
+      && b.owner.serverId === first.serverId && b.owner.accountId === first.accountId)
+    const check = (authority: ExecutionReadAuthority) => {
+      signal.throwIfAborted()
+      const run = authority.execution.run
+      if (!binding || this.closing || run.id !== request.runId || run.assignmentId !== request.assignmentId
+        || run.organizationId !== request.organizationId || run.projectId !== request.projectId || run.planId !== request.planId
+        || authority.generation !== first.generation || authority.serverId !== first.serverId || authority.accountId !== first.accountId) {
+        throw new Error('organization-execution: unavailable')
+      }
+    }
+    check(first)
+    if (!binding) throw new Error('organization-execution: unavailable')
+    const reader = await this.isolated.sessionPersistence.open(binding.sessionId, 'read')
+    try {
+      const { events } = await reader.read()
+      const report: ExecutionReport = { runId: request.runId, state: binding.state,
+        entries: binding.inputs.messages.map(text => ({ role: 'user', text })), truncated: false }
+      for (const event of events) {
+        if (event.type === 'assistant/message') {
+          report.entries.push({ role: 'assistant', text: event.data.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
+        } else if (event.type === 'tool/result') {
+          report.entries.push({ role: 'tool', text: event.data.message.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
+        }
+      }
+      const limit = this.config.executionLimits?.maxBytes
+      if (!limit) throw new Error('organization-execution: execution-disabled')
+      while (Buffer.byteLength(JSON.stringify(report)) > limit && report.entries.length) {
+        report.truncated = true; report.entries.shift()
+      }
+      if (Buffer.byteLength(JSON.stringify(report)) > limit) throw new Error('organization-execution: response-size-limit')
+      check(executionReadAuthoritySchema.parse(await authorize()))
+      return executionReportSchema.parse(report)
+    } finally { await reader.close() }
   }
   private events(binding: z.output<typeof bindingSchema>): SessionEvent[] {
     return [{ type: 'organization/execution-binding', seq: SessionSeq(0), time: binding.createdAt,

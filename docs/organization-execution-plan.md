@@ -70,7 +70,7 @@
 | Phase 1 | 协议与消费位置 | 固定 Run/动作/证据/验收规则和隔离设计 | completed | organization-execution.md | 状态与消费者已逐项追踪 |
 | Phase 2 | Run 与动作权威 | 持久动作许可、预算、结果及固定传输 | completed | SQLite v7、独立执行委托、签名动作与预算 | 85 项领域测试及真实 HTTPS 原生测试通过 |
 | Phase 3 | 本机执行宿主 | 隔离 Session、私有 IPC 和模型上下文 | completed | 独立 Session、持久输入、Desktop IPC 与冷启动 invariant | Loader/HTTPS/IPC/JSONL 通过；真实副作用关闭 |
-| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | in_progress | 内部 loop/动作 guard/文件消费者及测试 | 原生通道、模型策略与 UI 未接通 |
+| Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | completed | loop/动作 guard、原生持续通道、模型策略、开始/停止与本机记录 UI | 聚焦回归、编译与定向构建通过；按最新要求停在本阶段 |
 | Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | pending | — | 依赖 4 |
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | pending | — | 依赖 5 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | pending | — | 依赖 6；单叶完整闭环 |
@@ -155,17 +155,17 @@
 
 验收清单：
 
-- [ ] 领取仍不启动；员工确认本机配置后显式运行。每次模型实际调用及重试、工具调用均经过在线动作许可，不只在 turn 开始检查一次。
-- [ ] 最终副作用入口复核代次、取消与允许资源；fs 路径逃逸、符号链接/平台相关别名、shell/子进程派生路径按声明策略验证。目录锁阻止并发写同一规范化目录。
-- [ ] 未映射的工具/外部 provider/subagent/job/终端不能绕过；缺沙箱、权限不足、预算耗尽、模型出站策略不符时失败明确且不回退放行。
-- [ ] 断线、休眠、到期和撤销阻止新增动作；取消等待受管进程收敛。模型说“完成”只结束运行，不自动提交或验收。
-- [ ] Run 展示任务版本、员工、设备、执行状态、剩余预算和当前阻塞原因；UI 纯投影消费固定动作，敏感信息不进入共享摘要。
+- [x] 领取仍不启动；员工确认本机配置后显式运行。每次模型实际调用及重试、工具调用均经过在线动作许可，不只在 turn 开始检查一次。
+- [x] 最终副作用入口复核代次、取消与允许资源；fs 路径逃逸、符号链接/平台相关别名、shell/子进程派生路径按声明策略验证。目录锁阻止并发写同一规范化目录。
+- [x] 未映射的工具/外部 provider/subagent/job/终端不能绕过；缺沙箱、权限不足、预算耗尽、模型出站策略不符时失败明确且不回退放行。
+- [x] 断线、休眠、到期和撤销阻止新增动作；取消等待受管进程收敛。模型说“完成”只结束运行，不自动提交或验收。
+- [x] Run 展示任务版本、员工、设备、执行状态、剩余预算和当前阻塞原因；UI 纯投影消费固定动作，敏感信息不进入共享摘要。
 
 助理验证：确定性模型适配器驱动真实 loop/tools/fs/subprocess；实际临时目录越界拒绝、撤销发生在授权后/发出前、并发预算及子进程取消测试；受影响类型、局部 lint、i18n。对当前平台进行无页面真实沙箱验证，无法实施的限制记录为拒绝/阻塞，不记通过。
 
 用户检查：选择目录/模型、开始、暂停、取消与状态显示；平台限制提示是否准确。依赖：Phase 3。仅 UI 待验不阻塞后续工程；核心动作隔离或拒绝证据缺失则本阶段不得 completed。
 
-当前进展（2026-09-30，`in_progress`，未完成 Phase 4）：
+前期实现记录（2026-09-30，当时为 `in_progress`）：
 
 - `organization-execution` 新增内部 `execute` 消费者、`action-guard.ts`、`runtime.ts`、`resources.ts`；复用真实 loop、tool registry、LLM retry 和 local filesystem。显式本机目录/动作/步数/时长进入输入摘要；部署 `executionLimits` 控制上限，缺省仍拒绝执行。每次模型重试重新收费，动作 reserved/issued/settled 先落本机日志，回执丢失停止新增动作。
 - Agent/Session 默认注册域继续拒绝组织 ID；只有独立执行注册域覆盖受保护的命名空间准入。原 Session 元数据负例暴露了祖先 ID 在解析前被调用字符串方法的问题，已把祖先准入移至元数据解析后，保留个人拒绝。冷启动 invariant 同时检查绑定、动作归属与日志阶段顺序；新增必需事件及生成目录已更新。
@@ -183,9 +183,20 @@
 - `pnpm exec tsx scripts/gen-persistence-catalog.ts` 成功更新事件词汇、Markdown 和 JSON 目录。`pnpm run gen-config-catalog` 仍被既有 organization-api/tls.ts、organization/schema.ts 本地 schema 导入限制阻断。
 - `verify-package-dependencies.ts` 仍仅报告既有 file-upload 对 `assertPersonalSessionId` 的导入分类；`verify-export-jsdoc.ts` 仍仅报告既有 `OrganizationLoginSession.read/save` 两项缺少正文。未修改无关门禁例外。
 
-尚未完成：Desktop 私有执行命令通道、组织模型/出站策略、执行配置/对话/开始/暂停/取消 UI，以及这些入口的真实 HTTPS 组合验证。现有 native `mutate` 每次写入都会 reset 连接 generation，不能直接用它承载持续 Run 的 reserve/settle；须先完成独立动作通道的身份寿命与撤权语义，不能绕过代次检查开放执行。当前 shipping 配置没有 `executionLimits`，IPC 仍只准备 Session，产品副作用入口保持关闭。未运行完整发行构建、真实模型或任何页面验证。
+继续执行后的新增实现：Desktop 私有执行命令通道、组织与本机模型地址策略交集、执行配置/开始/暂停/取消及本机记录 UI 已接通。原生 `executionChannel` 将持续执行身份寿命与内容 generation 分开；自身 reserve/settle、SSE 刷新和租约续期不取消 Run，退出登录、同账号重登、切换、休眠和断线永久撤销旧通道。显式停止等待本机区间退出再返回回执。shipping 配置已加入有限 `executionLimits` 和官方文本模型的准确凭据目标。
 
-Phase 4 继续 `in_progress`；Phase 5–6 尚未开始，不标 completed，也不虚构外部阻塞。自动授权仍为 Phase 4–6，下一步先补原生动作通道及模型策略，再接 UI，随后按依赖推进 Phase 5 和 Phase 6。
+新增验证：原生 HTTPS 11 项通过，另加停止等待 Host 退出的聚焦测试 1 项通过；模型最终 HTTP 发送前的策略/资格/身份/期限复核和单许可不可复用共 6 项通过；真实 HTTPS/native/私有 IPC 的准备与执行两种组合通过，并验证本机报告不进入共享响应。UI 初轮 24 项 jsdom 回归通过，收尾补充运行分页、只读不启动和读取失败提示测试。
+
+最终收尾检查：
+
+- `pnpm exec vitest run packages/client/ui-organization/tests packages/workspace/organization-execution/tests packages/host/organization-connection/tests/assignment.spec.ts`：10 文件、71 项通过。随后 `pnpm exec vitest run packages/workspace/organization-execution/tests/execution.spec.ts -t 'outstanding report'`：新增记录读取关闭等待测试 1 项通过（8 项未选中）；修正测试选择器后复跑通过。
+- `pnpm exec tsc -b apps/desktop-host apps/desktop/tsconfig.host.json packages/client/ui-organization --pretty false` 通过。相关源码及测试的 `run-oxlint.ts` 在修正新增格式问题后通过，`git diff --check` 通过。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host` 对 organization、organization-execution、organization-connection、organization-api、llm-deepseek、apps/desktop、apps/desktop-host 的准确 `-F` 路径定向构建通过；`pnpm exec tsdown --env.DSH_BUILD_FACE client -F packages/client/ui-organization --logLevel warn` 通过。最后修改后补跑 execution Host 与 UI client 构建通过。未运行完整发行构建。
+- `node apps/desktop-host/tests/organization-context-built-smoke.mjs`：普通 Node 与 Electron Node mode 的隔离、持久化、重开和离线拒绝均通过，无窗口。
+- `verify-client-ui-i18n`（834 源文件）、`verify-application-entrypoints`、`verify-cordis-config`（21 配置）与 `verify-tsconfig-paths` 通过。`verify-export-jsdoc` 仍仅报告既有 `OrganizationLoginSession.read/save` 两项；历史依赖分类及目录生成器问题保留，不视为通过。
+- `pnpm exec vitest run --config vitest.e2e.config.ts packages/llm/llm-deepseek/tests/adapter.e2e.ts -t 'cancels an active stream'` 因无 `DEEPSEEK_API_KEY` 自跳过；文件内 13 项均未执行，不声称真实模型通过。
+
+实际完成：Phase 4 工程验收完成。shell、子进程、subagent、后台 job 和终端仍明确拒绝；Windows 强隔离、真实模型和用户可见行为待验，不声称双平台产品验收完成。运行列表支持授权分页，本机报告在关闭时取消并等待读取退出。日志继续只保存操作标识与结果，完整文本留在本人 JSONL。用户最新要求“做完 phase4 停下”，已改回 manual，停止于 Phase 4；Phase 5、6 未开始。
 
 ## Phase 5：持久人工请求、unknown 核对与恢复
 
@@ -320,11 +331,11 @@ Phase 4 继续 `in_progress`；Phase 5–6 尚未开始，不标 completed，也
 
 ## 后续执行规则
 
-- execution mode: auto_until
-- automatic start phase: Phase 4
-- automatic stop phase: Phase 6
+- execution mode: manual
+- automatic start phase: none
+- automatic stop phase: none
 - conversation relay: off
-- 计划评审：用户已明确授权自动完成 Phase 4–6；Phase 7 及以后未授权。
+- 计划评审：用户最新要求“做完 phase4 停下”；本轮仅完成 Phase 4，不进入 Phase 5、6。
 - 使用技能：`/Users/git_local/dev-workflow-skill/SKILL.md`；本文件是本任务执行入口，暂不创建额外 executor skill。
 
 1. 执行前先读本文、overview 和适用 AGENTS；实现 `packages/` 前读架构，生命周期/并发/进程工作读防御规则，Client 修改按其目录规则读相应架构页。保持路线图与本计划内部编号分开。
@@ -337,4 +348,4 @@ Phase 4 继续 `in_progress`；Phase 5–6 尚未开始，不标 completed，也
 8. 每个执行阶段都更新本计划和 `docs/overview.md`；实际记录写清改动/文件、命令与结果、跳过项、偏差、日志、残余风险和下一阶段。未开始阶段不填写虚构完成证据；已完成阶段不另建全局重复进度表。
 9. 自动执行仅限本计划范围，不授权部署、生产变更、提交推送或新业务范围。relay 当前关闭，不新建会话、不生成交接文件；未来只有明确授权才加载技能 relay/worktree-return 参考，记录批次与交付目录，验证每批返回及回执后才转交。若届时返回阻塞，保留自动范围，不把实现完成当成交付完成。
 
-本次自动授权：用户原话“请自动完成 phase4-6”；范围为 Phase 4 至 Phase 6。Phase 3 已完成；Phase 5 依赖 4、Phase 6 依赖 5。连续推进至 Phase 6，不进入 Phase 7。
+授权变更：用户最初要求“请自动完成 phase4-6”，后改为“做完 phase4 停下”。自动范围已撤销；完成 Phase 4 后停止，Phase 5、6 保持 pending。

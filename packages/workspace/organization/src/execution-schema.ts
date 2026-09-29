@@ -61,6 +61,20 @@ export const executionActionSchema = reserveActionSchema.omit({ kind: true, oper
 /** Receipts refer to immutable operation snapshots; they never grant a fresh permission. */
 export const executionReceiptSchema = z.object({ executionDelegationId: id<OrganizationExecutionDelegationId>(),
   runId: id<OrganizationRunId>().optional(), actionId: id<OrganizationActionId>().optional() }).strict()
+/** Deployment-approved text model and exact HTTPS Messages root; redirects are forbidden. */
+export const executionModelSchema = z.object({ model: z.string().min(1).max(200),
+  endpoint: z.url().refine((value) => {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+      && url.pathname.endsWith('/v1')
+  }, 'HTTPS /v1 endpoint without credentials, query or fragment required'),
+}).strict()
 /** Authorized Run read includes retained action facts and current delegation usage. */
 export const executionViewSchema = z.object({ run: executionRunSchema, delegation: executionDelegationSchema,
-  actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean() }).strict()
+  actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean(),
+  modelPolicy: z.array(executionModelSchema).max(100) }).strict()
+
+/** Bounded current-authority Run history for one assignment. */
+export const executionListSchema = assignmentReadSchema.extend({ offset: integer.default(0) }).strict()
+/** Shared Run history excludes local conversations and paths. */
+export const executionPageSchema = z.object({ items: z.array(executionRunSchema), total: integer, offset: integer }).strict()

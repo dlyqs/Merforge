@@ -44,7 +44,7 @@ The [machine inventory](persistence-schema.json) contains every reachable normal
 | `event:model/selection` | event | `35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc` | [`{ type: "model/selection" }`](#persistence-type-sha256-35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc) |
 | `event:organization/context` | event | `e51bc305307015c4c0e209820956ec26f8f15803702d3a6d67fd8e98b33f675e` | [`{ type: "organization/context" }`](#persistence-type-sha256-e51bc305307015c4c0e209820956ec26f8f15803702d3a6d67fd8e98b33f675e) |
 | `event:organization/execution-action` | event | `427f4fd1fe4507ec789ede05ea10ad4125846c0ad586b0bc7bde8a409cca6fed` | [`{ type: "organization/execution-action" }`](#persistence-type-sha256-427f4fd1fe4507ec789ede05ea10ad4125846c0ad586b0bc7bde8a409cca6fed) |
-| `event:organization/execution-binding` | event | `4aa62b8803e0c075261ebc56fd1b53489b176daf7f33517be1ca85a06af47ee9` | [`{ type: "organization/execution-binding" }`](#persistence-type-sha256-4aa62b8803e0c075261ebc56fd1b53489b176daf7f33517be1ca85a06af47ee9) |
+| `event:organization/execution-binding` | event | `4e54e5a37a8c880fb92ca18fc6980104c72ffa1558a0bfbd01e83a8d30ffa970` | [`{ type: "organization/execution-binding" }`](#persistence-type-sha256-4e54e5a37a8c880fb92ca18fc6980104c72ffa1558a0bfbd01e83a8d30ffa970) |
 | `event:organization/task-snapshot` | event | `386ad99c165e3ef75211254387b7ec05fa14580160b73a00e929742edfa3d88f` | [`{ type: "organization/task-snapshot" }`](#persistence-type-sha256-386ad99c165e3ef75211254387b7ec05fa14580160b73a00e929742edfa3d88f) |
 | `event:permission/preset` | event | `5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b` | [`{ type: "permission/preset" }`](#persistence-type-sha256-5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b) |
 | `event:personal-workflow/assessment` | event | `5a058e4da005c74407b591a53eb9db37fecc89b7123d1b894fb7baec8d043584` | [`{ type: "personal-workflow/assessment" }`](#persistence-type-sha256-5a058e4da005c74407b591a53eb9db37fecc89b7123d1b894fb7baec8d043584) |
@@ -686,7 +686,7 @@ Source: [`packages/workspace/organization-execution/src/runtime.ts:20`](../packa
 'organization/execution-binding': z.output<typeof executionBindingSchema>
 ```
 
-Source: [`packages/workspace/organization-execution/src/index.ts:19`](../packages/workspace/organization-execution/src/index.ts)
+Source: [`packages/workspace/organization-execution/src/index.ts:22`](../packages/workspace/organization-execution/src/index.ts)
 
 <a id="organizationtask-snapshot--log-only"></a>
 
@@ -6072,15 +6072,16 @@ Sources: [`packages/interaction/user-approval/src/types.ts:44`](../packages/inte
 | `reason` | optional | `string` |
 | `toolName` | required | `string` |
 
-<a id="persistence-type-sha256-5bd2cfdb61145b86a88c7e1e8743e83c67d0d590a2af529914abc807d792c729"></a>
+<a id="persistence-type-sha256-490706429edaae529b424f39b02f1cc7e9578b9922f076a9e38a0959719b3c15"></a>
 
-### `{ capabilities, execution?, materials, messages, … }`
+### `{ capabilities, endpoint?, execution?, materials, … }`
 
-SHA-256: `5bd2cfdb61145b86a88c7e1e8743e83c67d0d590a2af529914abc807d792c729`
+SHA-256: `490706429edaae529b424f39b02f1cc7e9578b9922f076a9e38a0959719b3c15`
 
 | Property | Presence | Type |
 |---|---|---|
 | `capabilities` | required | [`union (4 variants)[]`](#persistence-type-sha256-8ec6e93e409cfb39305f8759d7601469cbbd59a6a7faf9919411027ab7000290) |
+| `endpoint` | optional | `string` |
 | `execution` | optional | [`{ directory, maxActions, maxDurationMs, maxSteps }`](#persistence-type-sha256-8c7937cdb9d3d65840d87a565530530227682e3c0a4697844cbeaae051a16355) |
 | `materials` | required | [`string[]`](#persistence-type-sha256-93c33d9687613293f8c95d46c4d922fe9ceae83b84c384beff5c3315abe005f2) |
 | `messages` | required | [`string[]`](#persistence-type-sha256-93c33d9687613293f8c95d46c4d922fe9ceae83b84c384beff5c3315abe005f2) |
@@ -6285,16 +6286,16 @@ Sources: [`packages/compaction/compaction/src/types.ts:24`](../packages/compacti
 | `sourceCommandId` | optional | `string` |
 | `turn` | required | [`OptionalSessionSeq`](#persistence-type-sha256-3bd652ebfa8726b3ce3937a4f1bd2759e02f86b3a08a20f9e41a8513656fbc5f) |
 
-<a id="persistence-type-sha256-c35a19c31858462cc2a9d98bbdad9a5678450b6565eea0220f521aec7afb6adc"></a>
+<a id="persistence-type-sha256-ab28c45a20d1d2baa9a0037fc3968573e6d42381872d1fada727e7df33a64c0a"></a>
 
 ### `{ contextSessionId, inputs, owner, run, … }`
 
-SHA-256: `c35a19c31858462cc2a9d98bbdad9a5678450b6565eea0220f521aec7afb6adc`
+SHA-256: `ab28c45a20d1d2baa9a0037fc3968573e6d42381872d1fada727e7df33a64c0a`
 
 | Property | Presence | Type |
 |---|---|---|
 | `contextSessionId` | required | `string` |
-| `inputs` | required | [`{ capabilities, execution?, materials, messages, … }`](#persistence-type-sha256-5bd2cfdb61145b86a88c7e1e8743e83c67d0d590a2af529914abc807d792c729) |
+| `inputs` | required | [`{ capabilities, endpoint?, execution?, materials, … }`](#persistence-type-sha256-490706429edaae529b424f39b02f1cc7e9578b9922f076a9e38a0959719b3c15) |
 | `owner` | required | [`{ accountId, organizationId, planId, serverId, … }`](#persistence-type-sha256-942473d2e92c34c06ca213c7e94a24c96fa30732d0052bc12ff1214f5ec47b22) |
 | `run` | required | [`{ assignmentId, configDigest, createdRevision, deviceId, … }`](#persistence-type-sha256-69dca6c32b1b0f5c4e5829fbe6df4d39dfc5b571fb2ccbf0fcfadafb071455ad) |
 | `snapshot` | required | [`{ acceptance, artifacts, assignable, dependsOn, … }`](#persistence-type-sha256-2f951ebcb644b0244f07e73725fd7d61c80cc1c01d99f7cdab44a51e65c20b21) |
@@ -8521,17 +8522,17 @@ SHA-256: `427f4fd1fe4507ec789ede05ea10ad4125846c0ad586b0bc7bde8a409cca6fed`
 | `time` | required | `number` |
 | `type` | required | `"organization/execution-action"` |
 
-<a id="persistence-type-sha256-4aa62b8803e0c075261ebc56fd1b53489b176daf7f33517be1ca85a06af47ee9"></a>
+<a id="persistence-type-sha256-4e54e5a37a8c880fb92ca18fc6980104c72ffa1558a0bfbd01e83a8d30ffa970"></a>
 
 <a id="persistence-type-eventorganizationexecution-binding"></a>
 
 ### `{ type: "organization/execution-binding" }`
 
-SHA-256: `4aa62b8803e0c075261ebc56fd1b53489b176daf7f33517be1ca85a06af47ee9`
+SHA-256: `4e54e5a37a8c880fb92ca18fc6980104c72ffa1558a0bfbd01e83a8d30ffa970`
 
 | Property | Presence | Type |
 |---|---|---|
-| `data` | required | [`{ contextSessionId, inputs, owner, run, … }`](#persistence-type-sha256-c35a19c31858462cc2a9d98bbdad9a5678450b6565eea0220f521aec7afb6adc) |
+| `data` | required | [`{ contextSessionId, inputs, owner, run, … }`](#persistence-type-sha256-ab28c45a20d1d2baa9a0037fc3968573e6d42381872d1fada727e7df33a64c0a) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
 | `time` | required | `number` |

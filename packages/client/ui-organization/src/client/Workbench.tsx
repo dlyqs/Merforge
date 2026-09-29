@@ -1,5 +1,6 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
+import { ExecutionPanel } from './ExecutionPanel.tsx'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationPhaseId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
@@ -151,6 +152,8 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
         {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'task' ? null : 'task') }}>{t('taskPermissions')}</Button>}</div>
     </section>}
     {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
+    {retainedTask && !draft && <ExecutionPanel key={retainedTask.id} {...props} task={retainedTask}
+      projectId={props.project.id} current={!!task} />}
     {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
       task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}
     {draft && <section className={css.card}>

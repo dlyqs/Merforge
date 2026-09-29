@@ -1,5 +1,5 @@
 /** Electron Node-mode child lifecycle for the shared Web application. */
-import { executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
+import { executionReportRequestSchema, executionReportSchema, executionResultSchema, type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionCommand, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 
 import { randomUUID } from 'node:crypto'
 import { contextNativeMessageSchema, contextRequestSchema, type ContextRequest, type ContextAuthority, type ContextResult } from '@deepseek-ai/dsh-organization-context/protocol'
@@ -112,8 +112,8 @@ export class DesktopHostProcess {
     reject: (error: Error) => void
   }>()
   private readonly executionQueries = new Map<string, {
-    authorize: () => Promise<ExecutionAuthority>
-    resolve: (result: ExecutionResult) => void
+    authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority | ExecutionReadAuthority>
+    resolve: (result: ExecutionResult | ExecutionReport) => void
     reject: (error: Error) => void
   }>()
   private nextControlId = 1
@@ -190,10 +190,11 @@ export class DesktopHostProcess {
         const query = this.executionQueries.get(response.requestId)
         if (!query || response.nonce !== this.contextNonce) return
         if (response.type === 'organization-execution-result') {
-          if (response.result && !response.error) query.resolve(response.result)
-          else query.reject(new Error('organization-execution-unavailable'))
+          const result = response.result ?? response.report
+          if (result && !response.error) query.resolve(result)
+          else query.reject(new Error(response.error ?? 'organization-execution-unavailable'))
         } else {
-          void query.authorize().then((authority) => {
+          void query.authorize(response.command).then((authority) => {
             if (this.executionQueries.get(response.requestId) === query && child.connected) {
               child.send({ type: 'organization-execution-authorized', requestId: response.requestId, nonce: response.nonce, authorizationId: response.authorizationId, authority })
             }
@@ -275,21 +276,43 @@ export class DesktopHostProcess {
    * @param signal - Native identity lifetime cancellation.
    * @returns Durable context after online rechecks; no execution capability.
    */
-  async openOrganizationExecution(input: ExecutionRequest, authorize: () => Promise<ExecutionAuthority>,
+  async openOrganizationExecution(input: ExecutionRequest, authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority>,
     timeoutMs: number, signal: AbortSignal): Promise<ExecutionResult> {
+    return executionResultSchema.parse(await this.executionOperation(input, authorize, timeoutMs, signal, false))
+  }
+  /**
+   * Read a local transcript through the private Host under fresh native read qualification.
+   * @param input - Exact Run selector.
+   * @param authorize - Online current-identity task read.
+   * @param timeoutMs - Native request deadline.
+   * @param signal - Window and identity cancellation.
+   * @returns Bounded private conversation text.
+   */
+  async readOrganizationExecution(input: ExecutionReportRequest, authorize: () => Promise<ExecutionReadAuthority>,
+    timeoutMs: number, signal: AbortSignal): Promise<ExecutionReport> {
+    return executionReportSchema.parse(await this.executionOperation(input, authorize, timeoutMs, signal, true))
+  }
+  private async executionOperation(input: ExecutionRequest | ExecutionReportRequest,
+    authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority | ExecutionReadAuthority>,
+    timeoutMs: number, signal: AbortSignal, report: boolean): Promise<ExecutionResult | ExecutionReport> {
     signal.throwIfAborted()
-    const request = executionRequestSchema.parse(input)
+    const request = report ? executionReportRequestSchema.parse(input) : executionRequestSchema.parse(input)
     const child = this.child
     if (!child?.connected || this.stopping || this.failureReported) throw new Error('organization-execution-unavailable')
     const requestId = randomUUID()
-    const abort = () => { this.executionQueries.get(requestId)?.reject(new Error('organization-execution-cancelled')) }
+    const abort = () => {
+      if (!child.connected) { this.executionQueries.get(requestId)?.reject(new Error('organization-execution-cancelled')); return }
+      child.send({ type: 'organization-execution-cancel', requestId, nonce: this.contextNonce }, (error) => {
+        if (error) this.executionQueries.get(requestId)?.reject(error)
+      })
+    }
     signal.addEventListener('abort', abort, { once: true })
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      return await new Promise<ExecutionResult>((resolve, reject) => {
+      return await new Promise<ExecutionResult | ExecutionReport>((resolve, reject) => {
         this.executionQueries.set(requestId, { authorize, resolve, reject })
         timer = setTimeout(() => { reject(new Error('organization-execution-timeout')) }, timeoutMs)
-        child.send({ type: 'organization-execution-open', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => {
+        child.send({ type: report ? 'organization-execution-report' : 'organization-execution-open', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => {
           if (error !== null) reject(error)
         })
       })

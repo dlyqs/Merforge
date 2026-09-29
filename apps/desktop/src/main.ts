@@ -1,6 +1,6 @@
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
-import { openOrganizationExecution } from './organization-execution.ts'
-import type { ExecutionRequest, ExecutionAuthority } from '@deepseek-ai/dsh-organization-execution/protocol'
+import { openOrganizationExecution, readOrganizationExecution } from './organization-execution.ts'
+import type { ExecutionRequest, ExecutionAuthority, ExecutionCommand, ExecutionReportRequest, ExecutionReadAuthority } from '@deepseek-ai/dsh-organization-execution/protocol'
 import { assertOrganizationSender, assertOrganizationResult } from './organization-ipc.ts'
 import { openOrganizationContext } from './organization-context.ts'
 import { type ContextRequest, type ContextAuthority } from '@deepseek-ai/dsh-organization-context/protocol'
@@ -382,24 +382,26 @@ async function main(): Promise<void> {
     assertProductSender(event)
     try { return await organizationManager.perform(action) } finally { publishOrganization() }
   })
-  ipcMain.handle(DESKTOP_IPC.organizationExecution, async (event, input: unknown) => {
-    assertProductSender(event)
-    const host = backend.host
-    if (!host) throw new Error('organization-execution-unavailable')
-    const lifetime = new AbortController()
-    const abort = () => { lifetime.abort() }
-    event.sender.once('destroyed', abort)
-    event.sender.once('render-process-gone', abort)
-    try {
-      return await openOrganizationExecution(organizationManager.connection, host, input, () => {
-        assertProductSender(event)
-        if (backend.host !== host) throw new Error('superseded')
-      }, lifetime.signal)
-    } finally {
-      event.sender.removeListener('destroyed', abort)
-      event.sender.removeListener('render-process-gone', abort)
-    }
-  })
+  for (const channel of [DESKTOP_IPC.organizationExecution, DESKTOP_IPC.organizationExecutionReport]) ipcMain.handle(channel,
+    async (event, input: unknown) => {
+      assertProductSender(event)
+      const host = backend.host
+      if (!host) throw new Error('organization-execution-unavailable')
+      const lifetime = new AbortController()
+      const abort = () => { lifetime.abort() }
+      event.sender.once('destroyed', abort)
+      event.sender.once('render-process-gone', abort)
+      try {
+        const operation = channel === DESKTOP_IPC.organizationExecutionReport ? readOrganizationExecution : openOrganizationExecution
+        return await operation(organizationManager.connection, host, input, () => {
+          assertProductSender(event)
+          if (backend.host !== host) throw new Error('superseded')
+        }, lifetime.signal)
+      } finally {
+        event.sender.removeListener('destroyed', abort)
+        event.sender.removeListener('render-process-gone', abort)
+      }
+    })
   ipcMain.handle(DESKTOP_IPC.organizationContext, async (event, input: unknown) => {
     assertProductSender(event)
     const host = backend.host
@@ -451,8 +453,10 @@ async function main(): Promise<void> {
         }
       },
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
-      openOrganizationExecution: (request: ExecutionRequest, authorize: () => Promise<ExecutionAuthority>,
+      openOrganizationExecution: (request: ExecutionRequest, authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority>,
         timeoutMs: number, signal: AbortSignal) => host.openOrganizationExecution(request, authorize, timeoutMs, signal),
+      readOrganizationExecution: (request: ExecutionReportRequest, authorize: () => Promise<ExecutionReadAuthority>,
+        timeoutMs: number, signal: AbortSignal) => host.readOrganizationExecution(request, authorize, timeoutMs, signal),
       openOrganizationContext: (request: ContextRequest, authorize: (revision?: ContextAuthority['task']['revision']) => Promise<ContextAuthority>, timeoutMs: number, signal: AbortSignal) => host.openOrganizationContext(request, authorize, timeoutMs, signal),
     }
   }, (state) => {

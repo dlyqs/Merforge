@@ -27,7 +27,7 @@ afterEach(async () => {
   for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
-export async function boot(root?: string, executionLimits?: import('../src/runtime.ts').RuntimeLimits) {
+export async function boot(root?: string, executionLimits?: import('../src/runtime.ts').RuntimeLimits, models?: import('zod').z.output<typeof import('../src/model.ts').localModelSchema>[]) {
   root ??= await mkdtemp(join(tmpdir(), 'organization-context-'))
   if (!roots.includes(root)) roots.push(root)
   const ctx = new Context(); contexts.push(ctx)
@@ -37,7 +37,7 @@ export async function boot(root?: string, executionLimits?: import('../src/runti
   const config = [{ name: 'storage' }, { name: 'json', config: { root: join(root, 'data') } },
     { name: 'domain', config: { backend: 'json' } }, { name: 'sessions' }, { name: 'agents' }, { name: 'projections' }, { name: 'query' }, { name: 'invariants' },
     { name: 'jsonl', config: { root: join(root, 'personal'), compression: 'none' } },
-    { name: 'organization-context', config: { root: join(root, 'organization') } }, { name: 'organization-execution', config: { root: join(root, 'execution'), executionLimits } }, { name: 'execution-invariant' }]
+    { name: 'organization-context', config: { root: join(root, 'organization') } }, { name: 'organization-execution', config: { root: join(root, 'execution'), executionLimits, models } }, { name: 'execution-invariant' }]
   const configPath = join(root, 'cordis.yml'); await writeFile(configPath, JSON.stringify(config))
   await ctx.plugin(Loader); ctx.loader.builtins.include = Include
   ctx.loader.internal = { version: 'v2', async import(specifier: string) { return modules.get(specifier) } } as never
@@ -66,7 +66,7 @@ export function fixture() {
     execution: { run, delegation: { organizationId: request.organizationId, projectId: request.projectId, planId: request.planId,
       assignmentId: request.assignmentId, planRevision: 1, deviceId: run.deviceId, delegationId: randomUUID(), capabilities: ['model'],
       budget: 3, expiresAt: Date.now() + 10000, configDigest: run.configDigest, id: run.executionDelegationId, used: 0,
-      state: 'active', createdRevision: 1, version: 1 }, actions: [], eligible: true, serverTime: Date.now() } })
+      state: 'active', createdRevision: 1, version: 1 }, modelPolicy: [], actions: [], eligible: true, serverTime: Date.now() } })
   return { request, authority }
 }
 export const signal = () => new AbortController().signal

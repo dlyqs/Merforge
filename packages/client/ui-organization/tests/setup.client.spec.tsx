@@ -17,7 +17,8 @@ it('deduplicates native and operation failures, clears on editing and expires fe
     server: { phase: 'disabled', settings: { host: '0.0.0.0', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const props: OrganizationProps = { available: true, t: makeTranslate(zh),
-    useOrganization: selector => selector(state), context: vi.fn(), server: vi.fn(), secret: vi.fn(),
+    useOrganization: selector => selector(state),
+    context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(), server: vi.fn(), secret: vi.fn(),
     connection: vi.fn(async () => { state.connection.error = 'connection-refused'; throw new Error('connection-refused') }),
   }
   render(<OrganizationDialog {...props} initialSection="connection" onClose={() => {}} />)

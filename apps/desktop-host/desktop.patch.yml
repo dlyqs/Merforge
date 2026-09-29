@@ -41,6 +41,25 @@
       name: '@deepseek-ai/dsh-organization-execution'
       config:
         root: !!js dshHomePath('organization-execution-sessions')
+        executionLimits:
+          maxActions: 100
+          maxSteps: 50
+          maxDurationMs: 3600000
+          maxBytes: 1048576
+          recheckMs: 1000
+        models:
+          - model: deepseek-flash
+            endpoint: https://api.deepseek.com/anthropic/v1
+            credential: DEEPSEEK_API_KEY
+            maxTokens: 16384
+            contextWindow: 1000000
+            idleTimeoutMs: 300000
+          - model: deepseek-v4-pro
+            endpoint: https://api.deepseek.com/anthropic/v1
+            credential: DEEPSEEK_API_KEY
+            maxTokens: 16384
+            contextWindow: 1000000
+            idleTimeoutMs: 300000
     - id: organization-context
       name: '@deepseek-ai/dsh-organization-context'
       config:

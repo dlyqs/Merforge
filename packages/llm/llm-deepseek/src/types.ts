@@ -84,6 +84,8 @@ export interface DeepSeekConnectionOptions {
 
 /** Constructor options for {@link DeepSeekAdapter}: the operation-local resolution hooks the plugin owns. */
 export interface DeepSeekAdapterOptions {
+  /** Recheck deployment authority after preparation, immediately before each Messages HTTP dispatch. */
+  beforeRequest?: (request: { url: string; model: string; signal: AbortSignal }) => Promise<() => void>
   /** Report unusable native Messages replay metadata without exposing content or signatures. */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
   /** Current validated connection facts; called once per operation. */

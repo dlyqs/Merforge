@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
 import { setupExecution } from '../../organization/tests/execution-harness.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import { executionAuthoritySchema, executionInputsDigest, executionRequestSchema } from '../src/index.ts'
+import { executionAuthoritySchema, executionReadAuthoritySchema, executionInputsDigest, executionRequestSchema } from '../src/index.ts'
 import type { ExecutionBridge } from '../src/action-guard.ts'
 import { acquireDirectory } from '../src/resources.ts'
 import { boot, fixture, signal } from './harness.ts'
@@ -48,6 +48,17 @@ it('runs the actual loop and filesystem against signed SQLite permissions and re
   expect(h.ctx.sessions.list()).toEqual([])
   expect(await h.ctx.sessionPersistence.list()).toEqual([])
   expect(JSON.stringify(adapter.requests[0]?.messages)).toContain('Approved work')
+  const selector = { ...h.remote.selector, runId: h.request.runId }
+  const readAuthority = async () => {
+    const a = await h.bridge()
+    return { serverId: a.serverId, accountId: a.accountId, generation: a.generation, execution: a.execution }
+  }
+  expect((await h.service.report(selector, readAuthority, signal())).entries).toContainEqual({ role: 'assistant', text: 'Finished' })
+  await expect(h.service.report(selector, async () => executionReadAuthoritySchema.parse({
+    ...await readAuthority(), accountId: randomUUID(),
+  }), signal())).rejects.toThrow()
+  let reads = 0
+  await expect(h.service.report(selector, async () => ({ ...await readAuthority(), generation: ++reads }), signal())).rejects.toThrow()
   await h.service.verifyBindings()
   const logPath = (await readdir(join(h.root, 'execution'), { recursive: true })).find(path => path.endsWith('.jsonl'))!
   const log = await readFile(join(h.root, 'execution', logPath), 'utf8')

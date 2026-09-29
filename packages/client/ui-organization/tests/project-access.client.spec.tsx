@@ -25,7 +25,7 @@ function fixture() {
   const connection = vi.fn<OrganizationProps['connection']>(async action => action.kind === 'grants'
     ? { grants: [{ projectId, membershipId: memberId, actions: ['read'], version: 7 }] } : {})
   const props: OrganizationProps = { available: true, t: makeTranslate(zh), useOrganization: selector => selector(state),
-    connection, context: vi.fn(), server: vi.fn(), secret: vi.fn() }
+    connection, context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(), server: vi.fn(), secret: vi.fn() }
   return { project, memberId, props, connection, offline: () => { state = { ...state, connection: { ...state.connection, phase: 'offline', generation: 2 } } } }
 }
 

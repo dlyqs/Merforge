@@ -7,7 +7,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
-  | { kind: 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
+  | { kind: 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
   | { kind: 'device-read' }
@@ -44,6 +44,7 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  executions?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/execution').executionPageSchema>
   execution?: import('@deepseek-ai/dsh-organization').OrganizationExecutionView
   generation?: number
   assignment?: {
@@ -97,6 +98,10 @@ export type OrganizationServerAction =
 export interface OrganizationDesktopSnapshot { connection: ConnectionSnapshot; server: OrganizationServerSnapshot }
 /** Sandboxed preload operations, restricted to the owning Desktop top frame. */
 export interface OrganizationDesktopBridge {
+  executionReport(request: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionReportRequest): Promise<{
+    generation: number
+    report: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionReport
+  }>
   execution(request: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionRequest): Promise<{
     generation: number
     result: import('@deepseek-ai/dsh-organization-execution/protocol').ExecutionResult
@@ -111,4 +116,24 @@ export interface OrganizationDesktopBridge {
   server(action: OrganizationServerAction): Promise<{ recoveryToken?: string; path?: string }>
   secret(): Promise<string>
   subscribe(listener: (snapshot: OrganizationDesktopSnapshot) => void): () => void
+}
+
+/** Native-only fixed Run operations, retired permanently with their initiating identity. */
+export interface OrganizationExecutionChannel {
+  generation: number
+  signal: AbortSignal
+  /** @returns Current authorized Run/action metadata. */
+  read(): Promise<import('@deepseek-ai/dsh-organization').OrganizationExecutionView>
+  /**
+   * Send one signed command for the captured Run, retaining uncertain receipts.
+   * @param command - Fixed reserve, settle or transition command.
+   * @returns The authority's committed receipt.
+   */
+  command(command: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/execution').executionCommandSchema>): Promise<Receipt>
+  /**
+   * Own one local Host interval until cancellation and teardown settle.
+   * @param work - Private Host operation using the captured lifetime.
+   * @returns The Host result after the operation drains.
+   */
+  run<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T>
 }

@@ -110,7 +110,10 @@ export class DeepSeekAdapter extends LlmAdapter {
         ...options.purpose === undefined ? {} : { purpose: options.purpose },
       }, this.dependencies.prepareExtensions)
       signal.throwIfAborted()
-      const response = await fetch(`${messagesApiRoot(connection.baseURL)}/messages`, {
+      const url = `${messagesApiRoot(connection.baseURL)}/messages`
+      const check = await this.dependencies.beforeRequest?.({ url, model: options.model, signal })
+      signal.throwIfAborted(); check?.()
+      const response = await fetch(url, {
         method: 'POST', signal, body: extensions.payload, redirect: 'error',
         headers: {
           ...attributionHeaders(),

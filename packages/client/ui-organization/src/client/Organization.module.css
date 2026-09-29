@@ -108,3 +108,9 @@
 .taskList button { flex: 1; padding: 8px 10px; border-radius: 8px; }
 .taskList button:hover, .taskList button[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
 @media (max-width: 600px) { .cardHeading, .search { flex-wrap: wrap; } .search .input { flex-basis: 100%; } }
+
+.transcript {
+  white-space: pre;
+  overflow: auto;
+  max-height: 24rem;
+}

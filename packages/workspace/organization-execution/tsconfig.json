@@ -58,6 +58,12 @@
     },
     {
       "path": "../../llm/llm-retry"
+    },
+    {
+      "path": "../../credentials/credentials"
+    },
+    {
+      "path": "../../llm/llm-deepseek"
     }
   ]
 }

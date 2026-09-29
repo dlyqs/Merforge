@@ -210,3 +210,5 @@ These limits define where the adapter stops and future work begins. They are cur
 None.
 
 **Runtime invariant:** No companion is published. This package exposes no independent event sequence or mutable data relation beyond contracts enforced at its owning seam.
+
+Programmatic consumers may supply `beforeRequest` to recheck authority after credential and request preparation. It runs before every Messages HTTP dispatch and returns a synchronous final check called immediately before `fetch`. Rejection prevents that dispatch; the hook does not authorize Files API operations. The organization executor uses a text-only adapter without attachment providers and enforces a single request per action permit. Ordinary provider instances omit this hook.

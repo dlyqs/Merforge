@@ -1,5 +1,5 @@
 /** Transactional organization identity authority, independent of personal Host services. */
-import { executionCommandSchema, executionReadSchema } from './execution-schema.ts'
+import { executionCommandSchema, executionReadSchema, executionListSchema, executionPageSchema, executionRunSchema } from './execution-schema.ts'
 import { changeExecution, readExecution, invalidateExecution } from './execution.ts'
 import type { OrganizationExecutionView } from './execution-types.ts'
 export type * from './execution-types.ts'
@@ -867,7 +867,29 @@ export class OrganizationService extends Service {
     return this.enqueue('execution-read', (db) => {
       const query = parse(executionReadSchema, input)
       const value = transaction(db, () => this.boundedWorkgraph(readExecution(db,
-        this.principal(db, token, query.organizationId), query, this.serverEpoch)))
+        this.principal(db, token, query.organizationId), query, this.serverEpoch, this.config.executionModels)))
+      deliver(value)
+    })
+  }
+
+  /**
+   * Deliver bounded Run history after checking the exact assignment's current visibility.
+   * @param token - Current reader login.
+   * @param input - Assignment selector and page offset.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after bounded metadata delivery.
+   */
+  listExecutions(token: LoginToken, input: unknown, deliver: (value: z.output<typeof executionPageSchema>) => void): Promise<void> {
+    return this.enqueue('execution-list', (db) => {
+      const query = parse(executionListSchema, input)
+      const value = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        authorizeAssignmentRead(db, principal, selectedAssignment(db, query))
+        const total = Number(db.prepare('SELECT count(*) AS count FROM execution_runs WHERE assignmentId=?').get(query.assignmentId)?.count)
+        const items = db.prepare('SELECT data FROM execution_runs WHERE assignmentId=? ORDER BY rowid DESC LIMIT ? OFFSET ?')
+          .all(query.assignmentId, this.config.pageSize, query.offset).map(row => executionRunSchema.parse(JSON.parse(String(row.data))))
+        return this.boundedWorkgraph({ items, total, offset: query.offset })
+      })
       deliver(value)
     })
   }
