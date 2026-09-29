@@ -86,3 +86,7 @@
 .taskList button { border: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; cursor: pointer; text-align: start; overflow-wrap: anywhere; }
 .taskList button[aria-pressed="true"] { font-weight: 600; }
 .taskList small { color: var(--dsw-alias-label-tertiary); }
+
+.passwordField { position: relative; }
+.passwordField .input { padding-right: 44px; }
+.passwordToggle { position: absolute; right: 4px; top: 3px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }

@@ -22,7 +22,7 @@ export async function workgraphHarness() {
     const trust = { ...app.ready, origin: `https://127.0.0.1:${app.ready.port}`, timeoutMs: 5000, maxResponseBytes: 1048576 }
     const call = (path: string, body?: unknown, token = owner.token) => organizationRequest(trust, body === undefined ? 'GET' : 'POST', '/organization/v1' + path, body, token)
     const project = receiptSchema.parse((await call('/projects', { kind: 'create-project', operationId: randomUUID(), organizationId: owner.organizationId, name: 'Graph project' })).body)
-    for (const membershipId of [owner.membershipId, member.membershipId]) expect((await call('/grants', {
+    for (const membershipId of [member.membershipId]) expect((await call('/grants', {
       kind: 'set-grant', operationId: randomUUID(), organizationId: owner.organizationId, projectId: project.projectId,
       membershipId, actions: ['read', 'write'], expectedVersion: 0,
     })).status).toBe(200)

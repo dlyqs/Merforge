@@ -143,12 +143,10 @@ it('keeps organization selection after a denied task read so other authorized ta
   const project = await h.ownerClient.perform({ kind: 'command', command: {
     kind: 'create-project', operationId: randomUUID(), organizationId: h.owner.organizationId, name: 'Empty workspace',
   } })
-  await h.ownerClient.perform({ kind: 'command', command: { kind: 'set-grant', operationId: randomUUID(),
-    organizationId: h.owner.organizationId, projectId: project.receipt!.projectId, membershipId: h.owner.membershipId,
-    actions: ['read', 'write'], expectedVersion: 0,
-  } })
   const query = { ...h.query, projectId: project.receipt!.projectId, planId: randomUUID() }
   await expect(h.ownerClient.perform({ kind: 'workgraph-tasks', request: query })).rejects.toThrow('forbidden')
+  const empty = await h.ownerClient.perform({ kind: 'workgraph-tasks', request: { organizationId: h.owner.organizationId, projectId: project.receipt!.projectId } })
+  expect(empty.workgraph?.result).toMatchObject({ kind: 'tasks', value: { items: [], total: 0 } })
   const taskId = randomUUID()
   const definition = { ...h.save.definition, taskId, tasks: [{ ...h.save.definition.tasks[0]!, id: taskId }] }
   expect((await h.ownerClient.perform({ kind: 'workgraph-save', request: {

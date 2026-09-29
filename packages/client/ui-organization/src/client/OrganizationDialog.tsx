@@ -33,6 +33,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const [project, setProject] = useState<OrganizationProjectView | null>(null)
   const [section, setSection] = useState<Section>(props.initialSection)
   const [task, setTask] = useState<Task | null>(null)
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
   const [fields, setFields] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null)
@@ -79,24 +80,36 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     const result = await props.connection(action)
     if (result.invitationToken) setInvitation(result.invitationToken)
     if (result.receipt?.projectId) set('projectId', result.receipt.projectId)
-    setFields(previous => ({ ...previous, password: '', newPassword: '' }))
+    setFields(previous => ({ ...previous, password: '', newPassword: '', confirmPassword: '' }))
     return result
   }
   const server = async (action: OrganizationServerAction) => {
     const result = await props.server(action)
     if (result.recoveryToken) { setSecret(result.recoveryToken); setSaved(false) }
     if (result.path) set('resultPath', result.path)
-    setFields(previous => ({ ...previous, password: '', newPassword: '', oldRecovery: '' }))
+    setFields(previous => ({ ...previous, password: '', newPassword: '', confirmPassword: '', oldRecovery: '' }))
   }
   const command = (body: Record<string, unknown>) => connect({ kind: 'command', command: { operationId: randomUUID(), ...body } })
   const input = (key: OrganizationKey, type = 'text', fallback = '') =>
-    <label className={css.field}><span>{t(key)}</span>
-      <Input className={css.input ?? ''} disabled={busy} type={type} value={fields[key] ?? fallback}
-        autoComplete={key === 'username' ? 'username' : type === 'password' ? key === 'password' && (task === 'login' || task === 'passwordChange') ? 'current-password' : 'new-password' : 'off'}
-        onChange={(event) => { set(key, event.target.value) }} /></label>
+    <div className={css.field}><label htmlFor={`organization-${key}`}>{t(key)}</label>
+      <div className={type === 'password' ? css.passwordField : undefined}>
+        <Input id={`organization-${key}`} className={css.input ?? ''} disabled={busy} type={type === 'password' && visiblePasswords[key] ? 'text' : type} value={fields[key] ?? fallback}
+          autoComplete={key === 'username' ? 'username' : type === 'password' ? key === 'password' && (task === 'login' || task === 'passwordChange') ? 'current-password' : 'new-password' : 'off'}
+          onChange={(event) => { set(key, event.target.value) }} />
+        {type === 'password' && <button type="button" className={css.passwordToggle} disabled={busy}
+          aria-label={t(visiblePasswords[key] ? 'hidePassword' : 'showPassword')} aria-pressed={!!visiblePasswords[key]}
+          onClick={() => { setVisiblePasswords(previous => ({ ...previous, [key]: !previous[key] })) }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+            {visiblePasswords[key] && <path d="m3 3 18 18" />}
+          </svg>
+        </button>}
+      </div></div>
+  const confirmation = (key: 'password' | 'newPassword') => <>{input('confirmPassword', 'password')}
+    {value('confirmPassword') && value('confirmPassword') !== value(key) && <p role="alert" className={css.error}>{t('passwordMismatch')}</p>}</>
   const button = (key: OrganizationKey, work: () => Promise<unknown>, disabled = false, primary = false) =>
     <Button variant={primary ? 'primary' : 'outline'} disabled={busy || disabled} onClick={() => { void run(work) }}>{t(key)}</Button>
-  const navigate = (next: Task | null) => { setTask(next); setNotice(null); setInvitation(''); setSecret(''); setSaved(false); setFields({}) }
+  const navigate = (next: Task | null) => { setTask(next); setNotice(null); setInvitation(''); setSecret(''); setSaved(false); setVisiblePasswords({}); setFields({}) }
   const launch = (next: Task, disabled = false) => <Button variant="outline" disabled={busy || disabled} onClick={() => { navigate(next) }}>{t(next)}</Button>
   const writable = c.phase === 'ready' && !c.pendingOperation
   const admin = org?.role === 'admin'
@@ -148,11 +161,16 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
           {c.pendingOperation && <div className={css.notice}><p>{t('pending')}</p>{button('reconcile', () => connect({ kind: 'reconcile' }), !c.principal)}</div>}
           {invitation && <label className={css.field}>{t('invitation')}<output className={css.secret}>{invitation}</output><small>{t('invitationHint')}</small></label>}
           {value('resultPath') && <output className={css.secret}>{value('resultPath')}</output>}
+          {section === 'connection' && (!task || task === 'login' || task === 'register') && <>
+            <section className={css.card}><p className={css.muted}>{t('connectHint')}</p>{input('origin', 'url', c.origin ?? '')}{button('probe', () => connect({ kind: 'probe', origin: fields.origin ?? c.origin ?? '' }), !(fields.origin ?? c.origin), true)}
+              {offer && <div className={css.notice}><p>{t('verify')}</p><output className={css.secret}>{offer.fingerprint}</output><p>{t('expiry')} {new Date(offer.expiresAt).toLocaleString()}</p>{button('trust', () => connect({ kind: 'trust', fingerprint: offer.fingerprint }))}</div>}
+            </section>
+          </>}
           {!task && section === 'connection' && <>
             <p className={css.muted}>{t('accountDescription')}</p>
             <section className={css.card}><div className={css.cardHeading}><h4>{t('connection')}</h4><span className={css.status}>{t(c.phase)}</span></div>
               <p className={css.muted}>{c.origin ?? t('connectHint')}</p>
-              <div className={css.actions}>{launch('login')}{launch('register', !['signed-out', 'ready'].includes(c.phase))}{button('reconnect', () => connect({ kind: 'reconnect' }), !c.principal)}</div>
+              <div className={css.actions}>{launch('login', !['signed-out', 'ready'].includes(c.phase))}{launch('register', !['signed-out', 'ready'].includes(c.phase))}{button('reconnect', () => connect({ kind: 'reconnect' }), !c.principal)}</div>
             </section>
             {!!c.organizations.length && <label className={css.field}>{t('choose')}<select value={c.organizationId ?? ''} disabled={busy} onChange={(event) => {
               const selected = c.organizations.find(item => item.id === event.target.value)
@@ -161,15 +179,12 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <div className={css.actions}>{launch('createOrg', !writable)}{launch('accept', !writable)}{launch('passwordChange', !writable)}{c.principal && button('logout', () => connect({ kind: 'logout' }))}</div>
           </>}
           {task === 'login' && <>
-            <section className={css.card}><p className={css.muted}>{t('connectHint')}</p>{input('origin', 'url', c.origin ?? '')}{button('probe', () => connect({ kind: 'probe', origin: fields.origin ?? c.origin ?? '' }), !(fields.origin ?? c.origin), true)}
-              {offer && <div className={css.notice}><p>{t('verify')}</p><output className={css.secret}>{offer.fingerprint}</output><p>{t('expiry')} {new Date(offer.expiresAt).toLocaleString()}</p>{button('trust', () => connect({ kind: 'trust', fingerprint: offer.fingerprint }))}</div>}
-            </section>
             {form(() => connect({ kind: 'login', username: value('username'), password: value('password') }), <>{input('username')}{input('password', 'password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('username') || !value('password'))}
           </>}
-          {task === 'register' && form(() => connect({ kind: 'register', invitationToken: value('invitation'), username: value('username'), password: value('password') }), <><p className={css.muted}>{t('registerHint')}</p>{input('invitation')}{input('username')}{input('password', 'password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('invitation') || !value('username') || value('password').length < 8)}
+          {task === 'register' && form(() => connect({ kind: 'register', invitationToken: value('invitation'), username: value('username'), password: value('password') }), <><p className={css.muted}>{t('registerHint')}</p>{input('invitation')}{input('username')}{input('password', 'password')}{confirmation('password')}</>, !['signed-out', 'ready'].includes(c.phase) || !value('invitation') || !value('username') || value('password').length < 8 || value('password') !== value('confirmPassword'))}
           {task === 'accept' && form(() => command({ kind: 'accept-invitation', invitationToken: value('invitation') }), input('invitation'), !writable || !value('invitation'))}
           {task === 'createOrg' && form(() => command({ kind: 'create-organization', name: value('orgName') }), input('orgName'), !writable || !value('orgName').trim())}
-          {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}</>, !writable || !value('password') || value('newPassword').length < 8)}
+          {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}{confirmation('newPassword')}</>, !writable || !value('password') || value('newPassword').length < 8 || value('newPassword') !== value('confirmPassword'))}
           {!task && section === 'inbox' && <Inbox {...props} />}
           {!task && section === 'projects' && !project && <>
             <p className={css.muted}>{t('scope')}</p>
@@ -181,7 +196,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             </>}
           </>}
           {!task && section === 'projects' && project && <Workbench key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, c.mode, project.id].join(':')} {...props} project={project} onBack={() => { setProject(null) }} />}
-          {task === 'createProject' && form(() => command({ kind: 'create-project', organizationId: c.organizationId, name: value('projectName') }), <>{input('projectName')}{value('projectId') && <label className={css.field}>{t('projectId')}<output className={css.secret}>{value('projectId')}</output></label>}</>, !admin || !writable || !value('projectName').trim())}
+          {task === 'createProject' && form(async () => { await command({ kind: 'create-project', organizationId: c.organizationId, name: value('projectName') }); navigate(null) }, <>{input('projectName')}{value('projectId') && <label className={css.field}>{t('projectId')}<output className={css.secret}>{value('projectId')}</output></label>}</>, !admin || !writable || !value('projectName').trim())}
           {task === 'permissions' && <fieldset className={css.form} disabled={busy || !admin || !writable}><p className={css.muted}>{t('permissionsHint')}</p>{input('projectId')}<label className={css.field}>{t('memberId')}<select value={value('memberId')} onChange={(event) => { set('memberId', event.target.value) }}><option value="">{t('memberId')}</option>{c.members.map(member => <option key={member.id} value={member.id}>{member.username}</option>)}</select></label><div className={css.actions}>{button('read', () => grant(['read']), !value('projectId') || !value('memberId'))}{button('write', () => grant(['read', 'write']), !value('projectId') || !value('memberId'), true)}{button('revoke', () => grant([]), !value('projectId') || !value('memberId'))}</div></fieldset>}
           {task === 'permissions' && admin && value('projectId') && <TaskGrants key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, value('projectId')].join(':')} {...props} projectId={value('projectId')} />}
           {!task && section === 'members' && <>
@@ -204,8 +219,8 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <section className={css.card}><h4>{t('maintenance')}</h4><p className={css.muted}>{t('maintenanceHint')}</p><div className={css.actions}>{button('backup', () => server({ kind: 'backup' }), !stopped)}{launch('restore', !stopped)}{button('rotate', () => server({ kind: 'rotate-certificate' }), !stopped)}</div></section>
           </>}
           {task === 'configure' && form(() => server({ kind: 'configure', settings: { host: fields.host ?? state.server.settings.host, port: Number(fields.port ?? state.server.settings.port), names: (fields.names ?? state.server.settings.names.join(',')).split(',').map(name => name.trim()), restoreOnLaunch: autoStart } }), <div className={css.fieldsGrid}>{input('host', 'text', state.server.settings.host)}{input('port', 'number', String(state.server.settings.port))}<div className={css.fullWidth}>{input('names', 'text', state.server.settings.names.join(','))}</div><label className={css.check}><input type="checkbox" checked={autoStart} onChange={(event) => { setAutoStart(event.target.checked) }} />{t('autoStart')}</label></div>, !stopped)}
-          {task === 'initialize' && form(() => server({ kind: 'initialize', username: value('username'), password: value('password'), organizationName: value('orgName'), recoveryToken: secret }), <>{input('orgName')}<div className={css.fieldsGrid}>{input('username')}{input('password', 'password')}</div>{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('orgName').trim() || !value('username') || value('password').length < 8)}
-          {task === 'recover' && form(() => server({ kind: 'recover', recoveryToken: value('oldRecovery'), newRecoveryToken: secret, newPassword: value('newPassword') }), <>{input('oldRecovery', 'password')}{input('newPassword', 'password')}{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('oldRecovery') || value('newPassword').length < 8)}
+          {task === 'initialize' && form(() => server({ kind: 'initialize', username: value('username'), password: value('password'), organizationName: value('orgName'), recoveryToken: secret }), <>{input('orgName')}<div className={css.fieldsGrid}>{input('username')}{input('password', 'password')}{confirmation('password')}</div>{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('orgName').trim() || !value('username') || value('password').length < 8 || value('password') !== value('confirmPassword'))}
+          {task === 'recover' && form(() => server({ kind: 'recover', recoveryToken: value('oldRecovery'), newRecoveryToken: secret, newPassword: value('newPassword') }), <>{input('oldRecovery', 'password')}{input('newPassword', 'password')}{confirmation('newPassword')}{recovery}</>, !saved || !secret || state.server.phase !== 'ready' || !value('oldRecovery') || value('newPassword').length < 8 || value('newPassword') !== value('confirmPassword'))}
           {task === 'restore' && <><p className={css.notice}>{t('restoreConfirm')}</p>{button('restore', () => server({ kind: 'restore' }), !stopped, true)}{secret && <label className={css.field}>{t('recovery')}<output className={css.secret}>{secret}</output><small>{t('recoveryHint')}</small></label>}</>}
         </>}
       </div>

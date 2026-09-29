@@ -20,7 +20,7 @@ async function setup(config = {}) {
   const owner = await initialize(harness.service)
   const project = await harness.service.projectCommand(owner.token, { kind: 'create-project', operationId: operationId(), organizationId: owner.organizationId, name: 'CSV report' })
   const grant = await harness.service.grant(owner.token, { kind: 'set-grant', operationId: operationId(), organizationId: owner.organizationId,
-    projectId: project.projectId, membershipId: owner.membershipId, actions: ['read', 'write'], expectedVersion: 0 })
+    projectId: project.projectId, membershipId: owner.membershipId, actions: ['read', 'write'], expectedVersion: project.revision })
   const phaseId = randomUUID(), taskId = randomUUID()
   const request = { operationId: operationId(), organizationId: owner.organizationId, projectId: project.projectId,
     planId: randomUUID(), expectedRevision: 0, definition: { taskId, phases: [{ id: phaseId, title: 'Prepare' }], tasks: [{

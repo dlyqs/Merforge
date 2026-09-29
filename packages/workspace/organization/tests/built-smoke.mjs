@@ -20,7 +20,7 @@ try {
   const project = await ctx.organization.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(),
     organizationId: first.organizationId, name: 'Built WorkGraph' })
   await ctx.organization.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId: first.organizationId,
-    projectId: project.projectId, membershipId: first.membershipId, expectedVersion: 0, actions: ['read', 'write'] })
+    projectId: project.projectId, membershipId: first.membershipId, expectedVersion: project.revision, actions: ['read', 'write'] })
   const taskId = randomUUID(), phaseId = randomUUID(), planId = randomUUID()
   const query = { organizationId: first.organizationId, projectId: project.projectId, planId }
   const definition = { taskId, phases: [{ id: phaseId, title: 'Preparation' }], tasks: [{ id: taskId, phaseId,

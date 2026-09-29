@@ -21,7 +21,6 @@ it('deduplicates native and operation failures, clears on editing and expires fe
     connection: vi.fn(async () => { state.connection.error = 'connection-refused'; throw new Error('connection-refused') }),
   }
   render(<OrganizationDialog {...props} initialSection="connection" onClose={() => {}} />)
-  fireEvent.click(screen.getByRole('button', { name: zh.login }))
   fireEvent.change(screen.getByLabelText(zh.origin), { target: { value: '172.30.64.1:19487' } })
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.probe })) })
   expect(screen.getAllByRole('alert')).toHaveLength(1)
@@ -32,4 +31,29 @@ it('deduplicates native and operation failures, clears on editing and expires fe
   expect(screen.getAllByRole('alert')).toHaveLength(1)
   act(() => { vi.advanceTimersByTime(6000) })
   expect(screen.queryByRole('alert')).toBeNull()
+})
+
+
+it('offers connection before registration and requires matching passwords with independent visibility controls', async () => {
+  const state: OrganizationDesktopSnapshot = {
+    connection: { revision: 1, generation: 1, phase: 'signed-out', mode: 'personal', organizations: [], members: [] },
+    server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
+  }
+  const connection = vi.fn<OrganizationProps['connection']>().mockResolvedValue({})
+  render(<OrganizationDialog available t={makeTranslate(zh)} useOrganization={selector => selector(state)}
+    connection={connection} context={vi.fn()} server={vi.fn()} secret={vi.fn()} initialSection="connection" onClose={vi.fn()} />)
+  expect(screen.getByLabelText(zh.origin)).toBeDefined()
+  fireEvent.click(screen.getByRole('button', { name: zh.register }))
+  fireEvent.change(screen.getByLabelText(zh.invitation), { target: { value: 'invitation' } })
+  fireEvent.change(screen.getByLabelText(zh.username), { target: { value: 'alice' } })
+  fireEvent.change(screen.getByLabelText(zh.password), { target: { value: 'password-one' } })
+  fireEvent.change(screen.getByLabelText(zh.confirmPassword), { target: { value: 'password-two' } })
+  expect(screen.getByRole('button', { name: zh.register }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('alert').textContent).toBe(zh.passwordMismatch)
+  fireEvent.click(screen.getAllByRole('button', { name: zh.showPassword })[0]!)
+  expect(screen.getByLabelText(zh.password).getAttribute('type')).toBe('text')
+  expect(screen.getByLabelText(zh.confirmPassword).getAttribute('type')).toBe('password')
+  fireEvent.change(screen.getByLabelText(zh.confirmPassword), { target: { value: 'password-one' } })
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.register })) })
+  expect(connection).toHaveBeenCalledExactlyOnceWith({ kind: 'register', invitationToken: 'invitation', username: 'alice', password: 'password-one' })
 })

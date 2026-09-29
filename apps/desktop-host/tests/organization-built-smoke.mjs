@@ -38,9 +38,9 @@ try {
     const call = (method, path, body) => organizationRequest(trust, method, '/organization/v1' + path, body, login.body.token)
     const project = (await call('POST', '/projects', { operationId: randomUUID(), kind: 'create-project', organizationId: receipt.organizationId, name: 'Smoke project' })).body
     const before = await call('GET', `/organizations/${receipt.organizationId}/projects`)
-    assert.equal(before.body.total, 0)
+    assert.equal(before.body.total, 1)
     const granted = await call('POST', '/grants', { operationId: randomUUID(), kind: 'set-grant', organizationId: receipt.organizationId,
-      projectId: project.projectId, membershipId: receipt.membershipId, expectedVersion: 0, actions: ['read', 'write'] })
+      projectId: project.projectId, membershipId: receipt.membershipId, expectedVersion: project.revision, actions: ['read', 'write'] })
     assert.equal(granted.status, 200)
     const snapshot = (await call('GET', `/organizations/${receipt.organizationId}/projects`)).body
     assert.equal(snapshot.items[0].name, 'Smoke project')

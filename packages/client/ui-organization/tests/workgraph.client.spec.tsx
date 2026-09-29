@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Task interaction regressions run with DOM controls only, without a browser or page. */
 import { afterEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import { workgraphPageSchema, workgraphVersionSchema } from '@deepseek-ai/dsh-organization/workgraph'
@@ -143,4 +143,18 @@ it('shows the saved context revision separately when the current task has change
   await screen.findByText(zh.contextOldVersion)
   expect(screen.getByText(zh.contextReadonly)).toBeTruthy()
   expect(screen.getAllByText('版本 1')).toHaveLength(1)
+})
+
+
+it('does not repeat a denied task request after native generation refresh and allows explicit retry', async () => {
+  const h = fixture()
+  h.connection.mockRejectedValueOnce(new Error('forbidden'))
+  const view = render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
+  await screen.findByText(zh.forbidden)
+  h.setState({ generation: 2 })
+  await act(async () => { view.rerender(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />) })
+  expect(h.connection).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
+  await screen.findByRole('button', { name: 'Visible task' })
+  expect(h.connection).toHaveBeenCalledTimes(2)
 })

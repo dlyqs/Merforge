@@ -29,7 +29,7 @@ async function setup() {
   const employee = await app.authority.register({ operationId: randomUUID(), invitationToken: inviteToken, username: 'employee', password })
   const project = await app.authority.projectCommand(ownerLogin.token, { kind: 'create-project', organizationId, operationId: randomUUID(), name: 'Work' })
   const projectId = project.projectId!
-  for (const [membershipId, actions] of [[init.membershipId, ['read', 'write']], [employee.membershipId, ['read']]] as const) {
+  for (const [membershipId, actions] of [[employee.membershipId, ['read']]] as const) {
     await app.authority.grant(ownerLogin.token, { kind: 'set-grant', organizationId, projectId, membershipId, actions, expectedVersion: 0, operationId: randomUUID() })
   }
   const taskId = randomUUID(), planId = randomUUID(), phaseId = randomUUID()

@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  confirmPassword: '再次输入密码', showPassword: '显示密码', hidePassword: '隐藏密码', passwordMismatch: '两次输入的密码不一致。',
   'invalid-origin': '服务地址无效，请填写 IP 或域名及端口，例如 192.168.1.100:19487。仅支持 HTTPS。',
   'connection-refused': '无法连接此端口，请确认组织服务已启用，并核对 IP 和端口。',
   'host-not-found': '找不到服务地址，请检查 IP 或域名。',
@@ -133,7 +134,7 @@ export const zh = {
   manage: '管理', configure: '服务设置', close: '关闭', cancel: '取消', back: '返回', submit: '确认', working: '正在处理…',
   welcome: '与团队共享工作空间', projects: '项目', permissions: '项目授权', searchAction: '搜索', firstPage: '返回首页',
   connectHint: '输入组织服务地址，核验证书后再登录。可向组织管理员获取地址。',
-  registerHint: '使用管理员提供的邀请凭证创建账号，完成后返回登录。',
+  registerHint: '使用管理员提供的邀请凭证创建账号，完成后自动登录。',
   chooseHint: '先在「账号与组织」中登录并选择一个组织。',
   permissionsHint: '选择成员并填写项目 ID，设置该成员对项目的访问权限。',
   membersDescription: '邀请同事加入组织，并管理成员角色和访问状态。',
@@ -169,6 +170,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  confirmPassword: 'Confirm password', showPassword: 'Show password', hidePassword: 'Hide password', passwordMismatch: 'The passwords do not match.',
   'invalid-origin': 'Invalid service address. Enter an IP or hostname and port, such as 192.168.1.100:19487. Only HTTPS is supported.',
   'connection-refused': 'Connection refused. Check that the organization service is running and verify its IP and port.',
   'host-not-found': 'Service address not found. Check the IP or hostname.',
@@ -302,7 +304,7 @@ export const en: Record<OrganizationKey, string> = {
   manage: 'Manage', configure: 'Service settings', close: 'Close', cancel: 'Cancel', back: 'Back', submit: 'Confirm', working: 'Working…',
   welcome: 'A shared workspace for your team', projects: 'Projects', permissions: 'Project access', searchAction: 'Search', firstPage: 'First page',
   connectHint: 'Enter the organization service address and verify its certificate before signing in. Ask your administrator for the address.',
-  registerHint: 'Create an account with an invitation from your administrator, then return to sign in.',
+  registerHint: 'Create an account with an invitation from your administrator, then sign in automatically.',
   chooseHint: 'Sign in and select an organization in Account & organization first.',
   permissionsHint: 'Select a member and enter a project ID to manage their access to that project.',
   membersDescription: 'Invite teammates and manage their roles and access status.',

@@ -988,7 +988,7 @@ export class OrganizationService extends Service {
    * Create or rename a project using management or explicit write permission respectively.
    * @param token - Current organization bearer credential.
    * @param input - Strict project command with optimistic version and operation identifier.
-   * @returns Committed receipt; creation does not grant its administrator any content action.
+   * @returns Committed receipt; creation also grants its creating member read/write at the same revision.
    */
   projectCommand(token: LoginToken, input: unknown): Promise<Receipt> {
     return this.resourceCommand(token, parse(projectCommandSchema, input))
@@ -1027,6 +1027,7 @@ export class OrganizationService extends Service {
             case 'create-project':
               projectId = projectSchema.shape.id.parse(randomUUID())
               db.prepare('INSERT INTO organization_projects VALUES (?,?,?,?)').run(projectId, command.organizationId, command.name, revision)
+              db.prepare('INSERT INTO resource_grants VALUES (?,?,1,1,?)').run(projectId, this.member(db, current.accountId, command.organizationId).id, revision)
               break
             case 'rename-project': {
               const project = authorizedProject(db, current, command.projectId, 'write')

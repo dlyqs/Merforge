@@ -57,8 +57,8 @@ it('uses explicit grants for detail, list totals, pagination and literal search,
   const first = await h.create('Visible one')
   const second = await h.create('Visible two')
   const hidden = await h.create('Private needle')
-  expect((await h.page(h.ownerLogin.token)).total).toBe(0)
-  expect((await h.call('GET', `/projects/${first.projectId}?organizationId=${h.organizationId}`, undefined, h.ownerLogin.token)).status).toBe(403)
+  expect((await h.page(h.ownerLogin.token)).total).toBe(3)
+  expect((await h.call('GET', `/projects/${first.projectId}?organizationId=${h.organizationId}`, undefined, h.ownerLogin.token)).status).toBe(200)
   await h.grant(first, ['read'])
   await h.grant(second, ['read'])
   const page = await h.page()
@@ -175,7 +175,7 @@ it('replays only currently readable resources and requires a snapshot for malfor
   const project = await h.create('Visible')
   await h.grant(project, ['read', 'write'])
   const hidden = await h.create('Hidden')
-  await h.grant(hidden, ['read', 'write'], 0, h.owner.membershipId)
+  await h.grant(hidden, ['read', 'write'], hidden.revision, h.owner.membershipId)
   const snapshot = await h.page()
   const hiddenChange = await h.rename(hidden, 'Hidden changed', hidden.revision, op(), h.ownerLogin.token)
   const first = await h.call('GET', `/organizations/${h.organizationId}/events?cursor=${snapshot.cursor}`, undefined, h.aliceLogin.token)
@@ -254,11 +254,12 @@ it('ignores duplicate batches and rejects reordered batches before a client can 
 it('exposes versioned grant metadata only to managers without leaking project content', async () => {
   const h = await setup()
   const project = await h.create('Hidden from manager')
+  const revoked = await h.grant(project, [], project.revision, h.owner.membershipId)
   const granted = await h.grant(project, ['read'])
   const path = `/projects/${project.projectId}/grants?organizationId=${h.organizationId}`
-  expect((await h.call('GET', path, undefined, h.ownerLogin.token)).body).toEqual([{
+  expect((await h.call('GET', path, undefined, h.ownerLogin.token)).body).toEqual(expect.arrayContaining([{
     projectId: project.projectId, membershipId: h.alice.membershipId, actions: ['read'], version: granted.revision,
-  }])
+  }, { projectId: project.projectId, membershipId: h.owner.membershipId, actions: [], version: revoked.revision }]))
   expect((await h.call('GET', path, undefined, h.aliceLogin.token)).status).toBe(403)
   expect((await h.page(h.ownerLogin.token)).items).toEqual([])
 }, 15000)

@@ -73,7 +73,7 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
  * @param db - Active authority transaction.
  * @param principal - Fresh enabled organization identity.
  * @param query - Strict list, detail or historical query.
- * @returns Matching authorized tasks only; an empty permission set is forbidden.
+ * @returns Matching authorized tasks; lists may be empty, but inaccessible detail selections are forbidden.
  */
 export function visibleTasks(db: DatabaseSync, principal: Principal, query: Query): OrganizationTaskView[] {
   authorizedProject(db, principal, query.projectId, 'read')
@@ -81,7 +81,7 @@ export function visibleTasks(db: DatabaseSync, principal: Principal, query: Quer
     : db.prepare('SELECT * FROM organization_plans WHERE projectId=? AND organizationId=? ORDER BY id')
       .all(query.projectId, principal.organizationId ?? null).map(row => workgraphPlanSchema.parse(row))
   const items = plans.flatMap(plan => project(db, principal, plan, query.revision ?? plan.currentRevision))
-  if (!items.length || query.taskId && !items.some(task => task.id === query.taskId)) throw new OrganizationError('forbidden')
+  if (query.planId && !items.length || query.taskId && !items.some(task => task.id === query.taskId)) throw new OrganizationError('forbidden')
   const search = query.search.toLowerCase()
   return items.filter(task => (!query.taskId || task.id === query.taskId)
     && [task.goal, task.scope, ...task.acceptance, ...task.artifacts].some(text => text.toLowerCase().includes(search)))

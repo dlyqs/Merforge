@@ -203,7 +203,9 @@ export class OrganizationConnection {
         case 'register': {
           const { kind: _kind, ...fields } = action
           const request = registerSchema.parse({ ...fields, operationId: randomUUID() })
-          return { receipt: receiptSchema.parse(await this.request('/register', request)) }
+          const receipt = receiptSchema.parse(await this.request('/register', request))
+          await this.performAction({ kind: 'login', username: action.username, password: action.password })
+          return { receipt }
         }
         case 'logout': return {}
         case 'select': {

@@ -17,7 +17,7 @@ async function setup(config = {}) {
   const owner = await initialize(h.service)
   const member = await addMember(h.service, owner.token, owner.organizationId, 'reader', 'admin')
   const project = await h.service.projectCommand(owner.token, { kind: 'create-project', operationId: operationId(), organizationId: owner.organizationId, name: 'Project' })
-  for (const membershipId of [owner.membershipId, member.membershipId]) await h.service.grant(owner.token, {
+  for (const membershipId of [member.membershipId]) await h.service.grant(owner.token, {
     kind: 'set-grant', operationId: operationId(), organizationId: owner.organizationId, projectId: project.projectId,
     membershipId, actions: ['read', 'write'], expectedVersion: 0,
   })

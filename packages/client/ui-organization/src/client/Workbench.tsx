@@ -33,6 +33,8 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
   const [assignmentRevision, setAssignmentRevision] = useState<number>()
   const [context, setContext] = useState<ContextReply>()
   const [search, setSearch] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
+  const loading = useRef(false)
+  const denied = useRef(false)
   const alive = useRef(true)
   const contextOperations = useRef(new Map<string, OperationId>())
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
@@ -49,10 +51,18 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
     finally { if (alive.current) setBusy(false) }
   }
   const load = async (offset = 0) => {
-    const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search, offset, ...(offset && currentPage ? { cursor: currentPage.cursor } : {}) } })
-    if (alive.current && result.workgraph?.result.kind === 'tasks') setPage({ generation: result.workgraph.generation, value: result.workgraph.result.value })
+    if (loading.current) return
+    loading.current = true
+    denied.current = false
+    try {
+      const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search, offset, ...(offset && currentPage ? { cursor: currentPage.cursor } : {}) } })
+      if (alive.current && result.workgraph?.result.kind === 'tasks') setPage({ generation: result.workgraph.generation, value: result.workgraph.result.value })
+    } catch (error) {
+      denied.current = workgraphError(error) === 'forbidden'
+      throw error
+    } finally { loading.current = false }
   }
-  useEffect(() => { if (ready) void run(() => load()) }, [ready, c.generation])
+  useEffect(() => { if (ready && !denied.current && !loading.current) void run(() => load()) }, [ready, c.generation])
   const edit = async (item: OrganizationTaskView) => {
     const result = await props.connection({ kind: 'workgraph-read', request: { ...query, planId: item.planId } })
     if (!alive.current || result.workgraph?.result.kind !== 'plan') return

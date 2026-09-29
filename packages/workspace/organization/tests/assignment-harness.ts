@@ -18,7 +18,7 @@ export async function assignmentHarness(cleanup: (() => Promise<unknown>)[]) {
   const query = { organizationId: owner.organizationId, projectId: project.projectId, planId: randomUUID() }
   const projectGrant = (membershipId: string, actions: string[], expectedVersion = 0) => h.service.grant(owner.token,
     { organizationId: query.organizationId, projectId: query.projectId, kind: 'set-grant', operationId: operationId(), membershipId, actions, expectedVersion })
-  const ownerGrant = await projectGrant(owner.membershipId, ['read', 'write'])
+  const ownerGrant = await projectGrant(owner.membershipId, ['read', 'write'], project.revision)
   const otherGrant = await projectGrant(other.membershipId!, ['read'])
   const taskId = randomUUID(), phaseId = randomUUID()
   const save = { ...query, operationId: operationId(), expectedRevision: 0, definition: {

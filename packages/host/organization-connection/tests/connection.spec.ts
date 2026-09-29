@@ -63,15 +63,18 @@ it('isolates two real identities, filters search/counts, clears revoked views an
     username: 'alice', password,
     invitationToken: token() })).rejects.toThrow('invalid-invitation')
   await member.perform({ kind: 'register', username: 'alice', password, invitationToken: invitation.invitationToken! })
+  expect(member.snapshot()).toMatchObject({ phase: 'ready', username: 'alice' })
+  expect(member.snapshot().organizations).toHaveLength(1)
   await expect(member.perform({ kind: 'login', username: 'alice', password: 'wrong password' })).rejects.toThrow('invalid-credentials')
   await member.perform({ kind: 'login', username: 'alice', password })
   await member.perform({ kind: 'select', organizationId: h.initialized.organizationId! })
+  await expect.poll(() => h.owner.snapshot().phase).toBe('ready')
   const project = (await h.owner.perform({ kind: 'command',
     command: { kind: 'create-project',
       operationId: randomUUID(),
       organizationId: h.initialized.organizationId,
       name: 'Granted project' } })).receipt!
-  expect(h.owner.snapshot().projects?.total).toBe(0)
+  expect(h.owner.snapshot().projects?.total).toBe(1)
   const members = await h.app.authority.members((await h.app.authority.login({ username: 'owner', password })).token, h.initialized.organizationId!)
   const alice = members.find(item => item.username === 'alice')!
   const grant = (await h.owner.perform({ kind: 'command',
@@ -223,7 +226,7 @@ it.each(['pending', 'held'])('preserves WorkGraph history and permanently retire
   const organizationId = h.initialized.organizationId!
   const project = await h.app.authority.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(), organizationId, name: 'Backup plan' })
   await h.app.authority.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId, projectId: project.projectId,
-    membershipId: h.initialized.membershipId, expectedVersion: 0, actions: ['read', 'write'] })
+    membershipId: h.initialized.membershipId, expectedVersion: project.revision, actions: ['read', 'write'] })
   const planId = randomUUID(), taskId = randomUUID(), phaseId = randomUUID()
   const request = { organizationId, projectId: project.projectId, planId, operationId: randomUUID(), expectedRevision: 0,
     definition: { taskId, phases: [{ id: phaseId, title: 'Plan' }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
@@ -293,7 +296,7 @@ it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining
   const organizationId = h.initialized.organizationId!
   const project = await h.app.authority.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(), organizationId, name: 'Legacy project' })
   await h.app.authority.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId, projectId: project.projectId,
-    membershipId: h.initialized.membershipId, expectedVersion: 0, actions: ['read'] })
+    membershipId: h.initialized.membershipId, expectedVersion: project.revision, actions: ['read'] })
   await h.owner.close(); await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'legacy-backup'), 5000)
   const db = new DatabaseSync(join(backup, 'organization.sqlite'))

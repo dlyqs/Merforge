@@ -89,12 +89,12 @@ try {
     const project = (await command({ kind: 'create-project', name: 'Shared design project' })).receipt
     const granted = (await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: 0, actions: ['read'] })).receipt
     await until(() => member.snapshot().projects?.total === 1)
-    assert.equal(owner.snapshot().projects.total, 0)
+    assert.equal(owner.snapshot().projects.total, 2)
     await member.perform({ kind: 'search', query: 'salary', offset: 0 })
     assert.equal(member.snapshot().projects.total, 0)
     await member.perform({ kind: 'reconnect' })
     await command({ kind: 'set-grant', projectId: project.projectId, membershipId: initialized.membershipId,
-      expectedVersion: 0, actions: ['read', 'write'] })
+      expectedVersion: project.revision, actions: ['read', 'write'] })
     const rootTask = randomUUID(), publicTask = randomUUID(), phaseId = randomUUID()
     const taskQuery = { organizationId: initialized.organizationId, projectId: project.projectId, planId: randomUUID() }
     const task = (id, parentTaskId, goal) => ({ id, parentTaskId, goal, phaseId, scope: 'Shared preparation',
