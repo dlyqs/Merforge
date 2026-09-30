@@ -63,7 +63,7 @@
 
 ## 主阶段状态表
 
-状态仅使用 `pending`、`in_progress`、`completed`、`blocked`。本表是唯一全局阶段进度；完成细节写在各阶段末尾。`completed` 表示该阶段工程验收通过，用户侧待验单独记载。
+状态仅使用 `pending`、`in_progress`、`completed`、`blocked`。本表是唯一全局阶段进度；完成细节写在各阶段末尾。`completed` 通常表示该阶段工程验收通过，用户侧待验单独记载。2026-09-30 用户明确将最终测试留给自己：Phase 9–10 的完成口径为实现、聚焦回归与可执行验收交接完成，完整发行构建、built smoke、真实模型和三机验收仍待用户执行，不能据此记为通过。
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
@@ -75,8 +75,8 @@
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | completed | SQLite v9 原子产物、正式 Submission、HTTPS/native 与任务清单/待验收 Inbox | 95 项聚焦回归、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | completed | SQLite v10 验收/原子返工、固定动作与任务详情/Inbox 投影 | 129 项相关回归分组验证、定向构建及无窗口 smoke 通过；可见验收待用户 |
 | Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | completed | SQLite v11 集成回执、依赖准入、原生目标核验和父级确认 UI | 142 项相关回归、定向构建及无窗口 smoke 通过；可见验收待用户 |
-| Phase 9 | 故障与权限集成 | 真实组合 CSV 闭环及跨进程负例 | pending | — | 依赖 8 |
-| Phase 10 | 发行与产品验收交接 | built smoke、文档和三机剧本 | pending | — | 依赖 9；不自动进入产品 Phase 7B/8 |
+| Phase 9 | 故障与权限集成 | 真实组合 CSV 闭环及跨进程负例 | completed | 共享 CSV 夹具、7 个组合用例、真实模型 smoke 入口 | 69 项聚焦回归通过；跨进程发行/模型待用户 |
+| Phase 10 | 发行与产品验收交接 | built smoke、文档和三机剧本 | completed | Node/Electron 私有进程 smoke、验收文档与路线图同步 | 最终发行/产品验收由用户执行；不进入 7B/8 |
 
 ## Phase 1：协议与执行消费位置
 
@@ -327,44 +327,56 @@
 - `pnpm exec tsdown --env.DSH_BUILD_FACE host -F packages/workspace/organization -F packages/host/organization-connection -F packages/api/organization-api -F apps/desktop-host -F apps/desktop --logLevel warn` 和 `pnpm exec tsdown --env.DSH_BUILD_FACE client -F packages/client/ui-organization --logLevel warn` 通过；最后原生路径处理变化后定向重跑 Host 命令的 `-F apps/desktop` 通过。
 - `node packages/workspace/organization/tests/built-smoke.mjs` 通过：普通 Node 消费已构建组织导出和 Desktop 原生核验模块，完成发布/提交/验收、真实 Git 目标读取、独立最终确认及冷重开后的 delivered，独立读取目标字节并核对未选中文件。
 
-已更新本计划、overview、架构、分配/执行协议及相关 README。没有启动页面、使用 Playwright/浏览器自动化/GitNexus、写 Agent Notes 或提交/推送；未运行完整发行构建或真实模型调用。Desktop 可见操作、Windows 和三机产品验收待用户，不能据此宣称产品 Phase 8 完成。下一阶段为本计划 Phase 9，保持 pending，本轮不进入。
+已更新本计划、overview、架构、分配/执行协议及相关 README。没有启动页面、使用 Playwright/浏览器自动化/GitNexus、写 Agent Notes 或提交/推送；未运行完整发行构建或真实模型调用。Desktop 可见操作、Windows 和三机产品验收待用户，不能据此宣称产品 Phase 8 完成。Phase 8 当次执行止于此；当时 Phase 9 保持 pending，后续实施结果见下节。
 
 
 ## Phase 9：真实组合、故障与权限集成
 
-目标：以确定性模型驱动完整运行组合，证明不是只有各层独立接口通过。
+目标：以确定性模型驱动完整运行组合，核对各层真实消费者；最终测试按本轮用户指令交接。
 
-产出：`apps/desktop-host/tests/` 组织执行集成夹具和 CSV 场景，组织/原生/运行时聚焦回归；必要的 invariant gate 接线。
+产出：`apps/desktop-host/tests/organization-execution-{fixture.mjs,fixture.d.mts,source-kit.ts}`、`organization-execution.spec.ts`、`apps/desktop/tests/organization-execution.e2e.ts`；复用组织/原生/运行时聚焦回归，不新增产品入口或测试后门。
 
 验收清单：
 
-- [ ] 真实 Loader 启动组织权威和员工隔离执行组合，真实 HTTPS/SQLite/JSONL/工具和临时仓库贯通；确定性测试只替换模型、时钟等非确定输入，不替换权限、事务或工具执行。
-- [ ] CSV 场景覆盖批准→接受→委托→领取→执行→人工等待→提交→驳回新版本→重新执行→验收→两子任务汇合→目标核验→最终确认。
-- [ ] 双设备、预算竞争、旧 epoch、写成功丢响应、授权后撤权、断线/休眠、服务与 Host 重启、账号切换、取消时子进程存活和 unknown 均有负例。
-- [ ] 私人 Session/附件、执行原文、获准共享摘要、产物、搜索/计数/事件与回执分别测试隔离；拒绝动作产生零新增受控副作用。
-- [ ] 从目标文件和独立只读 SQLite/JSONL 观察交付与预算，不只断言返回值或模型文本；每个夹具清理自己的进程和临时资源。
+- [x] 真实 Loader 启动组织权威和员工隔离执行组合，真实 HTTPS/SQLite/JSONL/工具和两个临时 Git 仓库贯通；只替换模型和测试保险库，不替换权限、事务或文件消费者。
+- [x] CSV 场景贯通批准→接受→委托→领取→执行→人工等待→提交→驳回新版本→重新执行→验收→两子任务汇合→目标核验→最终确认。
+- [x] 组合层新增预算拒绝、授权后撤权、写成功丢响应、休眠、服务重启、身份切换负例；正常场景覆盖 Host 重开。已有领域/原生用例覆盖双设备、预算竞争、旧 epoch、取消等待 Host、unknown。跨进程同场景在 Phase 10 smoke 中提供，尚未运行。组织 shell 当前拒绝，子进程取消的适用边界见验收文档。
+- [x] 组合层检查执行原文不共享、产物撤权拒绝、个人 Session 列表为空、拒绝动作零新增文件；现有私人附件/搜索/计数/事件/回执隔离回归保留，未伪造全量重跑。
+- [x] 独立 Node 读取最终 CSV，直接读取 JSONL、只读 SQLite 核对动作数/预算/版本/最终确认；未选中文件不变，每个夹具负责临时进程与目录清理。
 
-助理验证：集中运行本阶段及受影响的原 Phase 5/6 回归文件、显式编译面与局部 lint；按测试规则准备可带密钥的无页面真实模型 smoke，有密钥则运行并记录模型/结果，无密钥自跳过并保留产品待验。用户检查：不要求本阶段启动页面；真实三机检查按 Phase 10 剧本开展。依赖：Phase 8。
+实际完成：2026-09-30 完成实施和聚焦回归。测试夹具显式把每账户挑战上限配置为 1000，支持确定性模型短时密集执行；初次默认 30 的运行如实触发 rate-limited，未放宽产品默认配置、签名或权限。测试适配器仅替换模型输入，复用实际 `execute`、guard 和文件工具。新增真实模型 smoke 沿用 `.env`/环境密钥与 HTTPS 模型白名单；本轮按用户要求不运行，不读取密钥，不记为已跳过或通过。
 
-实际完成：未开始，执行后填写。
+验证：
+
+- `pnpm exec vitest run apps/desktop-host/tests/organization-execution.spec.ts --maxWorkers=1`：完整 CSV 用例先通过，随后添加故障例后 7 项通过。
+- `pnpm exec vitest run apps/desktop-host/tests/organization-execution.spec.ts packages/workspace/organization-execution/tests/runtime.spec.ts packages/workspace/organization-execution/tests/recovery.spec.ts packages/workspace/organization-execution/tests/model.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/host/organization-connection/tests/assignment.spec.ts --maxWorkers=3`：7 文件、69 项通过。
+- `pnpm exec tsc -b apps/desktop-host apps/desktop --pretty false` 通过；新增文件局部 lint 和静态门禁记录在 Phase 10。
+- 复用既有 `organization component=execution/action/...` 业务日志、动作 JSONL 与 SQLite 证据；没有新增线上逐 token 日志，没有新增可独立分歧的产品关系，沿用并执行 `verifyBindings`，不制造空 invariant。
+
+已同步 overview。下一步交付 Phase 10 的发行脚本与用户验收文档，不暂停等待页面验收。
 
 ## Phase 10：发行验证与产品 Phase 8 交接
 
-目标：发行组合包含完整内建执行闭环，并提供可复核的产品验收路径。
+目标：提供可复核的发行组合与产品验收路径。用户指定最终测试自行执行，因此本阶段交付测试入口和剧本，未执行的命令不记为通过。
 
-产出：组织执行 built smoke；`docs/organization-execution-acceptance.md`；更新本计划、overview、roadmap、架构及受影响包 README/格式说明。
+产出：`organization-execution-built-smoke.mjs`、`organization-execution-built-kit.mjs`、`organization-execution-host.mjs`、`organization-execution-child.mjs`；`docs/organization-execution-acceptance.md`；本计划、overview、roadmap、架构、Desktop/执行包 README 和格式说明同步。
 
 验收清单：
 
-- [ ] 完整 Desktop 构建后，普通 Node 和 Electron Node mode 验证私有服务、隔离执行、原生固定动作、日志/产物重开、提交验收及目标回执；不打开窗口。
-- [ ] 当前只读 context、组织分配及个人拒绝组织 ID 的旧产物验证继续成立；执行 UI、依赖闭包、locale 和 Session 事件读取已包含新能力。
-- [ ] A 服务机/B 下发人/C 员工剧本包含真实模型、人工介入、返工、目标集成、断线撤权和个人隔离；列出各平台沙箱能力与未验证项。
-- [ ] 分开记录工程检查、真实模型结果、用户三机/可见验收；不重启用户已取消的安装任务，不把未跑项目记为通过。
-- [ ] 明确 Phase 7B 仍未接入、Phase 8 演示尚需的验收证据；不因为本计划完成自动进入后续产品阶段。
+- [x] 提供完整 Desktop 构建后的普通 Node/Electron Node mode smoke，启动已构建私有服务与员工 Host IPC 子进程，执行同一完整 CSV 场景及撤权/丢响应/旧 epoch 负例，不打开窗口。**完整构建和 smoke 运行由用户执行，结果待验。**
+- [x] 交接保留旧 context/分配/个人准入三个 built smoke 的运行命令；现有 UI/locale、Session 事件和依赖闭包不变；静态配置/入口/i18n/事件/路径门禁已检查，结果见下。
+- [x] A 服务机/B 下发人/C 员工剧本包含真实模型、人工介入、返工、目标集成、断线撤权和个人隔离，并列出 macOS/Windows 沙箱能力与待验项。
+- [x] 分开记录工程检查、真实模型结果与用户三机/可见验收；不重启已取消安装任务，不把未运行项目记为通过。
+- [x] 明确 Phase 7B 尚未接入、产品 Phase 8 的三机演示证据待补，不自动进入后续产品阶段。
 
-助理验证：`pnpm run build`、新增及相关旧 built smoke、受影响静态门禁；记录真正执行的命令。用户检查：按三机剧本执行可见/真实使用验收；不满足本期工程条件的问题仍修复或 blocked，纯外部待验不伪造成工程失败或已验通过。依赖：Phase 9。
+实际完成：2026-09-30 完成发行 smoke 实现及产品验收交接；保持 manual，relay off。没有改应用功能、public API、Session/SQLite 格式或生产配置。built kit 通过 `DesktopOrganizationProcess` 加载实际 `lib/organization.js`，不直接加载声明输出目录中的启动模块或依赖源码解析；员工 Host 以真实 Node IPC 使用已构建 context/execution consumer，仅在测试配置替换模型适配器。退出时检查本机日志关系并等待子进程退出；超时退出报告失败。新增 `.d.mts` 明确共享 JS 夹具供源测试消费的类型。
 
-实际完成：未开始，执行后填写。
+验证及待验：
+
+- `pnpm exec tsx scripts/run-oxlint.ts apps/desktop-host/tests/organization-execution* apps/desktop/tests/organization-execution.e2e.ts`、新增 MJS 的 `node --check`、`git diff --check` 通过。以临时配置继承 `tsconfig.host.json` 的 references、只 include 新增 source kit/spec/e2e，运行 `pnpm exec tsc -p .organization-execution-typecheck.json --pretty false` 通过；临时配置已删除。最后加强 JSONL Run/Action 与独立 SQLite 的逐项对应及共享数据库敏感哨兵检查后，重跑新增 spec 的 7 项通过。再补下发人读取员工私有原文、员工撤权后读取原文两项断言，执行 `pnpm exec vitest run apps/desktop-host/tests/organization-execution.spec.ts -t 'runs CSV' --maxWorkers=1`，1 项通过、另外 6 项因名称过滤跳过。
+- `pnpm exec tsx scripts/verify-application-entrypoints.ts`、`verify-cordis-config.ts`、`verify-client-ui-i18n.ts`、`gen-scoped-events.ts --check`、`gen-tsconfig-paths.ts --check` 通过（后四项使用相同 `pnpm exec tsx scripts/` 前缀）。`verify-package-dependencies.ts` 仍仅报既有 file-upload 的 `assertPersonalSessionId` 导入未分类；`verify-export-jsdoc.ts` 仍仅报既有 `OrganizationLoginSession.read/save` 两处描述缺项。两项未计为通过，未修改无关例外。
+- **按用户要求未运行**：`pnpm run build`、新旧 built smoke、真实模型 e2e、Windows/三机/可见与安装验收。所有命令与预期结果见[验收文档](organization-execution-acceptance.md)，本计划 completed 不代表这些验收已通过。
+- 不提交/推送，不写 Agent Notes，不使用 Playwright、浏览器自动化或 GitNexus。两阶段到此结束，不自动进入产品 Phase 7B 或 Phase 8；后续由用户按剧本验收并反馈具体失败。
 
 ## 验证命令选择
 
@@ -393,7 +405,7 @@
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- 本轮授权：用户要求“请完成 phase8”；仅执行 Phase 8，保持 manual，不进入 Phase 9。
+- 本轮授权：用户要求“请完成 phase9-10，不过最终的测试我后续自己来测就行你也没法测。”连续实施 Phase 9–10；最终发行/真实模型/三机可见验收交用户执行，不启动页面。
 - 使用技能：`/Users/git_local/dev-workflow-skill/SKILL.md`；本文件是本任务执行入口，暂不创建额外 executor skill。
 
 1. 执行前先读本文、overview 和适用 AGENTS；实现 `packages/` 前读架构，生命周期/并发/进程工作读防御规则，Client 修改按其目录规则读相应架构页。保持路线图与本计划内部编号分开。
@@ -406,4 +418,4 @@
 8. 每个执行阶段都更新本计划和 `docs/overview.md`；实际记录写清改动/文件、命令与结果、跳过项、偏差、日志、残余风险和下一阶段。未开始阶段不填写虚构完成证据；已完成阶段不另建全局重复进度表。
 9. 自动执行仅限本计划范围，不授权部署、生产变更、提交推送或新业务范围。relay 当前关闭，不新建会话、不生成交接文件；未来只有明确授权才加载技能 relay/worktree-return 参考，记录批次与交付目录，验证每批返回及回执后才转交。若届时返回阻塞，保留自动范围，不把实现完成当成交付完成。
 
-授权变更：本轮用户要求“请完成 phase8”，只授权 Phase 8；manual 和 relay off 不变。
+授权变更：2026-09-30 授权连续实施 Phase 9–10，最终测试由用户执行。manual 和 relay off 不变，不进入产品 Phase 7B/8。

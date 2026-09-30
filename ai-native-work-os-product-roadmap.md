@@ -193,7 +193,7 @@ AgentDelegation 记录组织、任务与计划版本、真人责任人、委托�
 
 ## 八、施工阶段
 
-个人模式的 Phase 2 代码与自动化集成检查已完成；Desktop 可见交互和真实模型调用由用户侧检查，助理未运行。基础裁剪 Phase 1 的独立收尾仍见其[执行计划](docs/desktop-agent-foundation-pruning-plan.md)。Phase 3 的[个人复杂任务与同机接力执行计划](docs/personal-workflow-plan.md)内部 Phase 1–7 已完成工程实施、CSV 并行/汇合/接力的无页面 Host 组件组合测试、发行构建及 built Host smoke。Desktop 可见验收和真实模型验证仍待按[验收剧本](docs/personal-workflow-acceptance.md)完成；这不表示产品验收已全部通过。产品 Phase 4 的组织基础工程及无页面产物验证也已完成，三机产品验收待定；产品 Phase 5 的 WorkGraph 定义、授权视图、任务工作台和本人预执行上下文已按内部 Phase 1–8 完成工程实施及无页面验证，真实三机检查见[任务验收剧本](docs/organization-workgraph-acceptance.md)。产品 Phase 6 的批准、接受、有限委托、设备领取和待处理已按[分配实施计划](docs/organization-assignment-plan.md)内部 Phase 1–8 完成工程实施与无页面验证；[三机可见验收](docs/organization-assignment-acceptance.md)待用户。真实运行通知、产物权限及执行/验收闭环留给尚未开始的产品 Phase 7A。每个阶段结束都要有可运行、可核对的结果；Phase 8 是首个公开演示版目标。本文的产品 Phase 编号与各实施计划内部 Phase 编号分别管理。
+个人模式的 Phase 2 代码与自动化集成检查已完成；Desktop 可见交互和真实模型调用由用户侧检查，助理未运行。基础裁剪 Phase 1 的独立收尾仍见其[执行计划](docs/desktop-agent-foundation-pruning-plan.md)。Phase 3 的[个人复杂任务与同机接力执行计划](docs/personal-workflow-plan.md)内部 Phase 1–7 已完成工程实施、CSV 并行/汇合/接力的无页面 Host 组件组合测试、发行构建及 built Host smoke。Desktop 可见验收和真实模型验证仍待按[验收剧本](docs/personal-workflow-acceptance.md)完成；这不表示产品验收已全部通过。产品 Phase 4 的组织基础工程及无页面产物验证也已完成，三机产品验收待定；产品 Phase 5 的 WorkGraph 定义、授权视图、任务工作台和本人预执行上下文已按内部 Phase 1–8 完成工程实施及无页面验证，真实三机检查见[任务验收剧本](docs/organization-workgraph-acceptance.md)。产品 Phase 6 的批准、接受、有限委托、设备领取和待处理已按[分配实施计划](docs/organization-assignment-plan.md)内部 Phase 1–8 完成工程实施与无页面验证；[三机可见验收](docs/organization-assignment-acceptance.md)待用户。产品 Phase 7A 已完成内建执行、人工介入、产物/提交/验收与目标交付实现，内部 Phase 9 聚焦组合回归通过；最终发行及产品测试按用户要求待验，见[执行验收交接](docs/organization-execution-acceptance.md)。每个阶段结束都要有可运行、可核对的结果；Phase 8 是首个公开演示版目标。本文的产品 Phase 编号与各实施计划内部 Phase 编号分别管理。
 
 | 阶段 | 交付重点 | 阶段验收 |
 | --- | --- | --- |
@@ -203,7 +203,7 @@ AgentDelegation 记录组织、任务与计划版本、真人责任人、委托�
 | Phase 4 | Electron 内的“开启组织服务”、真实账号、Membership、组织切换及服务端资源授权；工程完成，三机产品验收待定。 | 三台电脑处于同一 Wi-Fi，一台在 Electron 中开启内网服务，两台桌面客户端以不同身份登录同一组织；私人资源和未经授权项目无法通过 API、搜索或事件读取。 |
 | Phase 5 | 按[组织 WorkGraph 实施计划](docs/organization-workgraph-plan.md)内部 Phase 1–8 完成工程实施：任务树/依赖、准确版本、建议真人责任人、尚未下发标记与验收条件；任务工作台及本人独立预执行上下文。可见三机验收待用户。 | 领导/员工读取同一权威计划的授权视图；任务、搜索、失效事件与文字产物要求不泄露未授权内容；复用个人依赖校验规则。运行通知及实际产物访问随 Phase 6–7A 消费者验证。 |
 | Phase 6 | [分配实施计划](docs/organization-assignment-plan.md)内部 Phase 1–8 工程完成：手工选人批准、明确接受、有限委托、设备身份/领取/撤销、持久待处理。完整构建及无窗口产物验证通过，三机可见验收待用户；尚未运行。 | 未批准不下发，未委托不执行；重复领取只能有一个有效 owner；撤权、断线与过期答复拒绝推进；人工请求持久且绑定当前版本。 |
-| Phase 7A | [内建执行与交付闭环实施计划](docs/organization-execution-plan.md)初版待评审，内部 Phase 1–10 尚未实施：内建 Harness 执行与 Run 记录、员工提交、下发人验收、驳回返工、父任务集成。 | 真实产物和证据绑定版本；重启后未知副作用先核对；越权动作拒绝；无员工提交或人工验收不得交付。 |
+| Phase 7A | [内建执行与交付闭环实施计划](docs/organization-execution-plan.md)内部 Phase 1–10 实现与测试交接完成：内建 Harness 执行与 Run 记录、员工提交、下发人验收、驳回返工、父任务集成。确定性组合回归通过；最终发行、真实模型及三机验收待用户。 | 真实产物和证据绑定版本；重启后未知副作用先核对；越权动作拒绝；无员工提交或人工验收不得交付。 |
 | Phase 7B | 在已有 Codex provider 上补一个组织外部执行适配器；可与首版闭环独立推进，不是 Phase 8 硬门槛。 | 在声明的平台/版本验证启动、进度、取消、失败与产物；不支持恢复或人工等待时明确拒绝对应场景；不得默默放宽沙箱。 |
 | Phase 8 | 内建 Agent 路径的三机、双人、真实模型闭环与首个公开演示版；补完 Phase 2–4 遗留用户侧验收。 | CSV 示例走完分配、介入、提交、驳回、返工与集成；macOS/Windows 安装可重复，权限和故障负例通过；外部路径只展示已验证能力。 |
 | Phase 9 | 在首版可靠性之上扩展跨成员/设备交接、长任务恢复、费用预算与记忆治理；按试用反馈增加排期建议。 | 跨设备核对资料、工作基线与所有权；旧 owner 不可继续；记忆可追溯并可纠错。基础租约、执行预算、撤权和幂等不延期到本阶段。 |

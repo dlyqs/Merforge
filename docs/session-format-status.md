@@ -19,3 +19,7 @@ Organization execution uses the independent `organization-execution:` JSONL name
 Phase 6 将组织物理 schema 升至 v9，加入不可变产物字节、提交和交付事件，支持 v8 存储与备份迁移。产物存于组织 SQLite，不新增 Session 事件，也不改变任何 JSONL reader/writer 或 Session envelope 版本。
 
 Phase 7 将组织物理 schema 升至 v10，保存原下发人验收决定及拒绝所关联的新整计划 revision，支持 v9 存储和备份迁移。旧提交与产物保持不可变，新 Run 使用新的执行上下文；不修改 Session reader/writer 或 envelope。
+
+Phase 8 将组织物理 schema 升至 v11，保存目标核验观察、独立最终确认与相关事件，支持 v10 迁移；这些组织事务没有新增 Session 事件。
+
+组织执行 Phase 9–10 的组合测试与发行 smoke 读取现有组织绑定、动作和人工消息事件，没有新增事件或修改 reader/writer、Session envelope、SQLite v11。三机/发行测试入口及未执行项见[执行验收交接](organization-execution-acceptance.md)。

@@ -4,17 +4,17 @@
 
 ## 下一阶段计划入口
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–8 工程完成；本轮仅完成 Phase 8，不进入 Phase 9。已有 Phase 1–7 的有界执行、人工请求、持久产物、正式提交和验收/返工基础上，SQLite v11 增加目标核验回执与独立最终确认；当前版本必要叶子成果全部验收、目标实际内容匹配、原下发人明确确认之后，所选父任务或叶子根任务才显示已交付。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–10 的实现与验收交接已完成；Phase 9 的完整 CSV 组合及故障聚焦回归通过。按用户要求，Phase 10 最终发行构建、built smoke、真实模型和三机可见测试由用户后续执行，尚未记为通过。已有 Phase 1–7 的有界执行、人工请求、持久产物、正式提交和验收/返工基础上，SQLite v11 增加目标核验回执与独立最终确认；当前版本必要叶子成果全部验收、目标实际内容匹配、原下发人明确确认之后，所选父任务或叶子根任务才显示已交付。
 
 带依赖的叶子可以批准和准备，创建/开始/恢复 Run 及逐动作许可要求自身与祖先前置成果已验收且当前可读。父子汇合与依赖准入分别投影，缺失或不可读输入不暴露部分兄弟证据。整计划 revision 变化继续使历史验收和回执不能支持新版本交付。父级确认归不可变计划创建者，叶子确认归原批准人；停用、失权不转交管理员。
 
 任务详情新增集成输入、依赖阻塞、核验状态、目标目录选择与最终确认。Electron 的本机核验服务只读取用户明确选择的 Git 根目录：普通文件/报告核对长度和 SHA-256，Git 包额外检查基线及旧 blob；不自动应用或覆盖。最终确认重读同一目标，文件或基线变化追加 rejected 观察。绝对路径映射只在本机进程内存，重启后重新选择核验；组织只存目标引用、相对内容证据、观察时间和决定。观察是读取时点的事实，不抵御恶意 OS 所有者，也不锁住外部编辑器。
 
-固定 HTTPS/native 动作、未知回执核对、权限裁剪事件和冷重开/备份校验覆盖新增关系。Session 格式与模型提示词不变。验证结果及已知门禁问题见执行计划 Phase 8；Desktop 可见行为、Windows 和三机产品验收仍待用户检查。
+固定 HTTPS/native 动作、未知回执核对、权限裁剪事件和冷重开/备份校验覆盖新增关系。Session 格式与模型提示词不变。验证结果及已知门禁问题见执行计划 Phase 9–10；[执行验收剧本](organization-execution-acceptance.md)提供发行/真实模型命令及 A/B/C 三机步骤。`apps/desktop-host/tests/organization-execution.spec.ts` 贯通真实 Loader/HTTPS/SQLite/JSONL/文件工具与两仓库交付，`organization-execution-built-smoke.mjs` 在普通 Node/Electron Node mode 使用私有服务与员工 Host IPC 子进程；后者待用户运行。Desktop 可见行为、Windows 和三机产品验收仍待用户检查。
 
 ### 已完成的分配基础
 
-[组织任务批准、委托与待处理实施计划](organization-assignment-plan.md)对应产品 Phase 6，内部 Phase 1–8 工程完成，已恢复 manual。现有 SQLite v6 分配权威、批准/撤销、明确接受/拒绝、已读分离、有限委托、Ed25519 设备证明、独占租约，以及真实 HTTPS/原生固定动作和工作台。Electron 通过 safeStorage 保存独立加密材料；断线/休眠/身份变化停止续租，未知写入先查回执，重连不自动领取。工作台先核验责任人查看权再确认版本批准，不自动加 grant；“待我处理”由持久查询和权限裁剪事件重建，委托和领取是独立动作，始终显示尚未运行。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是对应修改入口。Phase 7–8 完成跨进程故障集成、完整发行构建及三组 Node/Electron Node mode 产物验证；[分配验收与交接](organization-assignment-acceptance.md)提供三机剧本及 Phase 7A 准入要求。入口、配置、类型路径、i18n、JSDoc、事件门禁通过，既有 file-upload 导入分类仍使依赖门禁失败，具体命令见计划。真实组织 Agent、产物提交和验收留给产品 Phase 7A 后续阶段；OS 保险库、三机及可见验收仍待用户。
+[组织任务批准、委托与待处理实施计划](organization-assignment-plan.md)对应产品 Phase 6，内部 Phase 1–8 工程完成，已恢复 manual。现有 SQLite v6 分配权威、批准/撤销、明确接受/拒绝、已读分离、有限委托、Ed25519 设备证明、独占租约，以及真实 HTTPS/原生固定动作和工作台。Electron 通过 safeStorage 保存独立加密材料；断线/休眠/身份变化停止续租，未知写入先查回执，重连不自动领取。工作台先核验责任人查看权再确认版本批准，不自动加 grant；“待我处理”由持久查询和权限裁剪事件重建，委托和领取是独立动作，始终显示尚未运行。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是对应修改入口。Phase 7–8 完成跨进程故障集成、完整发行构建及三组 Node/Electron Node mode 产物验证；[分配验收与交接](organization-assignment-acceptance.md)提供三机剧本及 Phase 7A 准入要求。入口、配置、类型路径、i18n、JSDoc、事件门禁通过，既有 file-upload 导入分类仍使依赖门禁失败，具体命令见计划。真实组织 Agent、产物提交和验收已由上述产品 Phase 7A 实现；OS 保险库、三机及可见验收仍待用户。
 
 以下为已完成的产品 Phase 5 基础：
 
