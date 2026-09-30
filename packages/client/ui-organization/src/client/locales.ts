@@ -1,5 +1,20 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  integrationTitle: '目标核验与最终交付',
+  integrationHint: '请先手工应用已验收成果，再选择有许可的 Git 目录。应用只读取文件，不覆盖冲突。最终确认会重读同一目标；重启或失效后请重新选择并核验。',
+  integrationDependenciesReady: '前置成果已就绪',
+  integrationDependenciesBlocked: '前置成果缺失、过时或不可读取，执行受阻',
+  integrationInputsReady: '当前必要成果均已验收',
+  integrationInputsBlocked: '必要成果尚未验收或不可读取',
+  integrationDelivered: '下发人已确认交付',
+  integrationVerified: '目标已核验，等待下发人最终确认',
+  integrationRejected: '目标文件或 Git 基线不匹配，请核对后重新验证',
+  integrationPending: '尚未核验目标',
+  integrationAbsent: '文件不存在或内容未匹配',
+  integrationVerify: '选择目标目录并核验',
+  integrationConfirmIntent: '我确认这些当前版本成果满足交付要求，并授权重读本机目标',
+  integrationConfirm: '重读目标并确认最终交付',
+
   'review-pending': '待下发人验收',
   'review-accepted': '已验收；尚未核验目标或最终交付',
   'review-rejected': '需返工',
@@ -300,6 +315,21 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  integrationTitle: 'Target verification and final delivery',
+  integrationHint: 'Apply accepted outputs manually, then select an authorized Git directory. Verification only reads files. Final confirmation rereads the same target. After restart or invalidation, select and verify again.',
+  integrationDependenciesReady: 'Prerequisite outputs are ready',
+  integrationDependenciesBlocked: 'Execution blocked: prerequisite outputs are missing, outdated or unreadable',
+  integrationInputsReady: 'Required current outputs are accepted',
+  integrationInputsBlocked: 'Required outputs are not accepted or readable',
+  integrationDelivered: 'Issuer confirmed final delivery',
+  integrationVerified: 'Target verified; awaiting issuer confirmation',
+  integrationRejected: 'Target files or Git baseline do not match; reconcile and verify again',
+  integrationPending: 'Target not verified',
+  integrationAbsent: 'File absent or content unmatched',
+  integrationVerify: 'Select target directory and verify',
+  integrationConfirmIntent: 'I confirm these current outputs meet delivery requirements and authorize rereading the local target',
+  integrationConfirm: 'Reread target and confirm delivery',
+
   'review-pending': 'Awaiting issuer acceptance',
   'review-accepted': 'Accepted; target verification and final delivery still required',
   'review-rejected': 'Rework required',

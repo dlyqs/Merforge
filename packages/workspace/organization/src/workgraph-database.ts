@@ -82,7 +82,7 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
   }
   if (db.prepare(`SELECT 1 FROM workgraph_events w LEFT JOIN plan_revisions r ON r.eventRevision=w.revision AND r.planId=w.planId
     JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
-    WHERE (r.planId IS NULL AND e.kind!='set-task-grant') OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
+    WHERE (r.planId IS NULL AND e.kind NOT IN ('set-task-grant','verify-integration','confirm-integration')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind IN ('save-plan','set-task-grant','reject-delivery') AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('save-plan','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

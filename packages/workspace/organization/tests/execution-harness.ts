@@ -3,8 +3,9 @@ import { assignmentHarness } from './assignment-harness.ts'
 import { operationId } from './harness.ts'
 import { deviceChallengeText } from '../src/device-schema.ts'
 import type { OrganizationDeviceChallenge, OrganizationExecutionView } from '../src/index.ts'
-export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget = 2, configDigest = 'a'.repeat(64), capabilities: ('model' | 'fs-read' | 'fs-write' | 'shell')[] = ['model']) {
+export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget = 2, configDigest = 'a'.repeat(64), capabilities: ('model' | 'fs-read' | 'fs-write' | 'shell')[] = ['model'], prepare?: (h: Awaited<ReturnType<typeof assignmentHarness>>) => Promise<void>) {
   const h = await assignmentHarness(cleanup)
+  await prepare?.(h)
   const approved = await h.service.assignmentCommand(h.owner.token, h.approve)
   const selector = { ...h.query, assignmentId: approved.assignmentId }
   const accepted = await h.service.participantCommand(h.other.token, { ...selector, kind: 'answer-assignment', operationId: operationId(),
@@ -19,7 +20,7 @@ export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget
     expectedVersion: accepted.revision, deviceId: device.deviceId, executorId: 'desktop-builtin', capabilities: ['draft'], budget, expiresAt: Date.now() + 60000 })
   const claim = { ...selector, kind: 'claim', operationId: operationId(), deviceId: device.deviceId, delegationId: prep.delegationId }
   const lease = (await h.service.deviceCommand(h.other.token, claim, proof(await h.service.deviceChallenge(h.other.token, claim)))).lease!
-  const base = { ...selector, planRevision: 1, deviceId: device.deviceId }
+  const base = { ...selector, planRevision: h.approve.planRevision, deviceId: device.deviceId }
   const execute = async (command: object) => h.service.executionCommand(h.other.token, command,
     proof(await h.service.executionChallenge(h.other.token, command)))
   const grant = await execute({ ...base, kind: 'grant-execution', operationId: operationId(), delegationId: prep.delegationId,

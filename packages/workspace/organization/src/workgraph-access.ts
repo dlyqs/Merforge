@@ -1,6 +1,7 @@
 /** Current task grants and historical intersections used by every WorkGraph projection. */
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
+import { integrationRecordSchema } from './integration-schema.ts'
 import { assignmentSchema } from './assignment-schema.ts'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
@@ -188,6 +189,20 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
     }
     return [{ revision: Number(eventRevision), planId: assignment.planId }]
   })
-  return [...new Map([...definitions, ...qualifications].map(event => [`${event.revision}:${event.planId}`, event])).values()]
+  const integrations = db.prepare(`SELECT r.data,e.revision FROM integration_events e
+    JOIN organization_integrations r ON r.id=e.integrationId JOIN organization_plans p ON p.id=r.planId
+    WHERE p.organizationId=? AND e.revision>? AND e.revision<=?`).all(principal.organizationId ?? null, after, through).flatMap((row) => {
+    const r = integrationRecordSchema.parse(JSON.parse(String(row.data)))
+    try {
+      const visible = new Set(visibleTasks(db, principal, { organizationId: r.organizationId, projectId: r.projectId,
+        planId: r.planId, revision: r.planRevision, search: '', offset: 0 }).map(t => t.id))
+      if (!visible.has(r.taskId) || r.inputs.some(i => !visible.has(i.taskId))) return []
+    } catch (error) {
+      if (error instanceof OrganizationError && error.code === 'forbidden') return []
+      throw error
+    }
+    return [{ revision: Number(row.revision), planId: r.planId }]
+  })
+  return [...new Map([...definitions, ...qualifications, ...integrations].map(event => [`${event.revision}:${event.planId}`, event])).values()]
     .sort((a, b) => a.revision - b.revision)
 }

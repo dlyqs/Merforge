@@ -27,7 +27,7 @@
 
 | 动作 / 阶段 | 输入与前置条件 | 原子结果与拒绝 |
 | --- | --- | --- |
-| approve-assignment / 2 | planRevision、taskId、assigneeId。当前项目 read+write、计划根 subtree read+edit；目标为当前版本叶子且自身/祖先无前置；目标成员/账号有效且有项目 read 和 task read | 分配 pending、接受请求 pending、通知和回执；已有 pending 返回 version-conflict；旧版本 version-conflict；非叶子/前置 invalid-input；缺权限/无效成员 forbidden |
+| approve-assignment / 2 | planRevision、taskId、assigneeId。当前项目 read+write、计划根 subtree read+edit；目标为当前版本叶子（前置在执行准入时检查）；目标成员/账号有效且有项目 read 和 task read | 分配 pending、接受请求 pending、通知和回执；已有 pending 返回 version-conflict；旧版本 version-conflict；非叶子 invalid-input；缺权限/无效成员 forbidden |
 | revoke-assignment / 2–3 | assignmentId、expectedVersion；当前项目 read+write 与根 subtree read+edit。允许具有这些权限的另一编辑者撤销 | pending/accepted → revoked；仅未答复请求 cancelled，已答复历史保留；委托/租约失效 |
 | accept / reject / 3 | requestId、expectedVersion、显式 answer；当前处理人、任务 read、项目 read、有效版本/请求期限 | 一次答复、assignment accepted/rejected、回执和通知；非本人 forbidden，旧状态 version-conflict；不同 operationId 竞争只成功一次 |
 | delegate / revoke-delegation / 3 | assignmentId、expectedVersion、deviceId、内建 executorId、能力子集、有限 budget/expiresAt；本人 accepted、当前查看权及批准范围；设备属于本人且有效 | 独立委托/撤销及回执；超范围 invalid-input，身份/设备 forbidden，旧状态 version-conflict；不启动 Agent |
@@ -93,3 +93,5 @@ Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment
 ## Execution handoff
 
 SQLite v7 retains preparation delegations without expanding `task-read` or `draft`. The employee separately grants finite execution capabilities bound to a preparation delegation, device and configuration digest. Run creation and action reservation use current exact-version and dual-epoch qualification. Claiming or opening a prepared execution Session never starts a model. See the [execution protocol](organization-execution.md).
+
+执行 Phase 8 起，带自身或祖先依赖的叶子允许批准与准备；真实执行要求当前可读的已验收前置成果。目标核验及最终确认见[执行协议](organization-execution.md#phase-8依赖准入与目标集成)。

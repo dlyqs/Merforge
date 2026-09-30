@@ -6,3 +6,7 @@ export type OrganizationArtifactId = Branded<'OrganizationArtifactId'>
 export type OrganizationSubmissionId = Branded<'OrganizationSubmissionId'>
 /** Original issuer's immutable decision on one submitted artifact set. */
 export type OrganizationAcceptanceId = Branded<'OrganizationAcceptanceId'>
+/** One native target observation bound to an exact accepted submission set. */
+export type OrganizationIntegrationId = Branded<'OrganizationIntegrationId'>
+/** Opaque native directory permission reference; never a filesystem path. */
+export type OrganizationTargetId = Branded<'OrganizationTargetId'>

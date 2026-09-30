@@ -4,11 +4,13 @@
 
 ## 下一阶段计划入口
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–7 工程完成；本轮只执行 Phase 7，不进入 Phase 8。SQLite v10 保存原下发人的不可变验收决定、准确 Submission 和产物哈希；驳回在同一事务创建下一整计划 revision，追加该任务的新验收要求并使旧批准、委托和租约失效。历史 Run、提交、产物及旧上下文保留；新版必须重新批准、接受、明确委托、领取并创建新 Run。复用内容仍需当前版本重新发布和正式确认。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–8 工程完成；本轮仅完成 Phase 8，不进入 Phase 9。已有 Phase 1–7 的有界执行、人工请求、持久产物、正式提交和验收/返工基础上，SQLite v11 增加目标核验回执与独立最终确认；当前版本必要叶子成果全部验收、目标实际内容匹配、原下发人明确确认之后，所选父任务或叶子根任务才显示已交付。
 
-任务详情和持久 Inbox 显示待验收、已验收、需返工、已过时与权限阻塞。只有原下发人保持当前批准/查看权限时可确认；其他管理者、员工与模型不能代签。员工待处理中显示返工通知，重新获批后进入新一轮分配流程。验收不写父任务或根任务最终交付，目标端核验和父级集成仍属于 Phase 8。
+带依赖的叶子可以批准和准备，创建/开始/恢复 Run 及逐动作许可要求自身与祖先前置成果已验收且当前可读。父子汇合与依赖准入分别投影，缺失或不可读输入不暴露部分兄弟证据。整计划 revision 变化继续使历史验收和回执不能支持新版本交付。父级确认归不可变计划创建者，叶子确认归原批准人；停用、失权不转交管理员。
 
-产物继续使用独立组织 SQLite BLOB；哈希、作者、Submission、决定及返工版本关系均在启动和停服维护时校验。固定 HTTPS/native 动作沿用身份代次和未知回执核对；完整员工对话、本机路径与凭据不进入共享层。Phase 7 不改变模型调用或 JSONL 格式。验证命令和结果见执行计划 Phase 7；可见 Desktop 行为与三机验收仍待用户执行。
+任务详情新增集成输入、依赖阻塞、核验状态、目标目录选择与最终确认。Electron 的本机核验服务只读取用户明确选择的 Git 根目录：普通文件/报告核对长度和 SHA-256，Git 包额外检查基线及旧 blob；不自动应用或覆盖。最终确认重读同一目标，文件或基线变化追加 rejected 观察。绝对路径映射只在本机进程内存，重启后重新选择核验；组织只存目标引用、相对内容证据、观察时间和决定。观察是读取时点的事实，不抵御恶意 OS 所有者，也不锁住外部编辑器。
+
+固定 HTTPS/native 动作、未知回执核对、权限裁剪事件和冷重开/备份校验覆盖新增关系。Session 格式与模型提示词不变。验证结果及已知门禁问题见执行计划 Phase 8；Desktop 可见行为、Windows 和三机产品验收仍待用户检查。
 
 ### 已完成的分配基础
 
@@ -73,9 +75,9 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v10 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v11 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
-产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，成果可显式上传并由员工正式提交，下发人验收仍待 Phase 7。
+产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，成果可显式上传并由员工正式提交，下发人验收及目标核验/最终交付已接入。
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 

@@ -1,6 +1,8 @@
 /** Plain-Node smoke of the published organization entry; no application listener. */
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { OrganizationIntegration } from '../../../../apps/desktop/lib/types/organization-integration.js'
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID, generateKeyPairSync, sign, createHash } from 'node:crypto'
@@ -71,6 +73,32 @@ try {
     kind: 'accept-delivery', operationId: randomUUID(), submissionId: submitted.delivery.submissionId,
     artifacts: [{ artifactId, sha256 }], confirmed: true })
   assert.ok(reviewed.delivery.acceptanceId)
+  const target = join(root, 'target')
+  await mkdir(target)
+  execFileSync('git', ['-C', target, 'init'])
+  execFileSync('git', ['-C', target, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline'])
+  await writeFile(join(target, 'evidence.txt'), bytes)
+  await writeFile(join(target, 'untouched.txt'), 'untouched')
+  const integrationQuery = { ...query, taskId, planRevision: 1 }
+  const connection = {
+    timeoutMs: 10000,
+    snapshot: () => ({ generation: 0, phase: 'ready', mode: 'organization', organizationId: first.organizationId, principal: login.principal }),
+    perform: async action => {
+      const result = { generation: 0 }
+      if (action.kind === 'integration-read') await ctx.organization.readIntegration(login.token, action.request, value => { result.integration = value })
+      else if (action.kind === 'delivery-download') await ctx.organization.downloadArtifact(login.token, action.request, value => { result.artifact = value })
+      else throw new Error('unexpected native action')
+      return result
+    },
+    commitIntegration: async command => ({ receipt: await ctx.organization.integrationCommand(login.token, command), generation: 0 }),
+  }
+  const native = new OrganizationIntegration()
+  const verified = await native.perform(connection, { kind: 'integration-verify', request: integrationQuery }, async () => target, () => {})
+  const confirmed = await native.perform(connection, { kind: 'integration-confirm', request: { ...integrationQuery,
+    integrationId: verified.receipt.integration.integrationId, confirmed: true } }, async () => target, () => {})
+  assert.equal(confirmed.receipt.integration.delivered, true)
+  assert.equal(await readFile(join(target, 'untouched.txt'), 'utf8'), 'untouched')
+  assert.equal(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'evidence.txt')]).toString(), bytes.toString())
   await ctx.fiber.dispose()
   ctx = new Context()
   await ctx.plugin(Organization, { path })
@@ -85,9 +113,10 @@ try {
     assert.equal(value.submissions[0].reviewState, 'accepted')
     assert.equal(value.submissions[0].acceptance.id, reviewed.delivery.acceptanceId)
   })
+  await ctx.organization.readIntegration(login.token, integrationQuery, value => { assert.equal(value.delivered, true) })
   await ctx.organization.logout(login.token)
   await assert.rejects(ctx.organization.authenticate(login.token), { code: 'unauthenticated' })
-  console.log('organization built smoke: initialize, login, WorkGraph, delivery and acceptance save/reopen, receipt and revocation passed')
+  console.log('organization built smoke: initialize, login, WorkGraph, delivery, acceptance and native target integration save/reopen, receipt and revocation passed')
 } finally {
   await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

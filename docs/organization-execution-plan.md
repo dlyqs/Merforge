@@ -74,7 +74,7 @@
 | Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | completed | SQLite v8 人工请求、持久 Inbox、历史动作核对与显式恢复 | 聚焦回归、静态检查、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | completed | SQLite v9 原子产物、正式 Submission、HTTPS/native 与任务清单/待验收 Inbox | 95 项聚焦回归、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | completed | SQLite v10 验收/原子返工、固定动作与任务详情/Inbox 投影 | 129 项相关回归分组验证、定向构建及无窗口 smoke 通过；可见验收待用户 |
-| Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | pending | — | 依赖 7 |
+| Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | completed | SQLite v11 集成回执、依赖准入、原生目标核验和父级确认 UI | 142 项相关回归、定向构建及无窗口 smoke 通过；可见验收待用户 |
 | Phase 9 | 故障与权限集成 | 真实组合 CSV 闭环及跨进程负例 | pending | — | 依赖 8 |
 | Phase 10 | 发行与产品验收交接 | built smoke、文档和三机剧本 | pending | — | 依赖 9；不自动进入产品 Phase 7B/8 |
 
@@ -302,16 +302,33 @@
 
 验收清单：
 
-- [ ] 依赖和父子关系分别处理；必要前置不满足时不能执行依赖任务；父级状态不由子 Run 文本或结束次数推断。
-- [ ] 集成输入明确枚举当前版本已验收提交和哈希；缺失、过时或不可读取成果导致阻塞，不能泄露不可见兄弟任务的正文或产物。
-- [ ] 目标操作者显式选择有许可的本机目录；冲突/基线不符不覆盖。用户应用成果后，由本机服务重读目标 Git 基线和相关文件内容/哈希生成回执，服务端核验作者、版本及提交集合。
-- [ ] 回执记录目标引用、内容证据、核验时间和结果，不上传绝对目录。目标操作者是已授权客户端，回执不声称抵御恶意 OS 所有者；模型声明或单纯上传提交号不足为证。
-- [ ] 崩溃/断线后的目标变更先核对，不自动重新应用；集成核验与最终确认之间基线变化使回执失效。父任务在必要成果已验收、有效目标回执及下发人明确确认之后才交付。
-- [ ] 叶子根任务复用同一目标核验规则；父任务自身内容变化遵守整计划 revision 失效，不暗中引入第二套版本规则。
+- [x] 依赖和父子关系分别处理；必要前置不满足时不能执行依赖任务；父级状态不由子 Run 文本或结束次数推断。
+- [x] 集成输入明确枚举当前版本已验收提交和哈希；缺失、过时或不可读取成果导致阻塞，不能泄露不可见兄弟任务的正文或产物。
+- [x] 目标操作者显式选择有许可的本机目录；冲突/基线不符不覆盖。用户应用成果后，由本机服务重读目标 Git 基线和相关文件内容/哈希生成回执，服务端核验作者、版本及提交集合。
+- [x] 回执记录目标引用、内容证据、核验时间和结果，不上传绝对目录。目标操作者是已授权客户端，回执不声称抵御恶意 OS 所有者；模型声明或单纯上传提交号不足为证。
+- [x] 崩溃/断线后的目标变更先核对，不自动重新应用；集成核验与最终确认之间基线变化使回执失效。父任务在必要成果已验收、有效目标回执及下发人明确确认之后才交付。
+- [x] 叶子根任务复用同一目标核验规则；父任务自身内容变化遵守整计划 revision 失效，不暗中引入第二套版本规则。
 
 助理验证：两个独立临时 Git 目录、两个子任务提交、不同顺序汇合、冲突和权限裁剪测试；独立命令/文件读取验证最终 CSV 成果及未选中文件不变。用户检查：目标选择、冲突提示、核验与最终确认，确认父任务未提前完成。依赖：Phase 7。
 
-实际完成：未开始，执行后填写。
+实际完成：2026-09-30 完成，无子阶段拆分；保持 manual，仅完成 Phase 8。
+
+- 主要实现：`organization/src/integration-schema.ts`、`integration.ts` 和 SQLite v11 迁移保存独立目标观察、最终确认及事件/回执；旧备份格式 2–10 可校验升级。`execution.ts` 在当前 owner 资格检查中核验自身与祖先依赖；分配/启动校验不再一概拒绝带前置的叶子。父级以必要叶子已验收提交集合投影，不使用 Run 文本。当前权限裁剪回执、输入和 WorkGraph 失效事件。
+- 固定 HTTPS/native 动作经 `organization-api`、`organization-connection` 接入。`apps/desktop/src/organization-integration.ts` 只读取原生对话框授权的 Git 根目录，重读 HEAD/tree、旧 blob 和选中文件哈希；相对路径按 Git literal pathspec 处理，拒绝符号链接、相同路径不同成果和基线冲突。最终确认再次读取同一目标，变化追加 rejected 观察；不修改用户文件。目录映射只留原生内存，重启后重新核验。`IntegrationPanel.tsx` 与中英文词典接入任务详情，分别呈现依赖、成果、目标观察及最终确认。
+- 明确首版规则：父节点没有分配记录，由不可变计划创建者担任父级下发人；叶子仍由原批准人决定。普通文件/报告也选择 Git 目标，以统一保存基线。下发人不能沿用另一客户端的本机目录许可，须在自己的实际目标上重新选择核验。核验是读取时点的观察，不锁定外部编辑器，也不抵御恶意 OS 所有者。前置文件不自动注入模型，仍经授权下载与显式本机输入准备；Session 格式、提示词及个人模式不变。没有出现个人与组织共同需要的新纯逻辑，未制造共享抽象。
+- 日志：持久 `verify-integration` / `confirm-integration` 事件、不可变观察与独立确认关联当前作者、整计划版本、提交/产物集合和目标证据；原生操作沿用 generation/operationId 及未知回执核对日志。日志不记录绝对目录、文件正文或凭据。
+
+验证：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/integration.spec.ts packages/workspace/organization/tests/integration-target.spec.ts packages/workspace/organization/tests/acceptance.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/execution.spec.ts packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/organization/tests/authority.spec.ts packages/host/organization-connection/tests/assignment.spec.ts packages/client/ui-organization/tests --maxWorkers=3`：16 文件、141 项通过。随后补祖先依赖和同路径冲突覆盖；`pnpm exec vitest run packages/workspace/organization/tests/integration.spec.ts packages/workspace/organization/tests/integration-target.spec.ts --maxWorkers=2` 的 12 项通过，最终 `pnpm exec vitest run packages/workspace/organization/tests/integration-target.spec.ts --maxWorkers=1` 的 6 项通过，合计 142 个不同用例已验证。
+- 覆盖两个独立临时 Git 目录、两子任务按相反顺序汇合、自身/祖先依赖、运行中撤销前置读取权、叶子根任务、不可读兄弟、整计划变更、确认重试撤权、错误/重复输入与哈希、事件失效、目标文件/基线变化、Git 新增/修改/删除、同路径冲突、符号链接、迟到目录选择、进程重启失去目录许可、事务回滚、v1–v10 迁移及 v10 失败回滚。独立 Node 文件读取验证最终 CSV 和未选中文件不变。真实 Loader + HTTPS/native 验证根任务核验/确认及停服备份恢复。
+- `pnpm exec tsc -b packages/workspace/organization packages/host/organization-connection packages/client/ui-organization packages/api/organization-api apps/desktop-host apps/desktop --pretty false` 通过；最终原生路径字面量处理后 `pnpm exec tsc -b apps/desktop --pretty false` 通过。改动 TS/TSX/MJS 的 `pnpm exec tsx scripts/run-oxlint.ts <改动文件>` 与 `git diff --check` 通过。
+- `pnpm exec tsx scripts/verify-client-ui-i18n.ts`、`verify-cordis-config.ts`、`gen-scoped-events.ts --check`、`gen-tsconfig-paths.ts --check`、`verify-application-entrypoints.ts` 通过。`verify-export-jsdoc.ts` 仅报既有 `OrganizationLoginSession.read/save` 两处描述缺项；`verify-package-dependencies.ts` 仅报既有 file-upload 的 `assertPersonalSessionId` 导入未分类。两项未计为通过，未修改无关例外或放宽门禁。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host -F packages/workspace/organization -F packages/host/organization-connection -F packages/api/organization-api -F apps/desktop-host -F apps/desktop --logLevel warn` 和 `pnpm exec tsdown --env.DSH_BUILD_FACE client -F packages/client/ui-organization --logLevel warn` 通过；最后原生路径处理变化后定向重跑 Host 命令的 `-F apps/desktop` 通过。
+- `node packages/workspace/organization/tests/built-smoke.mjs` 通过：普通 Node 消费已构建组织导出和 Desktop 原生核验模块，完成发布/提交/验收、真实 Git 目标读取、独立最终确认及冷重开后的 delivered，独立读取目标字节并核对未选中文件。
+
+已更新本计划、overview、架构、分配/执行协议及相关 README。没有启动页面、使用 Playwright/浏览器自动化/GitNexus、写 Agent Notes 或提交/推送；未运行完整发行构建或真实模型调用。Desktop 可见操作、Windows 和三机产品验收待用户，不能据此宣称产品 Phase 8 完成。下一阶段为本计划 Phase 9，保持 pending，本轮不进入。
+
 
 ## Phase 9：真实组合、故障与权限集成
 
@@ -376,7 +393,7 @@
 - automatic start phase: none
 - automatic stop phase: none
 - conversation relay: off
-- 本轮授权：用户要求“请完成 phase5”；仅执行 Phase 5，保持 manual，不进入 Phase 6。
+- 本轮授权：用户要求“请完成 phase8”；仅执行 Phase 8，保持 manual，不进入 Phase 9。
 - 使用技能：`/Users/git_local/dev-workflow-skill/SKILL.md`；本文件是本任务执行入口，暂不创建额外 executor skill。
 
 1. 执行前先读本文、overview 和适用 AGENTS；实现 `packages/` 前读架构，生命周期/并发/进程工作读防御规则，Client 修改按其目录规则读相应架构页。保持路线图与本计划内部编号分开。
@@ -389,4 +406,4 @@
 8. 每个执行阶段都更新本计划和 `docs/overview.md`；实际记录写清改动/文件、命令与结果、跳过项、偏差、日志、残余风险和下一阶段。未开始阶段不填写虚构完成证据；已完成阶段不另建全局重复进度表。
 9. 自动执行仅限本计划范围，不授权部署、生产变更、提交推送或新业务范围。relay 当前关闭，不新建会话、不生成交接文件；未来只有明确授权才加载技能 relay/worktree-return 参考，记录批次与交付目录，验证每批返回及回执后才转交。若届时返回阻塞，保留自动范围，不把实现完成当成交付完成。
 
-授权变更：此前自动范围已按“做完 phase4 停下”撤销。本轮用户要求“请完成 phase5”，只授权 Phase 5；manual 和 relay off 不变，Phase 6 保持 pending。
+授权变更：本轮用户要求“请完成 phase8”，只授权 Phase 8；manual 和 relay off 不变。

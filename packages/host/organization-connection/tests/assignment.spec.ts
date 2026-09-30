@@ -1,3 +1,6 @@
+import { OrganizationIntegration } from '../../../../apps/desktop/src/organization-integration.ts'
+import { execFileSync } from 'node:child_process'
+import { mkdir } from 'node:fs/promises'
 /** Real private Loader, HTTPS and native device owner; only the OS vault is substituted. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -407,6 +410,29 @@ it('shares immutable bytes and formal employee submissions over HTTPS, including
     expect((await h.worker.perform({ kind: 'delivery-read', request: h.selector })).delivery?.submissions[0]?.reviewState).toBe('accepted')
   })
 
+  const target = join(h.root, 'target')
+  await mkdir(target)
+  const git = (...args: string[]) => execFileSync('git', ['-C', target, ...args], { encoding: 'utf8' })
+  git('init'); git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline')
+  await writeFile(join(target, 'report.csv'), bytes)
+  await writeFile(join(target, 'untouched.txt'), 'unchanged')
+  const integration = new OrganizationIntegration()
+  const query = { ...h.query, taskId: h.taskId, planRevision: 1 }
+  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
+  expect((await h.owner.perform({ kind: 'integration-read', request: query })).integration?.delivered).toBe(false)
+  await expect(h.owner.perform({ kind: 'integration-verify', request: query })).rejects.toThrow('forbidden')
+  const verified = await integration.perform(h.owner, { kind: 'integration-verify', request: query }, async () => target, () => {})
+  const integrationId = verified.receipt!.integration!.integrationId
+  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
+  const confirm = { kind: 'integration-confirm', request: { ...query, integrationId, confirmed: true } }
+  await expect(new OrganizationIntegration().perform(h.owner, confirm, async () => target, () => {})).rejects.toThrow('version-conflict')
+  const confirmed = await integration.perform(h.owner, confirm, async () => { throw new Error('unexpected dialog') }, () => {})
+  expect(confirmed.receipt?.integration?.delivered).toBe(true)
+  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
+  expect((await h.owner.perform({ kind: 'integration-read', request: query })).integration?.delivered).toBe(true)
+  expect(await readFile(join(target, 'untouched.txt'), 'utf8')).toBe('unchanged')
+  expect(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'report.csv')])).toEqual(bytes)
+
   await h.worker.close(); await h.owner.close(); await h.app.close()
   const backup = join(h.root, 'backup'), servicePath = join(h.root, 'server')
   backupOrganization(servicePath, backup, 100)
@@ -418,6 +444,7 @@ it('shares immutable bytes and formal employee submissions over HTTPS, including
   await restarted.authority.readDelivery(login.token, h.selector, (value) => {
     expect(value.submissions[0]?.acceptance?.id).toBe(accepted.receipt!.delivery!.acceptanceId)
   })
+  await restarted.authority.readIntegration(login.token, query, (value) => { expect(value.delivered).toBe(true) })
   await restarted.close()
   const damaged = new DatabaseSync(join(backup, 'organization.sqlite'))
   damaged.prepare('UPDATE organization_artifacts SET bytes=?').run(Buffer.from('damaged'))

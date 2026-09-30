@@ -58,13 +58,6 @@ export function reviewAssignment(db: DatabaseSync, principal: Principal, query: 
   const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
   const task = definition.tasks.find(item => item.id === query.taskId)
   if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')
-  // Ancestor prerequisites also block a leaf; this phase has no completed-task authority.
-  let ancestor: typeof task | undefined = task
-  while (ancestor) {
-    if (ancestor.dependsOn.length) throw new OrganizationError('invalid-input')
-    const parent: string | null = ancestor.parentTaskId
-    ancestor = definition.tasks.find(item => item.id === parent)
-  }
   const target = memberPrincipal(db, principal, query.assigneeId)
   try { visibleTasks(db, target, { ...query, revision: query.planRevision, search: '', offset: 0 }) }
   catch (error) {

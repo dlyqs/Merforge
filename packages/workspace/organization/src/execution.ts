@@ -1,3 +1,4 @@
+import { requireDependencies } from './integration.ts'
 /** Transaction-local execution permission, budgets and historical settlement. */
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -37,6 +38,8 @@ function qualify(db: DatabaseSync, principal: Principal, d: z.output<typeof exec
   const prep = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(d.delegationId))
   if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== d.planRevision
     || d.state !== 'active' || d.expiresAt <= Date.now() || prep.state !== 'active' || prep.expiresAt <= Date.now()) fail()
+  requireDependencies(db, principal, { organizationId: a.organizationId, projectId: a.projectId,
+    planId: a.planId, taskId: a.taskId, planRevision: a.planRevision })
   return a
 }
 function owner(db: DatabaseSync, principal: Principal, d: z.output<typeof executionDelegationSchema>,

@@ -73,3 +73,4 @@ export const deliveryLimitsSchema = z.object({ artifactMaxFiles: integer.positiv
 /** Authorized submissions and published evidence, bounded before native delivery. */
 export const deliveryPageSchema = z.object({ artifacts: z.array(artifactSchema), submissions: z.array(submissionViewSchema),
   total: integer, offset: integer, limits: deliveryLimitsSchema }).strict()
+export * from './integration-schema.ts'

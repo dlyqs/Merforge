@@ -133,7 +133,7 @@ it('serializes approve/edit in either order and permanently retires even text-on
   const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
 })
 
-it('rejects non-leaves and all unsatisfied prerequisites including those inherited from a parent', async () => {
+it('rejects non-leaf assignments but permits preparation of leaves whose execution still requires prerequisites', async () => {
   const h = await setup()
   const definition = structuredClone(h.save.definition)
   const root = definition.tasks[0]!
@@ -143,28 +143,28 @@ it('rejects non-leaves and all unsatisfied prerequisites including those inherit
   branch.dependsOn = [dependency.id]
   definition.tasks.push(branch, dependency, leaf)
   await h.service.savePlan(h.owner.token, { ...h.save, definition, operationId: operationId(), expectedRevision: 1 })
-  for (const taskId of [root.id, branch.id, leaf.id]) {
+  for (const taskId of [root.id, branch.id]) {
     await expect(h.service.assignmentCommand(h.owner.token, {
       ...h.approve, operationId: operationId(), taskId, planRevision: 2, assigneeId: h.owner.membershipId,
     }))
       .rejects.toMatchObject({ code: 'invalid-input' })
   }
   await h.service.assignmentCommand(h.owner.token, {
-    ...h.approve, operationId: operationId(), taskId: dependency.id, planRevision: 2, assigneeId: h.owner.membershipId,
+    ...h.approve, operationId: operationId(), taskId: leaf.id, planRevision: 2, assigneeId: h.owner.membershipId,
   })
 })
 
 it('migrates v3 atomically and rolls back DDL/version when the old database is invalid', async () => {
   const h = await setup()
   await h.close()
-  h.db.exec('DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments; PRAGMA user_version=3')
+  h.db.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments; PRAGMA user_version=3')
   h.db.exec('UPDATE plan_tasks SET active=0')
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow('incompatible-store')
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(3)
   expect(h.db.prepare("SELECT name FROM sqlite_master WHERE name='task_assignments'").get()).toBeUndefined()
   h.db.exec('UPDATE plan_tasks SET active=1')
   const migrated = await openHarness(h.root); cleanup.push(migrated.close)
-  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(10)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
   await migrated.service.assignmentCommand(h.owner.token, h.approve)
 })
 
@@ -200,7 +200,7 @@ it.each(['member', 'account', 'project'])('refuses approval when target %s autho
 it('rolls back new v4 tables when validation fails after migration DDL', async () => {
   const h = await setup()
   await h.close()
-  h.db.exec('DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments; PRAGMA user_version=3')
+  h.db.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments; PRAGMA user_version=3')
   h.db.prepare("INSERT INTO organization_events(kind,actorId,organizationId,at) VALUES ('approve-assignment',?,?,?)")
     .run(h.owner.accountId, h.owner.organizationId, Date.now())
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow('incompatible-store')
@@ -281,7 +281,7 @@ it('rejects expired requests and rolls an answer back together with its notifica
 it('upgrades a v4 approval with its null deadline and original receipt intact', async () => {
   const h = await setup(), receipt = await h.service.assignmentCommand(h.owner.token, h.approve)
   await h.close()
-  h.db.exec(`DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices;
+  h.db.exec(`DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices;
     DROP TABLE assignment_actions; DROP TABLE assignment_delegations;
     ALTER TABLE assignment_requests DROP COLUMN answeredRevision;
     ALTER TABLE assignment_notifications DROP COLUMN readAt;
@@ -291,7 +291,7 @@ it('upgrades a v4 approval with its null deadline and original receipt intact', 
   await reopened.service.readInbox(h.other.token, { organizationId: h.query.organizationId }, (page) => {
     expect(page.items[0]?.request).toMatchObject({ state: 'pending', expiresAt: null, answeredRevision: null })
   })
-  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(10)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
 })
 
 it('delivers only authorized inbox invalidations and requires a snapshot after revoke', async () => {

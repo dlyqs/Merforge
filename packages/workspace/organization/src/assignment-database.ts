@@ -37,12 +37,6 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
     if (!task || version.organizationId !== assignment.organizationId || version.projectId !== assignment.projectId
       || version.definition.tasks.some(item => item.parentTaskId === assignment.taskId)
       || assignment.version < assignment.createdRevision) fail()
-    let ancestor = task
-    while (ancestor) {
-      if (ancestor.dependsOn.length) fail()
-      const parent = ancestor.parentTaskId
-      ancestor = version.definition.tasks.find(item => item.id === parent)
-    }
     for (const member of [assignment.approvedBy, assignment.assigneeId]) {
       if (!db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(member, assignment.organizationId)) fail()
     }

@@ -106,14 +106,14 @@ it('validates Git baselines and byte hashes, and migrates the delivery tables fr
   await expect(h.publish({ operationId: operationId(), artifactKind: 'git-change', bytes: invalid.toString('base64'), size: invalid.length,
     sha256: createHash('sha256').update(invalid).digest('hex') })).rejects.toMatchObject({ code: 'invalid-input' })
   const empty = await setupExecution(cleanup); await empty.close()
-  empty.db.exec('DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; PRAGMA user_version=8')
+  empty.db.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; PRAGMA user_version=8')
   empty.db.exec('CREATE TABLE organization_submissions (sentinel TEXT)')
   expect(() => openOrganizationDatabase(empty.path, 100)).toThrow()
   expect(empty.db.prepare('PRAGMA user_version').get()?.user_version).toBe(8)
   expect(empty.db.prepare("SELECT name FROM sqlite_master WHERE name='organization_artifacts'").get()).toBeUndefined()
   empty.db.exec('DROP TABLE organization_submissions')
   const upgraded = openOrganizationDatabase(empty.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(10)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
   upgraded.close()
 }, 15000)
 
