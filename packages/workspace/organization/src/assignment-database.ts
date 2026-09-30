@@ -66,7 +66,7 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
       if (['accepted', 'rejected'].includes(assignment.state) && terminal?.kind !== 'answer-assignment') fail()
       if (assignment.state === 'revoked' && (terminal?.kind !== 'revoke-assignment' || terminal.organizationId !== assignment.organizationId)) fail()
       if (assignment.reason === 'restored' && terminal?.kind !== 'restore') fail()
-      if (assignment.reason === 'revision-changed' && (terminal?.kind !== 'save-plan'
+      if (assignment.reason === 'revision-changed' && (!['save-plan', 'reject-delivery'].includes(String(terminal?.kind))
         || !db.prepare('SELECT 1 FROM plan_revisions WHERE planId=? AND eventRevision=? AND revision>?')
           .get(assignment.planId, assignment.version, assignment.planRevision))) fail()
       if (assignment.reason === 'authority-lost' && !['set-grant', 'set-task-grant', 'set-membership', 'set-account'].includes(String(terminal?.kind))) fail()

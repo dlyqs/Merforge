@@ -73,7 +73,7 @@
 | Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | completed | loop/动作 guard、原生持续通道、模型策略、开始/停止与本机记录 UI | 聚焦回归、编译与定向构建通过；后续按阶段独立授权执行 |
 | Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | completed | SQLite v8 人工请求、持久 Inbox、历史动作核对与显式恢复 | 聚焦回归、静态检查、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | completed | SQLite v9 原子产物、正式 Submission、HTTPS/native 与任务清单/待验收 Inbox | 95 项聚焦回归、定向构建与无窗口 smoke 通过；可见验收待用户 |
-| Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | pending | — | 依赖 6；单叶完整闭环 |
+| Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | completed | SQLite v10 验收/原子返工、固定动作与任务详情/Inbox 投影 | 129 项相关回归分组验证、定向构建及无窗口 smoke 通过；可见验收待用户 |
 | Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | pending | — | 依赖 7 |
 | Phase 9 | 故障与权限集成 | 真实组合 CSV 闭环及跨进程负例 | pending | — | 依赖 8 |
 | Phase 10 | 发行与产品验收交接 | built smoke、文档和三机剧本 | pending | — | 依赖 9；不自动进入产品 Phase 7B/8 |
@@ -275,15 +275,24 @@
 
 验收清单：
 
-- [ ] 接受绑定指定 Submission 和产物哈希，原下发人具有当前权限才可执行；其他管理者、员工、模型和旧身份不能代签。
-- [ ] 未正式提交、产物未发布、旧版本、冲突验收及重复不同内容拒绝；同操作重试返回原回执。验收与修改任务并发有唯一有效结果。
-- [ ] 驳回保存理由/新要求并原子关联新 revision；遵守整计划旧资格失效，保留原 Run、证据和拒绝事实。不能把旧完成标记复制为新版已完成。
-- [ ] 员工收到新版本通知后重新批准/接受/委托/领取并创建新 Run；新上下文不得覆盖旧快照。若复用旧成果，必须有当前版本明确引用与新确认。
-- [ ] 完成通知、待验收、已验收、需返工是不同投影；已验收的叶子成果仍不能直接把父任务或最终目标标为已交付。
+- [x] 接受绑定指定 Submission 和产物哈希，原下发人具有当前权限才可执行；其他管理者、员工、模型和旧身份不能代签。
+- [x] 未正式提交、产物未发布、旧版本、冲突验收及重复不同内容拒绝；同操作重试返回原回执。验收与修改任务并发有唯一有效结果。
+- [x] 驳回保存理由/新要求并原子关联新 revision；遵守整计划旧资格失效，保留原 Run、证据和拒绝事实。不能把旧完成标记复制为新版已完成。
+- [x] 员工收到新版本通知后重新批准/接受/委托/领取并创建新 Run；新上下文不得覆盖旧快照。若复用旧成果，必须有当前版本明确引用与新确认。
+- [x] 完成通知、待验收、已验收、需返工是不同投影；已验收的叶子成果仍不能直接把父任务或最终目标标为已交付。
 
 助理验证：单叶从运行到提交、接受与驳回重做的领域/HTTPS 组合测试；重点覆盖原下发人失权、整计划 revision 冲突、重复答复和旧产物拒绝。用户检查：下发人接受或填写驳回条件，员工看到新版本和历史证据。依赖：Phase 6。
 
-实际完成：未开始，执行后填写。
+实际完成：2026-09-30。SQLite 升至 v10，验收决定绑定原下发人、准确 Submission、完整产物 ID/哈希集合和当前权限。固定 delivery 命令复用原生代次与未知回执核对，模型通道没有代签入口。驳回将理由、新要求、下一整计划 revision 和事件/回执原子关联；旧批准、委托和租约由现有失效路径永久失效。原 Run、证据及提交保持历史事实，新版重走批准→接受→委托→领取→新 Run；复用内容须新版重新发布与确认。任务详情和双方 Inbox 区分待验收、已验收、需返工、过时和阻塞，不设置父级或最终交付。
+
+本轮验证记录：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/acceptance.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/execution.spec.ts packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/organization/tests/authority.spec.ts packages/host/organization-connection/tests/assignment.spec.ts packages/client/ui-organization/tests`：领域和 Client 共 13 文件、112 项通过；当次原生文件有一处失败。修复后单跑 `pnpm exec vitest run packages/host/organization-connection/tests/assignment.spec.ts`，17 项全部通过。合计 129 项相关用例已验证。覆盖原下发人/其他管理员/员工权限、重复与冲突、旧版本拒绝、原子返工与故障回滚、完整重新授权/新 Run/新提交/验收、冷重开、v1–v9 迁移及 v9 失败回滚、真实 HTTPS/native 通知与备份恢复。前端测试均为无浏览器的现有组件/组合测试。
+- 验证发现并修复两处消费缺口：冷启动校验允许驳回事件导致的整计划资格失效；原生 `/delivery/` 的 forbidden 处理沿用任务接口的组织重新核验，避免误清除仍有效的组织选择。新测试确认拒绝结果保留且之后仍可读取授权任务。初次重做测试混入 deviceId 被严格 schema 拒绝，修正为真实交付字段；没有放宽解析或权限规则。
+- `pnpm exec tsc -b packages/workspace/organization packages/host/organization-connection packages/client/ui-organization packages/api/organization-api apps/desktop-host apps/desktop --pretty false` 通过。所有改动 TS/TSX/MJS 的 `pnpm exec tsx scripts/run-oxlint.ts <改动文件>` 与 `git diff --check` 通过。
+- `pnpm exec tsx scripts/verify-client-ui-i18n.ts`、`pnpm exec tsx scripts/verify-cordis-config.ts`、`pnpm exec tsx scripts/gen-scoped-events.ts --check` 通过。`pnpm exec tsx scripts/verify-export-jsdoc.ts` 仍仅报既有 `OrganizationLoginSession.read/save` 两处描述缺项，未计为通过。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host -F packages/workspace/organization -F packages/host/organization-connection -F packages/api/organization-api -F apps/desktop-host -F apps/desktop --logLevel warn` 和 `pnpm exec tsdown --env.DSH_BUILD_FACE client -F packages/client/ui-organization --logLevel warn` 通过；原生恢复路径修复后重新编译并以相同 Host 构建命令的 `-F packages/host/organization-connection` 重建该包。
+- `node packages/workspace/organization/tests/built-smoke.mjs` 通过：普通 Node 消费构建导出，完成签名 Run、发布/提交/验收和冷重开，核对真实字节哈希与不可变验收 ID。没有启动页面、使用浏览器工具、写 Agent Notes 或提交/推送。未执行完整发行构建或真实模型调用；本阶段不改变模型链路。可见验收和三机验证留待用户，Phase 8 保持 pending。
 
 ## Phase 8：依赖成果与父任务集成
 

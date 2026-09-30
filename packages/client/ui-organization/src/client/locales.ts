@@ -1,5 +1,17 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  'review-pending': '待下发人验收',
+  'review-accepted': '已验收；尚未核验目标或最终交付',
+  'review-rejected': '需返工',
+  'review-superseded': '已被新版本或另一份已验收提交替代',
+  'review-blocked': '当前资格失效，验收受阻',
+  'reviewReason': '驳回理由',
+  'reviewRequirements': '新验收要求',
+  'reviewRework': '返工版本 {revision}：须重新批准、接受、委托和领取后创建新 Run；历史证据保留。',
+  'reviewHint': '验收只确认本次提交及其产物哈希。驳回将创建新的整计划版本，使旧批准、委托和租约失效。',
+  'reviewConfirm': '我已核对本次提交与共享证据，确认执行所选验收决定',
+  'reviewAccept': '接受成果',
+  'reviewReject': '驳回并创建返工版本',
   'deliveryTitle': '成果与正式提交',
   'deliveryHint': '只分享明确选择的文件。上传与运行结束都不代表正式提交；下发人只能看到共享证据。',
   'deliveryLimits': '每个 Run 最多 {count} 个文件，单文件 {bytes} 字节，总计 {total} 字节。',
@@ -288,6 +300,18 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  'review-pending': 'Awaiting issuer acceptance',
+  'review-accepted': 'Accepted; target verification and final delivery still required',
+  'review-rejected': 'Rework required',
+  'review-superseded': 'Superseded by a new version or another accepted submission',
+  'review-blocked': 'Review blocked by invalid qualifications',
+  'reviewReason': 'Rejection reason',
+  'reviewRequirements': 'New acceptance requirements',
+  'reviewRework': 'Rework version {revision}: approve, accept, delegate and claim again before creating a new Run. Historical evidence is retained.',
+  'reviewHint': 'Acceptance binds this submission and its artifact hashes. Rejection creates a new whole-plan version and invalidates old approvals, delegations and leases.',
+  'reviewConfirm': 'I reviewed this submission and shared evidence and confirm the selected decision',
+  'reviewAccept': 'Accept work',
+  'reviewReject': 'Reject and create rework version',
   'deliveryTitle': 'Evidence and submission',
   'deliveryHint': 'Only explicitly selected files are shared. Uploading and finishing a Run do not submit work; the issuer sees only shared evidence.',
   'deliveryLimits': 'Per Run: {count} files, {bytes} bytes per file, {total} bytes total.',

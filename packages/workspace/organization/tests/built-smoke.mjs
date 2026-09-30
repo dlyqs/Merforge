@@ -67,6 +67,10 @@ try {
   const submitted = await ctx.organization.deliveryCommand(login.token, { ...selector, runId, planRevision: 1,
     kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [artifactId], summary: 'Built evidence', target: 'Manual review', confirmed: true })
   assert.ok(submitted.delivery.submissionId)
+  const reviewed = await ctx.organization.deliveryCommand(login.token, { ...selector, runId, planRevision: 1,
+    kind: 'accept-delivery', operationId: randomUUID(), submissionId: submitted.delivery.submissionId,
+    artifacts: [{ artifactId, sha256 }], confirmed: true })
+  assert.ok(reviewed.delivery.acceptanceId)
   await ctx.fiber.dispose()
   ctx = new Context()
   await ctx.plugin(Organization, { path })
@@ -76,10 +80,14 @@ try {
   await ctx.organization.downloadArtifact(login.token, { ...selector, artifactId }, value => {
     assert.equal(createHash('sha256').update(Buffer.from(value.bytes, 'base64')).digest('hex'), sha256)
   })
-  await ctx.organization.readDelivery(login.token, selector, value => assert.equal(value.submissions[0].state, 'submitted'))
+  await ctx.organization.readDelivery(login.token, selector, value => {
+    assert.equal(value.submissions[0].state, 'submitted')
+    assert.equal(value.submissions[0].reviewState, 'accepted')
+    assert.equal(value.submissions[0].acceptance.id, reviewed.delivery.acceptanceId)
+  })
   await ctx.organization.logout(login.token)
   await assert.rejects(ctx.organization.authenticate(login.token), { code: 'unauthenticated' })
-  console.log('organization built smoke: initialize, login, WorkGraph and delivery save/reopen, receipt and revocation passed')
+  console.log('organization built smoke: initialize, login, WorkGraph, delivery and acceptance save/reopen, receipt and revocation passed')
 } finally {
   await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

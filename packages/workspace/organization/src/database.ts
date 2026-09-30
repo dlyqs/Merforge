@@ -1,4 +1,5 @@
 /** Organization-only SQLite schema, transaction ownership and durable validation. */
+import { acceptanceDdl, validateAcceptanceDatabase } from './acceptance.ts'
 import { deliveryDdl, validateDeliveryDatabase } from './delivery.ts'
 import { executionHumanDdl, executionDdl, validateExecutionDatabase } from './execution-database.ts'
 import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
@@ -13,7 +14,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 9
+export const ORGANIZATION_SCHEMA_VERSION = 10
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -83,11 +84,11 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
-          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl)
+          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
-        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8) && app === applicationId) {
+        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -97,7 +98,8 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 6) db.exec(deviceDdl)
         if (stamp < 7) db.exec(executionDdl)
         if (stamp < 8) db.exec(executionHumanDdl)
-        db.exec(deliveryDdl)
+        if (stamp < 9) db.exec(deliveryDdl)
+        db.exec(acceptanceDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -116,7 +118,8 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
   try {
     if (workgraph) validateWorkgraphDatabase(db)
     if (assignments) {
-      validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db); validateDeliveryDatabase(db)
+      validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db)
+      validateDeliveryDatabase(db); validateAcceptanceDatabase(db)
     }
     if (resources) {
       for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)

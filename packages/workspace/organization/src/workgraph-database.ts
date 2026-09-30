@@ -54,7 +54,7 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
       const author = db.prepare('SELECT accountId FROM memberships WHERE id=? AND organizationId=?').get(version.createdBy, plan.organizationId)
       if (version.planId !== plan.id || version.revision !== index + 1 || version.projectId !== plan.projectId
         || version.organizationId !== plan.organizationId || version.definition.taskId !== plan.rootTaskId
-        || !author || event?.kind !== 'save-plan' || event.organizationId !== plan.organizationId || event.actorId !== author.accountId
+        || !author || !['save-plan', 'reject-delivery'].includes(String(event?.kind)) || event?.organizationId !== plan.organizationId || event.actorId !== author.accountId
         || !db.prepare('SELECT revision FROM workgraph_events WHERE revision=? AND planId=?').get(revision.eventRevision ?? null, plan.id)
         || (index === 0 && version.createdBy !== plan.createdBy)) fail()
       const next = new Set<string>()
@@ -84,5 +84,5 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
     JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
     WHERE (r.planId IS NULL AND e.kind!='set-task-grant') OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind IN ('save-plan','set-task-grant') AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('save-plan','set-task-grant','reject-delivery') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

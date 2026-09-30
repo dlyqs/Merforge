@@ -397,6 +397,16 @@ it('shares immutable bytes and formal employee submissions over HTTPS, including
   await writeFile(output, Buffer.from(result.artifact!.bytes, 'base64'))
   expect(createHash('sha256').update(await readFile(output)).digest('hex')).toBe(sha256)
   expect(result.artifact!.artifact).not.toHaveProperty('sessionId')
+  const decision = { ...base, kind: 'accept-delivery', operationId: randomUUID(), submissionId: submitted.receipt!.delivery!.submissionId,
+    artifacts: [{ artifactId, sha256 }], confirmed: true }
+  await expect(h.worker.perform({ kind: 'delivery-command', request: decision })).rejects.toThrow('forbidden')
+  expect(h.worker.snapshot().organizationId).toBe(h.query.organizationId)
+  const accepted = await h.owner.perform({ kind: 'delivery-command', request: decision })
+  expect((await h.owner.perform({ kind: 'delivery-command', request: decision })).receipt).toEqual(accepted.receipt)
+  await vi.waitFor(async () => {
+    expect((await h.worker.perform({ kind: 'delivery-read', request: h.selector })).delivery?.submissions[0]?.reviewState).toBe('accepted')
+  })
+
   await h.worker.close(); await h.owner.close(); await h.app.close()
   const backup = join(h.root, 'backup'), servicePath = join(h.root, 'server')
   backupOrganization(servicePath, backup, 100)
@@ -405,6 +415,9 @@ it('shares immutable bytes and formal employee submissions over HTTPS, including
   cleanup.push(restarted.close)
   const login = await restarted.authority.login({ username: 'owner', password })
   await restarted.authority.downloadArtifact(login.token, { ...h.selector, artifactId }, (value) =>{  expect(value.bytes).toBe(bytes.toString('base64')) })
+  await restarted.authority.readDelivery(login.token, h.selector, (value) => {
+    expect(value.submissions[0]?.acceptance?.id).toBe(accepted.receipt!.delivery!.acceptanceId)
+  })
   await restarted.close()
   const damaged = new DatabaseSync(join(backup, 'organization.sqlite'))
   damaged.prepare('UPDATE organization_artifacts SET bytes=?').run(Buffer.from('damaged'))
@@ -457,3 +470,33 @@ it('does not publish an interrupted HTTPS upload or an upload with mismatched by
   const correct = await transport.organizationRequest(trust, 'POST', '/organization/v1/delivery/command', upload, login.token)
   expect(correct.status).toBe(200)
 }, 15000)
+
+
+it('rejects through fixed HTTPS actions, notifies the employee and prevents old Run authority from entering rework', async () => {
+  const { h, channel, command, runId } = await executionChannelFixture()
+  await channel.command(command({ kind: 'transition-run', state: 'cancelled' }))
+  const bytes = Buffer.from('first report'), sha256 = createHash('sha256').update(bytes).digest('hex')
+  const base = { ...h.selector, runId, planRevision: 1 }
+  const uploaded = await h.worker.perform({ kind: 'delivery-command', request: { ...base, kind: 'publish-artifact', operationId: randomUUID(),
+    artifactKind: 'file', path: 'report.txt', description: 'Report', mediaType: 'text/plain', size: bytes.length, sha256, bytes: bytes.toString('base64') } })
+  const artifactId = uploaded.receipt!.delivery!.artifactId!
+  const submitted = await h.worker.perform({ kind: 'delivery-command', request: { ...base, kind: 'submit-delivery', operationId: randomUUID(),
+    artifactIds: [artifactId], summary: 'Report ready', target: 'Review report', confirmed: true } })
+  const decision = { ...base, kind: 'reject-delivery', operationId: randomUUID(), submissionId: submitted.receipt!.delivery!.submissionId,
+    artifacts: [{ artifactId, sha256 }], confirmed: true, reason: 'Insufficient rows', requirements: 'Include all departments' }
+  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
+  const rejected = await h.owner.perform({ kind: 'delivery-command', request: decision })
+  expect((await h.owner.perform({ kind: 'delivery-command', request: decision })).receipt).toEqual(rejected.receipt)
+  await vi.waitFor(() => { expect(h.worker.snapshot().inbox?.items.some(i => i.request.kind === 'accept-delivery'
+    && i.request.reviewState === 'rejected')).toBe(true) })
+  const page = await h.worker.perform({ kind: 'delivery-read', request: h.selector })
+  expect(page.delivery?.submissions[0]?.acceptance?.reworkRevision).toBe(2)
+  await expect(channel.command(command({ kind: 'reserve-action', actionId: randomUUID(), capability: 'model', requestDigest: 'a'.repeat(64) }))).rejects.toThrow()
+  const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
+  expect(current.assignment).toMatchObject({ state: 'invalidated', reason: 'revision-changed' })
+  const approved = await h.owner.perform({ kind: 'assignment-command', request: { ...h.query, kind: 'approve-assignment',
+    operationId: randomUUID(), taskId: h.taskId, planRevision: 2, assigneeId: h.employee.membershipId } })
+  await vi.waitFor(() => { expect(h.worker.snapshot().inbox?.items.some(i => i.assignment.id === approved.receipt!.assignmentId
+    && i.request.kind === 'accept-assignment' && i.request.state === 'pending')).toBe(true) })
+  expect((await h.owner.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId } })).artifact?.bytes).toBe(bytes.toString('base64'))
+}, 20000)

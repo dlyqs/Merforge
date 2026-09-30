@@ -1,4 +1,5 @@
 /** Transactional acceptance, notification acknowledgement and bounded delegation. */
+import { submissionView } from './acceptance.ts'
 import { submissionSchema } from './delivery-schema.ts'
 import { executionHumanSchema } from './execution-human-schema.ts'
 import { randomUUID } from 'node:crypto'
@@ -138,9 +139,15 @@ export function visibleInbox(db: DatabaseSync, principal: Principal,
     const answerEvent = db.prepare('SELECT at FROM organization_events WHERE revision=?').get(request.answeredRevision)
     items.push({ assignment, request, notificationId: null, readAt: typeof answerEvent?.at === 'number' ? answerEvent.at : null })
   }
-  if (query.state !== 'processed') for (const row of db.prepare("SELECT data FROM organization_submissions WHERE json_extract(data,'$.handlerId')=?")
-    .all(principal.membershipId ?? null)) {
-    const request = submissionSchema.parse(JSON.parse(String(row.data)))
+  for (const row of db.prepare("SELECT data FROM organization_submissions WHERE json_extract(data,'$.handlerId')=? OR json_extract(data,'$.employeeId')=?")
+    .all(principal.membershipId ?? null, principal.membershipId ?? null)) {
+    const request = submissionView(db, submissionSchema.parse(JSON.parse(String(row.data))))
+    const needsRework = request.acceptance?.state === 'rejected' && request.employeeId === principal.membershipId
+      && !db.prepare('SELECT 1 FROM task_assignments WHERE planId=? AND taskId=(SELECT taskId FROM task_assignments WHERE id=?) AND planRevision>=?')
+        .get(request.planId, request.assignmentId, request.acceptance.reworkRevision)
+    const pending = request.reviewState === 'pending' && request.handlerId === principal.membershipId || needsRework
+    if (request.handlerId !== principal.membershipId && !request.acceptance) continue
+    if (query.state === 'pending' && !pending || query.state === 'processed' && pending) continue
     const assignment = selectedAssignment(db, request)
     if (assignment.organizationId !== principal.organizationId) continue
     try {

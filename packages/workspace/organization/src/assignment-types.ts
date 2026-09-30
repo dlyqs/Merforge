@@ -41,7 +41,7 @@ export interface OrganizationHumanRequest {
 }
 /** One assignee-visible inbox entry; readAt never implies acceptance. */
 export interface OrganizationInboxItem {
-  request: import('zod').z.output<typeof import('./delivery-schema.ts').submissionSchema> | OrganizationHumanRequest | import('zod').z.output<typeof import('./execution-human-schema.ts').executionHumanSchema>
+  request: import('zod').z.output<typeof import('./delivery-schema.ts').submissionViewSchema> | OrganizationHumanRequest | import('zod').z.output<typeof import('./execution-human-schema.ts').executionHumanSchema>
   assignment: OrganizationAssignment
   notificationId: OrganizationNotificationId | null
   readAt: number | null

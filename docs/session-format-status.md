@@ -17,3 +17,5 @@ Organization execution uses the independent `organization-execution:` JSONL name
 组织执行的内部消费者新增必需的 `organization/execution-action` 事件，保存动作许可及 reserved/issued/settled 本机证据；不识别该事件的旧 reader 拒绝日志。`organization/execution-binding` 可包含显式本机目录和动作/步数/时长上限；旧准备输入仍不能启动执行。逻辑 Session 格式版本不变。Desktop 原生执行入口已开放。Phase 5 的动作事件可附带仅本机的文件路径/字节数/预期哈希，人工答复在显式继续时进入普通 user/message；独立域与 Session envelope 版本不变。组织 SQLite 单调升级至 v8，新增持久运行人工请求，支持 v7 存储与备份迁移。
 
 Phase 6 将组织物理 schema 升至 v9，加入不可变产物字节、提交和交付事件，支持 v8 存储与备份迁移。产物存于组织 SQLite，不新增 Session 事件，也不改变任何 JSONL reader/writer 或 Session envelope 版本。
+
+Phase 7 将组织物理 schema 升至 v10，保存原下发人验收决定及拒绝所关联的新整计划 revision，支持 v9 存储和备份迁移。旧提交与产物保持不可变，新 Run 使用新的执行上下文；不修改 Session reader/writer 或 envelope。

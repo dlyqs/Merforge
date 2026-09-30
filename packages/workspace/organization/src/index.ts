@@ -1,3 +1,4 @@
+import { authorizeAcceptance, changeAcceptance, submissionView } from './acceptance.ts'
 import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema, artifactSchema, submissionSchema } from './delivery-schema.ts'
 import { changeDelivery, downloadArtifact } from './delivery.ts'
 import { authorizeExecutionAnswer } from './assignment-participant.ts'
@@ -800,8 +801,8 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Publish bytes or confirm an immutable submission under current employee authority.
-   * @param token - Current employee login.
+   * Publish or submit under employee authority; accept or reject under original issuer authority.
+   * @param token - Current participant login.
    * @param input - Strict explicit human decision.
    * @returns Durable account-scoped receipt, including on an identical retry.
    */
@@ -811,13 +812,16 @@ export class OrganizationService extends Service {
       const fingerprint = await requestFingerprint('delivery', command)
       const result = transaction(db, () => {
         const principal = this.principal(db, token, command.organizationId)
-        authorizeParticipant(db, principal, selectedAssignment(db, command))
+        if (command.kind === 'accept-delivery' || command.kind === 'reject-delivery') authorizeAcceptance(db, principal, command)
+        else authorizeParticipant(db, principal, selectedAssignment(db, command))
         const scope = `account:${principal.accountId}`
         const previous = this.previous(db, scope, command.operationId, fingerprint)
         if (previous) return { receipt: previous, committed: false }
         const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint,
           (revision) => {
-            const delivery = changeDelivery(db, principal, command, revision, this.config)
+            const delivery = command.kind === 'accept-delivery' || command.kind === 'reject-delivery'
+              ? changeAcceptance(db, principal, command, revision, this.config)
+              : changeDelivery(db, principal, command, revision, this.config)
             db.prepare('INSERT INTO delivery_events VALUES (?,?,?)').run(revision, command.assignmentId, JSON.stringify(delivery))
             return { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId,
               planRevision: command.planRevision, assignmentId: command.assignmentId, delivery }
@@ -842,7 +846,7 @@ export class OrganizationService extends Service {
       const submissions = db.prepare(`SELECT data FROM organization_submissions
         WHERE assignmentId=? AND (? IS NULL OR runId=?) ORDER BY rowid DESC LIMIT ? OFFSET ?`)
         .all(query.assignmentId, query.runId ?? null, query.runId ?? null, this.config.pageSize, query.offset)
-        .map(row => submissionSchema.parse(JSON.parse(String(row.data))))
+        .map(row => submissionView(db, submissionSchema.parse(JSON.parse(String(row.data)))))
       const artifacts = db.prepare(`SELECT data FROM organization_artifacts
         WHERE assignmentId=? AND (? IS NULL OR runId=?) ORDER BY rowid DESC LIMIT ?`)
         .all(query.assignmentId, query.runId ?? null, query.runId ?? null, this.config.artifactMaxFiles)

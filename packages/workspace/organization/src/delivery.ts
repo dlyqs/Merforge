@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
-import { artifactSchema, submissionSchema, gitChangeSchema, deliveryReceiptSchema, type deliveryCommandSchema, type deliveryLimitsSchema } from './delivery-schema.ts'
+import { artifactSchema, acceptanceSchema, submissionSchema, gitChangeSchema, deliveryReceiptSchema, type deliveryCommandSchema, type deliveryLimitsSchema } from './delivery-schema.ts'
 import { selectedAssignment, authorizeAssignmentRead, assignmentInvalidation } from './assignment.ts'
 import { authorizeParticipant } from './assignment-participant.ts'
 import { executionRunSchema } from './execution-schema.ts'
@@ -60,7 +60,7 @@ export function readArtifact(db: DatabaseSync,
  * @param limits - Deployment file count and byte ceilings.
  * @returns Immutable references for the operation receipt.
  */
-export function changeDelivery(db: DatabaseSync, principal: Principal, command: z.output<typeof deliveryCommandSchema>,
+export function changeDelivery(db: DatabaseSync, principal: Principal, command: Exclude<z.output<typeof deliveryCommandSchema>, { kind: 'accept-delivery' | 'reject-delivery' }>,
   revision: number, limits: z.output<typeof deliveryLimitsSchema>): z.output<typeof deliveryReceiptSchema> {
   const a = selectedAssignment(db, command)
   authorizeParticipant(db, principal, a)
@@ -137,13 +137,13 @@ export function validateDeliveryDatabase(db: DatabaseSync): void {
   }
   for (const row of db.prepare('SELECT * FROM delivery_events').all()) {
     const result = deliveryReceiptSchema.parse(JSON.parse(String(row.result)))
-    const table = result.artifactId ? 'organization_artifacts' : 'organization_submissions'
-    const item = db.prepare(`SELECT data,assignmentId FROM ${table} WHERE id=?`).get(result.artifactId ?? result.submissionId ?? null)
+    const table = result.artifactId ? 'organization_artifacts' : result.acceptanceId ? 'organization_acceptances' : 'organization_submissions'
+    const item = db.prepare(`SELECT data,assignmentId FROM ${table} WHERE id=?`).get(result.artifactId ?? result.submissionId ?? result.acceptanceId ?? null)
     if (!item || item.assignmentId !== row.assignmentId
-      || (result.artifactId ? artifactSchema : submissionSchema).parse(JSON.parse(String(item.data))).createdRevision !== row.revision) throw new OrganizationError('incompatible-store')
+      || (result.artifactId ? artifactSchema : result.acceptanceId ? acceptanceSchema : submissionSchema).parse(JSON.parse(String(item.data))).createdRevision !== row.revision) throw new OrganizationError('incompatible-store')
   }
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN delivery_events d ON d.revision=e.revision
-    WHERE e.kind IN ('publish-artifact','submit-delivery') AND d.revision IS NULL`).get()) throw new OrganizationError('incompatible-store')
+    WHERE e.kind IN ('publish-artifact','submit-delivery','accept-delivery','reject-delivery') AND d.revision IS NULL`).get()) throw new OrganizationError('incompatible-store')
 }
 function validateCreation(db: DatabaseSync,
   record: { createdRevision: number; employeeId: string; assignmentId: string; organizationId: string },

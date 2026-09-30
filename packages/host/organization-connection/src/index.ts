@@ -176,7 +176,8 @@ export class OrganizationConnection {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
-        if (route.startsWith('/execution/') || route.startsWith('/workgraph/') || route.startsWith('/assignment/') || route.startsWith('/device/')) {
+        if (route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
+          || route.startsWith('/assignment/') || route.startsWith('/device/')) {
           const next = this.reset({ phase: 'loading', error: code })
           try { await this.refresh(next) } catch (_error) {
             if (next === this.generation && this.token) this.offline(next)

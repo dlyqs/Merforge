@@ -5,6 +5,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationAssignment, OrganizationRun } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProps } from './contract.ts'
+import { AcceptanceReview } from './AcceptanceReview.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
@@ -127,8 +128,9 @@ export function DeliveryPanel(props: OrganizationProps & { assignment: Organizat
         || !['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state)} onClick={() => { void submit() }}>{t('deliverySubmit')}</Button>
     </>}
     {value?.submissions.map(s => <div key={s.id}>
-      <p>{t('deliveryPending')} · {t('taskVersion', { revision: s.planRevision })}</p><p>{s.summary}</p><p>{s.target}</p>
+      <p>{t('taskVersion', { revision: s.planRevision })}</p><p>{s.summary}</p><p>{s.target}</p>
       {s.artifactIds.map(id => <Button key={id} onClick={() => { void download(id) }}>{value.artifacts.find(f => f.id === id)?.path ?? t('deliveryDownload')}</Button>)}
+      <AcceptanceReview key={`${c.generation}:${s.id}`} {...props} submission={s} artifacts={value.artifacts} refresh={load} />
     </div>)}
     {value && <div className={css.actions}>
       <Button disabled={!value.offset} onClick={() => { void load().catch((e: unknown) =>{  setNotice(t(workgraphError(e))) }) }}>{t('firstPage')}</Button>
