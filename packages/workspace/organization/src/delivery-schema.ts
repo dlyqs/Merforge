@@ -1,0 +1,58 @@
+/** Explicit employee sharing and immutable, exact-version delivery records. */
+import { z } from 'zod'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+import { planRevisionSchema } from './workgraph-schema.ts'
+import { assignmentReadSchema } from './assignment-schema.ts'
+import type { OperationId, MembershipId } from './types.ts'
+import type { OrganizationRunId } from './execution-types.ts'
+import type { OrganizationArtifactId, OrganizationSubmissionId } from './delivery-types.ts'
+const id = <T extends Branded<string>>() => z.uuid().transform(brandString<T>)
+const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+const hash = z.string().regex(/^[a-f0-9]{64}$/)
+/** Portable shared paths never name a local absolute directory or traversal. */
+export const artifactPathSchema = z.string().min(1).max(512).refine(value =>
+  !/[\\:\x00-\x1f]/.test(value) && value.split('/').every(part => part !== '' && part !== '.' && part !== '..'))
+const selector = assignmentReadSchema.extend({ runId: id<OrganizationRunId>(), planRevision: planRevisionSchema }).strict()
+const metadata = z.object({ path: artifactPathSchema, mediaType: z.string().min(1).max(120),
+  description: z.string().trim().min(1).max(2048), kind: z.enum(['file', 'test-report', 'git-change']),
+  size: integer, sha256: hash }).strict()
+/** Files are published only after complete bytes pass the declared length and hash. */
+export const artifactSchema = selector.extend({ ...metadata.shape, id: id<OrganizationArtifactId>(),
+  employeeId: id<MembershipId>(), createdRevision: integer.positive() }).strict()
+/** Shared Git evidence uses explicit before/after bytes; applying it is a separate human operation. */
+export const gitChangeSchema = z.object({ format: z.literal(1), baseCommit: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/),
+  baseTree: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/), patch: z.string().min(1),
+  files: z.array(z.object({ path: artifactPathSchema, operation: z.enum(['add', 'modify', 'delete']),
+    oldSha256: hash.nullable(), newSha256: hash.nullable(), bytes: z.string().nullable() }).strict()).min(1),
+}).strict()
+/** Closed human delivery mutations; no model-facing tool consumes these commands. */
+export const deliveryCommandSchema = z.discriminatedUnion('kind', [
+  selector.extend({ ...metadata.shape, kind: z.literal('publish-artifact'), artifactKind: metadata.shape.kind,
+    operationId: id<OperationId>(), bytes: z.string() }).strict(),
+  selector.extend({ kind: z.literal('submit-delivery'), operationId: id<OperationId>(),
+    artifactIds: z.array(id<OrganizationArtifactId>()).min(1), summary: z.string().trim().min(1).max(8192),
+    target: z.string().trim().min(1).max(8192), confirmed: z.literal(true) }).strict(),
+])
+/** Immutable employee decision and issuer's durable pending acceptance notification. */
+export const submissionSchema = selector.extend({ id: id<OrganizationSubmissionId>(), kind: z.literal('accept-delivery'),
+  employeeId: id<MembershipId>(), handlerId: id<MembershipId>(), state: z.literal('submitted'),
+  artifactIds: z.array(id<OrganizationArtifactId>()).min(1), summary: z.string().min(1).max(8192),
+  target: z.string().min(1).max(8192), createdRevision: integer.positive() }).strict()
+/** Delivery result references used by account-scoped reconciliation. */
+export const deliveryReceiptSchema = z.object({ artifactId: id<OrganizationArtifactId>().optional(),
+  submissionId: id<OrganizationSubmissionId>().optional() }).strict().refine(value =>
+  (value.artifactId === undefined) !== (value.submissionId === undefined))
+/** A bounded page belongs to one exact assignment. */
+export const deliveryReadSchema = assignmentReadSchema.extend({
+  runId: id<OrganizationRunId>().optional(), offset: integer.default(0),
+}).strict()
+/** Artifact downloads use identifiers and current task access, never a hash URL. */
+export const artifactReadSchema = assignmentReadSchema.extend({ artifactId: id<OrganizationArtifactId>() }).strict()
+/** Authorized byte response remains on the private organization transport. */
+export const artifactDownloadSchema = z.object({ artifact: artifactSchema, bytes: z.string() }).strict()
+/** Deployment ceilings are exposed so the explicit sharing form can reject oversized selections. */
+export const deliveryLimitsSchema = z.object({ artifactMaxFiles: integer.positive(), artifactMaxFileBytes: integer.positive(),
+  artifactMaxTotalBytes: integer.positive() }).strict()
+/** Authorized submissions and published evidence, bounded before native delivery. */
+export const deliveryPageSchema = z.object({ artifacts: z.array(artifactSchema), submissions: z.array(submissionSchema),
+  total: integer, offset: integer, limits: deliveryLimitsSchema }).strict()

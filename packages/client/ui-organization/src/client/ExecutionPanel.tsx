@@ -7,6 +7,7 @@ import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionResult, OrganizationDesktopBridge } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
 import type { OrganizationKey } from './locales.ts'
+import { DeliveryPanel } from './DeliveryPanel.tsx'
 import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
@@ -145,62 +146,63 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
     finally { if (alive.current) setStopping(false) }
   }
-  if (!ready) return <p role="status">{t('qualificationRecheck')}</p>
-  return <section className={css.card} aria-busy={busy}>
-    <h4>{t('executionTitle')}</h4><p>{t('executionHint')}</p>
-    {notice && <p role="status">{notice}</p>}
-    {mine && preparation && preparation.assignment.state === 'accepted' && <form className={css.form} onSubmit={(event) => { event.preventDefault(); void start() }}>
-      <label>{t('executionModel')}<Input required value={model} disabled={busy} onChange={(e) => { setModel(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionEndpoint')}<Input required type="url" value={endpoint} disabled={busy} onChange={(e) => { setEndpoint(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionDirectory')}<Input required value={directory} disabled={busy} onChange={(e) => { setDirectory(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionMinutes')}<Input required type="number" min={1} step={1} value={minutes} disabled={busy} onChange={(e) => { setMinutes(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('executionMessage')}<Input required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
-      <Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
-      <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
-      <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} />
-      <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
-      <Button type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button>
-    </form>}
-    {views?.generation === c.generation && views.items.map(view => <div key={view.run.id}>
-      <p>{t('taskVersion', { revision: view.run.planRevision })} · {t(`run-${view.run.state}`)}</p>
-      <p>{t('assignee')}: {preparation?.assignment.assigneeId} · {t('deviceId')}: {view.run.deviceId}</p>
-      <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
-      {!view.eligible && <p>{t('qualificationRecheck')}</p>}
-      {view.actions.some(a => a.state === 'unknown') && <p role="alert">{t('executionUnknown')}</p>}
-      {preparation && view.humanRequests.map(request => <ExecutionHumanRequest key={`${c.generation}:${request.id}`} {...props} request={request} assignment={preparation.assignment} refresh={load} />)}
-      {mine && <Button onClick={() => { void readReport(view) }}>{t('executionTranscript')}</Button>}
-      {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section>
-        <h5>{t('executionRecovery')}</h5><p>{t('executionRecoveryHint')}</p>
-        <p>{t('executionDirectory')}: {report.report.recovery.inputs.execution?.directory}</p>
-        <code>{report.report.recovery.baselineDigest}</code>
-        {!report.report.recovery.baselineDigest && <p role="alert">{t('executionBaselineUnavailable')}</p>}
-        {report.report.recovery.actions.map(action => <p key={action.actionId}>{action.actionId} · {t(`recovery-${action.reason}`)}</p>)}
-        {!view.eligible && <p role="alert">{t('executionRenewRequired')}</p>}
-        <Checkbox label={t('executionResumeConfirm')} checked={resumeConfirmed} onChange={setResumeConfirmed} />
-        <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !report.report.recovery.baselineDigest}
-          onClick={() => { void resume(view, true) }}>{t('executionReconcile')}</Button>
-        <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !view.eligible || !report.report.recovery.baselineDigest
+  return <><p hidden={ready} role="status">{t('qualificationRecheck')}</p>
+    <section hidden={!ready} className={css.card} aria-busy={busy}>
+      <h4>{t('executionTitle')}</h4><p>{t('executionHint')}</p>
+      {notice && <p role="status">{notice}</p>}
+      {mine && preparation && preparation.assignment.state === 'accepted' && <form className={css.form} onSubmit={(event) => { event.preventDefault(); void start() }}>
+        <label>{t('executionModel')}<Input required value={model} disabled={busy} onChange={(e) => { setModel(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionEndpoint')}<Input required type="url" value={endpoint} disabled={busy} onChange={(e) => { setEndpoint(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionDirectory')}<Input required value={directory} disabled={busy} onChange={(e) => { setDirectory(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionMinutes')}<Input required type="number" min={1} step={1} value={minutes} disabled={busy} onChange={(e) => { setMinutes(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionMessage')}<Input required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
+        <Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
+        <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
+        <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} />
+        <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
+        <Button type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button>
+      </form>}
+      {views?.items.map(view => <div key={view.run.id} hidden={views.generation !== c.generation}>
+        <p>{t('taskVersion', { revision: view.run.planRevision })} · {t(`run-${view.run.state}`)}</p>
+        <p>{t('assignee')}: {preparation?.assignment.assigneeId} · {t('deviceId')}: {view.run.deviceId}</p>
+        <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
+        {!view.eligible && <p>{t('qualificationRecheck')}</p>}
+        {view.actions.some(a => a.state === 'unknown') && <p role="alert">{t('executionUnknown')}</p>}
+        {preparation && view.humanRequests.map(request => <ExecutionHumanRequest key={`${c.generation}:${request.id}`} {...props} request={request} assignment={preparation.assignment} refresh={load} />)}
+        {preparation && <DeliveryPanel {...props} assignment={preparation.assignment} run={view.run} />}
+        {mine && <Button onClick={() => { void readReport(view) }}>{t('executionTranscript')}</Button>}
+        {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section>
+          <h5>{t('executionRecovery')}</h5><p>{t('executionRecoveryHint')}</p>
+          <p>{t('executionDirectory')}: {report.report.recovery.inputs.execution?.directory}</p>
+          <code>{report.report.recovery.baselineDigest}</code>
+          {!report.report.recovery.baselineDigest && <p role="alert">{t('executionBaselineUnavailable')}</p>}
+          {report.report.recovery.actions.map(action => <p key={action.actionId}>{action.actionId} · {t(`recovery-${action.reason}`)}</p>)}
+          {!view.eligible && <p role="alert">{t('executionRenewRequired')}</p>}
+          <Checkbox label={t('executionResumeConfirm')} checked={resumeConfirmed} onChange={setResumeConfirmed} />
+          <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !report.report.recovery.baselineDigest}
+            onClick={() => { void resume(view, true) }}>{t('executionReconcile')}</Button>
+          <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !view.eligible || !report.report.recovery.baselineDigest
           || report.report.recovery.actions.some(a => a.status === 'unknown') || view.humanRequests.some(h => !['answered', 'approved', 'denied'].includes(h.state))}
-        onClick={() => { void resume(view) }}>{t('executionResume')}</Button>
-      </section>}
-      {mine && ['prepared' , 'running', 'paused', 'waiting-human'].includes(view.run.state) && <div className={css.actions}>
-        <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'paused') }}>{t('executionPause')}</Button>
-        <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'cancelled') }}>{t('executionCancel')}</Button>
-      </div>}
-    </div>)}
-    {views?.generation === c.generation && <div className={css.actions}>
-      <Button disabled={pages.length === 1} onClick={() => { setPages(value => value.slice(0, -1)) }}>{t('previous')}</Button>
-      <Button disabled={!views.items.length || views.offset + views.items.length >= views.total}
-        onClick={() => { setPages(value => [...value, views.offset + views.items.length]) }}>{t('next')}</Button>
-    </div>}
-    {report?.generation === c.generation && <section>
-      <h4>{t('executionTranscript')}</h4><p>{t('executionTranscriptPrivate')}</p>
-      {report.report.truncated && <p>{t('executionTranscriptTruncated')}</p>}
-      {report.report.entries.map((entry, index) => <div key={index}>
-        <h5>{t(`executionRole-${entry.role}`)}</h5><pre className={css.transcript}>{entry.text}</pre>
+          onClick={() => { void resume(view) }}>{t('executionResume')}</Button>
+        </section>}
+        {mine && ['prepared' , 'running', 'paused', 'waiting-human'].includes(view.run.state) && <div className={css.actions}>
+          <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'paused') }}>{t('executionPause')}</Button>
+          <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'cancelled') }}>{t('executionCancel')}</Button>
+        </div>}
       </div>)}
-    </section>}
-  </section>
+      {views?.generation === c.generation && <div className={css.actions}>
+        <Button disabled={pages.length === 1} onClick={() => { setPages(value => value.slice(0, -1)) }}>{t('previous')}</Button>
+        <Button disabled={!views.items.length || views.offset + views.items.length >= views.total}
+          onClick={() => { setPages(value => [...value, views.offset + views.items.length]) }}>{t('next')}</Button>
+      </div>}
+      {report?.generation === c.generation && <section>
+        <h4>{t('executionTranscript')}</h4><p>{t('executionTranscriptPrivate')}</p>
+        {report.report.truncated && <p>{t('executionTranscriptTruncated')}</p>}
+        {report.report.entries.map((entry, index) => <div key={index}>
+          <h5>{t(`executionRole-${entry.role}`)}</h5><pre className={css.transcript}>{entry.text}</pre>
+        </div>)}
+      </section>}
+    </section></>
 }

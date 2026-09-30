@@ -6,7 +6,7 @@ import type { OrganizationInboxItem } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProps } from './contract.ts'
 import { workgraphError } from './workgraph-view.ts'
 
-type Request = Exclude<OrganizationInboxItem['request'], { kind: 'accept-assignment' }>
+type Request = Exclude<OrganizationInboxItem['request'], { kind: 'accept-assignment' | 'accept-delivery' }>
 /**
  * @param props - Exact request, current native identity and refresh callback.
  * @returns Explicit handler controls without automatic continuation.

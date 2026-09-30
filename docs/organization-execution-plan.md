@@ -72,7 +72,7 @@
 | Phase 3 | 本机执行宿主 | 隔离 Session、私有 IPC 和模型上下文 | completed | 独立 Session、持久输入、Desktop IPC 与冷启动 invariant | Loader/HTTPS/IPC/JSONL 通过；真实副作用关闭 |
 | Phase 4 | 有界内建执行 | 接入真实模型/工具准入、沙箱、开始与停止 | completed | loop/动作 guard、原生持续通道、模型策略、开始/停止与本机记录 UI | 聚焦回归、编译与定向构建通过；后续按阶段独立授权执行 |
 | Phase 5 | 人工介入与恢复 | 持久等待、unknown 核对和显式恢复 | completed | SQLite v8 人工请求、持久 Inbox、历史动作核对与显式恢复 | 聚焦回归、静态检查、定向构建与无窗口 smoke 通过；可见验收待用户 |
-| Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | pending | — | 依赖 5 |
+| Phase 6 | 产物与员工提交 | 持久授权产物、准确版本 Submission | completed | SQLite v9 原子产物、正式 Submission、HTTPS/native 与任务清单/待验收 Inbox | 95 项聚焦回归、定向构建与无窗口 smoke 通过；可见验收待用户 |
 | Phase 7 | 下发人验收与返工 | 正式验收、驳回、新版本重走资格 | pending | — | 依赖 6；单叶完整闭环 |
 | Phase 8 | 依赖与父任务集成 | 多子任务汇合、目标核验与父级交付 | pending | — | 依赖 7 |
 | Phase 9 | 故障与权限集成 | 真实组合 CSV 闭环及跨进程负例 | pending | — | 依赖 8 |
@@ -240,16 +240,32 @@
 
 验收清单：
 
-- [ ] 员工选择要分享的文件/变更包/测试报告，确认摘要与目标说明后提交；工具 present、Run 结束及自动生成草案不会正式提交。
-- [ ] 字节保存到独立组织存储；服务端验证长度和哈希，原子发布可引用状态。上传中断、同键重试、损坏/缺失字节不产生可验收 Submission；清理只针对未引用的暂存对象。
-- [ ] 控制文件数、单文件/总大小及超时，均由 Config 限制；拒绝路径穿越、绝对路径和链接逃逸，不把组织附件转存个人公开路由，不直接执行下载内容。
-- [ ] 每次上传、下载、引用、搜索和事件读取重新核权；产物权限不因知道哈希或读到父节点而扩大，撤权/身份切换阻断后续读取。
-- [ ] 提交绑定 assignment/Run/planRevision、不可变产物集合和员工身份；必须核对当前合法提交资格、无未核对阻塞动作。提交由真人完成，不要求 Agent 仍 running，也不复活已过期执行委托。
-- [ ] 备份/恢复包含已发布产物及一致索引；存储缺失失败明确。下发人收到待验收通知，只获得显式共享证据，不自动读完整执行对话。
+- [x] 员工选择要分享的文件/变更包/测试报告，确认摘要与目标说明后提交；工具 present、Run 结束及自动生成草案不会正式提交。
+- [x] 字节保存到独立组织存储；服务端验证长度和哈希，原子发布可引用状态。上传中断、同键重试、损坏/缺失字节不产生可验收 Submission；清理只针对未引用的暂存对象。
+- [x] 控制文件数、单文件/总大小及超时，均由 Config 限制；拒绝路径穿越、绝对路径和链接逃逸，不把组织附件转存个人公开路由，不直接执行下载内容。
+- [x] 每次上传、下载、引用、搜索和事件读取重新核权；产物权限不因知道哈希或读到父节点而扩大，撤权/身份切换阻断后续读取。
+- [x] 提交绑定 assignment/Run/planRevision、不可变产物集合和员工身份；必须核对当前合法提交资格、无未核对阻塞动作。提交由真人完成，不要求 Agent 仍 running，也不复活已过期执行委托。
+- [x] 备份/恢复包含已发布产物及一致索引；存储缺失失败明确。下发人收到待验收通知，只获得显式共享证据，不自动读完整执行对话。
 
 助理验证：真实 HTTPS 上传下载及限额/越权/损坏/重启测试；用独立文件读取计算哈希，验证 Session 释放后产物仍可读；备份恢复负例。用户检查：上传前分享清单、提交确认、下发人看到相同产物及报告。依赖：Phase 5。
 
-实际完成：未开始，执行后填写。
+实际完成（2026-09-30）：
+
+- organization 升至 SQLite v9；新增严格产物/提交协议、品牌 ID、长度/哈希校验、Git 包逐路径校验、受 Config 约束的文件数/单文件/总量，以及当前版本/员工/Run/未核对动作的提交准入。Submission 永久保存 submitted 事实，不混同验收状态。历史回执按当前任务权重新核验；同键内容冲突拒绝。
+- 字节和索引选择同库 BLOB 事务发布，沿用已有组织备份机制；没有跨库文件发布、暂存目录、归档解包或公开 hash URL。上传中断没有发布行；事务失败同时回滚对象、事件和回执。启动与维护逐项验证字节和关联，Session 生命周期不拥有这些产物。没有自动清理已发布证据。
+- 固定 `/delivery/command|read|download`、原生 `delivery-command|read|download` 和既有 Electron preload Host 传输接入；未向执行 Agent 的私有通道增加提交能力。API 默认请求 JSON 上限由 16 KiB 调整为 1 MiB，仍由 Config 控制，完整超时沿用 15 秒；适配默认 256 KiB 文件及 base64 开销。更大部署须同时配置服务与原生响应上限。
+- DeliveryPanel 支持员工选取文件、报告和 Git JSON 包，查看说明/大小/已上传哈希并单独确认正式提交；上传和提交保留操作 ID 用于重试。报告按纯文本展示，下载作为本地二进制 Blob 保存，不执行内容。下发人 Inbox 从持久提交重建通知，任务视图展示相同证据。身份变化清理草稿、隐藏旧内容，下载异步哈希后再核对代次。同账号授权刷新期间保留已挂载上传面板并隐藏旧正文，避免自身写入触发刷新打断连续上传；此收尾改动另通过 Client 编译、lint、构建与 i18n 门禁。
+- Git 包以员工显式提供的基线 commit/tree、补丁、旧/新哈希及新字节为证据；校验格式和字节关系，不自动扫描/打包整个仓库，也不提前宣称目标基线真实匹配。实际目标读取和补丁冲突核验保留给 Phase 8。相对路径仅作共享元数据，服务端不会按其读取磁盘、跟随链接或解包；路径穿越与绝对路径拒绝。
+
+已执行验证：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/execution.spec.ts packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/organization/tests/authority.spec.ts packages/host/organization-connection/tests/assignment.spec.ts`：7 文件、95 项通过。覆盖 v1–v8 迁移与失败回滚、原子上传/重试、路径/哈希/配额拒绝、未核对动作、跨 Run/旧版本、撤权/身份切换、独立文件读取哈希、真实 HTTPS 中断上传、冷重开、停服备份/恢复及损坏/缺失证据。首次组合运行有一个新测试在 SSE 刷新中发起写入而得到 unavailable，修正测试等待原生 ready 后，最终组合通过，未改变产品拒绝规则。
+- `pnpm exec tsc -b packages/workspace/organization packages/host/organization-connection packages/client/ui-organization packages/api/organization-api apps/desktop-host apps/desktop --pretty false` 通过；改动 TS/TSX/MJS 文件的 `pnpm exec tsx scripts/run-oxlint.ts …` 与 `git diff --check` 通过。
+- `pnpm exec tsx scripts/verify-client-ui-i18n.ts`、`verify-cordis-config.ts`、`gen-scoped-events.ts --check`、`gen-tsconfig-paths.ts --check` 通过。`verify-export-jsdoc.ts` 仍仅有既有 login-session.read/save 两处描述缺项；`verify-package-dependencies.ts` 仍仅有既有 file-upload 的 assertPersonalSessionId 导入未分类；`gen-config-catalog.ts --check` 仍无法解析 organization/schema.ts 与 organization-api/tls.ts 的本地 schema 导入。三项未计为通过，未放宽门禁，配置事实写入所属 README。
+- `pnpm exec tsdown --env.DSH_BUILD_FACE host -F packages/workspace/organization -F packages/host/organization-connection -F packages/api/organization-api -F apps/desktop-host -F apps/desktop --logLevel warn` 与 Client 的 `--env.DSH_BUILD_FACE client -F packages/client/ui-organization` 定向构建通过。
+- `node packages/workspace/organization/tests/built-smoke.mjs` 通过：普通 Node 消费已构建导出，完成真实设备签名/Run、产物发布、正式提交、重启后的字节哈希与 submitted 状态核验。没有启动窗口。未执行完整发行构建或真实模型调用，本阶段不改变模型链路。
+
+用户侧待验：Desktop 中选择分享清单→上传→选择不可变产物→确认摘要/目标→正式提交；原下发人看到待验收通知及同一报告/文件；切换身份后旧内容消失。未启动页面、使用 Playwright/GitNexus、创建 Agent Notes 或提交推送。工程范围停止于 Phase 6，保持 manual，不自动进入 Phase 7。
 
 ## Phase 7：下发人验收、驳回与返工
 

@@ -1,4 +1,5 @@
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
+import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema } from '@deepseek-ai/dsh-organization/delivery'
 import { executionCommandSchema, executionReadSchema, executionViewSchema, executionListSchema, executionPageSchema } from '@deepseek-ai/dsh-organization/execution'
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -377,6 +378,19 @@ export class OrganizationConnection {
             role: action.role, invitationToken }, invitationToken)
         }
         case 'command': return await this.mutate(action.command)
+        case 'delivery-command': return await this.mutate(action.request, undefined, 'delivery')
+        case 'delivery-read': {
+          const request = deliveryReadSchema.parse(action.request)
+          this.assertOrganization(request.organizationId)
+          const delivery = deliveryPageSchema.parse(await this.request('/delivery/read', request, generation))
+          return { generation, delivery }
+        }
+        case 'delivery-download': {
+          const request = artifactReadSchema.parse(action.request)
+          this.assertOrganization(request.organizationId)
+          const artifact = artifactDownloadSchema.parse(await this.request('/delivery/download', request, generation))
+          return { generation, artifact }
+        }
         case 'execution-command': {
           const input = z.record(z.string(), z.unknown()).parse(action.request)
           if ('deviceId' in input) throw new Error('invalid-input')
@@ -563,18 +577,18 @@ export class OrganizationConnection {
     if (!this.token || !this.state.organizationId || this.state.phase !== 'ready') throw new Error('unavailable')
     return this.state.organizationId
   }
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
+    const command = workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
       : workgraph === 'participant' ? participantCommandSchema.parse(input)
         : workgraph === 'device' ? deviceCommandSchema.parse(input)
           : workgraph === 'save' ? workgraphSaveSchema.parse(input)
             : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
     const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
-    const route = workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
+    const route = workgraph === 'delivery' ? '/delivery/command' : workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
       : workgraph === 'device' ? '/device/command' : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
         : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,

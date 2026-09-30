@@ -170,6 +170,7 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
     UNION SELECT assignmentId,revision FROM assignment_actions
     UNION SELECT assignmentId,version FROM assignment_delegations
     UNION SELECT assignmentId,version FROM assignment_leases
+    UNION SELECT assignmentId,revision FROM delivery_events
     UNION SELECT assignmentId,revision FROM execution_events
     UNION SELECT assignmentId,json_extract(data,'$.version') FROM execution_runs
     UNION SELECT r.assignmentId,json_extract(x.data,'$.version') FROM execution_actions x JOIN execution_runs r ON r.id=x.runId

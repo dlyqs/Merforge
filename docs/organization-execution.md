@@ -1,6 +1,6 @@
 # 组织执行与交付协议
 
-本协议是[执行计划](organization-execution-plan.md) Phase 1 的实施依据。Phase 1–5 已实现执行、人工请求与本机恢复；产物、正式提交、验收与集成仍待后续阶段。组织 SQLite 是业务唯一写入者，Desktop 私有 Host 只拥有本机执行日志和协调服务。
+本协议是[执行计划](organization-execution-plan.md) Phase 1 的实施依据。Phase 1–6 已实现执行、人工请求、本机恢复、持久产物与员工正式提交；下发人验收与集成仍待后续阶段。组织 SQLite 是业务唯一写入者，Desktop 私有 Host 只拥有本机执行日志和协调服务。
 
 ## 状态、作者与幂等
 
@@ -64,7 +64,7 @@ Desktop 已接入显式授权并开始、暂停、取消、Run 历史和本机�
 
 组织 `executionModels` 与本机 `models` 必须同时允许员工选定的模型和准确 HTTPS `/v1` 地址。本机配置绑定凭据引用，凭据不进入共享数据；模型 HTTP 发送前再次在线复核策略与一次性许可，禁止重定向及适配器内部复用许可。默认配置允许官方文本模型，其他地址必须由组织与本机配置共同明确允许。完整对话仍留在本人 JSONL；本机报告在读取前后检查当前身份与准确任务访问，只按完整响应字节上限返回末尾文本。
 
-当前拒绝 shell：现有 Seatbelt 的写限制实测不代表具有读取/网络隔离。HumanRequest 与本机恢复见下节；产物与正式提交仍待 Phase 6。确定性组合测试使用真实组织 HTTPS、设备签名、私有 IPC、内建 loop 和文件系统，只替换外部模型与 OS 凭据保险库；没有启动页面。
+当前拒绝 shell：现有 Seatbelt 的写限制实测不代表具有读取/网络隔离。HumanRequest 与本机恢复见下节；产物与正式提交见 Phase 6 格式。确定性组合测试使用真实组织 HTTPS、设备签名、私有 IPC、内建 loop 和文件系统，只替换外部模型与 OS 凭据保险库；没有启动页面。
 
 ## Phase 5：人工介入与恢复
 
@@ -79,3 +79,27 @@ Inbox 按当前授权显示指定处理人的持久请求；Run 详情显示处�
 员工先读取本机报告，再明确选择“只核对历史动作”或“核对并显式继续”。只核对允许原设备在租约失效后补报历史事实，不恢复权限。继续要求相同 Run、原设备、有效委托和双 epoch、剩余预算、全部人工请求已答复/决定，以及没有 reserved/unknown 动作。目录快照的指纹在报告、核对及持有目录锁后的执行开始处比较；目录变化拒绝。目录内容与路径元数据的读取受现有 maxBytes 限额约束，链接、特殊文件和超限目录拒绝核对；报告显示无法确认。此实现适用于受信任员工选择的有界目录，不提供对恶意 OS 用户并发换路径的隔离。
 
 Host 重启可用原 Session 日志显式恢复。组织服务重启、租约或委托过期后旧 epoch 永不复活：先核对历史动作并取消旧 Run，再由员工重新明确委托、领取并创建新 Run。新 Run 不自动复制或重放旧对话；员工选择新的工作输入。无法观测的动作仍标 unknown，不能把重新开始或人工说明当作旧动作的成功证明。工具与模型停在 waiting-human 时不持有无限期活跃 Agent；关闭仍等待当前区间和持久化操作退出。
+
+## Phase 6 产物与提交格式
+
+SQLite v9 在独立组织数据库内保存产物索引及 BLOB 字节，二者与事件、回执同事务发布。上传前只存在员工选定的本机 File；传输使用固定 HTTPS/native 命令，完整 body 的长度、规范 base64 和 SHA-256 校验成功后才出现可引用产物。中断上传不产生发布记录，因此无需跨文件系统暂存清理；没有删除已发布对象的接口。备份沿用停服 SQLite 校验和复制，包含字节、索引和提交；启动、备份/恢复、下载和提交均拒绝缺失或损坏证据。个人附件、present 声明、Session 释放都不影响组织产物。
+
+`publish-artifact` 包含准确 assignment/Run/planRevision、相对路径、类型、说明、媒体类型、长度、SHA-256 和选定字节。`artifactMaxFiles` 默认每 Run 20 个，单文件 `artifactMaxFileBytes` 默认 256 KiB，总量 `artifactMaxTotalBytes` 默认每 Run/提交 1 MiB；已发布但未提交文件仍计入额度。上传和下载同时受 API `maxBodyBytes`/`maxResponseBytes`（默认 1 MiB）、`requestTimeoutMs`（默认 15 秒）与原生 `maxResponseBytes`/`timeoutMs` 约束，配置时须计入 base64 与 JSON 元数据开销。列表沿用 pageSize 和完整响应字节上限。
+
+`submit-delivery` 必须由当前员工明确确认，保存不可变 artifactIds、摘要和目标说明。服务端重新检查准确版本已批准且接受的任务、当前查看权和产物归属；Run 须已停止，无 reserved/unknown 动作及 pending 人工请求。不要求过期执行委托仍有效，不重新领取或启动 Agent。Submission 状态为 `submitted`；原下发人 Inbox 的待验收通知由该持久事实重建，不能把它当作已验收。相同 operationId 重试返回同一回执，改变内容同键拒绝；新提交产生新 ID。读取、列表、事件、回执和下载逐次核权，原生代次变更丢弃迟到内容。
+
+首版 Git 变更包是员工显式选取的 JSON 文件，不自动扫描或上传仓库。格式为：
+
+```json
+{
+  "format": 1,
+  "baseCommit": "完整 Git commit 对象 ID（40 或 64 个十六进制字符）",
+  "baseTree": "完整 Git tree 对象 ID（40 或 64 个十六进制字符）",
+  "patch": "明确基线对应的补丁文本",
+  "files": [
+    { "path": "src/example.ts", "operation": "modify", "oldSha256": "原字节 SHA-256", "newSha256": "新字节 SHA-256", "bytes": "新字节的规范 base64" }
+  ]
+}
+```
+
+新增用 `add` 且 oldSha256=null；删除用 `delete` 且 newSha256/bytes=null；修改用 `modify` 且旧/新哈希均必填。每个路径唯一且相对，新增/修改的字节哈希逐项校验；二进制新内容同样用 base64 独立保存在 files 项中。服务端检查证据格式与字节一致性，不声称已经核验目标仓库的真实基线或补丁应用结果；这些属于 Phase 8 目标端核验。没有解包、执行下载、自动应用、push 或 merge。共享路径仅作元数据使用，服务端不按其读取本机文件，也不会沿链接逃出存储。绝对路径、反斜线、冒号、空路径段和 `.`/`..` 被拒绝。

@@ -3,10 +3,14 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { randomUUID, randomBytes } from 'node:crypto'
+import { randomUUID, randomBytes, createHash } from 'node:crypto'
 import { bootOrganization } from '../../../../apps/desktop-host/src/organization-boot.ts'
 import { OrganizationConnection } from '../src/index.ts'
 import * as transport from '@deepseek-ai/dsh-organization-api/transport'
+import { backupOrganization, restoreOrganization } from '@deepseek-ai/dsh-organization/maintenance'
+import { request as httpsRequest } from 'node:https'
+import { DatabaseSync } from 'node:sqlite'
+import { readFile, writeFile } from 'node:fs/promises'
 import { executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import type { ConnectionResult } from '../src/types.ts'
 import type { OrganizationTaskGrant } from '@deepseek-ai/dsh-organization'
@@ -369,3 +373,87 @@ it('delivers a durable execution question through HTTPS, keeps replies separate 
   h.worker.suspend()
   await expect(channel.command(command({ kind: 'resume-run' }))).rejects.toThrow()
 })
+
+it('shares immutable bytes and formal employee submissions over HTTPS, including stopped backup and restore', async () => {
+  const { h, channel, command, runId } = await executionChannelFixture()
+  await channel.command(command({ kind: 'transition-run', state: 'running' }))
+  await channel.command(command({ kind: 'transition-run', state: 'succeeded' }))
+  const bytes = Buffer.from('name,total\nalpha,42\n')
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  const base = { ...h.selector, runId, planRevision: 1 }
+  const upload = { ...base, kind: 'publish-artifact', operationId: randomUUID(), artifactKind: 'test-report',
+    path: 'report.csv', description: 'Independent CSV evidence', mediaType: 'text/csv', size: bytes.length, sha256, bytes: bytes.toString('base64') }
+  await vi.waitFor(() =>{  expect(h.worker.snapshot().phase).toBe('ready') })
+  const published = await h.worker.perform({ kind: 'delivery-command', request: upload })
+  const artifactId = published.receipt!.delivery!.artifactId!
+  expect((await h.worker.perform({ kind: 'delivery-command', request: upload })).receipt).toEqual(published.receipt)
+  expect((await h.owner.perform({ kind: 'delivery-read', request: h.selector })).delivery?.submissions).toEqual([])
+  const submitted = await h.worker.perform({ kind: 'delivery-command', request: { ...base, kind: 'submit-delivery',
+    operationId: randomUUID(), artifactIds: [artifactId], summary: 'Completed report', target: 'Review CSV before import', confirmed: true } })
+  await vi.waitFor(() =>{  expect(h.owner.snapshot().inbox?.items.some(i => i.request.kind === 'accept-delivery'
+    && i.request.id === submitted.receipt!.delivery!.submissionId)).toBe(true) })
+  const result = await h.owner.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId } })
+  const output = join(h.root, 'received.csv')
+  await writeFile(output, Buffer.from(result.artifact!.bytes, 'base64'))
+  expect(createHash('sha256').update(await readFile(output)).digest('hex')).toBe(sha256)
+  expect(result.artifact!.artifact).not.toHaveProperty('sessionId')
+  await h.worker.close(); await h.owner.close(); await h.app.close()
+  const backup = join(h.root, 'backup'), servicePath = join(h.root, 'server')
+  backupOrganization(servicePath, backup, 100)
+  restoreOrganization(backup, servicePath, 100)
+  const restarted = await bootOrganization({ api: { directory: servicePath, host: '127.0.0.1', port: 0, names: ['127.0.0.1'] } })
+  cleanup.push(restarted.close)
+  const login = await restarted.authority.login({ username: 'owner', password })
+  await restarted.authority.downloadArtifact(login.token, { ...h.selector, artifactId }, (value) =>{  expect(value.bytes).toBe(bytes.toString('base64')) })
+  await restarted.close()
+  const damaged = new DatabaseSync(join(backup, 'organization.sqlite'))
+  damaged.prepare('UPDATE organization_artifacts SET bytes=?').run(Buffer.from('damaged'))
+  damaged.close()
+  expect(() => restoreOrganization(backup, servicePath, 100)).toThrow('invalid-backup-hash')
+}, 20000)
+
+it('refuses artifact disclosure when the native identity changes during an HTTPS download', async () => {
+  const { h, runId } = await executionChannelFixture()
+  const bytes = Buffer.from('explicit shared data')
+  const publish = await h.worker.perform({ kind: 'delivery-command', request: { ...h.selector, runId, planRevision: 1,
+    kind: 'publish-artifact', operationId: randomUUID(), artifactKind: 'file', path: 'evidence.txt', description: 'Selected evidence',
+    mediaType: 'text/plain', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.toString('base64') } })
+  const original = transport.organizationRequest, arrived = Promise.withResolvers<boolean>(), release = Promise.withResolvers<boolean>()
+  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
+    const response = await original(...args)
+    if (args[2] === '/organization/v1/delivery/download') { arrived.resolve(true); await release.promise }
+    return response
+  })
+  const download = h.worker.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId: publish.receipt!.delivery!.artifactId } })
+  const rejected = expect(download).rejects.toThrow('superseded')
+  await arrived.promise
+  await h.worker.perform({ kind: 'personal' })
+  release.resolve(true)
+  await rejected
+}, 15000)
+
+it('does not publish an interrupted HTTPS upload or an upload with mismatched bytes', async () => {
+  const { h, runId } = await executionChannelFixture()
+  const login = await h.app.authority.login({ username: 'employee', password })
+  const bytes = Buffer.alloc(20000, 65)
+  const upload = { ...h.selector, runId, planRevision: 1, kind: 'publish-artifact', operationId: randomUUID(),
+    artifactKind: 'file', path: 'selected.txt', description: 'Selected bytes', mediaType: 'text/plain', size: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.toString('base64') }
+  const body = JSON.stringify(upload)
+  await new Promise<void>((resolve) => {
+    const req = httpsRequest({ hostname: '127.0.0.1', port: h.app.ready.port, ca: h.app.ready.certificate,
+      path: '/organization/v1/delivery/command', method: 'POST', headers: { authorization: `Bearer ${login.token}`,
+        'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } })
+    req.on('error', () => { /* This test intentionally interrupts its owned upload socket. */ })
+    req.on('close', resolve)
+    req.write(body.slice(0, 1000), () => { setTimeout(() => req.destroy(), 30) })
+  })
+  await h.app.authority.readDelivery(login.token, h.selector, (value) => { expect(value.artifacts).toEqual([]) })
+  await expect(h.app.authority.receipt(login.token, upload.operationId)).resolves.toBeNull()
+  const trust = { origin: `https://127.0.0.1:${h.app.ready.port}`, certificate: h.app.ready.certificate,
+    fingerprint: h.app.ready.fingerprint, expiresAt: h.app.ready.expiresAt, timeoutMs: 1000, maxResponseBytes: 1048576 }
+  const wrong = await transport.organizationRequest(trust, 'POST', '/organization/v1/delivery/command', { ...upload, size: 1 }, login.token)
+  expect(wrong.status).toBe(400)
+  const correct = await transport.organizationRequest(trust, 'POST', '/organization/v1/delivery/command', upload, login.token)
+  expect(correct.status).toBe(200)
+}, 15000)

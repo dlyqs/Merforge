@@ -154,7 +154,7 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/members$/.exec(path)
-      const method = ['/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
+      const method = ['/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
         : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
@@ -168,6 +168,9 @@ export class OrganizationApiService extends Service {
       if (receiptRoute?.[1]) { this.respond(res, 200, await authority.receipt(token, receiptRoute[1])); return }
       if (path === '/assignment/command') { this.respond(res, 200, await authority.assignmentCommand(token, await this.body(req))); return }
       if (path === '/assignment/participant') { this.respond(res, 200, await authority.participantCommand(token, await this.body(req))); return }
+      if (path === '/delivery/command') { this.respond(res, 200, await authority.deliveryCommand(token, await this.body(req))); return }
+      if (path === '/delivery/read') { await authority.readDelivery(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
+      if (path === '/delivery/download') { await authority.downloadArtifact(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/execution/challenge') { this.respond(res, 200, await authority.executionChallenge(token, await this.body(req))); return }
       if (path === '/execution/list') { await authority.listExecutions(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/execution/read') { await authority.readExecution(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }

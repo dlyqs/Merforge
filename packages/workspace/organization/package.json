@@ -47,6 +47,10 @@
     "./execution": {
       "types": "./lib/types/execution-schema.d.ts",
       "default": "./lib/types/execution-schema.js"
+    },
+    "./delivery": {
+      "types": "./lib/types/delivery-schema.d.ts",
+      "default": "./lib/types/delivery-schema.js"
     }
   },
   "files": [

@@ -1,3 +1,5 @@
+import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema, artifactSchema, submissionSchema } from './delivery-schema.ts'
+import { changeDelivery, downloadArtifact } from './delivery.ts'
 import { authorizeExecutionAnswer } from './assignment-participant.ts'
 /** Transactional organization identity authority, independent of personal Host services. */
 import { executionCommandSchema, executionReadSchema, executionListSchema, executionPageSchema, executionRunSchema } from './execution-schema.ts'
@@ -727,9 +729,10 @@ export class OrganizationService extends Service {
             UNION ALL SELECT revision FROM assignment_actions WHERE assignmentId=?
             UNION ALL SELECT version FROM assignment_delegations WHERE assignmentId=?
             UNION ALL SELECT version FROM assignment_leases WHERE assignmentId=?
+            UNION ALL SELECT revision FROM delivery_events WHERE assignmentId=?
             UNION ALL SELECT revision FROM execution_events WHERE assignmentId=?
             UNION ALL SELECT json_extract(data,'$.version') FROM execution_human_requests WHERE assignmentId=?
-          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
+          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
           return typeof row?.revision === 'number' ? [{ assignmentId: assignment.id, revision: row.revision }] : []
         })
         return this.boundedWorkgraph({ from: brandString<import('./types.ts').OrganizationCursor>(query.cursor), cursor: createCursor(this.cursorSecret, principal, version, revision), revision, events: events.sort((a, b) => a.revision - b.revision) })
@@ -793,6 +796,84 @@ export class OrganizationService extends Service {
       const devices = db.prepare('SELECT * FROM organization_devices WHERE organizationId=? AND accountId=? AND membershipId=?')
         .all(query.organizationId, principal.accountId, principal.membershipId ?? null).map(row => deviceSchema.parse(row))
       deliver(this.boundedWorkgraph(devices))
+    })
+  }
+
+  /**
+   * Publish bytes or confirm an immutable submission under current employee authority.
+   * @param token - Current employee login.
+   * @param input - Strict explicit human decision.
+   * @returns Durable account-scoped receipt, including on an identical retry.
+   */
+  deliveryCommand(token: LoginToken, input: unknown): Promise<Receipt> {
+    return this.enqueue('delivery-command', async (db) => {
+      const command = parse(deliveryCommandSchema, input)
+      const fingerprint = await requestFingerprint('delivery', command)
+      const result = transaction(db, () => {
+        const principal = this.principal(db, token, command.organizationId)
+        authorizeParticipant(db, principal, selectedAssignment(db, command))
+        const scope = `account:${principal.accountId}`
+        const previous = this.previous(db, scope, command.operationId, fingerprint)
+        if (previous) return { receipt: previous, committed: false }
+        const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint,
+          (revision) => {
+            const delivery = changeDelivery(db, principal, command, revision, this.config)
+            db.prepare('INSERT INTO delivery_events VALUES (?,?,?)').run(revision, command.assignmentId, JSON.stringify(delivery))
+            return { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId,
+              planRevision: command.planRevision, assignmentId: command.assignmentId, delivery }
+          })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
+    })
+  }
+
+  /**
+   * Read shared evidence and submissions with current exact-task authority.
+   * @param token - Current organization login.
+   * @param input - Exact assignment and bounded submission offset.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after the current permission check.
+   */
+  readDelivery(token: LoginToken, input: unknown, deliver: (value: z.output<typeof deliveryPageSchema>) => void): Promise<void> {
+    return this.enqueue('delivery-read', (db) => {
+      const query = parse(deliveryReadSchema, input)
+      authorizeAssignmentRead(db, this.principal(db, token, query.organizationId), selectedAssignment(db, query))
+      const submissions = db.prepare(`SELECT data FROM organization_submissions
+        WHERE assignmentId=? AND (? IS NULL OR runId=?) ORDER BY rowid DESC LIMIT ? OFFSET ?`)
+        .all(query.assignmentId, query.runId ?? null, query.runId ?? null, this.config.pageSize, query.offset)
+        .map(row => submissionSchema.parse(JSON.parse(String(row.data))))
+      const artifacts = db.prepare(`SELECT data FROM organization_artifacts
+        WHERE assignmentId=? AND (? IS NULL OR runId=?) ORDER BY rowid DESC LIMIT ?`)
+        .all(query.assignmentId, query.runId ?? null, query.runId ?? null, this.config.artifactMaxFiles)
+        .map(row => artifactSchema.parse(JSON.parse(String(row.data))))
+      const included = new Set(artifacts.map(artifact => artifact.id))
+      for (const submission of submissions) for (const id of submission.artifactIds) {
+        if (included.has(id)) continue
+        const row = db.prepare('SELECT data FROM organization_artifacts WHERE id=? AND assignmentId=?').get(id, query.assignmentId)
+        if (!row) throw new OrganizationError('incompatible-store')
+        artifacts.push(artifactSchema.parse(JSON.parse(String(row.data))))
+        included.add(id)
+      }
+      deliver(this.boundedWorkgraph({ artifacts, submissions, offset: query.offset,
+        total: Number(db.prepare('SELECT count(*) AS n FROM organization_submissions WHERE assignmentId=? AND (? IS NULL OR runId=?)')
+          .get(query.assignmentId, query.runId ?? null, query.runId ?? null)?.n),
+        limits: { artifactMaxFiles: this.config.artifactMaxFiles, artifactMaxFileBytes: this.config.artifactMaxFileBytes,
+          artifactMaxTotalBytes: this.config.artifactMaxTotalBytes } }))
+    })
+  }
+
+  /**
+   * Download verified bytes on the private authenticated transport only.
+   * @param token - Current organization login.
+   * @param input - Exact task and artifact selector.
+   * @param deliver - Synchronous authorized byte handoff.
+   * @returns Completion after hashing persisted bytes and checking current task access.
+   */
+  downloadArtifact(token: LoginToken, input: unknown, deliver: (value: z.output<typeof artifactDownloadSchema>) => void): Promise<void> {
+    return this.enqueue('artifact-download', (db) => {
+      const query = parse(artifactReadSchema, input)
+      deliver(downloadArtifact(db, this.principal(db, token, query.organizationId), query))
     })
   }
 

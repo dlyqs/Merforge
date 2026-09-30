@@ -326,6 +326,7 @@
       "@deepseek-ai/dsh-organization-api/transport": ["./packages/api/organization-api/src/transport.ts"],
       "@deepseek-ai/dsh-organization-connection/types": ["./packages/host/organization-connection/src/types.ts"],
 
+      "@deepseek-ai/dsh-organization/delivery": ["./packages/workspace/organization/src/delivery-schema.ts"],
       "@deepseek-ai/dsh-organization/execution": ["./packages/workspace/organization/src/execution-schema.ts"],
       "@deepseek-ai/dsh-organization-execution/protocol": ["./packages/workspace/organization-execution/src/protocol.ts"],
       "@deepseek-ai/dsh-organization-context/protocol": ["./packages/workspace/organization-context/src/protocol.ts"],

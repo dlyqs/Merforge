@@ -5,6 +5,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationInboxPage, OrganizationInboxItem, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OperationId } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
+import { DeliveryPanel } from './DeliveryPanel.tsx'
 import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { workgraphError } from './workgraph-view.ts'
@@ -72,7 +73,8 @@ export function Inbox(props: OrganizationProps) {
       {!current.items.length && <p>{t('empty')}</p>}
       <ul className={css.taskList}>{current.items.map(item => <li key={item.request.id}>
         <Button onClick={() => { void open(item).catch(report) }}>{t('taskId')}: {item.assignment.taskId} · {t(`assignment-${item.assignment.state}`)}</Button>
-        {item.request.kind !== 'accept-assignment' && <ExecutionHumanRequest key={`${c.generation}:${item.request.id}`} {...props} request={item.request} assignment={item.assignment} refresh={load} />}
+        {item.request.kind === 'accept-delivery' && <DeliveryPanel {...props} assignment={item.assignment} />}
+        {item.request.kind !== 'accept-assignment' && item.request.kind !== 'accept-delivery' && <ExecutionHumanRequest key={`${c.generation}:${item.request.id}`} {...props} request={item.request} assignment={item.assignment} refresh={load} />}
         {item.notificationId && item.readAt === null && <Button disabled={!!c.pendingOperation} onClick={() => {
           const a = item.assignment
           void props.connection({ kind: 'assignment-participant', request: { organizationId: a.organizationId, projectId: a.projectId,

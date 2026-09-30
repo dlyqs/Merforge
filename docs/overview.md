@@ -4,11 +4,13 @@
 
 ## 下一阶段计划入口
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–5 工程完成；按用户“请完成 phase5”的范围保持 manual，不进入 Phase 6。SQLite v8 新增准确 Run/版本的持久工作问题和文件审批，Inbox 与任务详情显示指定处理人及等待状态。资料答复、文件审批、正式验收各自独立；答复不自动唤醒模型。私有 Host 把答复写入持久 user/message 后才发送给模型。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–6 工程完成；按本轮“请完成 phase6”的范围保持 manual，不进入 Phase 7。SQLite v9 新增原子发布的组织产物字节/索引、不可变员工 Submission 和交付事件。任务详情支持员工选择文件、测试报告或明确 Git 基线的 JSON 变更包，确认分享清单、摘要及目标说明后正式提交。上传、Run 结束和正式提交各自独立；Submission 的 submitted 状态不代表下发人已验收。
 
-本机报告提供逐动作核对原因和有界目录指纹；恢复前重新读取实际文件、补报已有结果并检查权限、预算与目录变化，unknown 不自动重发。只核对历史动作在租约失效后仍可使用，但不会启动模型。原 server/fencing epoch 不能复活；失效后需核对并取消旧 Run，重新明确委托、领取并创建新 Run。Renderer 已禁止直接提交动作结果。完整日志、工具参数和目录信息仍仅本人本机可见。产物、员工正式提交、下发人验收与父级集成属于后续阶段。 本轮 146 项聚焦回归与补充的 19 项请求/原生回归通过，相关 TypeScript、局部 lint、i18n/配置/事件/类型路径门禁、Host/Client 定向构建及无窗口产物 smoke 通过。真实模型因缺少密钥跳过；既有 file-upload 依赖分类与 login-session 两处 JSDoc 缺项仍单列。用户可见验收待用户执行。
+产物使用组织 SQLite BLOB，独立于个人附件和本机 Session；长度、SHA-256、文件数/大小、准确版本、当前权限及未核对动作均在权威端验证。固定 HTTPS/native 传输沿用截止时间、身份代次和未知回执核对，不新增通用代理。原下发人的持久 Inbox 显示共享证据和待验收事实，不能读取员工完整对话。停服备份包含字节及一致索引，损坏或缺失证据拒绝读取、引用与重启。Git 包首版由员工显式选取，不自动扫描仓库、应用补丁或确认目标成果；目标基线/冲突的实际核验仍属于 Phase 8。
 
-领域、原生 HTTPS、真实 Loader/IPC、JSONL 重开、备份恢复、权限拒绝和 invariant 测试通过；Desktop 类型、局部 lint、入口、配置组合与事件门禁通过。全仓 file-upload 依赖分类、四处旧 invariant README、目录生成器解析限制和工作区另一项 login-session JSDoc 问题，单列于执行计划的 Phase 3 记录。完整发行构建、真实模型和用户可见验收留给后续阶段。
+Phase 5 的持久人工请求、本机动作核对和显式恢复继续保留：答复不唤醒 Agent，unknown 不自动重发，旧 server/fencing epoch 不复活。Phase 6 不改变模型请求、JSONL 格式或动作许可。下发人正式验收/返工和父级集成分别留给 Phase 7、8。
+
+本轮 7 文件 95 项聚焦回归通过，包含领域迁移/回滚、真实 HTTPS/native 上传下载、中断/哈希拒绝、撤权/身份切换、跨 Run/旧版本拒绝、冷重开和备份恢复。相关 TypeScript、改动文件 lint、i18n/配置组合/事件/类型路径门禁、Host/Client 定向构建与无窗口产物 smoke 通过。全仓仍有既有 login-session 两处 JSDoc 缺项、file-upload 导入分类问题和 config-catalog 本地 schema 导入解析限制，未计为通过；未做完整发行构建或真实模型测试。用户可见验收待用户执行。具体命令与结果见执行计划 Phase 6。
 
 ### 已完成的分配基础
 
@@ -73,9 +75,9 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v8 身份、项目、计划定义、分配与执行记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v9 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
-产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，尚无正式提交和验收。
+产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，成果可显式上传并由员工正式提交，下发人验收仍待 Phase 7。
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 

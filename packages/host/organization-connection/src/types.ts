@@ -7,7 +7,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
-  | { kind: 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
+  | { kind: 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
   | { kind: 'device-read' }
@@ -44,6 +44,8 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  delivery?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').deliveryPageSchema>
+  artifact?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').artifactDownloadSchema>
   executions?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/execution').executionPageSchema>
   execution?: import('@deepseek-ai/dsh-organization').OrganizationExecutionView
   generation?: number

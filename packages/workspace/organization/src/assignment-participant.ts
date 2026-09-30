@@ -1,4 +1,5 @@
 /** Transactional acceptance, notification acknowledgement and bounded delegation. */
+import { submissionSchema } from './delivery-schema.ts'
 import { executionHumanSchema } from './execution-human-schema.ts'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -136,6 +137,20 @@ export function visibleInbox(db: DatabaseSync, principal: Principal,
       || query.state === 'processed' && request.state === 'pending') continue
     const answerEvent = db.prepare('SELECT at FROM organization_events WHERE revision=?').get(request.answeredRevision)
     items.push({ assignment, request, notificationId: null, readAt: typeof answerEvent?.at === 'number' ? answerEvent.at : null })
+  }
+  if (query.state !== 'processed') for (const row of db.prepare("SELECT data FROM organization_submissions WHERE json_extract(data,'$.handlerId')=?")
+    .all(principal.membershipId ?? null)) {
+    const request = submissionSchema.parse(JSON.parse(String(row.data)))
+    const assignment = selectedAssignment(db, request)
+    if (assignment.organizationId !== principal.organizationId) continue
+    try {
+      const tasks = visibleTasks(db, principal, { ...assignment, revision: assignment.planRevision, search: query.search, offset: 0 })
+      if (!tasks.length) continue
+    } catch (error) {
+      if (error instanceof OrganizationError && error.code === 'forbidden') continue
+      throw error
+    }
+    items.push({ assignment, request, notificationId: null, readAt: null })
   }
   return items
 }

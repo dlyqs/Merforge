@@ -1,4 +1,5 @@
 /** Strict JSON and durable-row parsers for the organization authority. */
+import { deliveryReceiptSchema } from './delivery-schema.ts'
 import { executionReceiptSchema, executionModelSchema } from './execution-schema.ts'
 import { z } from 'zod'
 import { assignmentIdSchema, delegationIdSchema, deviceIdSchema } from './assignment-schema.ts'
@@ -23,6 +24,9 @@ const digest = z.string().regex(/^[a-f0-9]{64}$/)
 /** Validated deployment limits; no request may override them. */
 export const configSchema = z.object({
   path: z.string().min(1),
+  artifactMaxFiles: z.number().int().min(1).max(1000).default(20),
+  artifactMaxFileBytes: z.number().int().min(1).max(67108864).default(262144),
+  artifactMaxTotalBytes: z.number().int().min(1).max(1073741824).default(1048576),
   loginTtlMs: z.number().int().min(1000).max(604800000).default(28800000),
   invitationTtlMs: z.number().int().min(1000).max(2592000000).default(86400000),
   loginWindowMs: z.number().int().min(1000).max(86400000).default(900000),
@@ -116,6 +120,7 @@ export const receiptSchema = z.object({
   deviceId: deviceIdSchema.optional(),
   lease: leaseSchema.optional(),
   execution: executionReceiptSchema.optional(),
+  delivery: deliveryReceiptSchema.optional(),
 }).strict()
 /** Rate-window persistence parser. */
 export const attemptSchema = z.object({
@@ -124,7 +129,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })

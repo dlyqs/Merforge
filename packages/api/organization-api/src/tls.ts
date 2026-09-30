@@ -20,7 +20,7 @@ export const configSchema = z.object({
   maxSubscriptions: z.number().int().min(1).max(1000).default(16),
   maxConnections: z.number().int().min(1).max(10000).default(64),
   maxInFlight: z.number().int().min(1).max(1000).default(16),
-  maxBodyBytes: z.number().int().min(1024).max(1048576).default(16384),
+  maxBodyBytes: z.number().int().min(1024).max(104857600).default(1048576),
   maxResponseBytes: z.number().int().min(1024).max(10485760).default(1048576),
   requestTimeoutMs: z.number().int().min(100).max(120000).default(15000),
   maxRequestsPerSocket: z.number().int().min(1).max(10000).default(100),
