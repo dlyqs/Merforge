@@ -55,6 +55,29 @@ function state(overrides: Partial<ModelDirectoryState> = {}): ModelDirectoryStat
 afterEach(cleanup)
 
 describe('ModelSelect reasoning effort', () => {
+  it('keeps the native backend in both model and effort selections', async () => {
+    const nativeReasoning = { efforts: [{ id: 'medium', name: 'Medium' }, { id: 'high', name: 'High' }], defaultEffort: 'medium' }
+    const native = { backend: 'codex' as const, provider: 'codex', model: 'native', reasoningEffort: 'medium' }
+    const groups = [{ id: 'codex', backend: 'codex' as const, name: 'Codex', models: [{ id: 'native', name: 'Native', reasoning: nativeReasoning }] }]
+    const directory = createSnapshotStore<ModelDirectoryState>(state({ groups }))
+    const select = vi.fn(async (selection: ModelSelection) => {
+      directory.set(state({ groups, current: { ...selection, reasoningEffort: selection.reasoningEffort ?? 'medium' } }))
+      return { ok: true as const, value: undefined }
+    })
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()} select={select} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^模型/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Native' }))
+    await waitFor(() => { expect(select).toHaveBeenCalledWith({ backend: 'codex', provider: 'codex', model: 'native' }) })
+    await waitFor(() => { expect(screen.queryByRole('menu')).toBeNull() })
+    expect(directory.getSnapshot().current).toEqual(native)
+    fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+    expect(screen.getByText(zh['backend.codexSetup'])).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: /推理等级/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'High' }))
+    await waitFor(() => { expect(select).toHaveBeenLastCalledWith({ ...native, reasoningEffort: 'high' }) })
+  })
+
   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {

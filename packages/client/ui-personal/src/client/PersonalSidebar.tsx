@@ -50,6 +50,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   const [selectedSession, setSelectedSession] = useState<SessionId | null>(null)
   const [models, setModels] = useState<ModelCatalog | null>(null)
   const [modelError, setModelError] = useState<string | null>(null)
+  const [modelRefresh, setModelRefresh] = useState(0)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entrance | null>(null)
   const [botForNew, setBotForNew] = useState('')
@@ -91,7 +92,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
       (reason: unknown) => { if (current) setModelError(String(reason)) },
     )
     return () => { current = false }
-  }, [draft?.kind, loadModels])
+  }, [draft?.kind, loadModels, modelRefresh])
 
   const unassigned = useMemo(() => unassignedIds(sessions), [sessions])
   const affiliation: AffiliationProjection | undefined = selectedSession === null
@@ -134,6 +135,10 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         })
         else await updateProject({ id: draft.id, name: draft.name, description: draft.description, path: path ?? null })
       }, () => { setDraft(null) })
+      return
+    }
+    if (draft.backend === 'codex' && (draft.provider === '' || draft.model === '')) {
+      setError(t('codexChooseModel'))
       return
     }
     const defaultModel = draft.provider.trim() === '' && draft.model.trim() === '' ? undefined : {
@@ -386,11 +391,12 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
               .find(row => JSON.stringify([row.group.id, row.model.id]) === event.target.value)
             setDraft({ ...draft, provider: chosen?.group.id ?? '', model: chosen?.model.id ?? '', reasoningEffort: chosen?.model.reasoning?.defaultEffort ?? '' })
           }}>
-            <option value={JSON.stringify(['', ''])}>{t('modelInherit')}</option>
+            <option value={JSON.stringify(['', ''])}>{t(draft.backend === 'codex' ? 'codexChooseModel' : 'modelInherit')}</option>
             {draft.model !== '' && !models?.groups.some(group => group.id === draft.provider && group.models.some(model => model.id === draft.model)) && <option value={JSON.stringify([draft.provider, draft.model])}>{draft.provider}/{draft.model}</option>}
             {models?.groups.filter(group => (group.backend ?? 'harness-api') === draft.backend).map(group => <optgroup key={group.id} label={group.name}>{group.models.map(model => <option key={model.id} value={JSON.stringify([group.id, model.id])}>{model.name}</option>)}</optgroup>)}
           </select></label>
-          {draft.backend === 'codex' && <p>{t('codexCapabilities')}</p>}
+          {draft.backend === 'codex' && <><p>{t('codexCapabilities')}</p><p>{t('codexSetup')}</p></>}
+          {loadModels !== undefined && <Button variant="outline" disabled={busy} onClick={() => { setModelRefresh(value => value + 1) }}>{t('refreshModels')}</Button>}
           {modelError !== null && <p role="alert">{modelError}</p>}
           {models?.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}
           <label>{t('reasoningEffort')}<select disabled={busy} value={draft.reasoningEffort} onChange={(event) => { setDraft({ ...draft, reasoningEffort: event.target.value }) }}>
@@ -406,7 +412,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         {error !== null && <p role="alert">{t('error', { message: error })}</p>}
         <div className={css.formActions}>
           <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
-          <Button variant="primary" type="submit" disabled={busy || draft.name.trim() === ''}>{t('save')}</Button>
+          <Button variant="primary" type="submit" disabled={busy || draft.name.trim() === '' || (draft.kind === 'bot' && draft.backend === 'codex' && (draft.provider === '' || draft.model === ''))}>{t('save')}</Button>
         </div>
       </form></Modal>}
     {newTarget !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')} title={t('newSession')}

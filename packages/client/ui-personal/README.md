@@ -33,7 +33,7 @@ No `./invariant` companion is published. This package owns one UI registration a
 
 ## Native model selection
 
-The Bot editor loads the Host catalog and exposes backend, model and supported effort choices. Existing values remain visible when discovery fails. Native capability copy explains that Codex owns tools; the Bot default is inherited only by fresh conversations.
+The Bot editor loads the Host catalog and exposes backend, model and supported effort choices. Existing values remain visible when discovery fails. Codex requires an explicit model before saving; an empty choice cannot become an API default. The editor explains native sign-in and provides model refresh after login or account access changes. Native capability copy explains that Codex owns tools; the Bot default is inherited only by fresh conversations.
 
 ## Personal settings
 

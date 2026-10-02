@@ -43,6 +43,10 @@ Only the current Client binding's directory can publish its composer block. Clea
 
 When another writer owns the Session, model-selection failures tell the user to quit other running DSH instances and retry.
 
+### Codex conversations
+
+Native model and effort selections preserve `backend: codex` through both controls. Codex uses the local native login without a Merforge API key; discovery failures show the Host reason and native sign-in guidance. Retry reloads failed native discovery. Switching between API and Codex, or changing a Codex model or effort, opens an independent conversation linked to the source without copying its history. Stop the current turn before switching. API selections retain their existing next-request behavior.
+
 -----
 
 <a id="understand-the-implementation"></a>

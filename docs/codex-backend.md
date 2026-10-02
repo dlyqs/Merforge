@@ -1,6 +1,6 @@
 # Codex 后端协议与消费规则
 
-本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–3 已提供协议核验、共用 runtime 和主对话驱动，Phase 4 的 Desktop 接线已有部分实现、尚未完成阶段收尾；Codex 模式采用原生执行桥，由应用派发任务并接收输出和结果。
+本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–4 已提供协议核验、共用 runtime、主对话驱动与个人 Desktop 模型/Bot 接入；Codex 模式采用原生执行桥，由应用派发输入并接收输出和结果。任务管理工具、人工请求与组织调度仍属于后续阶段。
 
 ## 固定版本与证据等级
 
@@ -35,7 +35,7 @@
 
 | 能力 | 当前工程事实 | 应用消费方式 |
 | --- | --- | --- |
-| 持久 text thread、model/effort、多轮/interrupt | schema + fake 协议/进程测试通过；真实模型待用户 | Phase 3 已接入个人执行桥；Phase 4 消费方收尾待续接 |
+| 持久 text thread、model/effort、多轮/interrupt | schema + fake 协议/进程测试通过；真实模型待用户 | Phase 3–4 已接入个人执行桥、Desktop 选择/Bot 默认值及冷重开/归档 |
 | 登录与配置 | 原生机制拥有；有效登录待用户 | 只读取安全可用状态，不输出凭据或邮箱 |
 | 原生 shell/file/MCP/skills/memory/subagent | 使用 Codex 自身机制，未声明应用 guard 控制 | 原生执行器负责，任务管理桥只限制应用动作 |
 | 内部模型请求/重试限额 | 无应用逐请求 permit | 按有界运行/turn 和停止管理，不宣称逐请求预算 |
@@ -43,6 +43,19 @@
 | 人工请求、steering、fork、图像/附件 | 当前共用 runtime 拒绝 | 逐项实现并在 Host/UI 同步声明；组织派发当前未接线 |
 
 当前 runtime 仍只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；这描述现有代码，没有据此宣布未来调度桥已实现。后续组织资格由任务管理消费方拥有，不再以“关闭全部原生工具、重建全部内部模型请求”作为实现目标。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
+
+## 个人 Desktop 验收步骤
+
+以下为用户操作步骤，工程验证没有启动页面、替用户登录或调用真实 Codex 模型。
+
+1. 使用本人已登录的本机 Codex 环境，启动 Desktop；Merforge 可以不配置 API key。打开输入框模型菜单，从 Codex 分组选择实际模型，再选择其提供的推理等级。缺登录时先在本机 Codex 完成登录，再在模型列表点击重试；Bot 编辑器使用“刷新模型”。空模型目录提示检查账号访问；运行时启动失败提示检查应用安装，不自动安装或切换 API。
+2. 发送一条包含约定信息的文字，再提问该信息，确认两轮上下文、流式文字及 Codex 结果卡。原生工具记录显示在同一会话中；“回合已完成”仅表示 Codex 终态，用量保持未知。
+3. 关闭并重新启动 Desktop，打开原会话并继续文字问答，确认原 Project/Bot 归属、记录与上下文；停止正在运行的回合后明确发送下一条。归档后无法发送，恢复归档后可继续原会话。重开核对失败或结果未知时应显示错误，不自动重发或新建 thread。
+4. 新建 Bot，选择 Codex 后端、模型和 effort；不选模型应无法保存。由该 Bot 新建会话应继承默认值。编辑 Bot 默认值只影响新会话；已有 native 会话保持自身选择。API Bot 与旧 API 会话继续使用已有 API 配置。
+5. 空闲时切换 API↔Codex 或 Codex model/effort，确认打开新的独立会话，源会话历史仍可查看，新会话没有源历史。跨 Bot 或不同 cwd 的 native 会话移动应拒绝并要求新会话；Project 路径编辑只决定新建会话的目录，已有会话保留记录的 cwd。
+6. Codex 会话附件/图片、插话和分叉入口应不可用；应用 slash commands、压缩和人工审批暂未接入。API 会话检查这些原有功能及问答、停止、重开行为。
+
+原生工具按 Codex 自身配置和许可执行。Merforge 的 Bot 身份/方向、工具/Skill allowlist 不构成原生工具或上下文约束；应用任务资料派发属于 Phase 5。macOS 与 Windows 分别检查，不以本机无窗口构建替代平台行为验收。
 
 ## Multica 的实现参考
 

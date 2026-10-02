@@ -316,6 +316,7 @@ export function ModelSelect(
       return
     }
     const selection: ModelSelection = {
+      ...(state.current.backend === undefined ? {} : { backend: state.current.backend }),
       provider: state.current.provider,
       model: state.current.model,
       ...effort === undefined ? {} : { reasoningEffort: effort },
@@ -393,6 +394,7 @@ export function ModelSelect(
         >
           <p>{t('backend.newConversation')}</p>
           {native && <p>{t('backend.codexCapabilities')}</p>}
+          {(native || state.failures.some(failure => failure.id === 'codex')) && <p>{t('backend.codexSetup')}</p>}
           {pane === 'root' && (
             <>
               <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('model') }}>
@@ -445,7 +447,9 @@ export function ModelSelect(
                             key={model.id}
                             title={model.name}
                             disabled={busy}
-                            onClick={() => { choose({ provider: group.id, model: model.id }) }}
+                            onClick={() => { choose({
+                              ...(group.backend === undefined ? {} : { backend: group.backend }), provider: group.id, model: model.id,
+                            }) }}
                           >
                             <span className={css.optionCopy}>
                               <span className={css.modelName}>{model.name}</span>

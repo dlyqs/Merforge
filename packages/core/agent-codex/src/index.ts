@@ -62,6 +62,9 @@ export function apply(ctx: Context, config: Config): void {
       if (catalog.account.requiresOpenaiAuth && catalog.account.kind === 'none') {
         throw new Error('codex-runtime: login required; sign in with the native Codex application, then refresh models')
       }
+      if (catalog.models.length === 0) {
+        throw new Error('codex-runtime: no available models; check native Codex account access, then refresh models')
+      }
       return { models: catalog.models.map(model => ({
         id: model.model, name: model.displayName, efforts: model.efforts, defaultEffort: model.defaultEffort,
       })) }

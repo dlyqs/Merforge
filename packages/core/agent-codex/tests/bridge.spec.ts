@@ -24,7 +24,7 @@ import Query from '@deepseek-ai/dsh-session-query'
 import Personal from '@deepseek-ai/dsh-personal-project'
 import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-codex-runtime'
-import type { SubprocessHandle, SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { afterEach, expect, it, vi } from 'vitest'
 import * as Codex from '../src/index.ts'
 import Commands from '@deepseek-ai/dsh-commands'
@@ -39,7 +39,7 @@ const selection: AgentBackendSelection = { kind: 'codex', model: 'native-test', 
 const cleanup: Array<() => Promise<void>> = []
 afterEach(async () => { for (const release of cleanup.splice(0).reverse()) await release() })
 
-function native(cwd: string) {
+function native() {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []
   const threads = new Map<string, {
     id: string
@@ -56,12 +56,13 @@ function native(cwd: string) {
   let loseTerminal = false
   let toolOnly = false
   let loggedIn = true
+  let modelsAvailable = true
   let holdCatalog = false
   let threadCount = 0
   let turnCount = 0
   let onSend: (() => Promise<void>) | undefined
   const children: Array<{ handle: SubprocessHandle; peer: JsonRpcLineTransport; exited: boolean }> = []
-  const spawn = (): SubprocessHandle => {
+  const spawn = (request: SubprocessSpawnSpec): SubprocessHandle => {
     const input = new PassThrough(), output = new PassThrough(), stderr = new PassThrough()
     const done = Promise.withResolvers<SubprocessOutcome>()
     const peer = new JsonRpcLineTransport(output, input)
@@ -87,10 +88,11 @@ function native(cwd: string) {
         case 'account/read': return { account: loggedIn ? { type: 'chatgpt', email: 'private@example.test' } : null, requiresOpenaiAuth: true }
         case 'model/list':
           if (holdCatalog) return new Promise<never>(() => {})
+          if (!modelsAvailable) return { data: [], nextCursor: null }
           return { data: [{ id: 'native-test', model: 'native-test', displayName: 'Native test', isDefault: true, hidden: false,
             defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }, { reasoningEffort: 'high' }] }], nextCursor: null }
         case 'thread/start': {
-          const thread = { id: `thread-${++threadCount}`, cwd, model: 'native-test', cliVersion: '0.153.4', ephemeral: false, historyMode: 'legacy', turns: [] }
+          const thread = { id: `thread-${++threadCount}`, cwd: request.cwd, model: 'native-test', cliVersion: '0.153.4', ephemeral: false, historyMode: 'legacy', turns: [] }
           threads.set(thread.id, thread)
           return { thread }
         }
@@ -128,6 +130,7 @@ function native(cwd: string) {
     set hold(value: boolean) { hold = value }, set loseAcceptance(value: boolean) { loseAcceptance = value },
     set loseTerminal(value: boolean) { loseTerminal = value }, set toolOnly(value: boolean) { toolOnly = value },
     set loggedIn(value: boolean) { loggedIn = value },
+    set modelsAvailable(value: boolean) { modelsAvailable = value },
     set holdCatalog(value: boolean) { holdCatalog = value },
     set failRead(value: boolean) { failRead = value },
     set onSend(value: typeof onSend) { onSend = value } }
@@ -165,7 +168,7 @@ async function boot(root: string, peer: ReturnType<typeof native>, personal = fa
 async function fixture(personal = false) {
   const root = await mkdtemp(join(tmpdir(), 'merforge-codex-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
-  const peer = native(root)
+  const peer = native()
   const ctx = await boot(root, peer, personal)
   return { ctx, root, peer }
 }
@@ -369,6 +372,21 @@ it('rejects missing native login and mismatched providers without invoking an AP
   expect(peer.children.every(child => child.exited)).toBe(true)
 })
 
+it('reports empty native model discovery as unavailable and reloads it after account access changes', async () => {
+  const { ctx, root, peer } = await fixture()
+  const remote = createSessionTestRemote(ctx, { cwd: root, defaultModelSelection: () => ({ provider: 'missing-api', model: 'no-key' }) })
+  peer.modelsAvailable = false
+  const unavailable = await remote.modelCatalog()
+  if (!unavailable.ok) throw unavailable.error
+  expect(unavailable.value).toMatchObject({ groups: [], routableProviders: [], failures: [{ id: 'codex' }] })
+  expect(unavailable.value.failures[0]?.message).toContain('no available models')
+  expect(await remote.create({ selection: { backend: 'codex', provider: 'codex', model: 'native-test' } })).toMatchObject({ ok: false })
+  expect(peer.calls.some(call => call.method === 'thread/start')).toBe(false)
+  peer.modelsAvailable = true
+  expect(await remote.modelCatalog()).toMatchObject({ ok: true, value: { groups: [{ backend: 'codex' }], failures: [] } })
+  expect(peer.children.every(child => child.exited)).toBe(true)
+})
+
 it('disposes native processes even when the Session durability barrier fails', async () => {
   const { ctx, root, peer } = await fixture()
   const handle = await ctx.agents.create({ sessionId: SessionId('native-flush-failure'), agentOptions: { backend: selection }, meta: { cwd: root } })
@@ -401,6 +419,45 @@ it('inherits native Bot defaults only for fresh conversations and preserves expl
   const handle = ctx.agents.get(first.value.sessionId)!
   await ctx.workspaceRegistry.archiveSession(first.value.sessionId)
   expect(() =>{  handle.followup(input('archived input')) }).toThrow('archived')
+})
+
+it('keeps a Bot conversation discoverable through two Remote turns, cold reads, reopening and archive restoration without an API route', async () => {
+  const { ctx, root, peer } = await fixture(true)
+  const bot = await ctx.personalProjects.createBot({ name: 'Native', defaultModel: { backend: 'codex', provider: 'codex', model: 'native-test', reasoningEffort: 'high' } })
+  const project = await ctx.personalProjects.createProject({ name: 'Project', path: root })
+  const remote = createSessionTestRemote(ctx, { cwd: root, defaultModelSelection: () => ({ provider: 'missing-api', model: 'no-key' }) })
+  const created = await remote.create({ projectId: project.id, botId: bot.id, selection: { backend: 'codex', provider: 'codex', model: 'native-test', reasoningEffort: 'medium' } })
+  if (!created.ok) throw created.error
+  const id = created.value.sessionId
+  for (const text of ['first remote input', 'second remote input']) {
+    expect(await remote.prompt({ sessionId: id, requestId: text as SessionRequestId, mode: 'queue', content: [{ type: 'text', text }] })).toMatchObject({ ok: true })
+    await ctx.agents.get(id)!.whenIdle()
+  }
+  await ctx.fiber.dispose()
+  const restarted = await boot(root, peer, true)
+  const coldRemote = createSessionTestRemote(restarted, { cwd: root, defaultModelSelection: () => ({ provider: 'missing-api', model: 'no-key' }) })
+  expect(restarted.agents.get(id)).toBeUndefined()
+  expect(await coldRemote.list({})).toMatchObject({ ok: true, value: {
+    items: [expect.objectContaining({ sessionId: id, agentAvailable: false, blank: false })],
+  } })
+  using observation = await restarted.sessionQuery.observeSession(id)
+  expect(observation.events.filter(event => event.type === 'assistant/message')).toHaveLength(2)
+  expect(Personal.fold(observation.events).current).toEqual({ projectId: project.id, botId: bot.id })
+  expect(await coldRemote.prompt({ sessionId: id, requestId: 'cold third input' as SessionRequestId, mode: 'queue', content: [{ type: 'text', text: 'third' }] })).toMatchObject({ ok: true })
+  const reopened = restarted.agents.get(id)!
+  await reopened.whenIdle()
+  expect(reopened.options.backend).toEqual(selection)
+  const events = (await readStored(restarted, id)).events
+  expect(events.filter(event => event.type === 'codex/turn-result')).toHaveLength(3)
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
+  await restarted.workspaceRegistry.archiveSession(id)
+  expect(await coldRemote.prompt({ sessionId: id, requestId: 'archived' as SessionRequestId, mode: 'queue', content: [{ type: 'text', text: 'refused' }] })).toMatchObject({ ok: false })
+  await restarted.workspaceRegistry.unarchiveSession(id)
+  expect(await coldRemote.prompt({ sessionId: id, requestId: 'restored' as SessionRequestId, mode: 'queue', content: [{ type: 'text', text: 'restored' }] })).toMatchObject({ ok: true })
+  await reopened.whenIdle()
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
+  expect(peer.calls.filter(call => call.method === 'turn/start')).toHaveLength(4)
+  expect(peer.children.every(child => child.exited)).toBe(true)
 })
 
 

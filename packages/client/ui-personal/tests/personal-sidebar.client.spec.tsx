@@ -43,12 +43,13 @@ function hook<T>(value: T) {
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
-function mount(sessionList: SessionListState = list, section?: PersonalSidebarProps['section']) {
+function mount(sessionList: SessionListState = list, section?: PersonalSidebarProps['section'], overrides: Partial<PersonalSidebarProps> = {}) {
   const openSession = vi.fn()
   const moveSession = vi.fn(async () => {})
   const deleteSession = vi.fn(async () => {})
   const createSession = vi.fn(async () => sessionId)
   const createProject = vi.fn(async () => {})
+  const createBot = vi.fn(async () => {})
   const pickDirectory = vi.fn(async () => '/tmp/picked-project')
   const props: PersonalSidebarProps = {
     renderSlot: () => <span>Task plans</span>, renderSlotChain: () => null, SessionProvider: ({ children }) => <>{children}</>,
@@ -58,16 +59,37 @@ function mount(sessionList: SessionListState = list, section?: PersonalSidebarPr
     useRecords: hook({ phase: 'ready' as const, projects: [project(projectA, 'Alpha'), project(projectB, 'Beta')], bots: [bot] }),
     refresh: vi.fn(async () => {}), createProject, updateProject: vi.fn(async () => {}),
     pickDirectory,
-    deleteProject: vi.fn(async () => {}), createBot: vi.fn(async () => {}), updateBot: vi.fn(async () => {}),
+    deleteProject: vi.fn(async () => {}), createBot, updateBot: vi.fn(async () => {}),
     deleteBot: vi.fn(async () => {}), deleteSession, createSession, moveSession,
     refreshAffiliation: vi.fn(async () => {}), openSession, unarchiveSession: vi.fn(async () => {}),
     t: makeTranslate(zh, commonZh),
+    ...overrides,
   }
   render(<PersonalSidebar {...props} />)
-  return { deleteSession, openSession, moveSession, createSession, createProject, pickDirectory }
+  return { deleteSession, openSession, moveSession, createSession, createProject, createBot, pickDirectory }
 }
 
 describe('personal sidebar', () => {
+  it('requires a native model and reloads discovery after sign-in before saving a Codex Bot', async () => {
+    const loadModels = vi.fn().mockResolvedValueOnce({ groups: [], failures: [{ id: 'codex', name: 'Codex', message: 'login required' }] })
+      .mockResolvedValueOnce({ groups: [{ id: 'codex', backend: 'codex', name: 'Codex', models: [{ id: 'native', name: 'Native', reasoning: { efforts: [{ id: 'medium', name: 'Medium' }], defaultEffort: 'medium' } }] }], failures: [] })
+    const { createBot } = mount(list, 'bots', { loadModels })
+    fireEvent.click(screen.getByRole('button', { name: zh.addBot }))
+    fireEvent.change(screen.getByLabelText(zh.name), { target: { value: 'Native Bot' } })
+    fireEvent.change(screen.getByLabelText(zh.backend), { target: { value: 'codex' } })
+    await screen.findByText('Codex: login required')
+    expect(screen.getByText(zh.codexSetup)).toBeTruthy()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.save }).disabled).toBe(true)
+    fireEvent.submit(screen.getByLabelText(zh.name).closest('form')!)
+    expect(createBot).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: zh.refreshModels }))
+    await screen.findByRole('option', { name: 'Native' })
+    fireEvent.change(screen.getByLabelText(zh.modelName), { target: { value: JSON.stringify(['codex', 'native']) } })
+    fireEvent.click(screen.getByRole('button', { name: zh.save }))
+    await waitFor(() => { expect(createBot).toHaveBeenCalledWith(expect.objectContaining({ defaultModel: { backend: 'codex', provider: 'codex', model: 'native', reasoningEffort: 'medium' } })) })
+    expect(loadModels).toHaveBeenCalledTimes(2)
+  })
+
   it('shows Project and Bot as direct sidebar sections without a personal group toggle', () => {
     mount()
     expect(screen.getByText(zh.projects)).toBeTruthy()

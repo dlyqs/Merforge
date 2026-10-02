@@ -8,7 +8,7 @@
 
 这是涉及 Agent 驱动、持久日志、工具许可、组织权限及 Desktop 组合的大目标。用户于 2026-10-02 明确授权“请自动完成 phase1-2”；该次执行范围为 Phase 1 至 Phase 2，已完成。用户随后于 2026-10-02 明确授权“[codex-backend-plan.md](docs/codex-backend-plan.md) 请自动完成 phase3-4”；原连续执行范围为 Phase 3 至 Phase 4，包含首尾；用户随后要求完成 Phase 3 后停止，本轮终点已相应缩至 Phase 3。
 
-用户随后于 2026-10-02 明确调整责任：“如果使用 codex 那么任务的完成不需要当前应用来确保……当前应用只需要能作为一个桥传递发送信息给 codex 执行，然后能获取到 codex 的输出和执行结果就行。”该说明替代先前“保留原门槛”的决定。Codex 模式由原生执行器拥有上下文、工具和执行质量；Merforge 拥有任务调度、发送记录、thread 关联、输出/结果接收、停止与组织真人动作。应用记录桥接转录，不要求重建 Codex 内部模型请求，也不以自身工具 guard、逐模型请求许可或独立产物核验作为 Codex 接入前置。API 后端仍遵循既有执行和日志要求。该责任定义继续有效；执行范围以用户最新的 Phase 3 停止要求为准。
+用户随后于 2026-10-02 明确调整责任：“如果使用 codex 那么任务的完成不需要当前应用来确保……当前应用只需要能作为一个桥传递发送信息给 codex 执行，然后能获取到 codex 的输出和执行结果就行。”该说明替代先前“保留原门槛”的决定。Codex 模式由原生执行器拥有上下文、工具和执行质量；Merforge 拥有任务调度、发送记录、thread 关联、输出/结果接收、停止与组织真人动作。应用记录桥接转录，不要求重建 Codex 内部模型请求，也不以自身工具 guard、逐模型请求许可或独立产物核验作为 Codex 接入前置。API 后端仍遵循既有执行和日志要求。该责任定义继续有效。用户于 2026-10-02 最新要求“继续完成 phase4”，本轮只完成 Phase 4 后停止，不进入 Phase 5。
 
 范围内：
 
@@ -74,7 +74,7 @@
 | Phase 1 | 协议与能力核验 | 固化运行时与消费者接口 | completed | 设计、固定版本 schema 与离线核验 | 历史日志/工具门槛已按用户说明修订 |
 | Phase 2 | 共用 Codex runtime | 传输、进程、账号/模型、持久 thread | completed | 共用 runtime、one-shot 迁移、110 项回归与 2 项产物 smoke | 原生登录/真实模型/双平台待验；未挂 Desktop |
 | Phase 3 | 日志与对话驱动 | 多后端路由、Session、发送/流/重开 | completed | 单 factory native driver、持久意图/回执/结果、停止与恢复 | 聚焦回归/build/无窗口 smoke 通过；真实模型待验 |
-| Phase 4 | 个人 Desktop 接入 | 无 API key 选择 Codex、持续对话和配置 | in_progress | 已有 catalog、Bot/UI/Host 接线与测试代码 | 用户要求完成 Phase 3 后停止；保留部分实现，未宣布阶段完成 |
+| Phase 4 | 个人 Desktop 接入 | 无 API key 选择 Codex、持续对话和配置 | completed | catalog、Bot 默认值、模型/effort 选择与刷新、多轮/冷重开/归档回归、Desktop build | 工程验收完成；真实登录/模型和可见验收待用户 |
 | Phase 5 | 个人工作流与人工请求 | 任务管理桥、审批/等待、停止/恢复 | pending | — | 依赖 Phase 4；不实现 7C 自动识别 |
 | Phase 6 | 组织调度资格 | 外部策略、启动/继续许可与固定传输 | pending | — | 依赖 Phase 1、5 |
 | Phase 7 | 组织 Codex 执行桥 | 任务派发、独立转录与原生结果 | pending | — | 依赖 Phase 6 |
@@ -177,15 +177,29 @@ Phase 1–2 的清单和完成记录保留当时的工程证据；其中完整�
 
 验收清单：
 
-- [ ] 后端与模型/effort 选择来自实际 catalog；可继承 Bot 默认值，显式 Session 选择优先；旧 API 模型配置与会话不丢失。
-- [ ] Codex 选择不触发 API key 表单或后台 API 调用；缺登录/runtime/模型时显示准确原因与用户可操作步骤。
-- [ ] 文字和受支持的工具过程/终态接入同一会话展示、列表/查询/归档；至少两轮以及关闭重开有稳定关系。
-- [ ] 不支持的图像/上传/steering/fork 在发送前拒绝，UI 与 Host 同步核验；不能只禁用按钮。
-- [ ] 选择别的后端、项目 cwd/Bot 归属变化不把旧 native thread 沿用到新配置，不泄露其他会话历史。
+- [x] 后端与模型/effort 选择来自实际 catalog；可继承 Bot 默认值，显式 Session 选择优先；旧 API 模型配置与会话不丢失。
+- [x] Codex 选择不触发 API key 表单或后台 API 调用；缺登录/runtime/模型时显示准确原因与用户可操作步骤。
+- [x] 文字和受支持的工具过程/终态接入同一会话展示、列表/查询/归档；至少两轮以及关闭重开有稳定关系。
+- [x] 不支持的图像/上传/steering/fork 在发送前拒绝，UI 与 Host 同步核验；不能只禁用按钮。
+- [x] 选择别的后端、项目 cwd/Bot 归属变化不把旧 native thread 沿用到新配置，不泄露其他会话历史。
 
 助理验证：catalog/选择迁移/纯 UI 投影及 Host Remote 测试，相关 Client/Host 类型、局部 lint、i18n 和资源构建；不拉起页面。用户检查：无应用 key 的普通问答、两轮上下文、重开、停止、Bot 默认值和 API 后端回归。依赖：Phase 3。
 
-实际进度（2026-10-02）：已写入 Desktop 私有 Host driver 接线、原生 catalog/effort 与错误刷新、Bot 默认 backend、模型选择的新会话交接、native 结果/恢复卡及 UI 附件/steering/fork 限制；部分静态和纯逻辑/Host 用例已随 Phase 3 验证。用户要求 Phase 3 完成后停止，因此保留这些改动，不再推进 Phase 4，也不将本阶段标成 completed。后续明确续接时先审阅当前改动，再完成本阶段验收和文档。
+实际完成（2026-10-02）：审阅并完成此前保留的 Desktop 私有 Host、catalog、Bot、输入框、native 结果/恢复卡和后端切换接线。修复模型菜单选择 Codex 或更改 effort 时丢失 backend 字段；Bot 编辑选择 Codex 后必须明确选择模型，不能将空选择保存成 API 默认继承。补充 typed 中英文原生登录/安装提示与 Bot 模型刷新入口；Host 对空 native 模型目录明确报不可用，恢复账号访问后显式刷新。
+
+工程证据：真实 Loader/JSONL/存储及 Remote、确定性 native 协议覆盖 Bot 默认继承、显式 Session 优先、两轮输出、冷列表/查询、重开第三轮、归档拒绝发送/恢复续聊，以及已有停止、缺登录、未知回执、API↔Codex 独立交接、冷归属变更拒绝和上传拒绝。纯组件测试覆盖模型/effort 提交与 Bot 未选模型拒绝、登录后刷新再保存；native 工具/恢复卡的完整、分页和增量投影回归通过。新增组合 fixture 按 subprocess 请求的 canonical cwd 返回 thread，适配 macOS 临时目录符号链接。
+
+验证命令与结果：
+
+- `pnpm exec vitest run packages/core/agent-codex/tests packages/api/session-controller/tests/session-models.host.spec.ts packages/workspace/personal-project/tests packages/client/ui-model-selection/tests packages/client/ui-personal/tests packages/client/ui-chat/tests/conversation-node-definitions.client.spec.ts`：13 文件/198 项通过。
+- `pnpm exec vitest run packages/client/ui-conversation/tests/input-bar.client.spec.tsx -t 'native'`：4 项通过，93 项非 native 用例未运行；已知旧 plan/goal 文案基线不在本阶段范围。
+- `pnpm run build`、`pnpm exec tsdown --filter @deepseek-ai/dsh-agent-codex --env.DSH_BUILD_FACE host --logLevel warn`、`node apps/desktop-host/tests/codex-built-smoke.mjs` 通过。后两项在 Host 空模型诊断修改后重新构建该包并验证产物；不启动窗口或真实模型。
+- `pnpm exec tsc -b packages/client/ui-personal packages/client/ui-model-selection packages/client/ui-chat packages/client/ui-conversation/tsconfig.client.json packages/api/session-controller/tsconfig.host.json apps/desktop-host` 与 `pnpm exec tsc -b packages/core/agent-codex` 通过。
+- `pnpm exec tsx scripts/run-oxlint.ts packages/client/ui-model-selection/src packages/client/ui-model-selection/tests/model-select.client.spec.tsx packages/client/ui-personal/src packages/client/ui-personal/tests/personal-sidebar.client.spec.tsx packages/core/agent-codex/tests/bridge.spec.ts` 与 `pnpm exec tsx scripts/run-oxlint.ts packages/core/agent-codex/src packages/core/agent-codex/tests/bridge.spec.ts` 修复新增行长及 matcher 的类型问题后通过。
+- `pnpm exec tsx scripts/verify-client-ui-i18n.ts`、`pnpm exec tsx scripts/verify-cordis-config.ts`、`pnpm exec tsx scripts/verify-application-entrypoints.ts` 通过。Phase 3 已记录的全局 API/config 生成及无关门禁基线本轮未复跑，未计为通过。
+- `git diff --check` 通过。
+
+用户待验：按[个人 Desktop 验收步骤](codex-backend.md#个人-desktop-验收步骤)检查本人原生登录、无应用 key 的问答、两轮上下文、停止/重开和 API 后端回归。真实模型、可见 Desktop、Windows、打包签名未运行；替身测试不代表这些项目通过。未拉起页面、使用 Playwright/GitNexus、安装 runtime、修改原生账号、commit/push 或创建 Agent Notes。下一阶段 Phase 5 保持 pending，本轮在 Phase 4 工程完成后停止。
 
 ## Phase 5：个人工作流、任务管理桥与人工请求
 
@@ -314,7 +328,7 @@ Phase 1–2 的清单和完成记录保留当时的工程证据；其中完整�
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 执行授权：2026-10-02 用户原授权自动完成 Phase 3–4；随后要求“做完 phase3 就先停止”，将本轮终点改为 Phase 3。Phase 3 已完成，按最新要求停止并恢复 manual、清空自动边界；Phase 4 部分改动保留，relay 关闭，不进入 Phase 5。
+- 执行授权：2026-10-02 用户在 Phase 3 完成并停止后要求“继续完成 phase4”。本轮只执行 Phase 4；完成后保持 manual、两个自动边界 none、relay 关闭，Phase 5 等待新的执行要求。
 
 1. 新计划先评审，创建本文件不启动 Phase 1。后续执行先读取本文、overview、当前用户要求及适用 AGENTS；改 `packages/` 前读 architecture，生命周期/并发/销毁前读 defensive-patterns。
 2. “执行 Phase X”只执行该阶段，包含明确单阶段命令时该轮不推进下一阶段；不改变既有自动模式，除非用户也要求变更。“继续”先重检有关 blocked 的解除条件，随后选择首个 in_progress，否则首个 pending；依赖未完成且不可隔离时停止报告依赖。
