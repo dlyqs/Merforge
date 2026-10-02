@@ -153,3 +153,38 @@ it('keeps organization selection after a denied task read so other authorized ta
     ...h.save, ...query, definition, operationId: randomUUID(), expectedRevision: 0,
   } })).receipt?.planRevision).toBe(1)
 }, 20000)
+
+it('settles automatic denied detail reads without repeatedly refreshing the organization', async () => {
+  const h = await setup()
+  const denied = () => h.memberClient.perform({ kind: 'workgraph-read', request: h.query })
+  const before = h.memberClient.snapshot().generation
+  await expect(denied()).rejects.toThrow('forbidden')
+  const refreshed = h.memberClient.snapshot().generation
+  expect(refreshed).toBeGreaterThan(before)
+  for (let i = 0; i < 3; i++) {
+    await expect(denied()).rejects.toThrow('forbidden')
+    expect(h.memberClient.snapshot().generation).toBe(refreshed)
+    expect(h.memberClient.snapshot().phase).toBe('ready')
+  }
+  await expect(h.memberClient.perform({ kind: 'assignment-review', request: {
+    ...h.query, taskId: h.grant.taskId, planRevision: 1, assigneeId: h.member.membershipId,
+  } })).rejects.toThrow('forbidden')
+  expect(h.memberClient.snapshot().generation).toBe(refreshed)
+  const selector = { ...h.query, assignmentId: randomUUID() }
+  await expect(h.memberClient.perform({ kind: 'execution-list', request: selector })).rejects.toThrow('forbidden')
+  await expect(h.memberClient.perform({ kind: 'delivery-read', request: selector })).rejects.toThrow('forbidden')
+  expect(h.memberClient.snapshot().generation).toBe(refreshed)
+  expect((await h.memberClient.perform({ kind: 'workgraph-tasks', request: h.query })).workgraph?.result)
+    .toMatchObject({ value: { total: 1 } })
+  await h.memberClient.perform({ kind: 'reconnect' })
+  const reconnected = h.memberClient.snapshot().generation
+  await expect(denied()).rejects.toThrow('forbidden')
+  expect(h.memberClient.snapshot().generation).toBeGreaterThan(reconnected)
+  const beforeGrant = h.memberClient.snapshot().generation
+  await h.ownerClient.perform({ kind: 'workgraph-grant', request: {
+    ...h.grant, taskId: h.save.definition.taskId, expectedVersion: 0, operationId: randomUUID(),
+  } })
+  await expect.poll(() => h.memberClient.snapshot().generation).toBeGreaterThan(beforeGrant)
+  await expect.poll(() => h.memberClient.snapshot().phase).toBe('ready')
+  expect((await denied()).workgraph?.result).toMatchObject({ kind: 'plan', value: { revision: 1 } })
+}, 20000)

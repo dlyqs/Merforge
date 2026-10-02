@@ -32,6 +32,7 @@ export class OrganizationConnection {
   private token: LoginToken | undefined
   private serverId: ServerId | undefined
   private generation = 0
+  private denialRefreshed = false
   private discardedResponses = 0
   private cancel = new AbortController()
   private executionLifetime = new AbortController()
@@ -146,10 +147,11 @@ export class OrganizationConnection {
       try { listener() } catch (error) { console.error('organization component=connection result=observer-failed', error instanceof Error ? error.name : 'Error') }
     }
   }
-  private reset(next: Partial<ConnectionSnapshot>): number {
+  private reset(next: Partial<ConnectionSnapshot>, denialRefreshed = false): number {
     this.cancel.abort(); this.cancel = new AbortController()
     clearTimeout(this.retry)
     this.generation++
+    this.denialRefreshed = denialRefreshed
     this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
       members: [], error: undefined, ...next })
     return this.generation
@@ -179,9 +181,12 @@ export class OrganizationConnection {
       else if (code === 'forbidden') {
         if (route.startsWith('/integration/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
           || route.startsWith('/assignment/') || route.startsWith('/device/')) {
-          const next = this.reset({ phase: 'loading', error: code })
-          try { await this.refresh(next) } catch (_error) {
-            if (next === this.generation && this.token) this.offline(next)
+          // Automatic detail readers retry after refresh; repeated denials must settle in that generation.
+          if (!this.denialRefreshed) {
+            const next = this.reset({ phase: 'loading', error: code }, true)
+            try { await this.refresh(next) } catch (_error) {
+              if (next === this.generation && this.token) this.offline(next)
+            }
           }
         } else this.reset({ organizationId: undefined, phase: 'ready', error: code })
       }
