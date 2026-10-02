@@ -34,6 +34,7 @@ export type CompactionTrigger = 'pressure' | 'context-overflow'
 /** Expected failure classes for an explicit idle-session compaction request. */
 export type ManualCompactionErrorCode =
   | 'busy'
+  | 'unsupported-backend'
   | 'cancelled'
   | 'changed'
   | 'summary'
@@ -154,7 +155,7 @@ export abstract class CompactionEngine extends Service {
    * @param signal - cancellation scoped to this compaction request.
    * @param sourceCommandId - initiating command identity for a manual compaction.
    * @returns the compaction result, or `null` when no safe useful range exists.
-   * @throws {@link ManualCompactionError} for expected busy, agent-cancellation,
+   * @throws {@link ManualCompactionError} for unsupported backends, busy, agent-cancellation,
    * changed-span, summarization/shrink, commit-stage, or persistence failures;
    * an aborted request preserves its exact abort reason. Failed attempts remain
    * visible in the log.

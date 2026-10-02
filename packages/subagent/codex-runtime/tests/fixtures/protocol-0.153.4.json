@@ -1149,5 +1149,79 @@
       "clientUserMessageId": true,
       "effort": true
     }
+  },
+  "conversationObservations": {
+    "threadItemTypes": [
+      "userMessage",
+      "hookPrompt",
+      "agentMessage",
+      "functionCallOutput",
+      "plan",
+      "reasoning",
+      "commandExecution",
+      "fileChange",
+      "mcpToolCall",
+      "dynamicToolCall",
+      "collabAgentToolCall",
+      "subAgentActivity",
+      "webSearch",
+      "imageView",
+      "sleep",
+      "imageGeneration",
+      "enteredReviewMode",
+      "exitedReviewMode",
+      "contextCompaction"
+    ],
+    "responseFields": {
+      "v2/ThreadStartResponse.json": [
+        "activePermissionProfile",
+        "approvalPolicy",
+        "approvalsReviewer",
+        "cwd",
+        "instructionSources",
+        "model",
+        "modelProvider",
+        "multiAgentMode",
+        "reasoningEffort",
+        "runtimeWorkspaceRoots",
+        "sandbox",
+        "serviceTier",
+        "thread"
+      ],
+      "v2/ThreadResumeResponse.json": [
+        "activePermissionProfile",
+        "approvalPolicy",
+        "approvalsReviewer",
+        "cwd",
+        "initialTurnsPage",
+        "instructionSources",
+        "itemsBackwardsCursor",
+        "model",
+        "modelProvider",
+        "multiAgentMode",
+        "reasoningEffort",
+        "runtimeWorkspaceRoots",
+        "sandbox",
+        "serviceTier",
+        "thread",
+        "turnsBackwardsCursor"
+      ],
+      "v2/RawResponseItemCompletedNotification.json": [
+        "item",
+        "threadId",
+        "turnId"
+      ],
+      "v2/RawResponseCompletedNotification.json": [
+        "responseId",
+        "threadId",
+        "turnId",
+        "usage",
+        "usageMetadata"
+      ],
+      "v2/AccountUpdatedNotification.json": [
+        "authMode",
+        "planType"
+      ]
+    }
   }
 }

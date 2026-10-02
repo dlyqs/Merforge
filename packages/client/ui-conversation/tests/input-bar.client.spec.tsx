@@ -55,6 +55,7 @@ function snapshotOf(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
 }
 
 interface BenchOptions {
+  native?: boolean
   planEntry?: React.ReactNode
   /** The `plan` projection value the standard-kit useProjection serves. */
   plan?: { active: boolean; pending: boolean }
@@ -188,9 +189,10 @@ function bench(over?: BenchOptions) {
     useProjection: ((key: string, selector?: (v: unknown) => unknown) =>
       (selector ?? (v => v))(key === 'plan'
         ? over?.plan
-        : key === 'goal' ? over?.goal
-          : key === 'imageLimits' ? over?.imageLimits
-            : key === 'contextPressure' ? over?.contextPressure : undefined)),
+        : key === 'modelSelection' ? over?.native ? { next: { backend: 'codex' } } : undefined
+          : key === 'goal' ? over?.goal
+            : key === 'imageLimits' ? over?.imageLimits
+              : key === 'contextPressure' ? over?.contextPressure : undefined)),
     useInput: bindSnapshotSelector(shell.state),
     inputActions: shell.actions,
     keyboard: shell,
@@ -231,7 +233,7 @@ function bench(over?: BenchOptions) {
   // command lines keep plain Send (an ordinary running session's empty draft
   // is the Stop seat). The mirror models plain-phase drafts only: cases
   // that claim a command or freeze the machine query the DOM directly.
-  const steeringAvailable = over?.subagent === undefined || over.subagent.address.mode === 'continuable'
+  const steeringAvailable = !over?.native && (over?.subagent === undefined || over.subagent.address.mode === 'continuable')
   const composerLocked = over?.disabled === true || over?.inert === true || over?.blocked !== undefined
     || (over?.subagent?.address.mode === 'continuable' && over.subagent.parentAvailable !== true)
   const uploadsPending = (over?.attachments ?? []).some(attachment =>
@@ -1751,4 +1753,17 @@ it('places context usage below the composer and hides it until the activity clos
   fireEvent.click(view.getByRole('button', { name: '上下文已用 25%' }))
   expect(view.getByRole('dialog', { name: '上下文已用' })).toBeTruthy()
   expect(view.getByRole('button', { name: '发送消息' })).toBeTruthy()
+})
+
+
+it('native conversations disable attachment intake and submit running text as queued follow-up', async () => {
+  const addFiles = vi.fn(() => null)
+  const { view, textarea, sink } = bench({ native: true, running: true, busyEnter: 'steer', draft: 'native follow-up', addFiles })
+  expect(view.container.querySelector<HTMLInputElement>('input[type="file"]')?.disabled).toBe(true)
+  const image = new File([Uint8Array.of(1)], 'image.png', { type: 'image/png' })
+  fireEvent.paste(textarea, { clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => image }], getData: () => '' } })
+  expect(addFiles).not.toHaveBeenCalled()
+  fireEvent.keyDown(textarea, { key: 'Enter' })
+  await vi.waitFor(() => { expect(sink).toHaveBeenCalledOnce() })
+  expect(sink.mock.calls[0]?.[2]).toBe('queue')
 })

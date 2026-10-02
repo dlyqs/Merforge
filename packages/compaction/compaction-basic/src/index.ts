@@ -361,6 +361,7 @@ export class BasicCompactionEngine extends CompactionEngine {
     agent: Agent,
     signal?: AbortSignal,
   ): Promise<CompactionResult> {
+    if (agent.options.backend !== undefined) throw new ManualCompactionError('unsupported-backend', 'Codex owns native context compaction')
     return compactSurfaceRegion(
       this.regionDependencies(),
       agent.session,
@@ -386,6 +387,7 @@ export class BasicCompactionEngine extends CompactionEngine {
     sourceCommandId?: CommandId,
   ): Promise<CompactionResult | null> {
     signal.throwIfAborted()
+    if (agent.options.backend !== undefined) throw new ManualCompactionError('unsupported-backend', 'Codex owns native context compaction')
     try {
       return agent.runMaintenance(async (agentSignal) => {
         const operationSignal = AbortSignal.any([agentSignal, signal])

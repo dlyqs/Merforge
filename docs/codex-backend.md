@@ -1,6 +1,6 @@
 # Codex 后端协议与消费规则
 
-本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–2 提供协议核验与共用 runtime，主对话接线属于 Phase 3–4。
+本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–3 已提供协议核验、共用 runtime 和主对话驱动，Phase 4 的 Desktop 接线已有部分实现、尚未完成阶段收尾；Codex 模式采用原生执行桥，由应用派发任务并接收输出和结果。
 
 ## 固定版本与证据等级
 
@@ -13,48 +13,63 @@
 | `model/list` | `data`、可空 `nextCursor`；读取完整分页，支持 effort 与默认 effort 来自原生 catalog；缓存限时、认证/限额/配置变更失效 |
 | `thread/start` | 明确 `ephemeral`；持久模式必须显式协商 `experimentalApi: true` 才能指定 `historyMode: legacy` 和 `allowProviderModelFallback`（两字段不在 stable schema）；显式 model、cwd、approvalPolicy 与 `allowProviderModelFallback: false`；返回配置必须匹配 |
 | `thread/read` | `threadId`、`includeTurns`；返回 thread/cwd/cliVersion/ephemeral/historyMode/turns。legacy 历史用于应用重开核对；拒绝分页或裁剪的历史，不能当完整模型上下文 |
-| `thread/resume` | 只接受已经 read 核对的同一 ID、cwd、model、runtime 与 legacy 历史；不接受 `path/history` 替换，不自动创建新 thread |
+| `thread/resume` | 只接受已经 read 核对的同一 ID、cwd、model、runtime 与 legacy 历史；不接受 `path/history` 替换；响应带 `turnsBackwardsCursor`、`itemsBackwardsCursor` 或 `initialTurnsPage` 时退休连接并保留 unknown，不自动创建新 thread |
 | `turn/start` | text input、threadId、`clientUserMessageId`、model、effort；client ID 是核对标识，不是上游幂等承诺；发送前 await 消费者持久意图 |
 | `turn/interrupt` | threadId + turnId；停止先请求 interrupt，等待准确终态，期限后关闭监听并由 subprocess owner 终止整个范围、await done |
 | `turn/completed` | threadId + turn.id，status 为 `completed/interrupted/failed/inProgress`；只有前三者是终态。进程 exit、末条消息或旧 turn 不结束当前 turn |
 | `item/completed`、`item/agentMessage/delta` | 匹配准确 thread/turn；item ID 品牌化。迟到旧 turn 或其他 thread 事件丢弃，响应前事件限额缓冲后再按返回 ID 接纳 |
 | 动态工具与人工请求 | `dynamicTools`、`item/tool/call`、`item/tool/requestUserInput` 需要实验准入；当前共用 runtime 不开放。未知服务端 request 固定拒绝，不能借实验开关自动放行 |
 
+## Codex 与应用的责任
+
+用户于 2026-10-02 明确：Codex 模式下 Merforge 是调度、任务管理和组织应用，只需传递输入并取得 Codex 的输出与执行结果。Codex 拥有内部模型请求、原生上下文、工具、配置与执行质量；Merforge 拥有后端选择、task/Session/thread 关联、发送意图、输出和终态记录、恢复、停止、访问权限及真人管理动作。不调用内部 API 模型监督 Codex，不要求应用独立验证其任务结果。
+
+应用转录记录发送内容、接收输出和原生工具条目，不宣称是完整模型日志。`thread/read` 的 typed items、raw response 与 `instructionSources` 路径不能重建完整请求；这仍是能力事实，但不再阻塞 Codex 接入。`completeModelLog: false` 继续如实声明。Harness API 后端仍保留自身完整请求日志和工具 guard；这些规则不强加到 Codex 内部执行。
+
+组织应用后续仍复核是否允许向指定设备派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
+
+
 不向 Renderer 或业务消费者开放通用 RPC（Host 底层 transport 仅供协议实现共用）、CustomArgs、PATH fallback、任意二进制路径、原生登录修改或自动安装。one-shot 保留现有权限模式、ephemeral 单 turn、最终回答选择和安全诊断；共享传输与进程 owner，不扩大其恢复或工具能力。
 
-## 模式与硬门槛
+## 当前能力与后续接入
 
-| 能力 | 个人 native | 个人受控工作流 | 组织 Run |
-| --- | --- | --- | --- |
-| 持久 text thread、显式 model/effort、多轮/interrupt | schema + 假协议/进程测试；真实模型待用户 | 同左，但不能以此获得执行资格 | 同左，但不能以此获得执行资格 |
-| 原生登录与配置 | 本机原生机制拥有；有效登录待用户 | 独立 home 认证与上下文核验未通过 | 员工本机独立 home 认证未通过 |
-| shell/file/MCP/skills/memory/subagent 禁用 | 不承诺禁用，也不宣称 Harness guard 覆盖 | 未验证，拒绝该模式 | 未验证，拒绝该模式 |
-| 模型请求/重试逐动作许可与预算 | 不承诺逐请求控制 | 未验证 | 未验证，不能用 turn 数冒充请求预算 |
-| 完整模型可见日志 | 原生 rollout + 应用输入核对仍待 Phase 3/5；应用转录不是完整日志 | 必须验证无隐式注入 | 必须验证隔离与所有逐动作许可 |
-| 真人审批、steering、fork、图像/附件 | 当前 runtime 拒绝；逐项另行准入 | Phase 5 前拒绝 | Phase 6–7 准入前拒绝 |
+| 能力 | 当前工程事实 | 应用消费方式 |
+| --- | --- | --- |
+| 持久 text thread、model/effort、多轮/interrupt | schema + fake 协议/进程测试通过；真实模型待用户 | Phase 3 已接入个人执行桥；Phase 4 消费方收尾待续接 |
+| 登录与配置 | 原生机制拥有；有效登录待用户 | 只读取安全可用状态，不输出凭据或邮箱 |
+| 原生 shell/file/MCP/skills/memory/subagent | 使用 Codex 自身机制，未声明应用 guard 控制 | 原生执行器负责，任务管理桥只限制应用动作 |
+| 内部模型请求/重试限额 | 无应用逐请求 permit | 按有界运行/turn 和停止管理，不宣称逐请求预算 |
+| 完整模型可见日志 | `completeModelLog: false` | 应用只声明桥接转录；不作为准入门槛 |
+| 人工请求、steering、fork、图像/附件 | 当前共用 runtime 拒绝 | 逐项实现并在 Host/UI 同步声明；组织派发当前未接线 |
 
-受控和组织资格当前为 **不支持**，不是退化为 native。生成 schema 的 `config` 字典、read-only sandbox 或动态工具列表不能证明关闭全部原生工具或完整记录上下文。后续证据方案：在临时独立 home 与 cwd 中设置带唯一标记的用户/project 配置、AGENTS、skills、memory、MCP 和插件；用本地可观察模型 fixture 收集真实请求工具 schema 与上下文，分别尝试 shell/file/search/MCP/subagent/背景动作，检查工具缺席且执行处拒绝；在模型请求与重试派发点验证撤权、许可消耗和预算，在 macOS/Windows 验证进程/出站隔离。核验必须观察真实协议请求和实际文件/网络行为，不能依靠模型自报或提示词。现有 schema 没有为每一次内部模型请求提供可验证的 Harness permit hook；缺少 runtime hook 或独立隔离等价实现时，Phase 6/7 必须 blocked。
+当前 runtime 仍只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；这描述现有代码，没有据此宣布未来调度桥已实现。后续组织资格由任务管理消费方拥有，不再以“关闭全部原生工具、重建全部内部模型请求”作为实现目标。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
+
+## Multica 的实现参考
+
+本地只读源码快照为提交 `32a396fd520bdbdec2d6cd95b5742da946003ca9`，未运行其产品或复制代码。`server/pkg/agent/codex.go` 启动 `codex app-server --listen stdio://`，initialize 后执行 thread/start 或 thread/resume，再 turn/start；把通知映射为 text/thinking/tool-use/tool-result/status/error，并依据当前 turn 的 completed/failed/interrupted 接收终态。最终 Result 包含 Status、Output、Error、SessionID、DurationMs 与可用 Usage，优先选择 phase 为 final_answer 的助手输出。Supplement 使用 turn/steer，停止使用 turn/interrupt 与进程树清理。
+
+每次 Execute 有独立 app-server 进程，多轮关系通过返回的原生 thread ID 和后续 ResumeSessionID 延续。`execenv/codex_home.go` 准备任务运行目录：共享 auth.json 的符号链接，复制选定配置与 instructions，按 agent/issue-or-chat 维持原生 sessions 存储。它允许 Codex 自身加载原生上下文和工具，没有把完整模型请求可重建设为该 adapter 的发送前置。Merforge 采用相同的派发/事件/结果职责；认证目录处理、恢复失败自动新建和平台权限策略独立选择，不照搬。
 
 ## Service Definition / Provider / Consumer 与所有者
 
-`packages/subagent/codex-runtime` 的类型定义固定 RPC、品牌 thread/turn/item/input ID、能力、账号模型快照、持久意图与终态。其实现提供官方固定 payload、线帧/请求关联、subprocess 生命周期及持久 thread 操作。现有 `subagent-codex` 消费共用传输、固定命令和清理，继续拥有一次性委派策略。Phase 3 的 `agent-codex` 才是持久对话消费者，当前不预建空包或挂进 Desktop。
+`packages/subagent/codex-runtime` 的类型定义固定 RPC、品牌 thread/turn/item/input ID、能力、账号模型快照、持久意图与终态。其实现提供官方固定 payload、线帧/请求关联、subprocess 生命周期及持久 thread 操作。现有 `subagent-codex` 消费共用传输、固定命令和清理，继续拥有一次性委派策略。Phase 3 的 `agent-codex` 是持久对话消费者，已挂入 Desktop 私有 Host。
 
-Phase 3 保留 `AgentRegistry` 的唯一 factory slot：由一个 router factory 委派到 backend-keyed driver，API loop 注册为 `harness-api`，Codex driver 注册为 `codex`。router 在 Session prepare/load 时解析且持久选择；不能注册第二个竞争 factory。driver 必须完成现有 unpublished setup/commit、caller fiber/parent ownership、collision 检查、created/disposed 配对与有序 quiescence。一个 Session 当前只有一个 driver 和一个持久 handle writer；runtime 只写原生历史，不直接写 Harness Session。
+Phase 3 保留 `AgentRegistry` 的唯一 factory slot：`agent-loop` factory 在 prepare/load 时委派到 `codex` driver；无外部选择时保留 API loop。factory 解析持久选择；不能注册第二个竞争 factory。driver 完成现有 unpublished setup/commit、caller fiber/parent ownership、collision 检查、created/disposed 配对与有序 quiescence。一个 Session 当前只有一个 driver 和一个持久 handle writer；runtime 只写原生历史，不直接写 Harness Session；driver 记录应用发送和接收的内容。
 
-持久选择为判别联合：`harness-api {provider, model}` 或 `codex {runtimeVersion, model, effort, mode}`。创建优先级是显式 Session 选择 → Bot 默认选择 → 现有 API 默认值。没有选择事件的旧 Session 解析为 API；resume 只能使用当前持久选择，显式冲突拒绝。API↔Codex 切换创建关联新 Session，交接内容可审阅并先记录；不继承原生 thread，也不静默转换 API 历史。Bot、cwd、账号、runtime 或授权变化要求重核对；缺能力/模型/认证明确失败，没有 API fallback。
+API 选择保持既有 provider/model/reasoningEffort 事件；外部选择通过 `agent/backend {kind: codex, runtimeVersion, model, effort}` 固定。创建优先级是显式 Session 选择 → Bot 默认选择 → 现有 API 默认值。没有后端事件的旧 Session 保留 API；resume 使用持久选择，显式冲突拒绝。API↔Codex 或 native model/effort 切换创建关联新 Session，`agent/backend-handoff` 记录源 Session 和 `scope: none`，不复制历史或原生 thread。Bot、cwd、runtime 或应用授权变化要求重核对；原生账号由 Codex 管理，重开检查登录可用性；缺能力/模型/认证明确失败，没有 API fallback。
 
-Agent 公共能力按 driver 返回：`followup`/下一 turn inbox 支持 text；`cancel` 和 owned `dispose` 保持 drain；`whenIdle` 只表示生命周期静止，不证明单消息成功。steer/下一 step 注入、clear、fork seed、图片、附件和尚未桥接工具在 Host 入口拒绝；UI 后续消费同一能力。`inject` 上下文必须先进入 Session 事件，再合并到已记录输入，不得绕过日志；模型、effort 修改只在显式新选择及安全空闲边界发生。所有现有直接消费者（session-controller send/control/history/catalog/commands、personal-project Bot、subagent fork、workspace 查询/归档、personal-workflow、skill-dev-workflow、organization-execution）必须在 Phase 3–5 更新，不能仅更新 UI。
+Agent 公共能力按 driver 返回：`followup`/下一 turn inbox 支持 text；`cancel` 和 owned `dispose` 保持 drain；`whenIdle` 只表示生命周期静止，不证明单消息成功。steer/下一 step 注入、clear、fork seed、图片、附件、应用 slash commands/compaction 和尚未桥接工具在 Host 入口拒绝；UI 同步禁用附件与 steering、隐藏 fork。当前 Codex driver 拒绝 `inject`，应用任务上下文桥属于 Phase 5；Codex 自身加载的上下文由原生机制拥有；模型、effort 修改通过空闲时显式新建会话。session-controller、personal-project、查询/归档及 Desktop 已消费该选择；personal-workflow、skill-dev-workflow 和 organization-execution 的 Codex 派发仍属于后续阶段。
 
 ## 持久意图、日志与重开
 
 runtime 的 send 操作要求消费者提供稳定 input ID 和异步 `persistIntent`；完成持久化才写 `turn/start`。返回的 receipt 携带 input/thread/turn ID 和独立终态 Promise，终态以通知 status 为准。发送后无回执、EOF、断线或不匹配响应保留 `unknown`；消费者保留预留和意图，不重发、不新建 thread。历史中 `userMessage.clientId` 可用来核对原始 input ID，但只有确切原生 read 证据才能解除 unknown。
 
-Phase 3 新增必需 backend binding、输入 intent/receipt、runtime/context/tool-schema 选择与终态事件，更新 format-current schema、所有 readers、投影、导出、查询及生成目录；不把它们标成 ignorable。结构不变则不增加 SESSION_FORMAT_VERSION。Phase 1–2 未增加 Session 事件或修改读写格式。人答复和工具参数/结果先记录再响应；delta 为短暂 UI 流，结算一次持久文本/工具结果。未知 usage 保持 unknown，不估计订阅费用。
+Phase 3 已新增必需 backend binding、输入 intent/receipt、runtime/model/effort/cwd 选择、输出/原生工具条目与终态事件，更新 reader 已知事件、投影、导出、查询及生成目录；不把它们标成 ignorable。Session envelope 不变，因此不增加 SESSION_FORMAT_VERSION。原生工具条目接收时进入 Session，终态中未通知的条目补齐；delta 为短暂 UI 流，当前终态结算一次标准助手文本。`codex/recovery` 与已有终态分开；确认回执的迟到输出在原生结果卡显示，不补写已关闭标准回合。未知 usage 保持 unknown，不估计订阅费用。
 
-resume 前核对本机账号状态与用户确认的账号代次、runtime、cwd、Project/Bot 归属、授权版本、原生 thread ID 和日志基线；account/read 的安全类别不足以证明账号身份不变。原生 read 的 typed items 不保证包含全部 system/config/memory 注入，不能宣称它重建全部模型请求。共享组织日志只记录许可、action ID、预算、证据 digest 与终态，不包含私聊、prompt、邮箱或用户绝对目录。一般诊断只包含固定 stage/category/HTTP code/进程 outcome，排障原文保持关闭。
+resume 前核对登录可用性、runtime、cwd、Project/Bot 归属、应用授权、thread ID 和本地回执。account/read 的安全类别不能证明账号身份，应用不要求取得不可用的账号代次；原生 resume 若失败明确报告，不静默新建 thread。应用日志与 thread typed items 可用于识别已发送输入和终态，不声明能够重建所有内部模型上下文。共享组织记录保持现有访问限制，不主动附带私人 transcript、邮箱或凭据；一般诊断只记录固定类别、ID、状态与进程 outcome。
 
-## 组织 policy 与 7C 接口
+## 组织调度 policy 与 7C 接口
 
-现有 `organization/src/execution-schema.ts` 的 modelPolicy 是 model/endpoint 对，`organization-execution/src/model.ts` 在 HTTP dispatch 前消费 one-use permit 并禁重定向。Codex 不能伪造 endpoint 或复用这个 permit。Phase 6 增加判别 backend policy、runtime/model/capability/isolation/tool-set 与真实动作预算，并更新 SQLite、固定 HTTPS/native/IPC 以及撤权路径。schema 存在 account 或 model 不代表组织资格。
+现有 organization modelPolicy 是 model/endpoint 对，API 执行在 HTTP dispatch 前消费 one-use permit 并禁重定向。Codex 原生执行不能伪造 endpoint 或复用该 permit。后续策略独立声明 backend/runtime/model 与设备上的原生执行方式，在应用启动/继续派发点复核精确任务版本、read/依赖、接受、委托、device lease 和运行限额；不以内部模型或原生工具动作作为 Merforge 可观测的逐动作许可。
 
-7B 消费显式 personal workflow 和已有精确组织任务：查询/评估/草案工具与获准执行工具分别准入。批准、接受、委托、开始、提交、验收仍由既有真人服务所有。7C 以后调用同一 backend create/resume/send/cancel/read + capability 接口生成规划，不在 loop 内复制组织业务；7B 工程验证不依赖自动识别：用已有 approved task、有效 read/依赖/接受/有限委托/device lease 和预算，分别验证两个 backend 的准入及拒绝。Phase 1–2 完成不表示组织 Codex 或 7C 已实现。
+7B 消费显式 personal workflow 和已有组织任务，通过输入派发、结果接收与应用任务管理工具连接现有服务。批准、接受、委托、开始、提交和验收仍由现有真人动作拥有。7C 后续调用相同 backend create/resume/send/cancel/read + capability 接口，不在 loop 内复制组织业务。7B 基础执行桥不依赖 7C 自动识别；完整组织目标对话仍需两者完成。

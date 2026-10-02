@@ -14,6 +14,7 @@
  */
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
@@ -81,6 +82,12 @@ export class ModelDirectoryResolver extends Service {
       () => sessions.subagentAddress(sessionId) === undefined,
       this.catalog,
       binding.session.projections.faceOf('modelSelection'),
+      async (replacementId) => {
+        await sessions.refresh()
+        const workspace = this.ctx.get('uiWorkspace')
+        if (workspace === undefined) throw new Error('New conversation navigation is unavailable')
+        workspace.openSession(replacementId)
+      },
     )
     live.directories.set(binding, directory)
     // The composer cannot read this plugin (the dependency runs one way), so

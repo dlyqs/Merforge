@@ -114,8 +114,8 @@ export interface CodexSendIntent {
 }
 /** Current-turn events accepted only after a matching start response. */
 export type CodexTurnEvent =
-  | { readonly type: 'text-delta'; readonly itemId: CodexItemId; readonly text: string }
-  | { readonly type: 'item'; readonly itemId: CodexItemId; readonly item: Readonly<Record<string, unknown>> }
+  | { readonly turnId: CodexTurnId; readonly type: 'text-delta'; readonly itemId: CodexItemId; readonly text: string }
+  | { readonly turnId: CodexTurnId; readonly type: 'item'; readonly itemId: CodexItemId; readonly item: Readonly<Record<string, unknown>> }
 /** Authoritative terminal outcome; empty text may accompany native tool items. */
 export interface CodexTurnTerminal {
   readonly turnId: CodexTurnId

@@ -100,6 +100,10 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 -----
 
 <a id="model-experience"></a>
+## Native Codex selection
+
+The catalog includes registered native drivers separately from API adapters. Create accepts an explicit selection, otherwise a fresh Session inherits its Bot default and then the application API default. Idempotent adoption preserves existing selections. Native prompts bypass API route and attachment admission and accept queued text only. Steering, image/file input and fork are rejected on the Host. Changing backend or native model/effort returns a new Session ID; the Client opens that empty conversation and the durable handoff records that no history was copied.
+
 ## Model Experience
 
 None, as invoked Agent commands own any model-visible effect.

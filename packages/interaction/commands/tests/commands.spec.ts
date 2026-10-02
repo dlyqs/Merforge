@@ -25,7 +25,7 @@ async function mount(): Promise<Context> {
 /** Mint a scope whose key is a live agent (real session: the executor logs lifecycle events on it). */
 async function mintAgentScope(ctx: Context, name: string): Promise<{ scope: Scope; agent: Agent }> {
   const session = ctx.sessions.create(SessionId(name))
-  const agent = { id: session.id, session } as Agent
+  const agent = { id: session.id, session, options: {} } as Agent
   let scope!: Scope
   await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, agent) }, { inject: ['commands'] }))
   return { scope, agent }

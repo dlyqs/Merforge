@@ -4,6 +4,10 @@
 
 `personal/affiliation` is the authoritative Session event for the current Project and Bot. Its projection exposes the current IDs and complete transition history. Moving a Session appends an event without changing its ID, messages, or cwd. Deleting an object clears live references before removing the record; recorded name snapshots remain readable. Forked Sessions inherit the event prefix at the fork cut.
 
+## Native Bot defaults
+
+`BotModel.backend` is optional: old records remain API defaults, while `codex` selects native catalog validation. Defaults affect fresh conversations; editing a Bot does not switch existing native selections. Native conversations refuse Bot changes and moves to a different working directory, including cold Sessions. Deletion may remove affiliation. Bot tool/Skill allowlists apply to Harness API execution; native tools and instructions remain Codex-owned.
+
 ## Model Experience
 
 The runtime contributes current Project and Bot instructions and recent affiliation transitions to prompt assembly. The Agent loop records the rendered system message and request header, so past requests remain reconstructable. Empty Project and Bot learning memories require no service or prompt content. The Bot tool allow list filters model-visible schemas, PTC SDK declarations, lookup, and dispatch at request time; a final execution guard also rejects forbidden calls. The Bot Skill allow list filters the model catalog, loader, explicit user invocation, and Session skill listing. Bot model preferences are validated when saved and resolved again at the next request; an unavailable route fails the request.

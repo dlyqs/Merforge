@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { readAgentBackend } from '@deepseek-ai/dsh-agent'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
@@ -111,6 +112,17 @@ export class SessionCommandController {
     if (request.botId !== undefined && personal?.getBot(request.botId) === undefined) {
       throw new RemoteError('gateway/bad-request', `Bot "${request.botId}" does not exist`, {})
     }
+    let existing = this.ctx.sessions.get(sessionId) !== undefined
+    if (!existing && request.sessionId !== undefined) {
+      try { await inspectApiSession(this.ctx, sessionId); existing = true }
+      catch (error: unknown) { if (!(error instanceof ApiSessionNotFound)) throw error }
+    }
+    const bot = request.botId === undefined ? undefined : personal?.getBot(request.botId)
+    const selection = request.selection ?? (existing ? undefined : bot?.defaultModel)
+    if (selection?.backend === 'codex' && selection.provider !== 'codex') throw new RemoteError('gateway/bad-request', 'Codex requires the native provider', {})
+    const backend = selection?.backend === 'codex'
+      ? await this.ctx.agents.driver('codex').resolve(selection.model, selection.reasoningEffort)
+      : undefined
     const cwd = request.cwd ?? project?.path ?? this.defaultCwd
     let adopted: Agent
     try {
@@ -119,6 +131,7 @@ export class SessionCommandController {
         cwd,
         request.sessionId !== undefined,
         request.agentPreset,
+        backend,
       )
     } catch (error) {
       this.rejectCreation(sessionId, error)
@@ -138,6 +151,12 @@ export class SessionCommandController {
         )
       }
     }
+    if (!existing && selection !== undefined && backend === undefined) {
+      const resolved = await this.ctx.llm.resolveCallConfig({ provider: selection.provider, model: selection.model,
+        ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) }) })
+      this.agents.selectForNextRequest(adopted, resolved)
+      await this.ctx.sessions.flush(adopted.session)
+    }
     const agentPreset = this.agents.presetForSession(adopted.session)
     return { sessionId, ...(agentPreset === undefined ? {} : { agentPreset }) }
   }
@@ -148,9 +167,32 @@ export class SessionCommandController {
    * @returns the normalized selection installed for the Session.
    */
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
+    if (request.backend === 'codex' && request.provider !== 'codex') throw new RemoteError('gateway/bad-request', 'Codex requires the native provider', {})
     const agent = await this.resolveAgent(request.sessionId)
     return this.agents.serializeImageAdmission(agent, async () => {
       try {
+        if (request.backend === 'codex' || agent.options.backend !== undefined) {
+          if (agent.status === 'running') throw new RemoteError('session/agent-busy', 'Stop the conversation before changing its backend', { reason: 'running' })
+          const selected = request.backend === 'codex'
+            ? await this.ctx.agents.driver('codex').resolve(request.model, request.reasoningEffort)
+            : undefined
+          if (selected !== undefined && JSON.stringify(selected) === JSON.stringify(agent.options.backend)) {
+            return { selected: { backend: 'codex', provider: 'codex', model: selected.model, reasoningEffort: selected.effort } }
+          }
+          const personal = this.ctx.get('personalProjects')
+          const affiliation = personal?.affiliation(agent.session).current
+          const chosen = selected === undefined ? request : { backend: 'codex' as const, provider: 'codex', model: selected.model, reasoningEffort: selected.effort }
+          const cwd = agent.session.header.cwd
+          if (cwd === undefined) throw new Error('Backend switching requires a working directory')
+          const created = await this.create({ cwd, selection: chosen,
+            ...(affiliation?.projectId === undefined ? {} : { projectId: affiliation.projectId }),
+            ...(affiliation?.botId === undefined ? {} : { botId: affiliation.botId }) })
+          const replacement = this.ctx.agents.get(created.sessionId)
+          if (replacement === undefined) throw new Error('Backend replacement conversation was disposed')
+          replacement.session.append('agent/backend-handoff', { sourceSessionId: agent.id, scope: 'none' })
+          await this.ctx.sessions.flush(replacement.session)
+          return { selected: chosen, sessionId: created.sessionId }
+        }
         const resolved = await this.ctx.llm.resolveCallConfig({
           provider: request.provider,
           model: request.model,
@@ -242,6 +284,7 @@ export class SessionCommandController {
       )
     }
     using source = observed
+    if (readAgentBackend(source.events) !== undefined) throw new RemoteError('session/fork-unavailable', 'Codex native history cannot be forked; create a new conversation', { sessionId: request.sessionId })
     const boundary = atSeq ?? latestCompletedPrefixBoundary(source.events)
     if (boundary === undefined || source.events[boundary]?.seq !== boundary) {
       throw new RemoteError(
@@ -307,6 +350,16 @@ export class SessionCommandController {
     }
     const agent = await this.resolveAgent(request.sessionId)
     if (hasPromptRequest(agent, request.requestId)) return { accepted: true }
+    if (agent.options.backend !== undefined) {
+      if (request.mode === 'steer' || request.content.some(part => part.type !== 'text')) {
+        throw new RemoteError('session/attachment-invalid', 'Codex accepts ordinary text only; attachments and steering are unavailable', { reason: 'CODEX_TEXT_ONLY' })
+      }
+      const message = createUserMessage({ content: request.content.filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text'),
+        source: { kind: 'user', rpcId: request.requestId } })
+      try { agent.followup(message); await this.ctx.sessions.flush(agent.session) }
+      catch (error: unknown) { throw new RemoteError('session/agent-busy', String(error), { reason: 'Codex input rejected' }) }
+      return { accepted: true }
+    }
     const selection = this.agents.selectionFor(agent).current
     if (!routeServed(this.ctx, selection.provider)) {
       throw new RemoteError(
@@ -444,6 +497,9 @@ export class SessionCommandController {
         || !agent.session.isOwnSeq(identity.seq)) {
         throw apiSessionSubagentOwnershipError(request.sessionId)
       }
+    }
+    if (agent.options.backend !== undefined && request.action.kind === 'steer') {
+      throw new RemoteError('session/steer-unavailable', 'Codex steering is unavailable', { itemId: request.itemId })
     }
     const nextTurn = agent.inbox.nextTurn.find(message => message.id === request.itemId)
     const nextStep = agent.inbox.nextStep.find(message => message.id === request.itemId)

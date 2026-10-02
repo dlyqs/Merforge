@@ -8,6 +8,7 @@ export type BotId = Branded<'BotId'>
 
 /** Model route preference; credentials remain in the existing credentials service. */
 export interface BotModel {
+  readonly backend?: 'harness-api' | 'codex' | undefined
   readonly provider: string
   readonly model: string
   readonly reasoningEffort?: string | undefined

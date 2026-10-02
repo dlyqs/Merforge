@@ -1,5 +1,6 @@
 /** Project and Bot entrances over one Session catalog. */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { AffiliationProjection, BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import {
@@ -18,6 +19,7 @@ type BotDraft = {
   name: string
   identity: string
   direction: string
+  backend: 'harness-api' | 'codex'
   provider: string
   model: string
   reasoningEffort: string
@@ -36,7 +38,7 @@ function allowlist(value: string): string[] | undefined {
 export function PersonalSidebar(props: PersonalSidebarProps) {
   const {
     management = false, section, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
-    refresh, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
+    refresh, loadModels, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
     createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
   const records = useRecords(value => value)
@@ -46,6 +48,8 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const [deleteSessionId, setDeleteSessionId] = useState<SessionId | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionId | null>(null)
+  const [models, setModels] = useState<ModelCatalog | null>(null)
+  const [modelError, setModelError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entrance | null>(null)
   const [botForNew, setBotForNew] = useState('')
@@ -78,6 +82,17 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     }
   }, [sessions, refreshAffiliation])
 
+  useEffect(() => {
+    if (draft?.kind !== 'bot' || loadModels === undefined) return
+    let current = true
+    setModelError(null)
+    void loadModels().then(
+      (value) => { if (current) setModels(value) },
+      (reason: unknown) => { if (current) setModelError(String(reason)) },
+    )
+    return () => { current = false }
+  }, [draft?.kind, loadModels])
+
   const unassigned = useMemo(() => unassignedIds(sessions), [sessions])
   const affiliation: AffiliationProjection | undefined = selectedSession === null
     ? undefined
@@ -103,6 +118,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   const botDraft = (bot?: BotProfile): BotDraft => ({
     kind: 'bot', ...(bot === undefined ? {} : { id: bot.id }),
     name: bot?.name ?? '', identity: bot?.identity ?? '', direction: bot?.direction ?? '',
+    backend: bot?.defaultModel?.backend ?? 'harness-api',
     provider: bot?.defaultModel?.provider ?? '', model: bot?.defaultModel?.model ?? '',
     reasoningEffort: bot?.defaultModel?.reasoningEffort ?? '',
     tools: bot?.allowedTools?.join(', ') ?? '', skills: bot?.allowedSkills?.join(', ') ?? '',
@@ -121,6 +137,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
       return
     }
     const defaultModel = draft.provider.trim() === '' && draft.model.trim() === '' ? undefined : {
+      ...(draft.backend === 'codex' ? { backend: 'codex' as const } : {}),
       provider: draft.provider.trim(), model: draft.model.trim(),
       ...(draft.reasoningEffort.trim() === '' ? {} : { reasoningEffort: draft.reasoningEffort.trim() }),
     }
@@ -361,9 +378,28 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </> : <>
           <label>{t('identity')}<textarea disabled={busy} value={draft.identity} onChange={(event) => { setDraft({ ...draft, identity: event.target.value }) }} /></label>
           <label>{t('direction')}<textarea disabled={busy} value={draft.direction} onChange={(event) => { setDraft({ ...draft, direction: event.target.value }) }} /></label>
-          <label>{t('modelProvider')}<input disabled={busy} value={draft.provider} onChange={(event) => { setDraft({ ...draft, provider: event.target.value }) }} /></label>
-          <label>{t('modelName')}<input disabled={busy} value={draft.model} onChange={(event) => { setDraft({ ...draft, model: event.target.value }) }} /></label>
-          <label>{t('reasoningEffort')}<input disabled={busy} value={draft.reasoningEffort} onChange={(event) => { setDraft({ ...draft, reasoningEffort: event.target.value }) }} /></label>
+          <label>{t('backend')}<select disabled={busy} value={draft.backend} onChange={(event) => { setDraft({ ...draft, backend: event.target.value === 'codex' ? 'codex' : 'harness-api', provider: '', model: '', reasoningEffort: '' }) }}>
+            <option value="harness-api">{t('backendApi')}</option><option value="codex">{t('backendCodex')}</option>
+          </select></label>
+          <label>{t('modelName')}<select disabled={busy} value={JSON.stringify([draft.provider, draft.model])} onChange={(event) => {
+            const chosen = models?.groups.flatMap(group => group.models.map(model => ({ group, model })))
+              .find(row => JSON.stringify([row.group.id, row.model.id]) === event.target.value)
+            setDraft({ ...draft, provider: chosen?.group.id ?? '', model: chosen?.model.id ?? '', reasoningEffort: chosen?.model.reasoning?.defaultEffort ?? '' })
+          }}>
+            <option value={JSON.stringify(['', ''])}>{t('modelInherit')}</option>
+            {draft.model !== '' && !models?.groups.some(group => group.id === draft.provider && group.models.some(model => model.id === draft.model)) && <option value={JSON.stringify([draft.provider, draft.model])}>{draft.provider}/{draft.model}</option>}
+            {models?.groups.filter(group => (group.backend ?? 'harness-api') === draft.backend).map(group => <optgroup key={group.id} label={group.name}>{group.models.map(model => <option key={model.id} value={JSON.stringify([group.id, model.id])}>{model.name}</option>)}</optgroup>)}
+          </select></label>
+          {draft.backend === 'codex' && <p>{t('codexCapabilities')}</p>}
+          {modelError !== null && <p role="alert">{modelError}</p>}
+          {models?.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}
+          <label>{t('reasoningEffort')}<select disabled={busy} value={draft.reasoningEffort} onChange={(event) => { setDraft({ ...draft, reasoningEffort: event.target.value }) }}>
+            <option value="">{t('modelInherit')}</option>
+            {draft.reasoningEffort !== '' && <option value={draft.reasoningEffort}>{draft.reasoningEffort}</option>}
+            {models?.groups.find(group => group.id === draft.provider)?.models.find(model => model.id === draft.model)
+              ?.reasoning?.efforts.filter(effort => effort.id !== draft.reasoningEffort)
+              .map(effort => <option key={effort.id} value={effort.id}>{effort.name}</option>)}
+          </select></label>
           <label>{t('allowedTools')}<input disabled={busy} value={draft.tools} onChange={(event) => { setDraft({ ...draft, tools: event.target.value }) }} /></label>
           <label>{t('allowedSkills')}<input disabled={busy} value={draft.skills} onChange={(event) => { setDraft({ ...draft, skills: event.target.value }) }} /></label>
         </>}

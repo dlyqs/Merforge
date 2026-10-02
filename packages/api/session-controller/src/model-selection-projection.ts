@@ -11,6 +11,7 @@ import type {
 } from './types.ts'
 
 const modelSelectionSchema = z.object({
+  backend: z.enum(['harness-api', 'codex']).optional(),
   provider: z.string().min(1),
   model: z.string().min(1),
   reasoningEffort: z.string().min(1).optional(),
@@ -37,6 +38,10 @@ function applyModelSelectionProjection(
   state: ModelSelectionProjectionState,
   event: SessionEvent,
 ): ModelSelectionProjectionState {
+  if (event.type === 'agent/backend') {
+    const selected: ModelSelection = { backend: 'codex', provider: 'codex', model: event.data.model, reasoningEffort: event.data.effort }
+    return { lastUsed: null, pending: selected, explicit: selected }
+  }
   if (event.type === 'model/selection') {
     return sameSelection(state.pending, event.data)
       ? state
@@ -65,11 +70,12 @@ const modelSelectionProjection = {
     viewSchema: modelSelectionProjectionSchema,
     view: state => ({ lastUsed: state.lastUsed, next: state.pending ?? state.lastUsed }),
   },
-  stateVersion: 3,
+  stateVersion: 4,
 } satisfies ProjectionDefinition<'modelSelection', ModelSelectionProjectionState>
 
 function sameSelection(left: ModelSelection | null, right: ModelSelection | null): boolean {
   return left === right || (left !== null && right !== null
+    && left.backend === right.backend
     && left.provider === right.provider
     && left.model === right.model
     && left.reasoningEffort === right.reasoningEffort)

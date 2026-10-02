@@ -4,7 +4,7 @@
 
 ## 下一阶段计划入口
 
-[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–2 工程完成，Phase 3–10 为 `pending`；本次授权终点已达到，执行模式恢复 `manual`。目标是让本人已登录的 Codex 独立承担日常对话、澄清、既有任务规划和获准执行，无需另配应用模型 API key。固定 0.153.4 的共用 `codex-runtime` 已提供持久 text thread、账号/模型发现和进程清理，one-shot provider 已迁移，110 项聚焦回归与 2 项无窗口产物 smoke 通过。[协议与消费规则](codex-backend.md)记录能力证据。主对话/Session 驱动与 Desktop 接线仍属于 Phase 3–4，尚未启用；后续再建设个人受控工作流、组织许可/执行及发行交接。个人对话可行，组织工具隔离及逐动作许可仍须验证；不自动扩大沙箱或调用 API 模型兜底。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话需要两计划衔接。
+[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–3 工程完成，Phase 4 已有部分 Desktop 接线但尚未完成，Phase 5–10 为 `pending`。用户最新要求完成 Phase 3 后停止，当前恢复 `manual`，自动边界为 `none`，relay 关闭。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久 text thread、多轮发送、流式输出、持久意图/回执/原生结果、停止及冷重开核对，保留唯一 Agent factory 和 Session writer。Merforge 负责派发、桥接转录和结果接收，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。42 文件/769 项聚焦回归、后续 24 项 driver 测试、Desktop build 和私有 Host 无窗口 built smoke 通过；真实登录/模型、Windows 和可见验收仍待用户。全局 API/config 目录生成及部分门禁存在已记录的仓库基线问题，详见实施计划。Phase 4 的 catalog、Bot/UI/Host 部分代码保留，后续明确续接再完成阶段验收；个人任务管理桥、人工请求、组织调度/结果回传及发行交接尚未实现。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力与限制。
 
 [对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，是 Phase 8 的必备前置。内部 Phase 1–10 均为 `pending`，执行模式为 `manual`，等待计划评审。计划先固化用户设置、目标路由和无任务规划模型准入，再接组织隔离对话、权威草案/子树细分、对话内负责人分配、员工独立任务对话及执行交付，最后完成正常模式 CSV 组合验证和验收交接。当前个人规划仍依赖显式增强模式或临时测试 override；组织原始上下文仍只读，完整定义保存要求整树编辑权。默认自动识别、组织规划对话及其日常管理入口尚未实现；下述工程基础完成不代表 Phase 7C 或产品验收通过。Phase 7B 外部执行器不是此计划依赖。
 

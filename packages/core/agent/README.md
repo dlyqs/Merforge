@@ -21,6 +21,10 @@ Use `dsh-agent` to create or resume live agents, send follow-up or steering inpu
 -----
 
 <a id="use-this-package"></a>
+## External conversation drivers
+
+`registerDriver()` adds an effect-owned provider with catalog, explicit selection resolution and scoped construction. `dsh-agent-loop` remains the sole factory and selects a registered driver when `AgentOptions.backend` is present. `agent/backend` is immutable and required on read; old Sessions without it keep the API driver. `agent/backend-handoff` associates an independent replacement conversation without copying history. Shared inbox and assistant stream helpers live here so external drivers reuse the same durable/UI vocabulary. Native drivers expose only their supported operations; see [agent-codex](../agent-codex/README.md).
+
 ## Use this package
 
 Mount `dsh-agent` wherever live agents exist: it provides `ctx.agents` and the `Agent` handle that plugins, UI, hooks, and orchestrators work against. The service is inert until a driver registers a factory — the shipped driver is `dsh-agent-loop`, so the smallest useful composition loads both.

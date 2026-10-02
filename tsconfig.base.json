@@ -332,6 +332,7 @@
       "@deepseek-ai/dsh-organization-context/protocol": ["./packages/workspace/organization-context/src/protocol.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-agent": ["./packages/core/agent/src"],
+      "@deepseek-ai/dsh-agent-codex": ["./packages/core/agent-codex/src"],
       "@deepseek-ai/dsh-agent-default-model": ["./packages/core/agent-default-model/src"],
       "@deepseek-ai/dsh-agent-instructions": ["./packages/context/agent-instructions/src"],
       "@deepseek-ai/dsh-agent-loop": ["./packages/core/agent-loop/src"],

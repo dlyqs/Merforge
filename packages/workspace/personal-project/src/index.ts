@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { z } from 'zod'
+import type {} from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
@@ -45,10 +46,11 @@ const projectSchema = z.object({
 }).strict()
 type StoredProject = Project & { readonly workspaceId?: WorkspaceIdType }
 const modelSchema = z.object({
+  backend: z.enum(['harness-api', 'codex']).optional(),
   provider: z.string().min(1),
   model: z.string().min(1),
   reasoningEffort: z.string().min(1).optional(),
-}).strict()
+}).strict().refine(model => model.backend !== 'codex' || model.provider === 'codex', 'Codex requires the native provider')
 const botSchema = z.object({
   id: z.uuid().transform(BotId),
   name: z.string().trim().min(1).max(120),
@@ -185,8 +187,14 @@ export class PersonalProjectRegistry extends Service {
     return canonical
   }
 
-  private async validateModel(model: { provider: string; model: string; reasoningEffort?: string | undefined } | undefined): Promise<void> {
+  private async validateModel(model: { backend?: 'harness-api' | 'codex' | undefined; provider: string; model: string; reasoningEffort?: string | undefined } | undefined): Promise<void> {
     if (model === undefined) return
+    if (model.backend === 'codex') {
+      const agents = this.ctx.get('agents')
+      if (agents === undefined) throw new Error('Codex backend is unavailable')
+      await agents.driver('codex').resolve(model.model, model.reasoningEffort)
+      return
+    }
     const llm = this.ctx.get('llm')
     if (llm === undefined) throw new Error('Bot default model requires an LLM route registry')
     await llm.resolveCallConfig({
@@ -347,6 +355,10 @@ export class PersonalProjectRegistry extends Service {
   move(session: Session, next: Affiliation, source: 'create' | 'move' | 'delete' = 'move'): AffiliationProjection {
     const current = this.affiliation(session)
     if (current.current.projectId === next.projectId && current.current.botId === next.botId) return current
+    // oxlint-disable-next-line typescript/no-deprecated -- Cold affiliation changes read the immutable durable backend.
+    const native = session.snapshotEvents().some(event => event.type === 'agent/backend')
+    if (source === 'move' && current.current.botId !== next.botId
+      && native) throw new Error('Changing a Codex conversation Bot requires a new conversation')
     if (next.projectId !== undefined && next.projectId !== current.current.projectId && this.deletingProjects.has(next.projectId)) {
       throw new Error(`Project "${next.projectId}" is being deleted`)
     }
@@ -357,6 +369,8 @@ export class PersonalProjectRegistry extends Service {
     const bot = next.botId === undefined ? undefined : this.getBot(next.botId)
     if (next.projectId !== undefined && project === undefined) throw new Error(`Project "${next.projectId}" does not exist`)
     if (next.botId !== undefined && bot === undefined) throw new Error(`Bot "${next.botId}" does not exist`)
+    if (source === 'move' && project?.path !== undefined && project.path !== session.header.cwd
+      && native) throw new Error('Changing a Codex working directory requires a new conversation')
     const previous = current.history.at(-1)?.to ?? this.snapshot(current.current)
     const to: AffiliationSnapshot = {
       ...(project === undefined ? {} : { project: { id: project.id, name: project.name } }),

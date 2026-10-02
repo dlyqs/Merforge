@@ -23,6 +23,8 @@ function assertNever(value: never): never {
 /** Convert expected capability failures into concise human-only outcomes. */
 function expectedFailure(error: ManualCompactionError): CommandResult {
   switch (error.code) {
+    case 'unsupported-backend':
+      return { kind: 'error', text: 'Codex manages its native context. Application compaction is unavailable for this conversation.' }
     case 'busy':
       return {
         kind: 'error',

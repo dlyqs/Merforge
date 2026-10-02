@@ -104,6 +104,7 @@ function selectionOf(state: ModelDirectoryState, id: string): ModelSelection | u
         ? state.current?.reasoningEffort ?? model.reasoning?.defaultEffort
         : model.reasoning?.defaultEffort
       return {
+        ...(group.backend === undefined ? {} : { backend: group.backend }),
         provider: group.id,
         model: model.id,
         ...reasoningEffort === undefined ? {} : { reasoningEffort },

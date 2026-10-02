@@ -102,7 +102,7 @@ describe('persistent Codex runtime', () => {
     h.peer.notify('item/agentMessage/delta', { threadId, turnId: first.turnId, itemId: 'item-1', delta: 'live' })
     complete(h, first.turnId)
     expect(await first.terminal).toMatchObject({ status: 'completed', finalText: 'answer', usage: 'unknown' })
-    expect(events).toEqual([{ type: 'text-delta', itemId: 'item-1', text: 'live' }])
+    expect(events).toEqual([{ type: 'text-delta', turnId: first.turnId, itemId: 'item-1', text: 'live' }])
     const second = await runtime.send({ inputId: brandString<CodexInputId>('input-2'), texts: ['second'], persistIntent: async () => {} })
     complete(h, first.turnId, 'late')
     complete(h, second.turnId, '')
@@ -180,6 +180,23 @@ describe('persistent Codex runtime', () => {
       expect(h.calls.some(c => c.method === 'thread/resume' || c.method === 'thread/start')).toBe(false)
     }
   })
+
+  it.each(['turnsBackwardsCursor', 'itemsBackwardsCursor', 'initialTurnsPage'])(
+    'retires a paginated resume response with %s without sending or creating a replacement', async (field) => {
+      const h = harness(); const runtime = await ready(h)
+      h.handler = async method => method === 'account/read' ? { account: null, requiresOpenaiAuth: false }
+        : method === 'model/list' ? { data: [model], nextCursor: null }
+          : method === 'thread/resume' ? { thread, [field]: field === 'initialTurnsPage' ? { data: [] } : 'cursor' }
+            : { thread }
+      await expect(runtime.resumeThread(threadId, selection)).rejects.toThrow('unknown-thread')
+      await expect(runtime.send({ inputId, texts: ['input'], persistIntent: async () => {} })).rejects.toThrow('unknown-thread')
+      expect(h.calls.filter(c => c.method.startsWith('thread/')).map(c => c.method))
+        .toEqual(['thread/read', 'thread/resume'])
+      expect(h.calls.some(c => c.method === 'turn/start')).toBe(false)
+      await runtime.dispose()
+      expect(h.terminated).toBe(true)
+    },
+  )
 
   it('safely rejects unknown server requests while preserving current-turn settlement', async () => {
     const h = harness(); const runtime = await ready(h); await runtime.startThread(selection)

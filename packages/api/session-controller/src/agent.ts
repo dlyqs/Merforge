@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type {
-  Agent, AgentHandle, AgentOptions, AgentSetup, ModelSelection as AgentModelSelection, ModelSelectionRef,
+  Agent, AgentHandle, AgentOptions, AgentSetup, AgentBackendSelection, ModelSelection as AgentModelSelection, ModelSelectionRef,
 } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
@@ -291,6 +291,7 @@ export class ApiSessionAgentController {
    * @param cwd - directory the Session must own.
    * @param checkPersistedIdentity - whether to inspect a cold identity before creation.
    * @param presetId - optional Agent preset the Session must own.
+   * @param backend - external driver selection for fresh creation; adoption must match it.
    * @returns the matching live ordinary Agent.
    */
   async ensureSession(
@@ -298,12 +299,13 @@ export class ApiSessionAgentController {
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId?: string,
+    backend?: AgentBackendSelection,
   ): Promise<Agent> {
     if (this.isDeleting(sessionId)) throw new RemoteError('session/agent-busy', 'Conversation is being deleted', { reason: 'Deletion is in progress' })
     this.assertStandardPreset(presetId)
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
-      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId)
+      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId, backend)
         .catch((error: unknown) => {
           const live = this.ctx.agents.get(sessionId)
           if (live !== undefined) {
@@ -331,6 +333,9 @@ export class ApiSessionAgentController {
     if (agent.session.header.cwd !== cwd) {
       throw new ApiSessionCwdConflict(sessionId, cwd, agent.session.header.cwd)
     }
+    if (backend !== undefined && JSON.stringify(agent.options.backend) !== JSON.stringify(backend)) {
+      throw new RemoteError('session/agent-busy', 'Backend changes require a new conversation', { reason: 'backend conflict' })
+    }
     return agent
   }
 
@@ -340,6 +345,11 @@ export class ApiSessionAgentController {
    * @returns the installed mutable selection reference.
    */
   selectionFor(agent: Agent): InstalledSelection {
+    if (agent.options.backend !== undefined) {
+      const backend = agent.options.backend
+      return { current: { provider: 'codex', model: backend.model, reasoningEffort: ReasoningEffortId(backend.effort) },
+        assembled: undefined, consume: () => false }
+    }
     const installed = this.selections.get(agent)
     if (installed !== undefined) return installed
     const projectionState = this.ctx.sessionProjections.stateOf(agent.session, 'modelSelection')
@@ -476,6 +486,7 @@ export class ApiSessionAgentController {
     return {
       agentPreset: resolvedId,
       setup: async (agentCtx, agent) => {
+        if (agent.options.backend !== undefined) return
         this.installSelection(agent)
         await presets.mount(agentCtx, resolvedId)
       },
@@ -532,6 +543,7 @@ export class ApiSessionAgentController {
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId: string | undefined,
+    backend?: AgentBackendSelection,
   ): Promise<Agent> {
     const attached = this.ctx.sessions.get(sessionId)
     const live = this.ctx.agents.get(sessionId)
@@ -571,7 +583,7 @@ export class ApiSessionAgentController {
     const composition = await this.composeAgent(presetId)
     return this.own(await this.ctx.agents.create({
       sessionId,
-      agentOptions: this.agentOptions(),
+      agentOptions: backend === undefined ? this.agentOptions() : { backend },
       meta: {
         cwd,
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
@@ -586,6 +598,7 @@ export class ApiSessionAgentController {
   }
 
   private installSelection(agent: Agent): void {
+    if (agent.options.backend !== undefined) return
     this.selectionFor(agent)
   }
 

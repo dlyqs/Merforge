@@ -90,6 +90,10 @@ Read these pages when the generation policy is not enough. They move from the se
 -----
 
 <a id="model-experience"></a>
+## Native conversation titles
+
+A Session containing `agent/backend` uses its first selected user text as the title and does not dispatch the auxiliary API title model. Ordinary API Sessions retain the existing LLM title path.
+
 ## Model Experience
 
 ### Auxiliary title request

@@ -62,6 +62,7 @@ export class ModelDirectory {
     private readonly available: () => boolean,
     private readonly catalog: ModelCatalogDirectory,
     private readonly projected: ObservableSnapshot<unknown>,
+    private readonly openReplacement?: (sessionId: SessionId) => Promise<void>,
   ) {
     this.unsubscribeCatalog = catalog.store.subscribe(() => { this.syncInputs() })
     this.unsubscribeSelection = projected.subscribe(() => { this.syncInputs() })
@@ -74,6 +75,7 @@ export class ModelDirectory {
    */
   async load(): Promise<ModelDirectoryState> {
     this.assertAvailable()
+    if (this.catalog.store.getSnapshot().value?.failures.some(failure => failure.id === 'codex')) this.catalog.refresh()
     await this.catalog.load()
     this.syncInputs()
     return this.store.getSnapshot()
@@ -92,6 +94,7 @@ export class ModelDirectory {
     this.store.update((s) => { s.status = 'selecting'; s.error = null })
     const result = await this.sessions.selectModel({
       sessionId: this.sessionId,
+      ...(selection.backend === undefined ? {} : { backend: selection.backend }),
       provider: selection.provider,
       model: selection.model,
       ...selection.reasoningEffort === undefined
@@ -102,12 +105,14 @@ export class ModelDirectory {
       return result.ok ? { ok: true, value: undefined } : result
     }
     if (!result.ok) {
+      if (selection.backend === 'codex') this.catalog.refresh()
       this.store.update((s) => {
         s.status = 'error'
         s.error = `${result.error.code}: ${result.error.message}`
       })
       return result
     }
+    if (result.value.sessionId !== undefined) await this.openReplacement?.(result.value.sessionId)
     this.store.update((s) => { s.status = 'ready'; s.error = null })
     this.syncInputs()
     return { ok: true, value: undefined }

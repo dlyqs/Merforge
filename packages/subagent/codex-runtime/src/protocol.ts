@@ -73,7 +73,12 @@ export function parseModels(value: unknown): { models: CodexModel[]; cursor: str
  * @returns Host-only thread fields and typed native history.
  */
 export function parseThread(value: unknown): CodexThread {
-  const thread = protocolObject(protocolObject(value).thread)
+  const response = protocolObject(value)
+  if (response.turnsBackwardsCursor != null || response.itemsBackwardsCursor != null
+    || response.initialTurnsPage != null) {
+    throw new Error('codex-runtime: incomplete thread history')
+  }
+  const thread = protocolObject(response.thread)
   if (thread.ephemeral !== false || thread.cliVersion !== CODEX_RUNTIME_VERSION || thread.historyMode !== 'legacy' || !Array.isArray(thread.turns)) {
     throw new Error('codex-runtime: incompatible persistent thread')
   }

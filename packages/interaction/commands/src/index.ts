@@ -386,6 +386,9 @@ export class CommandRuntime extends TypertRemoteService {
       })
       return Object.freeze({ commandId, result: Object.freeze(result) })
     }
+    if (agent.options.backend !== undefined) {
+      return settle({ kind: 'error', text: 'Application commands are unavailable for native Codex conversations; send ordinary text.' })
+    }
     let attachments: readonly (ImageBlock | FileBlock)[] = NO_ATTACHMENTS
     if (submittedAttachments.length > 0) {
       if (command.definition.input?.attachments !== true) {

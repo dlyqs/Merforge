@@ -23,3 +23,5 @@ Phase 7 将组织物理 schema 升至 v10，保存原下发人验收决定及拒
 Phase 8 将组织物理 schema 升至 v11，保存目标核验观察、独立最终确认与相关事件，支持 v10 迁移；这些组织事务没有新增 Session 事件。
 
 组织执行 Phase 9–10 的组合测试与发行 smoke 读取现有组织绑定、动作和人工消息事件，没有新增事件或修改 reader/writer、Session envelope、SQLite v11。三机/发行测试入口及未执行项见[执行验收交接](organization-execution-acceptance.md)。
+
+Codex personal conversations add required `agent/backend`, `agent/backend-handoff` and `codex/*` dispatch, association, item, terminal, recovery and diagnostic events. The current reader vocabulary and generated catalog include them; older readers refuse these required events. Sessions without a backend event retain their API behavior. Native associations are not forkable. Session envelope version and SQLite schema versions are unchanged.

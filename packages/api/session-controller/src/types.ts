@@ -98,6 +98,8 @@ export type PromptContentPart =
 
 /** Complete model selection for one Session. */
 export interface ModelSelection {
+  /** External native executor or the existing API adapter path. */
+  readonly backend?: 'harness-api' | 'codex'
   readonly provider: string
   readonly model: string
   readonly reasoningEffort?: string
@@ -144,6 +146,7 @@ export interface ModelCatalogModel {
 
 /** One provider and its successfully loaded model catalog. */
 export interface ModelProviderGroup {
+  readonly backend?: 'harness-api' | 'codex'
   readonly id: string
   readonly name: string
   readonly models: readonly ModelCatalogModel[]
@@ -283,6 +286,8 @@ export interface SessionSearchValue {
 
 /** Session creation or explicit-id adoption request. */
 export interface SessionCreateRequest {
+  /** Explicit choice takes precedence over the Bot default. */
+  readonly selection?: ModelSelection
   /** Optional independent personal Project. */
   readonly projectId?: ProjectId
   /** Optional private Bot; omission creates an ordinary conversation. */
@@ -344,6 +349,8 @@ export interface SessionSelectModelRequest extends ModelSelection {
 
 /** Accepted model selection after Host resolution. */
 export interface SessionSelectModelValue {
+  /** A backend or native configuration change creates an independent empty conversation. */
+  readonly sessionId?: SessionId
   readonly selected: ModelSelection
 }
 

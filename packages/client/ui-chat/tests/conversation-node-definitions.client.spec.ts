@@ -18,6 +18,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { hasAssistantReplyContent } from '../src/client/contract/assistant-content.ts'
 import { assistantDefinition } from '../src/client/conversation-nodes/assistant.ts'
 import { chatViewDefinition } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
+import { codexObservationDefinition } from '../src/client/conversation-nodes/codex.ts'
 import { commandDefinition } from '../src/client/conversation-nodes/command.ts'
 import { compactionDefinition } from '../src/client/conversation-nodes/compaction.ts'
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
@@ -45,6 +46,7 @@ const DEFINITIONS: readonly ConversationNodeDefinition[] = [
   turnProcessDefinition,
   toolDefinition,
   commandDefinition,
+  codexObservationDefinition,
   compactionDefinition,
   retryDefinition,
   turnErrorDefinition,
@@ -2745,4 +2747,30 @@ describe('built-in conversation node Definitions', () => {
       compaction: { summary: 'manual summary', summaryEventSeq: 20 },
     })
   })
+})
+
+
+it('replays native tools, recovered output and unknown recovery consistently across full and partial history', () => {
+  const entries = [
+    at(0, 'turn/start', { turn: 1 }),
+    at(1, 'codex/item', { turn: 1, threadId: 'thread', turnId: 'turn', itemId: 'tool', item: { type: 'commandExecution', aggregatedOutput: 'output' } }),
+    at(2, 'codex/turn-result', { turn: 1, inputId: 'input', threadId: 'thread', turnId: 'turn', status: 'unknown', finalText: null, recovered: false }),
+    at(3, 'turn/end', { turn: 1, reason: { kind: 'error', error: { code: 'UNKNOWN', message: 'lost' } } }),
+    at(4, 'codex/turn-result', { turn: 1, inputId: 'input', threadId: 'thread', turnId: 'turn', status: 'completed', finalText: 'recovered answer', recovered: true }),
+    at(5, 'codex/recovery', { threadId: 'thread', status: 'unknown' }),
+  ]
+  const complete = assembler(entries)
+  const partial = assembler(entries.slice(3), true)
+  partial.prepend(entries.slice(0, 3), false)
+  partial.flush()
+  const live = assembler()
+  for (const entry of entries) live.append(entry)
+  live.flush()
+  const nativeNodes = (value: ConversationNodeAssembler) => snapshot(value).nodes.values().filter(candidate => candidate.kind === 'codex')
+    .sort((left, right) => left.anchorSeq - right.anchorSeq)
+    .map(candidate => ({ id: candidate.id, data: candidate.data }))
+  expect(nativeNodes(partial)).toEqual(nativeNodes(complete))
+  expect(nativeNodes(live)).toEqual(nativeNodes(complete))
+  expect(nativeNodes(complete)).toHaveLength(3)
+  expect(nativeNodes(complete).some(candidate => 'text' in candidate.data && candidate.data.text === 'recovered answer')).toBe(true)
 })

@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { registerCodexObservation } from './codex.ts'
 import { registerAssistantConversationNode } from './assistant.ts'
 import { registerChatConversationView } from './chat-snapshot-builder.ts'
 import { registerCommandConversationNode } from './command.ts'
@@ -20,6 +21,7 @@ import { processGroupDefinition } from './process-groups.ts'
  * @param ctx - owning UI Conversation context.
  */
 export function registerConversationNodes(ctx: Context): void {
+  registerCodexObservation(ctx)
   registerInboxConversationNodes(ctx)
   registerMessageConversationNode(ctx)
   registerRequestPromptConversationNode(ctx)

@@ -218,3 +218,22 @@ describe('personal Project and Bot storage', () => {
     await ctx.fiber.dispose()
   })
 })
+
+
+it('retains legacy API defaults and enforces native Bot and cwd restrictions for cold conversations', async () => {
+  const { ctx, registry } = await harness()
+  ctx.provide('llm', { resolveCallConfig: async (selection: object) => selection } as never)
+  try {
+    const legacy = await registry.createBot({ name: 'API', defaultModel: { provider: 'api', model: 'legacy' } })
+    expect(legacy.defaultModel).toEqual({ provider: 'api', model: 'legacy' })
+    const otherBot = await registry.createBot({ name: 'Other' })
+    const otherProject = await registry.createProject({ name: 'Other directory', path: '/tmp' })
+    const session = ctx.sessions.create(SessionId('cold-native-affiliation'), { meta: { cwd: '/' } })
+    session.append('agent/backend', { kind: 'codex', model: 'native', effort: 'medium', runtimeVersion: '0.153.4' })
+    registry.move(session, { botId: legacy.id }, 'create')
+    expect(() => registry.move(session, { botId: otherBot.id })).toThrow('new conversation')
+    expect(() => registry.move(session, { botId: legacy.id, projectId: otherProject.id })).toThrow('new conversation')
+    await expect(registry.createBot({ name: 'Bad provider', defaultModel: { backend: 'codex', provider: 'api', model: 'native' } })).rejects.toThrow('native provider')
+    expect(registry.move(session, {}, 'delete').current).toEqual({})
+  } finally { await ctx.fiber.dispose() }
+})

@@ -102,3 +102,20 @@ declare module '@deepseek-ai/dsh-session/types' {
     }
   }
 }
+
+/** Immutable Codex choice for one logical Session; changes require a new Session. */
+export interface AgentBackendSelection {
+  readonly kind: 'codex'
+  readonly model: string
+  readonly effort: string
+  readonly runtimeVersion: '0.153.4'
+}
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** New conversation association; no source history or native thread is copied. */
+    'agent/backend-handoff': { readonly sourceSessionId: SessionId; readonly scope: 'none' }
+    /** External driver selected before publication; absent in existing API Sessions. */
+    'agent/backend': AgentBackendSelection
+  }
+}

@@ -21,6 +21,10 @@ kind: "package-reference"
 -----
 
 <a id="use-this-package"></a>
+## Driver routing
+
+The factory keeps single-writer persistence, unpublished maintenance, publication rollback and scope teardown for both API and external drivers. An explicit `AgentOptions.backend` delegates construction to `ctx.agents.driver(kind)`. Resume reads `agent/backend` and refuses a conflicting explicit native selection. Sessions without that event keep the existing API loop and its options. Codex conversations do not execute this package's model/tool loop.
+
 ## Use this package
 
 Mount `dsh-agent-loop` in any composition that should run agents. It supplies the driver behind `ctx.agents` and starts any agents you declare in its config; [`dsh-base`](../../bundle/base/README.md) mounts it as an explicit row for Desktop.

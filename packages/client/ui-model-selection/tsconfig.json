@@ -52,6 +52,9 @@
     },
     {
       "path": "../../util/values"
+    },
+    {
+      "path": "../ui-workspace"
     }
   ]
 }

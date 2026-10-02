@@ -75,11 +75,13 @@ export function ModelSelect(
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
 
+  const native = state.current?.backend === 'codex'
   const choices = useMemo(() => state.groups.flatMap(group =>
     group.models.map(model => ({
       group,
       model,
       selection: {
+        ...(group.backend === undefined ? {} : { backend: group.backend }),
         provider: group.id,
         model: model.id,
         ...model.reasoning?.defaultEffort === undefined
@@ -389,6 +391,8 @@ export function ModelSelect(
           aria-label={t('menu.aria')}
           aria-busy={state.status === 'loading' || busy}
         >
+          <p>{t('backend.newConversation')}</p>
+          {native && <p>{t('backend.codexCapabilities')}</p>}
           {pane === 'root' && (
             <>
               <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('model') }}>

@@ -231,6 +231,7 @@ export class FileUploads extends TypertRemoteService {
 
   private assertOrdinaryAgent(agent: Agent): void {
     this.assertAgentScope(agent)
+    if (agent.options.backend !== undefined) throw new RemoteError('session/attachment-invalid' as never, 'Codex does not accept uploads', { reason: 'CODEX_TEXT_ONLY' } as never)
     if (agent.session.header.origin === 'subagent') {
       throw new RemoteError(
         'subagent/attachment-invalid' as never,

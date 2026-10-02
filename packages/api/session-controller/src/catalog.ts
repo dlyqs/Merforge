@@ -57,11 +57,21 @@ export async function buildModelCatalog(
       }
     }
   }))
+  const native = await Promise.all(ctx.agents.listDrivers().map(async (provider) => {
+    try {
+      const discovered = await provider.catalog()
+      return { kind: 'group' as const, group: { id: provider.kind, backend: provider.kind, name: 'Codex',
+        models: discovered.models.map(model => ({ id: model.id, name: model.name,
+          reasoning: { efforts: model.efforts.map(id => ({ id, name: id })), defaultEffort: model.defaultEffort } })) } }
+    } catch (error: unknown) {
+      return { kind: 'failure' as const, failure: { id: provider.kind, name: 'Codex', message: error instanceof Error ? error.message : 'codex-runtime: unavailable' } }
+    }
+  }))
   return {
     default: { ...defaultSelection },
-    routableProviders: providers.map(provider => provider.id),
-    groups: catalog.flatMap(item => item.kind === 'group' ? [item.group] : [])
+    routableProviders: [...providers.map(provider => provider.id), ...native.flatMap(entry => entry.kind === 'group' ? [entry.group.id] : [])],
+    groups: [...catalog, ...native].flatMap(item => item.kind === 'group' ? [item.group] : [])
       .filter(group => group.models.length > 0),
-    failures: catalog.flatMap(item => item.kind === 'failure' ? [item.failure] : []),
+    failures: [...catalog, ...native].flatMap(item => item.kind === 'failure' ? [item.failure] : []),
   }
 }

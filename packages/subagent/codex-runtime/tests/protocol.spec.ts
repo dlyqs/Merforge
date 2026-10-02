@@ -9,6 +9,7 @@ interface Schema {
   definitions?: Record<string, Schema>
   required?: string[]
   properties?: Record<string, unknown>
+  oneOf?: Array<{ properties: { type: { enum: string[] } } }>
   [key: string]: unknown
 }
 interface Evidence {
@@ -21,6 +22,10 @@ const evidence = JSON.parse(readFileSync(new URL('./fixtures/protocol-0.153.4.js
   version: string
   schemas: Record<string, Evidence>
   stableFields: Record<string, Record<string, boolean>>
+  conversationObservations: {
+    threadItemTypes: string[]
+    responseFields: Record<string, string[]>
+  }
 }
 function strip(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(strip)
@@ -53,6 +58,15 @@ describe('Codex 0.153.4 protocol evidence', () => {
           expect(schema.definitions?.Thread?.required).toEqual(expected.threadRequired)
           expect(Object.keys(schema.definitions?.Thread?.properties ?? {})).toEqual(expected.threadFields)
         }
+      }
+      // These observations separate replayable conversation items from request
+      // context and account identity needed by the main-conversation consumer.
+      const history = JSON.parse(readFileSync(join(root, 'v2/ThreadReadResponse.json'), 'utf8')) as Schema
+      expect(history.definitions?.ThreadItem?.oneOf?.map(item => item.properties.type.enum[0]))
+        .toEqual(evidence.conversationObservations.threadItemTypes)
+      for (const [file, fields] of Object.entries(evidence.conversationObservations.responseFields)) {
+        const schema = JSON.parse(readFileSync(join(root, file), 'utf8')) as Schema
+        expect(Object.keys(schema.properties ?? {}), file).toEqual(fields)
       }
       const stable = join(root, 'stable')
       execFileSync(process.execPath, [bin, 'app-server', 'generate-json-schema', '--out', stable], { env, stdio: 'pipe' })

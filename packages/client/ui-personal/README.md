@@ -29,7 +29,11 @@ None directly. A user change to Project or Bot affiliation may change the next H
 
 Project and Bot learned memories belong to later phases. The task view is supplied by ui-personal-workflow. Visible Desktop behavior is checked by the user; the package's automated tests cover projection membership, row navigation, movement, history, and creation controls without launching the application page.
 
-No `./invariant` is published. This package owns one UI registration and has no independent runtime observations that can diverge.
+No `./invariant` companion is published. This package owns one UI registration and has no independent runtime observations that can diverge.
+
+## Native model selection
+
+The Bot editor loads the Host catalog and exposes backend, model and supported effort choices. Existing values remain visible when discovery fails. Native capability copy explains that Codex owns tools; the Bot default is inherited only by fresh conversations.
 
 ## Personal settings
 

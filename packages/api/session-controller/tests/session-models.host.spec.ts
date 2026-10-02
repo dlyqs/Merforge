@@ -127,6 +127,7 @@ async function harness(logged?: {
   }
   const agent = {
     id: session.id,
+    options: {},
     session,
     status: 'running',
     ctx,

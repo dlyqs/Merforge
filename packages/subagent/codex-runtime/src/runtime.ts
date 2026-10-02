@@ -438,10 +438,10 @@ export class CodexRuntime {
         const item = protocolObject(params.item)
         const itemId = brandString<CodexItemId>(protocolString(item.id))
         this.retainItem(active, itemId, item)
-        event = { type: 'item', itemId, item }
+        event = { type: 'item', turnId: active.id as CodexTurnId, itemId, item }
       } else {
         if (typeof params.delta !== 'string') throw new CodexRuntimeError('protocol')
-        event = { type: 'text-delta', itemId: brandString<CodexItemId>(protocolString(params.itemId)), text: params.delta }
+        event = { type: 'text-delta', turnId: active.id as CodexTurnId, itemId: brandString<CodexItemId>(protocolString(params.itemId)), text: params.delta }
       }
       try { active.onEvent?.(event) } catch (error) { void error /* A transient UI observer does not own terminal settlement. */ }
     } catch (error) {

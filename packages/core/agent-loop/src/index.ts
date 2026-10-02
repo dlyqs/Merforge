@@ -6,6 +6,9 @@
  */
 import type { Volatile } from '@deepseek-ai/cosmokit'
 
+import { readAgentBackend } from '@deepseek-ai/dsh-agent'
+import type { ScopedAgentDriver } from '@deepseek-ai/dsh-agent'
+
 import { Context, FiberState, Service } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
@@ -203,7 +206,7 @@ interface StoredSession {
 
 /** Prepared-but-unpublished agent resources sharing one memoized teardown. */
 interface PreparedAgent {
-  agent: ReactLoopAgent
+  agent: ScopedAgentDriver
   /** Aborts when the factory unloads, the caller cancels, or teardown begins — ends any setup await. */
   signal: AbortSignal
   /** Enter both registries and await creation listeners. */
@@ -514,7 +517,7 @@ export class AgentLoop extends Service implements AgentFactory {
     callerSignal?.addEventListener('abort', onCallerAbort, { once: true })
     this.ownership.signal.addEventListener('abort', onFactoryTeardown, { once: true })
 
-    let machine: ReactLoopAgent | undefined
+    let machine: ScopedAgentDriver | undefined
     let detachSession: (() => void) | undefined
     let detachAgent: (() => void) | undefined
     let disposing: Promise<void> | undefined
@@ -573,7 +576,9 @@ export class AgentLoop extends Service implements AgentFactory {
     let unfollowOwner: () => Promise<void> | void
     try {
       unfollowOwner = ownerCtx.effect(function* () {
-        machine = new ReactLoopAgent(loopCtx, id, options, session)
+        machine = options.backend === undefined
+          ? new ReactLoopAgent(loopCtx, id, options, session)
+          : loopCtx.agents.driver(options.backend.kind).create(loopCtx, id, options, session)
         machineReady.resolve()
         yield machine.scope.rawDispose
         yield () => {
@@ -766,7 +771,23 @@ export class AgentLoop extends Service implements AgentFactory {
     const session = ownedPreparation.session
     let prepared: PreparedAgent
     try {
-      prepared = this.prepare(ownerCtx, id, agentOptions, session, signal, stored?.handle, parentAgent)
+      // oxlint-disable-next-line typescript/no-deprecated -- Factory reads the complete acquired prefix once.
+      const persistedBackend = readAgentBackend(session.snapshotEvents())
+      if (source === 'startup') {
+        if (persistedBackend !== undefined || (agentOptions.backend !== undefined && session.header.isSeeded)) {
+          throw new Error('external backend cannot inherit a Session seed')
+        }
+        if (agentOptions.backend !== undefined) session.append('agent/backend', agentOptions.backend)
+      }
+      if (source === 'resume' && agentOptions.backend !== undefined
+        && JSON.stringify(agentOptions.backend) !== JSON.stringify(persistedBackend)) {
+        throw new Error('Codex backend selection differs from the stored conversation')
+      }
+      const selectedBackend = source === 'resume' ? persistedBackend : agentOptions.backend
+      const resolvedOptions = selectedBackend === undefined
+        ? agentOptions
+        : { backend: selectedBackend }
+      prepared = this.prepare(ownerCtx, id, resolvedOptions, session, signal, stored?.handle, parentAgent)
     } catch (error: unknown) {
       await stored?.handle.close().catch(() => {})
       throw error

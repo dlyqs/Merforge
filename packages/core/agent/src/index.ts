@@ -15,11 +15,15 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { installTurnArchiveAdmission } from './archive-admission.ts'
 import type { Agent } from './types.ts'
+import type { AgentDriverProvider } from './backend.ts'
 import type { AgentOptions, SessionStartSource } from './runtime-types.ts'
 
 export * from './runtime-types.ts'
 export * from './types.ts'
 export type * from './projection.ts'
+export * from './backend.ts'
+export { ReactLoopInbox, inboxProjectionDefinition, inboxProjectionSchema } from './inbox.ts'
+export { AssistantStreamAttempt } from './assistant-stream.ts'
 export * from './consumed-work.ts'
 export * from './model-selection.ts'
 export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
@@ -246,12 +250,43 @@ interface FactorySlot {
 export class AgentRegistry extends Service {
   private store = new Map<SessionId, AgentEntry>()
   private factory: FactorySlot | undefined
+  private readonly drivers = new Map<string, AgentDriverProvider>()
   private readonly initiators = new AsyncLocalStorage<Agent | undefined>()
   private readonly initiatorRuns = new AsyncLocalStorage<InitiatorRun>()
   private initiatorState: 'active' | 'closing' | 'disposed' = 'active'
   private activeInitiatorRuns = 0
   private initiatorDrain: PromiseWithResolvers<void> | undefined
   private initiatorDisposal: Promise<void> | undefined
+
+  /**
+   * Register one external conversation driver under the existing Session factory.
+   * @param provider - driver creation and catalog owner.
+   * @returns effect-owned removal; provider teardown drains its own resources.
+   */
+  registerDriver(provider: AgentDriverProvider): () => Promise<void> {
+    if (this.drivers.has(provider.kind)) throw new Error(`duplicate agent driver: ${provider.kind}`)
+    return this.ctx.effect(() => {
+      this.drivers.set(provider.kind, provider)
+      return () => { this.drivers.delete(provider.kind) }
+    }, `agents.driver(${provider.kind})`)
+  }
+
+  /**
+   * Resolve a configured external driver, refusing an absent provider.
+   * @param kind - persistent backend kind.
+   * @returns registered provider.
+   */
+  driver(kind: 'codex'): AgentDriverProvider {
+    const provider = this.drivers.get(kind)
+    if (provider === undefined) throw new Error(`agent backend unavailable: ${kind}`)
+    return provider
+  }
+
+  /**
+   * Read currently registered external drivers for picker discovery.
+   * @returns a fresh provider roster.
+   */
+  listDrivers(): readonly AgentDriverProvider[] { return [...this.drivers.values()] }
 
   /**
    * Enforce the registry's identity namespace before creating or publishing a Session.

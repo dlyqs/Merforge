@@ -10,6 +10,8 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'backend.newConversation': '切换后端或 Codex 模型/推理等级会新建会话，不复制历史。',
+  'backend.codexCapabilities': 'Codex 使用原生工具；仅支持文字。应用命令、压缩、附件、插话、分叉和人工审批暂不可用。',
   'command.label': '模型',
   'command.description': '选择本会话使用的模型',
   'option.loadError': '目录加载失败：{message}',
@@ -39,6 +41,8 @@ export type ModelKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'backend.newConversation': 'Changing backend or Codex model/effort starts a new conversation without copying history.',
+  'backend.codexCapabilities': 'Codex uses native tools. Text only; application commands, compaction, attachments, steering, forks and human approvals are unavailable.',
   'command.label': 'Model',
   'command.description': 'Select the model for this conversation',
   'option.loadError': 'Catalog failed to load: {message}',

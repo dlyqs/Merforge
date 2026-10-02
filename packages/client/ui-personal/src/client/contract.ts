@@ -3,6 +3,7 @@ import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
+import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { PersonalKey } from './locales.ts'
 
 /** Loaded personal records; Session membership stays in the Session catalog. */
@@ -16,6 +17,7 @@ export interface PersonalRecordsState {
 /** Mutations owned by the Client plugin's Remote adapter. */
 export interface PersonalActions {
   refresh(): Promise<void>
+  loadModels?(): Promise<ModelCatalog>
   createProject(input: { name: string; description?: string; path?: string }): Promise<void>
   updateProject(input: { id: ProjectId; name: string; description: string; path: string | null }): Promise<void>
   pickDirectory(): Promise<string | null>
@@ -24,7 +26,7 @@ export interface PersonalActions {
     name: string
     identity: string
     direction: string
-    defaultModel?: { provider: string; model: string; reasoningEffort?: string }
+    defaultModel?: { backend?: 'harness-api' | 'codex'; provider: string; model: string; reasoningEffort?: string }
     allowedTools?: string[]
     allowedSkills?: string[]
   }): Promise<void>
@@ -33,7 +35,7 @@ export interface PersonalActions {
     name: string
     identity: string
     direction: string
-    defaultModel: { provider: string; model: string; reasoningEffort?: string } | null
+    defaultModel: { backend?: 'harness-api' | 'codex'; provider: string; model: string; reasoningEffort?: string } | null
     allowedTools: string[] | null
     allowedSkills: string[] | null
   }): Promise<void>

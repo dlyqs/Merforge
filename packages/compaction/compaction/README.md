@@ -132,6 +132,8 @@ Read these pages when the package-level contract is not enough; they move from t
 -----
 
 <a id="model-experience"></a>
+Native Codex conversations reject application command handlers and Harness context compaction before any API request or tool work. Codex owns its native context; model selection remains available through the Desktop selector.
+
 ## Model Experience
 
 ### Conversation history, when a backend is invoked

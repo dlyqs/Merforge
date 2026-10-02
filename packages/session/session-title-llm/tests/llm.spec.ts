@@ -363,3 +363,15 @@ describe('generateSessionTitleWithLlm', () => {
     }
   })
 })
+
+
+it('uses the first native conversation text as title without an auxiliary API request', async () => {
+  const { ctx, adapter } = await withScript(SCRIPT)
+  try {
+    const native = requestWithoutRoute(ctx)
+    native.session.append('agent/backend', { kind: 'codex', model: 'native', effort: 'medium', runtimeVersion: '0.153.4' })
+    expect(await generateSessionTitleWithLlm(ctx, CONFIG, native, native.messages, TITLE_PROVIDER)).toEqual({ title: 'first prompt', messageSeqs: [native.messages[0]!.seq] })
+    expect(adapter.requests).toEqual([])
+    expect(native.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(false)
+  } finally { await ctx.fiber.dispose() }
+})

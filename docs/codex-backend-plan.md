@@ -6,14 +6,16 @@
 
 2026-10-02 检查时，仓库只有路线图的 7B 概述，没有独立实施计划。用户明确要求参考 `/Users/git_local/multica`，让 Merforge 能用 Codex 替代内部依赖 API key 的模型进行交互。本计划据此扩展原先“应用模型规划，Codex 仅执行”的范围：**用户选择 Codex 后，普通对话、澄清、已有任务规划及获准执行由 Codex 承担，不要求另配 Merforge 模型 API key，也不在后台启动一个 API 模型负责监督。** 现有 API 模型仍是独立可选后端，不强制迁移已有会话。
 
-这是涉及 Agent 驱动、持久日志、工具许可、组织权限及 Desktop 组合的大目标。用户于 2026-10-02 明确授权“请自动完成 phase1-2”；执行范围为 Phase 1 至 Phase 2，不包含 Phase 3 及以后。
+这是涉及 Agent 驱动、持久日志、工具许可、组织权限及 Desktop 组合的大目标。用户于 2026-10-02 明确授权“请自动完成 phase1-2”；该次执行范围为 Phase 1 至 Phase 2，已完成。用户随后于 2026-10-02 明确授权“[codex-backend-plan.md](docs/codex-backend-plan.md) 请自动完成 phase3-4”；原连续执行范围为 Phase 3 至 Phase 4，包含首尾；用户随后要求完成 Phase 3 后停止，本轮终点已相应缩至 Phase 3。
+
+用户随后于 2026-10-02 明确调整责任：“如果使用 codex 那么任务的完成不需要当前应用来确保……当前应用只需要能作为一个桥传递发送信息给 codex 执行，然后能获取到 codex 的输出和执行结果就行。”该说明替代先前“保留原门槛”的决定。Codex 模式由原生执行器拥有上下文、工具和执行质量；Merforge 拥有任务调度、发送记录、thread 关联、输出/结果接收、停止与组织真人动作。应用记录桥接转录，不要求重建 Codex 内部模型请求，也不以自身工具 guard、逐模型请求许可或独立产物核验作为 Codex 接入前置。API 后端仍遵循既有执行和日志要求。该责任定义继续有效；执行范围以用户最新的 Phase 3 停止要求为准。
 
 范围内：
 
 - 复用已有官方 Codex app-server 传输与 subprocess 管理，提供独立于 one-shot subagent 的持续对话后端；同一 Merforge Session 保留原有项目/Bot、查询、归档及运行展示关系。
-- 本机原生登录状态、可用模型与推理选项、流式输出、多轮续聊、停止、重开核对、人工提问/审批、错误分类及实际产物证据。
-- 通过受控工具桥接消费现有 personal-workflow、skill-dev-workflow 与组织任务服务；计划、批准、委托、提交和验收仍归现有服务及真人动作。
-- 组织精确任务版本、有限委托、设备租约、逐动作许可、独立日志、有限预算与撤权停止的 Codex 消费者。
+- 本机原生登录状态、可用模型与推理选项、流式输出、多轮续聊、停止、重开核对、人工提问/审批、错误分类及 Codex 报告的执行结果。
+- 通过调度桥接消费现有 personal-workflow、skill-dev-workflow 与组织任务服务；Codex 使用原生工具执行，计划管理、批准、委托、提交和验收仍归现有服务及真人动作。
+- 组织精确任务版本、有限委托、设备租约、启动/继续许可、独立桥接转录、有界运行与撤权停止的 Codex 消费者。
 - Desktop 内的后端选择、能力限制说明、状态/请求/产物展示与无页面验证。
 
 范围外：新建 CLI/Web/SDK 产品入口、托管或组织共享用户订阅后端、收集/共享登录 token、其他外部 Agent、跨设备 Codex thread 接力、自动提交/push/部署、后台自动负责人调度，以及复制 Multica 的 Go daemon、数据库或 UI。本轮不创建额外执行器 Skill，不启用新聊天 relay。
@@ -29,8 +31,8 @@
 | `packages/subagent/subagent-codex/src/{run,wire,jsonrpc}.ts` | 固定 `@openai/codex@0.153.4`；每次一个新进程、ephemeral thread 和 turn；返回最终文本/安全诊断；没有持续对话、模型发现或真人等待 | 保留 one-shot 行为；提取两种消费者真正共用的传输/进程代码，不把最终文本委派冒充主对话 |
 | `packages/core/agent/src/index.ts`、`packages/core/agent-loop` | AgentRegistry 只有一个创建 factory，loop 注册它；Agent 有公共生命周期及 Session 写入约定 | Phase 1 固化多后端路由及单一日志写入者，不能再注册一个竞争 factory；必要公共 API 变化更新全部消费者 |
 | `packages/api/session-controller/src/{agent,commands,control,history,catalog}.ts` | 普通发送、恢复、模型选择、列表/查询、流与控制依赖内建 Agent/LLM | 接显式后端选择和能力检查，保留 API 模型路径；不把 Codex CLI 的自主工具行为塞进 LlmAdapter |
-| `packages/workspace/personal-project`、`personal-workflow`、`packages/skill/skill-dev-workflow` | Bot 模型默认值当前引用 LLM route；项目/Bot 输入、工具/Skill 限制和计划资格在既有流程检查 | 更新默认后端引用及真实消费者；Codex 桥接仍执行相同资格检查 |
-| `packages/workspace/organization-execution/src/{index,runtime,model,guard}.ts` | 独立 Run/JSONL；内建模型 HTTP 发送前复核；有界文件工具；当前拒绝 shell | Codex 必须新增明确的后端与受控工具消费，不伪造 HTTP endpoint，不把原有 model permit 当作任意外部进程许可 |
+| `packages/workspace/personal-project`、`personal-workflow`、`packages/skill/skill-dev-workflow` | Bot 模型默认值当前引用 LLM route；项目/Bot 输入、工具/Skill 限制和计划资格在既有流程检查 | 更新默认后端引用及真实消费者；Codex 桥接仍执行应用任务管理动作的资格检查 |
+| `packages/workspace/organization-execution/src/{index,runtime,model,guard}.ts` | 独立 Run/JSONL；内建模型 HTTP 发送前复核；有界文件工具；当前拒绝 shell | Codex 新增原生执行后端与启动/继续调度资格，不伪造 HTTP endpoint，不复用原有 model permit |
 | `apps/desktop{,-host}`、`packages/host/organization-connection` | 私有 Host、固定 IPC/native 动作、当前身份 generation、Electron 所有的认证材料 | 维持现有所有者与固定命令，Renderer 不得到通用进程/JSON-RPC/组织代理 |
 
 ### Multica 参考
@@ -38,14 +40,15 @@
 本次只读抽查本地 `/Users/git_local/multica` 的提交 `32a396fd520bdbdec2d6cd95b5742da946003ca9`，没有运行其产品、测试或导入其代码。这与路线图 v0.4 的旧参考快照不同，不覆盖旧对照的核验范围。
 
 - `server/pkg/agent/agent.go`：执行选项、进度流/终态分离、resume 标识、准备超时和取消超时、已观测终态不被清理失败改写。
-- `server/pkg/agent/codex.go`：initialize、thread/start/resume、turn/start、流式事件、turn/interrupt、运行中追加输入、最终回答选择和当前 turn 过滤。借鉴失败场景；本计划不采用其部分失败后自动新建 thread 的兼容路径。
+- `server/pkg/agent/codex.go`：initialize、thread/start/resume、turn/start、流式事件、turn/interrupt、运行中追加输入、最终回答选择和当前 turn 过滤。借鉴失败场景；本计划参考其执行桥职责，保留恢复失败明确报错，不自动新建 thread 的选择。
 - `server/internal/daemon/execenv/codex_home.go`：配置/会话目录隔离、模型缓存关联、稳定会话存储。借鉴分离原则，不直接复制整份用户配置、skills、MCP 或 sessions。
 - `server/internal/daemon/execenv/codex_sandbox.go`：存在平台相关 `danger-full-access` 选择。该取舍不能照搬；Merforge 的沙箱承诺以自己验证过的能力为准，失败不得自动扩大权限。
 - `LICENSE`：上游含附加商业/品牌等条件。本计划仅参考行为与故障设计，实现优先来自本仓库及官方协议，不做逐行翻译。
 
 官方依据：[Codex App Server](https://developers.openai.com/codex/app-server/)（2026-10-02 已读取）。该页描述双向 JSON-RPC、持久 thread、多轮 turn、流式 item、账号/模型发现和客户端工具调用；`dynamicTools` 及部分用户输入接口需要 experimental capability。官方当前页面不能直接证明本仓库固定 0.153.4 支持每一项，实施时必须对所选 payload 的生成 schema 和实际协议复核。该页也限制 app-server 原生认证用于商业/托管服务；本计划只覆盖获准的本地应用场景，若产品部署方式改变，另行评估官方授权接入，不能扩展成共享账号服务。
 
-可行性结论：**个人 Codex 持续对话可行；完整组织执行有明确技术门槛。** 原生工具不会自动穿过 Harness guard，动态工具也不会自动关闭原生 shell、文件、MCP 或子代理。组织可用资格必须先证明“只暴露受控工具”和配置/上下文隔离；若所选版本无法做到，应将对应阶段标为 `blocked` 并说明缺少的能力，不能靠提示词、输出回报或 turn 完成后补账替代许可。账户可用性、真实用量、macOS/Windows 原生隔离及真实模型效果仍需实际验证。
+可行性结论：**Codex 原生执行桥可行。** 由 app-server 拥有模型请求、上下文和原生工具；Merforge 只对调度、关联、发送和已观测结果负责。原生工具不经过 Harness guard，不宣称应用能够重建完整模型请求、逐请求限额或独立验证执行质量。组织路径后续仍须验证任务访问、启动/继续授权、设备租约及停止，但不以禁用所有原生工具作为前置。原生登录、真实模型效果与平台行为另列实测。
+
 
 ## 约束与接口方向
 
@@ -53,12 +56,12 @@
 2. **官方运行时。** 优先复用现有固定 payload 和 subprocess seam。可选已安装 CLI 必须由 Config 显式选定位置、核验版本并进入兼容矩阵，不能作为损坏 payload 的隐式 fallback。禁止 shell 拼接、任意 CustomArgs、自动安装/升级和写用户原配置。Desktop 闭包、签名、payload notices 及发行体积一并检查。
 3. **原生认证。** 用官方 account 接口读取安全状态；账户/额度不等于组织资格。无需 Merforge API key，但仍需用户自己的有效 Codex 登录。认证由原生机制持有；不把 auth 文件、token、账户邮箱或完整环境上传组织、传给 Renderer 或写进诊断。组织独立运行目录使用的认证方式必须经所选版本验证；若需另行原生登录就明确提示，不复制整个用户 home 或历史，也不自动替用户登录/退出。
 4. **驱动而非伪装模型。** Codex 原生执行器作为插件驱动，经统一 create/resume/send/cancel/read 能力路由；复用 Agent、Session、工具和远程展示。内建 loop 的模型/工具循环继续由原实现拥有。多后端不争夺 factory，不产生两个活跃 Agent 或 Session writer。若必须改 loop 的注册接线，同时更新 `docs/architecture.md`，不把组织业务放进 loop。
-5. **日志与原生历史。** 同一逻辑 Session 绑定一个当前 backend/thread，thread/turn/item/request ID 使用品牌类型。应用送入 Codex 的输入、方法/上下文/工具 schema、配置版本、工具参数结果、人工答复、终态及续聊决定先持久后发出。原生 rollout 留在本机独立存储，通过官方 read/export 能力核验可重建的实际上下文；不能把仅应用转录说成完整模型日志。禁用并验证未记录的原生记忆、外部配置注入、插件/MCP 和隐式历史；若仍有模型可见内容无法记录，不通过相应准入。新增必需 Session 事件更新 schema/类型、读取者、投影和目录；只在结构格式变化时增加 SESSION_FORMAT_VERSION，不无条件加版本或忽略事件。
-6. **持久性与幂等。** 原子预留 Session/thread 关联、稳定输入 ID 和发送意图。发送超时先核对官方 thread/turn 与本地回执，未知副作用保留 `unknown`；不得重发或自动新开 thread。恢复必须核对账户/runtime/cwd/归属/授权版本及日志基线。跨后端继续在首版通过明确新建关联会话和可审阅交接输入完成，不把 API 历史静默塞入原生 thread；fork 不冒充原生历史复制。
-7. **当前 turn 与终态。** 严格按绑定的 thread/turn 接纳事件；恢复历史、旧 turn、无关联 item 不结束新运行。`turn/completed` 的状态是终态依据，末条消息/进程 exit 0/空闲不能替代；支持空文本但有已验证工具结果的完成情形。终态先持久，清理错误另记，不把成功翻成失败。usage 缺失标未知，不捏造 token、API 价格或订阅费用。
-8. **能力按模式声明。** 普通个人原生执行只承诺 Codex 已验证的权限；选择受控工作流或组织模式时，原生 shell/file/MCP/subagent、背景终端及其他未桥接动作必须在运行时禁用并验证。不能证明时拒绝该模式。动态工具桥接走真实 `ctx.tools` 管线/guard/作用域，绝不直接调用绕过许可的文件 helper。规划只开放澄清、查询、评估及草案，不开放执行工具。
+5. **桥接记录与原生历史。** 同一逻辑 Session 绑定一个当前 backend/thread，thread/turn/item/request ID 使用品牌类型。应用发送的文字、runtime/model/effort/cwd、发送意图与回执、收到的输出/原生工具条目、协议终态及恢复决定持久记录。Codex 拥有内部上下文、原生历史、配置和工具；应用转录不表示完整模型日志，不以完整请求可重建或禁用原生注入作为接入门槛。Codex 的 completed 表示原生 turn 完成，任务提交和真人验收另由任务管理拥有。新增必需 Session 事件更新类型、读取者、投影与目录；结构不变时不增加格式版本。
+6. **持久性与幂等。** 原子预留 Session/thread 关联、稳定输入 ID 和发送意图。发送超时先核对官方 thread/turn 与本地回执，未知副作用保留 `unknown`；不得重发或自动新开 thread。恢复核对登录可用性/runtime/cwd/归属及桥接回执；原生账号由 Codex 持有，不把安全账号类别冒充账号身份，也不要求应用确认不可取得的账号代次。跨后端继续在首版通过明确新建关联会话和可审阅交接输入完成，不把 API 历史静默塞入原生 thread；fork 不冒充原生历史复制。
+7. **当前 turn 与终态。** 严格按绑定的 thread/turn 接纳事件；恢复历史、旧 turn、无关联 item 不结束新运行。`turn/completed` 的状态是终态依据，末条消息/进程 exit 0/空闲不能替代；支持空文本但有原生工具结果的完成情形。终态先持久，清理错误另记，不把成功翻成失败。usage 缺失标未知，不捏造 token、API 价格或订阅费用。
+8. **能力按后端声明。** Codex 使用原生工具、配置和执行许可，Merforge 不宣称其动作经过 Harness guard。未实现的 steering、fork、图像/附件及人工请求在 Host 和 UI 同步拒绝。若 Codex 后续调用 Merforge 的任务管理工具，只有这些应用动作经过既有权限管线；不会据此声称控制原生 shell/file/MCP/subagent。
 9. **人的决定。** 模型只能提出计划和待确认动作。批准、接受、委托、开始、提交、验收、驳回和最终交付仍经既有固定真人动作。协议请求绑定当前人/窗口/Session/thread/turn/版本、超时与撤销；未知请求拒绝。回答不自动续跑，断线/睡眠/退出/撤权销毁旧答复资格；组织等待使用持久 Inbox，不借 Codex 审批放宽组织授权。
-10. **组织外部资格。** 现有 model/endpoint policy 必须显式扩展为后端与能力策略；Codex 自身模型请求/重试、工具调用与出站行为不可观测或不可限额时不宣称具备逐请求控制。必须由 runtime 提供可验证逐动作 hook，或由独立隔离层实现相等限制；否则拒绝该能力。账号凭据留在员工设备，任务当前 read、精确版本、依赖、接受、委托、租约及预算共同准入。撤权阻止新动作，已在途副作用不承诺回滚。
+10. **组织调度资格。** 外部后端策略明确 Codex 是原生执行器，不能复用 API endpoint 或 model permit。启动/继续仍复核当前任务访问、精确版本、接受、委托、设备租约与运行限额；内部模型请求/重试与原生工具由 Codex 拥有，不宣称逐动作许可或逐请求预算。账号凭据留在员工设备。撤权阻止新调度并停止所属运行，已在途副作用不承诺回滚。
 11. **配置与代码纪律。** 准备、RPC、首条进度、执行、人工等待、取消和销毁限额是验证过的 Config 字段，不硬编码成测试 hook。贡献经 `ctx.effect()`/`ctx.on()`，waterfall 调 `next()`；跨进程 JSON 校验，同进程类型值不加无谓防御；不新增 `as unknown`，不创建 Agent Notes。
 12. **验证归属。** 助理只进行静态检查、纯逻辑/Host/私有 IPC/HTTPS/SQLite/JSONL 及无窗口产物测试；禁止拉起页面、Playwright、浏览器自动化或 GitNexus。可见 Desktop、原生登录、真实 Codex 与双平台/三机验收交用户。工程、发行、真实模型和产品验收分别记录，不能互相替代。
 
@@ -68,18 +71,20 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 协议与能力核验 | 固化运行时、日志、工具禁用和消费者接口 | completed | 设计、固定版本 schema 与离线核验 | 组织隔离与逐动作控制是硬门槛 |
+| Phase 1 | 协议与能力核验 | 固化运行时与消费者接口 | completed | 设计、固定版本 schema 与离线核验 | 历史日志/工具门槛已按用户说明修订 |
 | Phase 2 | 共用 Codex runtime | 传输、进程、账号/模型、持久 thread | completed | 共用 runtime、one-shot 迁移、110 项回归与 2 项产物 smoke | 原生登录/真实模型/双平台待验；未挂 Desktop |
-| Phase 3 | 日志与对话驱动 | 多后端路由、Session、发送/流/重开 | pending | — | 依赖 Phase 2 |
-| Phase 4 | 个人 Desktop 接入 | 无 API key 选择 Codex、持续对话和配置 | pending | — | 依赖 Phase 3 |
-| Phase 5 | 个人工作流与人工请求 | 受控方法/工具、审批/等待、停止/恢复 | pending | — | 依赖 Phase 4；不实现 7C 自动识别 |
-| Phase 6 | 组织后端资格 | 外部策略、有限许可、预算与固定传输 | pending | — | 依赖 Phase 1、5 的能力证据 |
-| Phase 7 | 组织 Codex 执行 | 独立上下文/日志、逐动作桥接和真实证据 | pending | — | 依赖 Phase 6；不合格能力拒绝启动 |
+| Phase 3 | 日志与对话驱动 | 多后端路由、Session、发送/流/重开 | completed | 单 factory native driver、持久意图/回执/结果、停止与恢复 | 聚焦回归/build/无窗口 smoke 通过；真实模型待验 |
+| Phase 4 | 个人 Desktop 接入 | 无 API key 选择 Codex、持续对话和配置 | in_progress | 已有 catalog、Bot/UI/Host 接线与测试代码 | 用户要求完成 Phase 3 后停止；保留部分实现，未宣布阶段完成 |
+| Phase 5 | 个人工作流与人工请求 | 任务管理桥、审批/等待、停止/恢复 | pending | — | 依赖 Phase 4；不实现 7C 自动识别 |
+| Phase 6 | 组织调度资格 | 外部策略、启动/继续许可与固定传输 | pending | — | 依赖 Phase 1、5 |
+| Phase 7 | 组织 Codex 执行桥 | 任务派发、独立转录与原生结果 | pending | — | 依赖 Phase 6 |
 | Phase 8 | 组织 Desktop 消费 | 选择/运行/待处理/提交及后续 7C 接口 | pending | — | 依赖 Phase 7；已有任务可独立验证 |
-| Phase 9 | 组合与故障回归 | 个人/组织双后端、隔离/取消/恢复回归 | pending | — | 依赖 Phase 8；7C 可用时加组合验证 |
+| Phase 9 | 组合与故障回归 | 个人/组织双后端、访问隔离/取消/恢复回归 | pending | — | 依赖 Phase 8；7C 可用时加组合验证 |
 | Phase 10 | 发行与验收交接 | 闭包/build/smoke、真实 Codex 验收剧本 | pending | — | 依赖 Phase 9；不自动公开发布 |
 
 ## Phase 1：协议、兼容版本与消费者核验
+
+Phase 1–2 的清单和完成记录保留当时的工程证据；其中完整模型日志、原生工具禁用及逐模型请求许可的未来准入要求已由本文当前责任定义替代。
 
 目标：确定真实可支持的模式和接口，避免后续把“能发 prompt”误当作安全的应用后端。
 
@@ -143,15 +148,26 @@
 
 验收清单：
 
-- [ ] create/resume/send/cancel/read 不要求 LLM route 的凭据；只选择一个 driver，未配置 Codex 不影响既有 API 会话。
-- [ ] 输入/运行时选择/上下文及 schema 先落盘后发出，完成/失败/取消及工具请求可重建；流式 delta 与持久结算区分，重开不重复消息。
-- [ ] Session/thread 准备、日志锁和发布失败有回滚或恢复记录；晚到创建响应不产生孤立可执行 thread。
-- [ ] 发送断线、read 失败、进程丢失和未决副作用呈现 unknown；确认前不重放；resume 失败不自动新建 thread。
-- [ ] API↔Codex 切换明确新会话与交接范围，fork/搜索/上传/导出均保留既有隔离及能力限制；原生历史和应用索引一致性可独立核对。
+- [x] create/resume/send/cancel/read 不要求 LLM route 的凭据；只选择一个 driver，未配置 Codex 不影响既有 API 会话。
+- [x] 应用输入/运行时选择/发送意图先落盘后发出，完成/失败/取消及收到的原生工具条目可读取；流式 delta 与持久结算区分，重开不重复消息。
+- [x] Session/thread 准备、日志锁和发布失败有回滚或恢复记录；未确认创建保持 unknown，不执行或再次创建 thread。
+- [x] 发送断线、read 失败、进程丢失和未决副作用呈现 unknown；确认前不重放；resume 失败不自动新建 thread。
+- [x] API↔Codex 切换明确新会话与交接范围，fork/搜索/上传/导出均保留既有隔离及能力限制；原生 thread 回执和应用索引可独立核对。
 
 助理验证：真实 Session/JSONL/Remote 与 fake app-server 组合，双发送/多窗口/冷重开/取消竞争与纯投影测试；相关类型/事件/JSDoc/投影门禁。用户检查：后续 Phase 4 统一验证。依赖：Phase 2。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：
+
+- 新增 `packages/core/agent-codex`，由原 `agent-loop` 唯一 factory 创建，保留单 Session writer、未发布维护、创建回滚及作用域销毁。共用 inbox/assistant stream 移到 `agent`，API 路径行为保留。新增必需 backend、handoff、thread preparing/bound、send intent/receipt、item、turn-result、recovery 和 diagnostic 事件、投影及读取目录；Session envelope 和 SQLite 版本不变。
+- 真实 Cordis Loader、Session/JSONL 和确定性协议替身覆盖排队两轮、冷重开第三轮、创建冲突/发布回滚、发送前 flush、缺回执不重发、已确认回执的终态恢复、read/resume 失败、工具结果无最终文字、取消后显式续聊、缺登录后重试、flush 失败清理和模型目录查询卸载清理。迟到结果保留在 native 卡，不补写已关闭的标准回合。保留固定协议分页拒绝修复，不调用内部 API 模型监督或兜底。
+- session-controller 的持久选择、独立替换会话及 `scope: none` 交接已实现；Host 拒绝 native 附件/上传、steering、fork 和应用 slash command/compaction。个人归属变更同时检查冷会话。标题使用首条用户文字，避免辅助 API 调用。任务管理工具、人工请求与组织派发属于后续阶段。
+- 聚焦回归命令：`pnpm exec vitest run packages/core/agent-codex/tests packages/core/agent-loop/tests packages/subagent/codex-runtime/tests packages/subagent/subagent-codex/tests/subagent-codex.spec.ts packages/subagent/subagent-codex/tests/jsonrpc.spec.ts packages/api/session-controller/tests/session-models.host.spec.ts packages/client/file-upload/tests/file-upload-http.host.spec.ts packages/workspace/personal-project/tests/personal-project.spec.ts packages/session/session-title-llm/tests/llm.spec.ts packages/interaction/commands/tests/commands.spec.ts packages/compaction/compaction-basic/tests/manual-compaction.spec.ts packages/compaction/command-compact/tests packages/client/ui-chat/tests/conversation-node-definitions.client.spec.ts packages/client/ui-model-selection/tests/native-directory.client.spec.ts`，42 文件/769 项通过。之后新增模型发现卸载测试，`pnpm exec vitest run packages/core/agent-codex/tests` 24 项通过。native InputBar 的 jsdom 聚焦用例通过。
+- `pnpm run build`、`node apps/desktop-host/tests/codex-built-smoke.mjs` 通过。built smoke 使用私有 Host manifest 解析已构建 driver，再走 Loader、两轮发送、JSONL 和进程清理；不启动 Electron 窗口、不读取认证或调用真实模型。相关 `tsc -b`、局部 `run-oxlint`、`verify-client-ui-i18n`、`verify-package-meta`、`gen-scoped-events --check`、`verify-cordis-config`、`verify-application-entrypoints` 和 `git diff --check` 通过；`gen-tsconfig-paths`、`gen-persistence-catalog` 已更新。
+- 全局门禁的既有问题如实保留：`verify-export-jsdoc` 的 OrganizationLoginSession read/save 文档；`verify-package-dependencies` 的 file-upload → assertPersonalSessionId 分类；`verify-package-invariants` 的三处 Session-format README；`gen-config-catalog` 的 organization schema 相对导入；`gen-cordis-api` 的 integrationReceiptSchema 文档。已对照原 HEAD 复验的 Client/Session 基线失败为 fork workspace ancestor 断言及 InputBar/InputMatrix 的旧 plan/goal 提示断言，不扩展本轮修复范围。新 API/配置说明保留在所属 README；全局 API/config 目录生成仍受这些基线问题阻塞。
+
+用户待验：本人原生登录、真实 Codex 模型的两轮上下文/停止/冷重开、macOS/Windows 行为及可见 Desktop。替身与 build 不代表这些检查通过。未运行全仓测试、打包/签名、真实模型或页面；未安装/升级 runtime、修改原生配置、commit/push 或创建 Agent Notes。
+
+下一阶段为 Phase 4。用户随后明确要求“做完 phase3 就先停止”，当前 Phase 3 工程收尾完成后停止，保留已写入的 Phase 4 部分实现，恢复 manual 并清空自动边界。
 
 ## Phase 4：个人 Desktop 后端选择与多轮交互
 
@@ -169,59 +185,59 @@
 
 助理验证：catalog/选择迁移/纯 UI 投影及 Host Remote 测试，相关 Client/Host 类型、局部 lint、i18n 和资源构建；不拉起页面。用户检查：无应用 key 的普通问答、两轮上下文、重开、停止、Bot 默认值和 API 后端回归。依赖：Phase 3。
 
-实际完成：未开始；执行后填充。
+实际进度（2026-10-02）：已写入 Desktop 私有 Host driver 接线、原生 catalog/effort 与错误刷新、Bot 默认 backend、模型选择的新会话交接、native 结果/恢复卡及 UI 附件/steering/fork 限制；部分静态和纯逻辑/Host 用例已随 Phase 3 验证。用户要求 Phase 3 完成后停止，因此保留这些改动，不再推进 Phase 4，也不将本阶段标成 completed。后续明确续接时先审阅当前改动，再完成本阶段验收和文档。
 
-## Phase 5：个人受控工作流、人工请求与继续
+## Phase 5：个人工作流、任务管理桥与人工请求
 
-目标：Codex 使用现有方法与工具完成任务规划/获准执行，同时保留精确版本审批和可恢复的人工作答。
+目标：把应用任务交给 Codex，并接回规划建议、输出、执行状态和需要人的请求；Codex 拥有原生工具和执行质量。
 
-产出：runtime 动态工具/人工请求桥、agent-codex scoped tools 消费者、personal-workflow 和 skill-dev-workflow 的方法/上下文接线、现有 interaction 与 Client 请求 presenter；更新权限和能力 README。
-
-验收清单：
-
-- [ ] 显式增强模式中 Codex 调用 workflow_assess/propose，结构化计划进入现有唯一写入者；无内部 API 模型参与，simple/clarify/complex 仍受既有资格限制。
-- [ ] 动态工具参数在协议入口校验，调用穿过真实 tools 管线、Bot/Skill 许可、计划版本/执行预算；原生未桥接动作经运行时证据禁用。
-- [ ] 模型建议不批准计划、不自动领取/执行；实际文件操作产出有 guard 记录和真实哈希，不信任模型自报。
-- [ ] 原生提问/审批绑定准确请求与当前所有者，旧答复/重复答复/未知权限请求拒绝；回答与继续分开，挂起请求重开可核对。
-- [ ] 停止/超时/退出/HMR 清理全部所属请求、进程及背景工具；未确认副作用先核对基线，用户明确继续后才 resume。
-
-助理验证：真实工具管线+存储+假协议的计划/审批/撤权/取消/产物测试；关键拒绝路径及销毁测试；相关静态检查。用户检查：选择 Codex 后显式规划 CSV 任务、审阅批准、获准执行、人工答复与继续，检查真实文件；默认自动识别仍属于 7C。依赖：Phase 4 和 Phase 1 的受控工具证据。
-
-实际完成：未开始；执行后填充。
-
-## Phase 6：组织外部后端策略、许可与传输
-
-目标：让组织权威明确区分 API 模型和 Codex 运行资格，不借旧 model permit 放行原生执行器。
-
-产出：`organization` 后端/能力策略、执行配置/许可/动作种类/schema、单调 SQLite 迁移与关系校验；`organization-api`、`organization-connection`、Desktop 固定 IPC 类型；`docs/organization-execution.md`、备份/格式文档。
+产出：runtime 人工请求桥、agent-codex 的应用任务管理工具消费者、personal-workflow 和 skill-dev-workflow 的派发/结果接线、Client 请求 presenter 与能力文档。
 
 验收清单：
 
-- [ ] API endpoint 策略保持原语义；Codex 配置独立记录 runtime/model、隔离方式、工具集合和可执行预算，不保存本机账号/token/home 路径。
-- [ ] 有效任务版本/依赖/read/接受/有限委托/设备租约及实际 runtime 能力相交准入；策略/版本/身份变化阻止新增动作。
-- [ ] model 调用/重试与工具动作采用可验证许可及核算；禁止将 turn 上限宣传成逐模型请求预算，能力不足时在启动前拒绝。
-- [ ] 迁移、回执、重复领取、旧设备结果、unknown 核对和恢复审计覆盖新增持久关系；历史 API Run 可读且不被转换。
-- [ ] 固定 HTTPS/native/IPC 命令具备当前 generation、nonce、签名和顶层窗口检查，不向 Renderer 开放 JSON-RPC 或任意出站代理。
+- [ ] 用户显式选择任务后，将任务文字和选定资料发给 Codex；普通对话与规划无需内部 API 模型监督，不实现 7C 自动识别。
+- [ ] 如开放 workflow_assess/propose 等应用动作，参数经过真实应用工具管线和任务权限校验；原生文件、shell、Skill/MCP 仍由 Codex 执行，不宣称经过 Harness guard。
+- [ ] Codex 的计划建议和执行结果可展示与记录，应用不独立保证结果正确；真人批准、提交和验收沿既有服务。
+- [ ] 人工提问/审批绑定当前请求、Session/thread/turn 与窗口；旧答复、重复答复及未知请求拒绝。
+- [ ] 停止/超时/退出/HMR 清理所属请求与进程；结果未确认时保留 unknown，继续显式恢复原 thread，不自动重发。
 
-助理验证：真实 SQLite/HTTPS/native 的并发、迁移、备份恢复、撤权及许可边界测试；类型、配置/事件/JSDoc 与受影响不变量门禁。用户检查：后续 Phase 8 统一检查配置入口。依赖：Phase 1、5；若所选 runtime 无法兑现许可/隔离，标 blocked 并保留个人完成记录。
+助理验证：真实任务管理/存储/工具管线与假协议的派发、结果、人工请求、停止和过期答复测试；必要静态检查。文件结果验证仅用于测试 fixture，不作为产品对 Codex 结果的质量保证。用户检查：任务派发、Codex 规划/执行、人工请求、停止和继续。依赖：Phase 4；不以禁用原生工具或完整模型日志作为前置。
 
 实际完成：未开始；执行后填充。
 
-## Phase 7：组织 Codex Run、隔离工具与交付证据
+## Phase 6：组织后端调度策略、资格与固定传输
 
-目标：已有组织任务能在员工设备通过 Codex 执行，继续复用 Phase 7A 的交付闭环。
+目标：组织权威准许员工设备上的 Codex 领取/启动/继续指定任务，保持任务访问与真人流程。
 
-产出：organization-execution 的显式 backend dispatch、隔离 codex consumer、runtime/guard/人工请求/证据接线与私有 Host IPC；必要的工具桥、JSONL 事件和执行恢复关系。
+产出：organization 的显式 Codex 后端策略、调度许可和运行限额、必要 SQLite 迁移；organization-api、organization-connection 与 Desktop 固定 IPC 类型；组织执行与备份文档。
 
 验收清单：
 
-- [ ] 从获准任务快照、明确本机输入和组织允许方法构建 Codex 上下文；个人 sessions、Bot 记忆、用户全局指令/Skill/MCP 不隐式进入。
-- [ ] 独立组织 namespace、运行 home 和 Session/thread 绑定；个人搜索/fork/上传/恢复拒绝，组织共享历史不含员工原始对话。
-- [ ] 每次实际受控工具/model 动作前复核许可、预算/lease；绕行 shell/MCP/子代理和背景工具在真实组合中拒绝，不以沙箱只限制写入替代读/网络控制。
-- [ ] 断线/休眠/撤权/停止阻止新动作，await 所属进程静止；重连不自动继续，已在途结果按原历史结算规则保留。
-- [ ] 人工等待进入既有持久 Inbox，答案绑定准确资格；完成不自动上传/提交/验收；员工明确提交实际文件与哈希，下发人验收/返工/目标核验沿原固定动作。
+- [ ] API endpoint 策略保持原语义；Codex 独立记录 runtime/model 与调度方式，不保存本机账号/token/home。
+- [ ] 启动/继续前复核有效任务版本、依赖/read、接受、委托、设备租约及后端允许范围；版本/身份变化阻止新调度。
+- [ ] 有界 turn、总运行时间与停止分别记录；不把运行限额宣传为内部模型请求或原生工具预算。
+- [ ] 迁移、回执、重复领取、旧设备结果、unknown 与恢复审计覆盖新增持久关系；历史 API Run 不被转换。
+- [ ] 固定 HTTPS/native/IPC 具备当前 generation、nonce、签名与顶层窗口检查；Renderer 不获得任意 JSON-RPC 或组织代理。
 
-助理验证：真实 Loader/HTTPS/SQLite/JSONL/文件工具+假 app-server 的 Run/交付与故障组合；独立文件读取核验产物，双 owner/权限裁剪和跨域历史负例。用户检查：员工 Codex 执行、停止、人工答复、提交和下发人验收/驳回；无需新 API key。依赖：Phase 6。
+助理验证：真实 SQLite/HTTPS/native 的迁移、资格、并发、撤权及调度拒绝测试；类型/配置/事件与受影响门禁。用户检查：后续 Phase 8 的配置和调度入口。依赖：Phase 1、5；原生执行质量和每个内部动作由 Codex 负责。
+
+实际完成：未开始；执行后填充。
+
+## Phase 7：组织 Codex Run、派发与结果回传
+
+目标：已有组织任务在员工设备交给 Codex 执行，组织应用接收运行状态与输出，并继续拥有提交/验收流程。
+
+产出：organization-execution 的 backend dispatch、Codex Run 消费者、独立桥接转录、恢复关系与私有 Host IPC；结果/附件及必要任务管理桥。
+
+验收清单：
+
+- [ ] 从获准任务和明确选定的本机资料构造派发输入；应用不主动附带其他私人 Session/Bot 历史。
+- [ ] 独立 Run/Session/thread 关联与转录访问权限；个人搜索/fork/上传不跨入组织转录。原生账号和配置留在员工设备。
+- [ ] 应用派发和应用任务管理动作复核调度资格；原生文件/shell/MCP/子代理由 Codex 管理，不宣称应用逐动作控制。
+- [ ] 失联/休眠/撤权/停止阻止新调度并 await 所属进程退出；重连不自动重发，未知结果明确保留。
+- [ ] 人工请求接入现有 Inbox；原生 completed、员工提交、下发人验收分别记录。应用不以 Codex 自报替真人验收，也不独立保证执行结果正确。
+
+助理验证：真实 Loader/HTTPS/SQLite/JSONL 与 fake app-server 的派发、输出、结果、恢复、停止及访问隔离组合；真人提交/验收沿既有固定动作测试。用户检查：员工 Codex 执行、停止、人工答复、提交与下发人验收/返工。依赖：Phase 6；不以完整内部请求日志或原生工具禁用作为准入。
 
 实际完成：未开始；执行后填充。
 
@@ -236,7 +252,7 @@
 - [ ] 真人责任人、执行后端、设备、模型、能力限制、当前版本、Run/待谁处理/产物分别展示；选 Codex 不要求填写 API endpoint/key。
 - [ ] 开始/停止/继续/提交/验收都是现有权威动作，失败草稿/unknown 回执不重复发送；身份变化与迟到响应隐藏旧内容。
 - [ ] Codex 进度及权限/输入请求用纯 presenter 和持久 metadata，原始协议和 stderr 不直接作为共享 UI 内容。
-- [ ] 7C 的后端准入不能写死 HTTP/key；无任务规划仍只给有限规划工具，真实分配由人确认。若 7C 尚未实现，仅完成定义及已有任务消费者，不创建重复组织对话模块。
+- [ ] 7C 的后端选择不能写死 HTTP/key；Codex 原生规划结果接入任务管理，真实分配由人确认。若 7C 尚未实现，仅完成定义及已有任务消费者，不创建重复组织对话模块。
 - [ ] API 后端的有界文件执行、人工介入和交付展示继续可用；不因支持 Codex 顺带开放 API Run shell。
 
 助理验证：权限/身份/事件的纯投影与固定操作测试、局部类型/lint/i18n/Client 构建；不启动页面。用户检查：工作台现有任务 Codex 选择及操作全链；7C 可用后另检查对话入口同样选择。依赖：Phase 7；7C 未完成不是已有任务路径的阻塞条件。
@@ -254,7 +270,7 @@
 - [ ] 未提供应用 API key、禁止 API 模型出站的测试环境完成个人两轮、显式规划/审批/执行/重开；请求计数证明没有内部模型兜底。
 - [ ] 已有组织 CSV 任务以两个独立成员走完许可、执行、人工介入、实际成果、提交、验收、驳回返工与集成；共享历史不含私人 transcript。
 - [ ] 覆盖初始化/线程准备失败、恢复历史串流、重复终态、没有最终文本、终态后 cleanup 错误、进程崩溃、取消超时、未知 RPC、人工答案过期、失联/撤权和半完成绑定。
-- [ ] 检查原生未桥接工具、隐藏上下文/跨组织配置、非允许模型、绕行出站与预算超限真实拒绝；只在实际可验证环境填写通过。
+- [ ] 检查应用未授权派发、跨组织转录、非允许后端/模型、过期租约与运行限额在调度处拒绝；原生上下文和工具不计为应用可控制的动作。
 - [ ] 7C 已完成时增加“关闭强拆、自然目标、自动建树、对话内分配、员工 Codex 执行”组合；尚未完成则记录未运行，不宣布完整自然对话闭环通过。
 
 助理验证：聚焦组合和已有 API/one-shot 回归、相关静态门禁；模型使用确定性协议替身，产物由独立读取者检查。用户检查：Phase 10 的真实 Codex 与可见剧本。依赖：Phase 8；不默认跑全仓测试，不把替身测试称为真实产品验收。
@@ -271,7 +287,7 @@
 
 - [ ] `pnpm run build`、受影响的应用入口/组合/闭包/依赖/exports/类型/i18n/JSDoc/事件门禁通过或如实记录失败，不绕过基线问题。
 - [ ] 普通 Node/Electron Node mode 通过私有 Host 与实际打包 resolver 的无窗口 smoke；协议可用 fake peer，真实平台 payload 启动/模型调用另行验证，不混记。
-- [ ] 剧本区分 macOS/Windows 的固定 runtime 版本、登录方式、账户/额度、受控工具/网络限制、真实两轮/文件产物/取消/冷重开及缺登录/协议不支持负例。
+- [ ] 剧本区分 macOS/Windows 的固定 runtime 版本、登录方式、账户/额度、原生执行权限、真实两轮/结果回传/取消/冷重开及缺登录/协议不支持负例。
 - [ ] 三机双成员验证组织权限、日志隔离、租约失效和人工交付；7C 未完成时只验已有任务路径，完整目标对话另列依赖。
 - [ ] 实际未运行的真实模型、Windows、可见和三机检查列为待用户验证；不得因 build 或本机单平台成功扩大支持声明。
 
@@ -286,9 +302,9 @@
 | 阶段 | 需要诊断的链路 | 记录时点 |
 | --- | --- | --- |
 | Phase 2–3 | runtime resolve → spawn → handshake → thread 绑定 → turn → 结算 → dispose | entry/ready/rejected/error/terminal/cleanup；终态与清理分开 |
-| Phase 3–5 | 输入持久 → send → 流 → 受控工具 → 人工请求 → resume 核对 | 输入 receipt、工具许可/结果、请求建立/失效、历史一致/unknown；不逐 token 打日志 |
-| Phase 6–8 | native 身份/lease → 后端资格 → 动作许可 → guard → 证据 → 提交 | 当前代次与拒绝原因、许可/预算/撤权、真实 actionId、证据 digest；复用组织现有日志 |
-| Phase 9–10 | 日志/原生历史/共享 Run 的独立核验、payload smoke | 冲突类别、拒绝能力、runtime/平台和检查结果 |
+| Phase 3–5 | 输入持久 → send → 原生输出/工具条目 → 人工请求 → resume 核对 | 输入 receipt、原生结果、应用动作资格、请求建立/失效、回执一致/unknown；不逐 token 打日志 |
+| Phase 6–8 | native 身份/lease → 调度资格 → 派发 → Codex 结果 → 提交 | 当前代次与拒绝原因、许可/预算/撤权、真实 actionId、证据 digest；复用组织现有日志 |
+| Phase 9–10 | 日志/原生 thread 回执/共享 Run 的独立核验、payload smoke | 冲突类别、拒绝能力、runtime/平台和检查结果 |
 
 禁止诊断日志记录 API key、auth/token、完整环境、邮箱、原始私聊/提示词/工具大包、用户绝对目录及 stderr 原文。模型可见内容写入受保护的 Session/原生本机日志，不写一般诊断或组织共享 Run。临时协议排障如确需开启，必须 opt-in、裁剪及限额，交付前关闭；上述关键事件保留长期使用。
 
@@ -298,7 +314,7 @@
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 执行授权：2026-10-02 用户原话“[codex-backend-plan.md](docs/codex-backend-plan.md) 请自动完成 phase1-2”；本次 auto_until 范围为 Phase 1–2，已全部完成并停在授权终点；现已恢复 manual、清空自动边界，relay 保持关闭。
+- 执行授权：2026-10-02 用户原授权自动完成 Phase 3–4；随后要求“做完 phase3 就先停止”，将本轮终点改为 Phase 3。Phase 3 已完成，按最新要求停止并恢复 manual、清空自动边界；Phase 4 部分改动保留，relay 关闭，不进入 Phase 5。
 
 1. 新计划先评审，创建本文件不启动 Phase 1。后续执行先读取本文、overview、当前用户要求及适用 AGENTS；改 `packages/` 前读 architecture，生命周期/并发/销毁前读 defensive-patterns。
 2. “执行 Phase X”只执行该阶段，包含明确单阶段命令时该轮不推进下一阶段；不改变既有自动模式，除非用户也要求变更。“继续”先重检有关 blocked 的解除条件，随后选择首个 in_progress，否则首个 pending；依赖未完成且不可隔离时停止报告依赖。

@@ -113,6 +113,9 @@
     },
     {
       "path": "../ui-input-trigger"
+    },
+    {
+      "path": "../../core/agent-codex"
     }
   ],
   "exclude": [

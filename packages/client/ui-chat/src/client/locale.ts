@@ -5,6 +5,12 @@ export const NS = 'chat'
 
 /** Simplified Chinese dictionary and key-set source of truth. */
 export const zh = {
+  'codex.nativeItem': 'Codex 原生工具与执行记录',
+  'codex.completed': 'Codex 回合已完成',
+  'codex.interrupted': 'Codex 回合已停止',
+  'codex.failed': 'Codex 回合失败',
+  'codex.unknown': 'Codex 执行结果未知；不会自动重发',
+  'codex.usageUnknown': '用量未知',
   'message.stepProcess.thinking': '正在分析请求',
   'message.stepProcess.read': '正在读取文件',
   'message.stepProcess.readImage': '正在读取图片',
@@ -185,6 +191,12 @@ export type ChatKey = keyof typeof zh
 
 /** English dictionary, checked against the Chinese key set. */
 export const en = {
+  'codex.nativeItem': 'Codex native tool and execution record',
+  'codex.completed': 'Codex turn completed',
+  'codex.interrupted': 'Codex turn stopped',
+  'codex.failed': 'Codex turn failed',
+  'codex.unknown': 'Codex outcome unknown; input will not be replayed',
+  'codex.usageUnknown': 'Usage unknown',
   'message.stepProcess.thinking': 'Analyzing the request',
   'message.stepProcess.read': 'Reading files',
   'message.stepProcess.readImage': 'Reading images',

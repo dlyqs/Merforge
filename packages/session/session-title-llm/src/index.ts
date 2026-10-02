@@ -4,6 +4,7 @@
  * @module @deepseek-ai/dsh-session-title-llm
  */
 
+import type {} from '@deepseek-ai/dsh-agent/types'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { createUserMessage, BlockAssembler } from '@deepseek-ai/dsh-llm'
@@ -243,6 +244,13 @@ export async function generateSessionTitleWithLlm(
   titleProvider: SessionTitleProviderId,
 ): Promise<SessionTitleProviderResult> {
   request.signal.throwIfAborted()
+  // Native conversations never dispatch an auxiliary API model for titles.
+  // oxlint-disable-next-line typescript/no-deprecated -- Title provider checks the durable driver association once.
+  if (request.session.snapshotEvents().some(event => event.type === 'agent/backend')) {
+    const first = selectedMessages[0]
+    if (first === undefined) throw new Error('session-title-llm: at least one source message is required')
+    return { title: first.text, messageSeqs: [first.seq] }
+  }
   if (selectedMessages.length === 0) {
     throw new Error('session-title-llm: at least one source message is required')
   }

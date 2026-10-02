@@ -45,6 +45,7 @@ export function apply(ctx: Context): void {
   }
   const actions: PersonalActions = {
     refresh,
+    loadModels: async () => valueOf(await ctx.remote.session.modelCatalog()),
     createProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalCreateProject(input)) }),
     updateProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalUpdateProject(input)) }),
     pickDirectory: () => ctx.uiWorkspace.pickDirectory(),
