@@ -4,6 +4,8 @@
 
 ## 下一阶段计划入口
 
+[首版真实闭环与演示候选版执行计划](mvp-acceptance-plan.md)细化路线图产品 Phase 8，当前仅完成计划编写，内部 Phase 1–8 均未执行，模式为 `manual`，自动边界 `none`，relay 关闭。执行顺序为证据基线、候选构建与采证、真实模型双身份闭环、个人可见及三机准备、三机主路径、权限故障、双平台发行资格、演示候选结论。复用 7C 工程与验收入口；现有 live corpus 是同账号规划/绑定测试，执行 live smoke 在单文件检查后结束，不能替代真实双人交付。新计划将凭据、实际设备/参与人、用户可见结果和平台资格列为相应阶段的真实 gate；用户此前取消的安装验收不会因制定计划自动恢复。本轮未运行模型、测试、构建或产品 UI；未开始产品 Phase 8 验收。
+
 [Codex 设置与首次使用实施计划](codex-setup-plan.md) Phase 1–6 工程完成，本轮已达到授权 Phase 4–6 终点，恢复 `manual`、自动边界 `none`、relay 关闭。固定版本设备码协议、Host setup service、共享执行准入和 Desktop 固定通道已实现；个人、Bot 和组织模型目录收到同一安全失效事件，保留显式模型选择并拒绝迟到旧结果。独立 Codex 卡片分开呈现 runtime、认证、模型与登录状态，可跳过的 Codex/API 首次接入及个人/Bot/组织失败导航共用该卡片并保留来源草稿；不要求全局 CLI、自动安装或改变默认后端，不推进 7C。真实 Loader 到 Client 的接入组合、Desktop build、tarball exports、普通 Node/Electron Node mode 的 setup/执行/组织 smoke 通过，最终产物记录已更新。[验收交接](codex-backend-acceptance.md)提供新用户、返回、取消/过期/重开和分平台剧本；真实账号、模型、可见与 macOS/Windows 安装体验证仍待用户。实际命令和既有全局门禁问题见计划，未代登录或启动页面。
 
 [Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–10 工程完成。用户最新要求“继续完成 phase9-10”，已达到 Phase 10 终点，恢复 `manual`、自动边界 `none`、relay 关闭。Phase 9–10 补齐个人五回合任务链、双员工独立 CSV/契约交付、跨组织/账号转录拒绝和重复旧终态回归；Desktop build、真实 npm tarball exports、普通 Node/Electron Node mode 的 Codex/API 私有 IPC smoke 通过。[Codex 验收交接](codex-backend-acceptance.md)提供平台、真实模型、三机与可见检查；全仓类型/依赖/JSDoc/unknown cast 的既有失败详见实施计划，未绕过门禁。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
