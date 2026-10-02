@@ -31,6 +31,7 @@ export const name = 'subagent-codex'
 export const inject = ['subagents', 'subprocess']
 
 const DEFAULT_PROVIDER_NAME = 'codex'
+const DEFAULT_MAX_FRAME_BYTES = 8_388_608
 
 /** Deployment-owned model, permission, environment, and process-release settings. */
 export interface Config {
@@ -47,6 +48,8 @@ export interface Config {
   permissionMode?: CodexPermissionMode
   /** Grace in milliseconds between app-server managed-range termination tiers. */
   disposeGraceMs?: number
+  /** Maximum UTF-8 bytes in one app-server protocol line. */
+  maxFrameBytes?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -56,6 +59,7 @@ export const Config: z<Config> = z.object({
   permissionMode: z.union([...CODEX_PERMISSION_MODES])
     .default(DEFAULT_CODEX_PERMISSION_MODE),
   disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
+  maxFrameBytes: z.number().default(DEFAULT_MAX_FRAME_BYTES),
 })
 
 type ResolvedConfig = Omit<Required<Config>, 'model'> & Pick<Config, 'model'>
@@ -98,6 +102,7 @@ class CodexProvider implements SubagentProvider {
       permissionMode: this.config.permissionMode,
       env: this.config.env,
       disposeGraceMs: this.config.disposeGraceMs,
+      maxFrameBytes: this.config.maxFrameBytes,
       spawn: spawnSpec => this.ctx.subprocess.spawn(spawnSpec),
       onError: (error, stopReason) => {
         this.ctx.logger.warn(
@@ -121,6 +126,7 @@ export function apply(ctx: Context, config: Config): void {
     env: config.env as Record<string, string>,
     permissionMode: config.permissionMode ?? DEFAULT_CODEX_PERMISSION_MODE,
     disposeGraceMs: config.disposeGraceMs as number,
+    maxFrameBytes: config.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES,
   }
   assertPositiveFinite(
     'subagent-codex',
@@ -131,6 +137,9 @@ export function apply(ctx: Context, config: Config): void {
     throw new Error(
       `subagent-codex: disposeGraceMs must be no greater than ${MAX_TIMER_DELAY_MS}`,
     )
+  }
+  if (!Number.isSafeInteger(resolved.maxFrameBytes) || resolved.maxFrameBytes <= 0) {
+    throw new Error('subagent-codex: maxFrameBytes must be a positive safe integer')
   }
   ctx.subagents.registerProvider(new CodexProvider(
     resolved.providerName,

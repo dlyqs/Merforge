@@ -33,7 +33,6 @@ import { CodexAppServerWire } from '../src/wire.ts'
 const { hostStderrWrite } = vi.hoisted(() => ({
   hostStderrWrite: {
     capture: false,
-    failNext: false,
     chunks: [] as Buffer[],
   },
 }))
@@ -47,10 +46,6 @@ vi.mock('node:fs', async (importOriginal) => {
       value: string | Uint8Array,
     ): void {
       if (fd === 2 && hostStderrWrite.capture) {
-        if (hostStderrWrite.failNext) {
-          hostStderrWrite.failNext = false
-          throw Object.assign(new Error('host stderr broke'), { code: 'EIO' })
-        }
         const bytes = typeof value === 'string'
           ? Buffer.from(value)
           : Buffer.from(value.buffer, value.byteOffset, value.byteLength)
@@ -238,6 +233,8 @@ function defaultWire(child: FakeChild): CodexAppServerWire {
     child.handle.stdout!,
     child.handle.stdin!,
     DEFAULT_CODEX_PERMISSION_MODE,
+    undefined,
+    8_388_608,
   )
 }
 
@@ -250,6 +247,7 @@ function runSpec(
     permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
     env: {},
     disposeGraceMs: DEFAULT_DISPOSE_GRACE_MS,
+    maxFrameBytes: 8_388_608,
     spawn: () => child.handle,
     ...overrides,
   }
@@ -365,7 +363,8 @@ describe('task admission and package contracts', () => {
     }
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.files).toContain('cordis.patch.yml')
-    expect(manifest.dependencies).toHaveProperty('@openai/codex', CODEX_VERSION)
+    const runtimeManifest = JSON.parse(readFileSync(resolve(root, '../codex-runtime/package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    expect(runtimeManifest.dependencies).toHaveProperty('@openai/codex', CODEX_VERSION)
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
 
     const codexPackageJson = fileURLToPath(import.meta.resolve('@openai/codex/package.json'))
@@ -638,6 +637,8 @@ describe('task admission and package contracts', () => {
       child.handle.stdout!,
       child.handle.stdin!,
       permissionMode,
+      undefined,
+      8_388_608,
     )
     wire.start()
     const initializing = wire.initialize(new AbortController().signal)
@@ -665,6 +666,7 @@ describe('task admission and package contracts', () => {
       child.handle.stdin!,
       'never',
       'codex-explicit-model',
+      8_388_608,
     )
     wire.start()
     const initializing = wire.initialize(new AbortController().signal)
@@ -1778,7 +1780,7 @@ describe('run lifecycle and quiescence', () => {
     await run.dispose()
   })
 
-  it('drains queued stderr to the Host without classifying it', async () => {
+  it('discards queued stderr without classifying it', async () => {
     hostStderrWrite.capture = true
     hostStderrWrite.chunks.length = 0
     const { child, run, turnStart } = await publishRun()
@@ -1795,13 +1797,12 @@ describe('run lifecycle and quiescence', () => {
       diagnostic: expectedFailureDiagnostic('turn', 'product-error'),
       stopReason: 'error',
     })
-    expect(Buffer.concat(hostStderrWrite.chunks).toString())
-      .toContain('approval policy is Never; reject command')
+    expect(hostStderrWrite.chunks).toHaveLength(0)
     await run.dispose()
     hostStderrWrite.capture = false
   })
 
-  it('forwards stderr without copying or classifying it', async () => {
+  it('drains secret stderr without copying it to the Host or result', async () => {
     const child = fakeChild()
     hostStderrWrite.capture = true
     hostStderrWrite.chunks.length = 0
@@ -1819,31 +1820,33 @@ describe('run lifecycle and quiescence', () => {
       diagnostic: expectedFailureDiagnostic('turn', 'product-error'),
       stopReason: 'error',
     })
-    expect(Buffer.concat(hostStderrWrite.chunks).toString()).toContain('SECRET_TOKEN')
-    expect(hostStderrWrite.chunks).toHaveLength(3)
+    expect(hostStderrWrite.chunks).toHaveLength(0)
     await run.dispose()
     expect(child.stderr.listenerCount('data')).toBe(0)
     hostStderrWrite.capture = false
   })
 
-  it('contains host stderr write failures without changing run settlement', async () => {
+  it('discards stderr without writing to the process diagnostic sink', async () => {
     const child = fakeChild()
-    hostStderrWrite.capture = true
-    hostStderrWrite.failNext = true
+    const hostWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
     const { run, turnStart } = await publishRun(child)
-    child.peer.respond(turnStart, { turn: { id: 'turn-1' } })
-    child.stderr.write('approval policy is Never; reject command')
-    child.peer.send(turnCompleted('failed', 'turn-1', 'thread-1', {
-      message: 'fixture terminal failure',
-      codexErrorInfo: 'badRequest',
-    }))
-    await expect(run.result).resolves.toEqual({
-      output: [],
-      diagnostic: expectedFailureDiagnostic('turn', 'product-error'),
-      stopReason: 'error',
-    })
-    await run.dispose()
-    hostStderrWrite.capture = false
+    try {
+      child.peer.respond(turnStart, { turn: { id: 'turn-1' } })
+      child.stderr.write('SECRET_TOKEN in /private/secret.txt')
+      child.peer.send(turnCompleted('failed', 'turn-1', 'thread-1', {
+        message: 'fixture terminal failure',
+        codexErrorInfo: 'badRequest',
+      }))
+      await expect(run.result).resolves.toEqual({
+        output: [],
+        diagnostic: expectedFailureDiagnostic('turn', 'product-error'),
+        stopReason: 'error',
+      })
+      expect(hostWrite).not.toHaveBeenCalled()
+    } finally {
+      await run.dispose()
+      hostWrite.mockRestore()
+    }
   })
 
   it('rejects before spawn when pre-aborted and rolls back startup failures', async () => {
@@ -1857,6 +1860,7 @@ describe('run lifecycle and quiescence', () => {
         permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
         env: {},
         disposeGraceMs: 10,
+        maxFrameBytes: 8_388_608,
         spawn,
       },
     )).rejects.toThrow('aborted before app-server startup')
@@ -1867,6 +1871,7 @@ describe('run lifecycle and quiescence', () => {
       permissionMode: DEFAULT_CODEX_PERMISSION_MODE,
       env: {},
       disposeGraceMs: 10,
+      maxFrameBytes: 8_388_608,
       spawn: () => { throw new Error('SECRET_TOKEN spawn failure') },
     })
     await expect(spawnFailure)

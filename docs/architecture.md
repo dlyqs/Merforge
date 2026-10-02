@@ -155,3 +155,5 @@ New behavior attaches to a documented extension point. Changing the loop itself 
 | Scope a registration to one agent | use that agent's `agent.ctx` |
 
 The [extension cookbook](cookbook/extension-cookbook.md) maps features to capabilities and indexes the step-by-step guides for [packages](cookbook/adding-a-package.md), [tools](cookbook/adding-a-tool.md), [LLM adapters](cookbook/adding-an-llm-adapter.md), and [settings pages](cookbook/adding-a-settings-card.md). The [Conversation subsystem](subsystems/conversation.md) owns Chat-node assembly.
+
+The shared `subagent/codex-runtime` library owns the pinned official app-server command, JSON-RPC framing, persistent native text threads and subprocess disposal. The one-shot Codex provider consumes its transport and process helpers and retains its ephemeral policy. It registers no competing Agent factory and writes no Harness Session events. Persistent main-conversation routing is still pending; the [Codex backend design](codex-backend.md) defines the single-router/single-writer direction and refuses unverified controlled or organization capabilities.

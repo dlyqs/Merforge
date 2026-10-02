@@ -1,0 +1,1153 @@
+{
+  "version": "0.153.4",
+  "generation": [
+    "app-server",
+    "generate-json-schema",
+    "--experimental"
+  ],
+  "schemas": {
+    "v1/InitializeParams.json": {
+      "fields": {
+        "properties": {
+          "capabilities": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/InitializeCapabilities"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clientInfo": {
+            "$ref": "#/definitions/ClientInfo"
+          }
+        },
+        "required": [
+          "clientInfo"
+        ],
+        "type": "object"
+      },
+      "definitions": {
+        "InitializeCapabilities": {
+          "properties": {
+            "experimentalApi": {
+              "default": false,
+              "type": "boolean"
+            },
+            "extensions": {
+              "additionalProperties": true,
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "mcpServerOpenaiFormElicitation": {
+              "type": "boolean"
+            },
+            "optOutNotificationMethods": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "requestAttestation": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        }
+      }
+    },
+    "v1/InitializeResponse.json": {
+      "fields": {
+        "properties": {
+          "codexHome": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/AbsolutePathBuf"
+              }
+            ]
+          },
+          "platformFamily": {
+            "type": "string"
+          },
+          "platformOs": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "codexHome",
+          "platformFamily",
+          "platformOs",
+          "userAgent"
+        ],
+        "type": "object"
+      }
+    },
+    "v2/GetAccountParams.json": {
+      "fields": {
+        "properties": {
+          "refreshToken": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "v2/GetAccountResponse.json": {
+      "fields": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Account"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requiresOpenaiAuth": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requiresOpenaiAuth"
+        ],
+        "type": "object"
+      },
+      "definitions": {
+        "Account": {
+          "oneOf": [
+            {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "apiKey"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "planType": {
+                  "$ref": "#/definitions/PlanType"
+                },
+                "type": {
+                  "enum": [
+                    "chatgpt"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "planType",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "amazonBedrock"
+                  ],
+                  "type": "string"
+                },
+                "usesCodexManagedCredentials": {
+                  "default": false,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    "v2/ModelListParams.json": {
+      "fields": {
+        "properties": {
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "includeHidden": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "limit": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    "v2/ModelListResponse.json": {
+      "fields": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/definitions/Model"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "definitions": {
+        "Model": {
+          "properties": {
+            "additionalSpeedTiers": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "availabilityNux": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ModelAvailabilityNux"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "defaultReasoningEffort": {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            "defaultServiceTier": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "displayName": {
+              "type": "string"
+            },
+            "hidden": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "inputModalities": {
+              "default": [
+                "text",
+                "image"
+              ],
+              "items": {
+                "$ref": "#/definitions/InputModality"
+              },
+              "type": "array"
+            },
+            "isDefault": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "modelSpecialty": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "multiAgentVersion": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/MultiAgentVersion"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "serviceTiers": {
+              "default": [],
+              "items": {
+                "$ref": "#/definitions/ModelServiceTier"
+              },
+              "type": "array"
+            },
+            "supportedReasoningEfforts": {
+              "items": {
+                "$ref": "#/definitions/ReasoningEffortOption"
+              },
+              "type": "array"
+            },
+            "supportsPersonality": {
+              "default": false,
+              "type": "boolean"
+            },
+            "upgrade": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "upgradeInfo": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ModelUpgradeInfo"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "defaultReasoningEffort",
+            "description",
+            "displayName",
+            "hidden",
+            "id",
+            "isDefault",
+            "model",
+            "supportedReasoningEfforts"
+          ],
+          "type": "object"
+        },
+        "ReasoningEffortOption": {
+          "properties": {
+            "reasoningEffort": {
+              "$ref": "#/definitions/ReasoningEffort"
+            }
+          },
+          "required": [
+            "description",
+            "reasoningEffort"
+          ],
+          "type": "object"
+        },
+        "ReasoningEffort": {
+          "minLength": 1,
+          "type": "string"
+        }
+      }
+    },
+    "v2/ThreadStartParams.json": {
+      "fields": {
+        "properties": {
+          "allowProviderModelFallback": {
+            "type": "boolean"
+          },
+          "approvalPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/AskForApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approvalsReviewer": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ApprovalsReviewer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "developerInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dynamicTools": {
+            "default": null,
+            "items": {
+              "$ref": "#/definitions/DynamicToolSpec"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "environments": {
+            "items": {
+              "$ref": "#/definitions/TurnEnvironmentParams"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "ephemeral": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "experimentalRawEvents": {
+            "type": "boolean"
+          },
+          "historyMode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ThreadHistoryMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mockExperimentalField": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "multiAgentMode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/MultiAgentMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personality": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Personality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeWorkspaceRoots": {
+            "items": {
+              "$ref": "#/definitions/AbsolutePathBuf"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SandboxMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selectedCapabilityRoots": {
+            "items": {
+              "$ref": "#/definitions/SelectedCapabilityRoot"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "serviceName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceTier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessionStartSource": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ThreadStartSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadSource": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ThreadSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    "v2/ThreadResumeParams.json": {
+      "fields": {
+        "properties": {
+          "approvalPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/AskForApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approvalsReviewer": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ApprovalsReviewer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "developerInstructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excludeTurns": {
+            "type": "boolean"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/definitions/ResponseItem"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "initialTurnsPage": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ThreadResumeInitialTurnsPageParams"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personality": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Personality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtimeWorkspaceRoots": {
+            "items": {
+              "$ref": "#/definitions/AbsolutePathBuf"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SandboxMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serviceTier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      }
+    },
+    "v2/ThreadReadParams.json": {
+      "fields": {
+        "properties": {
+          "includeTurns": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      }
+    },
+    "v2/ThreadReadResponse.json": {
+      "fields": {
+        "properties": {
+          "thread": {
+            "$ref": "#/definitions/Thread"
+          }
+        },
+        "required": [
+          "thread"
+        ],
+        "type": "object"
+      },
+      "definitions": {
+        "TurnStatus": {
+          "enum": [
+            "completed",
+            "interrupted",
+            "failed",
+            "inProgress"
+          ],
+          "type": "string"
+        },
+        "ThreadHistoryMode": {
+          "enum": [
+            "legacy",
+            "paginated"
+          ],
+          "type": "string"
+        },
+        "TurnItemsView": {
+          "oneOf": [
+            {
+              "enum": [
+                "notLoaded"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "summary"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "full"
+              ],
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "threadRequired": [
+        "cliVersion",
+        "createdAt",
+        "cwd",
+        "ephemeral",
+        "id",
+        "modelProvider",
+        "preview",
+        "projectId",
+        "sessionId",
+        "source",
+        "status",
+        "turns",
+        "updatedAt"
+      ],
+      "threadFields": [
+        "agentNickname",
+        "agentRole",
+        "canAcceptDirectInput",
+        "cliVersion",
+        "createdAt",
+        "cwd",
+        "ephemeral",
+        "extra",
+        "forkedFromId",
+        "gitInfo",
+        "historyMode",
+        "id",
+        "model",
+        "modelProvider",
+        "name",
+        "parentThreadId",
+        "path",
+        "preview",
+        "projectId",
+        "reasoningEffort",
+        "recencyAt",
+        "section",
+        "sectionEnteredAt",
+        "sessionId",
+        "source",
+        "status",
+        "threadSource",
+        "turns",
+        "updatedAt"
+      ]
+    },
+    "v2/TurnStartParams.json": {
+      "fields": {
+        "properties": {
+          "additionalContext": {
+            "additionalProperties": {
+              "$ref": "#/definitions/AdditionalContextEntry"
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "approvalPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/AskForApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approvalsReviewer": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ApprovalsReviewer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clientUserMessageId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "collaborationMode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/CollaborationMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cyberAccessProgram": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/CyberAccessProgram"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ReasoningEffort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environments": {
+            "items": {
+              "$ref": "#/definitions/TurnEnvironmentParams"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "input": {
+            "items": {
+              "$ref": "#/definitions/UserInput"
+            },
+            "type": "array"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "multiAgentMode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/MultiAgentMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputSchema": {},
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personality": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Personality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "responsesapiClientMetadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "runtimeWorkspaceRoots": {
+            "items": {
+              "$ref": "#/definitions/AbsolutePathBuf"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sandboxPolicy": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SandboxPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serviceTier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceTierForTurn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/ReasoningSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "toolOutput": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/TurnToolOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnTrigger": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "input",
+          "threadId"
+        ],
+        "type": "object"
+      }
+    },
+    "v2/TurnInterruptParams.json": {
+      "fields": {
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId"
+        ],
+        "type": "object"
+      }
+    },
+    "v2/TurnCompletedNotification.json": {
+      "fields": {
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "turn": {
+            "$ref": "#/definitions/Turn"
+          }
+        },
+        "required": [
+          "threadId",
+          "turn"
+        ],
+        "type": "object"
+      }
+    },
+    "DynamicToolCallParams.json": {
+      "fields": {
+        "properties": {
+          "arguments": true,
+          "callId": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "arguments",
+          "callId",
+          "threadId",
+          "tool",
+          "turnId"
+        ],
+        "type": "object"
+      }
+    },
+    "ToolRequestUserInputParams.json": {
+      "fields": {
+        "properties": {
+          "autoResolutionMs": {
+            "default": null,
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "isBlocking": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/definitions/ToolRequestUserInputQuestion"
+            },
+            "type": "array"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "isBlocking",
+          "itemId",
+          "questions",
+          "threadId",
+          "turnId"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "stableFields": {
+    "v2/ThreadStartParams.json": {
+      "historyMode": false,
+      "allowProviderModelFallback": false,
+      "ephemeral": true,
+      "dynamicTools": false
+    },
+    "v2/TurnStartParams.json": {
+      "clientUserMessageId": true,
+      "effort": true
+    }
+  }
+}

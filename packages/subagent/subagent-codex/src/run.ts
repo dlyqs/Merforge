@@ -8,9 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, resolve } from 'node:path'
+import { codexAppServerArgv, disposeCodexProcess } from '@deepseek-ai/dsh-codex-runtime'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -32,25 +30,10 @@ import {
   type CodexWireFailureFacts,
 } from './wire.ts'
 
+export { codexAppServerArgv } from '@deepseek-ai/dsh-codex-runtime'
+
 /** Default POSIX grace between subprocess termination tiers. */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
-
-interface CodexPackageManifest {
-  readonly bin: {
-    readonly codex: string
-  }
-}
-
-const codexPackageJsonPath = createRequire(import.meta.url).resolve('@openai/codex/package.json')
-const codexPackageManifest = JSON.parse(
-  readFileSync(codexPackageJsonPath, 'utf8'),
-) as CodexPackageManifest
-
-/** Absolute package-local JavaScript wrapper selected by the package manifest. */
-const CODEX_PACKAGE_BIN = resolve(
-  dirname(codexPackageJsonPath),
-  codexPackageManifest.bin.codex,
-)
 
 /** Profile-selectable non-interactive Codex permission mode. */
 export type CodexPermissionMode =
@@ -128,14 +111,6 @@ export function codexStartupFailure(cause: unknown): Error {
   }, cause)
 }
 
-/**
- * Fixed package-local app-server command, independent of the host `PATH`.
- * @returns Node, the official wrapper, and the fixed app-server arguments.
- */
-export function codexAppServerArgv(): string[] {
-  return [process.execPath, CODEX_PACKAGE_BIN, 'app-server', '--stdio']
-}
-
 /** Fully resolved inputs for one Codex app-server run. */
 export interface CodexRunSpec {
   /** Parent Session workspace, also supplied to `thread/start`. */
@@ -148,6 +123,8 @@ export interface CodexRunSpec {
   readonly env: Record<string, string>
   /** Subprocess termination grace passed to the shared managed-range owner. */
   readonly disposeGraceMs: number
+  /** Maximum complete protocol line size in UTF-8 bytes. */
+  readonly maxFrameBytes: number
   /** Shared subprocess service spawn operation. */
   readonly spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle
   /** Diagnostic sink for a post-publication error flattened into a result. */
@@ -191,29 +168,13 @@ export async function disposeCodexChild(
   wire: CodexAppServerWire,
   child: SubprocessHandle,
 ): Promise<void> {
-  wire.close()
-
   let outcome: SubprocessOutcome | undefined
-  void child.done.then(
-    (value) => { outcome = value },
-    () => {},
-  )
+  void child.done.then((value) => { outcome = value }, (error: unknown) => { void error })
   try {
-    child.stdin?.end()
-  } catch {
-    // A concurrently closed stdin does not change range ownership below.
-  }
-  child.terminate()
-  try {
-    await child.waitForExit()
+    await disposeCodexProcess(wire, child)
   } catch (error: unknown) {
-    throw new CodexRunFailure({
-      stage: 'teardown',
-      category: 'unknown',
-      outcome,
-    }, thrown(error))
+    throw new CodexRunFailure({ stage: 'teardown', category: 'unknown', outcome }, thrown(error))
   }
-  await child.done.catch(() => {})
 }
 
 /**
@@ -252,16 +213,10 @@ export async function startCodexRun(
     child.stdin as NonNullable<SubprocessHandle['stdin']>,
     spec.permissionMode,
     spec.model,
+    spec.maxFrameBytes,
   )
-  const onStderr = (chunk: Buffer | string): void => {
-    const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
-    try {
-      // Synchronous fd forwarding preserves byte order without owning a
-      // backpressure queue. A slow host sink can block this event-loop turn.
-      writeFileSync(process.stderr.fd, bytes)
-    } catch {
-      // Host stderr is an observation sink, not a child-run failure authority.
-    }
+  const onStderr = (): void => {
+    // Drain the diagnostic stream without exposing native secrets or paths.
   }
   const onStderrError = (): void => {
     // Stderr observation is auxiliary. JSON-RPC and child.done remain the
@@ -272,8 +227,7 @@ export async function startCodexRun(
   const disposeProcess = async (): Promise<void> => {
     try {
       await disposeCodexChild(wire, child)
-      // Let stderr already queued by the process close reach the Host before
-      // its forwarding listeners are detached.
+      // Drain data already queued by process close before detaching listeners.
       await new Promise<void>((resolve) => { setImmediate(resolve) })
     } finally {
       child.stderr?.off('data', onStderr)
@@ -385,14 +339,12 @@ export async function startCodexRun(
           publishedProcessFailure,
         ])
         if (terminal.stopReason === 'completed') return terminal
-        // Let stderr already queued with the terminal frame reach the Host
-        // before the non-completed result settles.
+        // Let queued process observations settle before collecting exit facts.
         await new Promise<void>((resolve) => { setImmediate(resolve) })
         const facts = withProcessOutcome(wire.collectFailure())
         return { ...terminal, diagnostic: recordFailureDiagnostic(facts) }
       } catch (error: unknown) {
-        // Give stderr data already queued in Node one turn to reach the Host
-        // before error settlement.
+        // Let queued process observations settle before collecting exit facts.
         await new Promise<void>((resolve) => { setImmediate(resolve) })
         const endedBeforeTerminal = wire.endedBeforeTerminal()
         if (

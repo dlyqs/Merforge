@@ -10,7 +10,7 @@
 import type { Readable, Writable } from 'node:stream'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SubagentResult } from '@deepseek-ai/dsh-subagent'
-import { JsonRpcLineTransport } from './jsonrpc.ts'
+import { JsonRpcLineTransport } from '@deepseek-ai/dsh-codex-runtime'
 import type { CodexPermissionMode } from './run.ts'
 
 type JsonObject = Record<string, unknown>
@@ -224,13 +224,15 @@ export class CodexAppServerWire {
     private readonly input: Readable,
     output: Writable,
     private readonly permissionMode: CodexPermissionMode,
-    private readonly model?: string,
+    private readonly model: string | undefined,
+    maxFrameBytes: number,
   ) {
-    this.transport = new JsonRpcLineTransport(input, output)
+    this.transport = new JsonRpcLineTransport(input, output, { maxFrameBytes, strict: false })
     // Fatal protocol state can arrive after the current guarded operation has
     // already settled. Keep the shared rejection observed without inserting
     // another promise-adoption hop into active races.
     void this.fatal.promise.catch(() => {})
+    this.transport.onFailure((error) => { this.fail(error) })
     this.transport.onRequest((method, params) => this.handleServerRequest(method, params))
     this.transport.onNotification((method, params) => {
       try {

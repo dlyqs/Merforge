@@ -27,13 +27,7 @@ Mount this provider when a delegation should run as a real Codex session in the 
 
 ### Installing the Bundle
 
-Install the package into the target Profile, then restart that Profile. The installation brings the official wrapper and one compatible native platform payload into the Profile; the declared patch layer registers only the dormant provider and starts no Codex process.
-
-```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-subagent-codex
-dsh plugin --profile <name> remove @deepseek-ai/dsh-subagent-codex
-dsh --profile <name>
-```
+Compose the provider in the private Desktop profile and install its declared package closure through the supported Desktop dependency procedure. The Bundle patch registers only the dormant provider and starts no Codex process. The shared `@deepseek-ai/dsh-codex-runtime` dependency now owns the pinned wrapper and native payload; this package owns the one-shot policy.
 
 Removing the package withdraws the provider and its private runtime closure on the next Profile start. Installation controls Host availability, not model permission: the model can only reach the provider through a delegation tool row you compose.
 
@@ -46,6 +40,7 @@ Removing the package withdraws the provider and its private runtime closure on t
 | `env` | `{}` | Explicit child environment layered over the credential-scrubbed parent environment |
 | `permissionMode` | `never` | Native non-interactive approval and sandbox mode fixed for every thread from this provider instance |
 | `disposeGraceMs` | `3000` | Grace between the shared managed-range owner's termination tiers |
+| `maxFrameBytes` | `8388608` | Positive safe-integer limit for one complete UTF-8 JSON-RPC line |
 
 | `permissionMode` value | `thread/start` fields | Native behavior |
 |---|---|---|
@@ -81,7 +76,7 @@ A foreground call gives the model the selected final Codex answer, or an error w
 
 ### Failure and recovery
 
-An install that omits optional dependencies, uses an unsupported platform, or loses the selected payload leaves the provider dormant and fails the first delegation at `initialize` with a safe `unknown` category and any observed process outcome; there is no host-CLI fallback. Raw wrapper text stays on Host stderr. A cancelled run settles as `aborted`.
+An install that omits optional dependencies, uses an unsupported platform, or loses the selected payload leaves the provider dormant and fails the first delegation at `initialize` with a safe `unknown` category and any observed process outcome; there is no host-CLI fallback. Raw wrapper stderr is drained and discarded; only safe diagnostic facts are exposed. A cancelled run settles as `aborted`.
 
 -----
 
@@ -105,8 +100,8 @@ This section explains how the provider drives a real Codex app-server and where 
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, provider registration |
 | [`src/run.ts`](src/run.ts) | The run lifecycle, turn execution, result selection, and diagnostics |
-| [`src/wire.ts`](src/wire.ts) | The minimal app-server JSON-RPC wire implementation |
-| [`src/jsonrpc.ts`](src/jsonrpc.ts) | Line-framed JSON-RPC transport, request correlation, and error responses |
+| [`src/wire.ts`](src/wire.ts) | One-shot protocol policy, unattended responses, final-answer selection |
+| [`codex-runtime`](../codex-runtime/README.md) | Shared fixed payload, line-framed transport, request correlation, and managed-range disposal |
 | [`cordis.patch.yml`](cordis.patch.yml) | The Profile patch layer that registers the dormant provider |
 
 ### Run flow
@@ -168,7 +163,7 @@ Append-only: foreground adds one result after the reusable parent prefix, while 
 
 These limits define when this provider is a poor fit or needs special operational care. They are current package constraints, not a general Codex comparison or a task backlog.
 
-- **One fresh process, thread, and turn per run** — there is no continuation, resume, pooling, progress stream, or product-session persistence.
+- **One fresh process, thread, and turn per run** — there is no continuation, resume, pooling, progress stream, or product-session persistence. The shared runtime has a separate persistent API; this provider does not expose it.
 - **Static instance selection** — Profile rows fix provider names, optional models, and tool bindings; calls cannot choose or change either a provider or model dynamically, and every exposed tool needs a unique `toolName`.
 - **Authentication and account state remain native** — the Bundle supplies the CLI but does not create an account, log in, trust a project, or rewrite Codex settings; configuration and authentication failures surface with their lifecycle stage and the safe `unknown` fallback rather than a separate public taxonomy.
 - **The native platform payload is required at delegation time** — installs that omit optional dependencies, unsupported platforms, and missing or damaged payloads fail at the first run; there is no host-CLI fallback.

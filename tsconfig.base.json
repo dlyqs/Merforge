@@ -353,6 +353,7 @@
       "@deepseek-ai/dsh-brand": ["./packages/util/brand/src"],
       "@deepseek-ai/dsh-chunked-list": ["./packages/util/chunked-list/src"],
       "@deepseek-ai/dsh-cmdline": ["./packages/boot/cmdline/src"],
+      "@deepseek-ai/dsh-codex-runtime": ["./packages/subagent/codex-runtime/src"],
       "@deepseek-ai/dsh-command-compact": ["./packages/compaction/command-compact/src"],
       "@deepseek-ai/dsh-command-feedback": ["./packages/feedback/command-feedback/src"],
       "@deepseek-ai/dsh-commands": ["./packages/interaction/commands/src"],
