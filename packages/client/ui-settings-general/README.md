@@ -25,6 +25,11 @@ The Settings panel uses a shared 760 × 500 layout, bounded by the viewport. Lon
 <a id="use-this-package"></a>
 ## Use this package
 
+The shell provides ctx.settingsNavigation, whose type declaration lives in ui-settings. Feature plugins inject that service and call open('models', 'codex') or open('models', 'api'); no component imports or simulated clicks are needed. The shell publishes one observable view, keeps visited settings entries mounted while the panel is open, and returns to the originating settings section after a model-setup visit. The surrounding conversation and organization workbench remain mounted. Bot editors observe this view to suspend modal chrome while retaining their drafts.
+
+Desktop model setup records only ui-settings-general.modelSetupVersion. This preference has no authentication or model-selection meaning. The feature-owned first-use step is skippable; the shell continues to coordinate it through settings.onboarding.
+
+
 Users reach the shell through the sidebar's bottom Settings control; feature plugins contribute their pages and onboarding steps through the slot ledgers this shell projects. In both the expanded sidebar and collapsed rail, the control exposes the localized Settings label as its accessible name. A pale-yellow **Disconnected** action beside Settings indicates browser offline suspension; its permanent retry glyph marks the retry action, which the Chinese outage copy also names (连接异常，刷新重试). Every recovery attempt shows the shared ongoing loader beside **Reconnecting** with one to three dots advancing every 500ms, and an attempt stays visible for at least 800ms so brief retries do not flicker. Selecting either yellow state starts an immediate retry; press feedback stays within the warning palette. Recovery changes the region to pale-green **Connected** for two seconds from the moment the green pill becomes visible. The pill fades in on appearance, fades out over 150ms on removal, and sizes to its current label. Initial startup and uninterrupted healthy operation remain silent. The shell renders the modal panel, the navigation built from `settings.section` entries, and exactly one mounted onboarding step at a time.
 
 When the section navigation exceeds the panel's available height, the list scrolls independently of the settings content and keeps the Settings title fixed.
@@ -121,4 +126,4 @@ None.
 
 </details>
 
-**Runtime invariant:** No companion is published. The settings seam validates and publishes the durable onboarding section, while slot conflicts fail loud in the slot core. The local document action is browser state over typed RPC responses and is covered by store/component tests rather than a Cordis runtime relationship.
+**Runtime invariant:** No companion is published. The settings seam validates and publishes the durable onboarding section, while slot conflicts fail loud in the slot core. The shell reads its navigation provider's single observable view, without a separately maintained navigation authority. Navigation, document actions and retained drafts are covered by service and component tests.

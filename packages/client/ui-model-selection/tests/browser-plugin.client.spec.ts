@@ -147,6 +147,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       ? { parentSessionId: sid('parent'), childSessionId: id, mode: 'continuable' as const }
       : undefined,
   })
+  ctx.provide('settingsNavigation', { open: vi.fn(), close: vi.fn(), view: { getSnapshot: () => ({ open: false }), subscribe: () => () => {} } })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   await ctx.plugin(function probe() {}).await()

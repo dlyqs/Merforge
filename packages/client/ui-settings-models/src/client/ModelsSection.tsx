@@ -21,10 +21,10 @@
  * post-apply reload.
  */
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, IconPlusOutlineRegular, Modal, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
@@ -60,7 +60,7 @@ export interface ModelsSectionInjected {
 type AddMode = 'catalog' | 'custom'
 
 /** The child slots this section declares and dispatches (see ./slot-contract.ts). */
-type ModelsChildSlots = 'settings.models.provider-card' | 'settings.models.footer'
+type ModelsChildSlots = 'settings.models.provider-card' | 'settings.models.footer' | 'settings.models.native'
 
 /** The child-slot dispatch function the renderer binds for the section. */
 type ModelsRenderSlot = PropsRenderSlots<ModelsChildSlots>['renderSlot']
@@ -73,6 +73,7 @@ type ModelsRenderSlot = PropsRenderSlots<ModelsChildSlots>['renderSlot']
  * direct render that forgets it fails to compile instead of mounting nothing.
  */
 export type ModelsSectionProps = Partial<InjectFace<ModelsSectionInjected>> & PropsRenderSlots<ModelsChildSlots>
+  & Pick<PropsRuntime<'settings.section'>, 'target'>
 
 type ModelsSectionFace = InjectFace<ModelsSectionInjected>
 
@@ -221,17 +222,30 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, useSnapshot, operations, schema, t, renderSlot, target } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} target={target} />
 }
 
-function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
+function Loaded({ injected, renderSlot, target }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot; target: ModelsSectionProps['target'] }): ReactNode {
   const { controller, operations, schema, t } = injected
   const state = injected.useSnapshot(snapshot => snapshot)
+  const root = useRef<HTMLDivElement | null>(null)
+  const focusedTarget = useRef<ModelsSectionProps['target']>(undefined)
+  useEffect(() => {
+    if (!target) { focusedTarget.current = undefined; return }
+    if (focusedTarget.current === target) return
+    if (target === 'api' && state.status !== 'ready') return
+    const card = root.current?.querySelector<HTMLElement>(target === 'codex' ? '#codex' : '[data-api-providers]')
+    if (!card) return
+    card.scrollIntoView({ block: 'nearest' })
+    const control = card.querySelector<HTMLElement>('button, input') ?? card
+    control.focus()
+    focusedTarget.current = target
+  }, [target, state.status])
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [addOpen, setAddOpen] = useState(false)
   const [addMode, setAddMode] = useState<AddMode>('catalog')
@@ -313,7 +327,8 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
     /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
     const errorText = state.error ?? ''
     return (
-      <div className={styles['section']}>
+      <div ref={root} className={styles['section']}>
+        {renderSlot('settings.models.native', {})}
         <p className={styles['error']}>{`${t('loadFailed')}: ${errorText}`}</p>
         <button type="button" className={styles['secondaryButton']} onClick={() => { void controller.load() }}>
           {t('retry')}
@@ -383,7 +398,8 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
     : state.rows.find(row => row.entry.provider === draft.target.provider)
 
   return (
-    <div className={styles['section']}>
+    <div ref={root} className={styles['section']}>
+      {renderSlot('settings.models.native', {})}
       <h2 className={styles['title']}>{t('title')}</h2>
       <p className={styles['intro']}>{t('intro')}</p>
       {!state.writable && state.status === 'ready' ? <p className={styles['notice']}>{t('readOnly')}</p> : null}
@@ -394,7 +410,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             {providerCopy(t('savedProvider'), savedIdentity)}
           </p>
         )}
-      <ul className={styles['rows']}>
+      <ul data-api-providers tabIndex={-1} className={styles['rows']}>
         {configured.map((row) => {
           const target = targetOf(row)
           const namespace = state.namespaces.get(target.settingsNs)

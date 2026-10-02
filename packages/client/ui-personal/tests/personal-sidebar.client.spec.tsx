@@ -57,6 +57,7 @@ function mount(sessionList: SessionListState = list, section?: PersonalSidebarPr
     useSessions: hook(sessionList), useSessionStatus: hook(statuses), useWorkspaces: hook(workspaces),
     useSessionRetainInfo: () => undefined, useResource, usePanelInfo,
     useModelCatalogRevision: selector => selector(0),
+    useSettingsNavigation: selector => selector({ open: false }),
     useRecords: hook({ phase: 'ready' as const, projects: [project(projectA, 'Alpha'), project(projectB, 'Beta')], bots: [bot] }),
     refresh: vi.fn(async () => {}), createProject, updateProject: vi.fn(async () => {}),
     pickDirectory,
@@ -66,8 +67,8 @@ function mount(sessionList: SessionListState = list, section?: PersonalSidebarPr
     t: makeTranslate(zh, commonZh),
     ...overrides,
   }
-  render(<PersonalSidebar {...props} />)
-  return { deleteSession, openSession, moveSession, createSession, createProject, createBot, pickDirectory }
+  const view = render(<PersonalSidebar {...props} />)
+  return { deleteSession, openSession, moveSession, createSession, createProject, createBot, pickDirectory, view, props }
 }
 
 describe('personal sidebar', () => {
@@ -253,4 +254,21 @@ describe('personal sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: zh.save }))
     await waitFor(() => { expect(createProject).toHaveBeenCalledWith({ name: 'New project', description: '', path: '/tmp/picked-project' }) })
   })
+})
+
+it('retains a Codex Bot draft while its modal is suspended for settings and never saves on navigation', async () => {
+  const openCodexSettings = vi.fn()
+  const b = mount(list, 'bots', { openCodexSettings, loadModels: async () => ({ groups: [], failures: [] }) })
+  fireEvent.click(screen.getByRole('button', { name: zh.addBot }))
+  fireEvent.change(screen.getByLabelText(zh.name), { target: { value: 'Unsaved native bot' } })
+  fireEvent.change(screen.getByLabelText(zh.backend), { target: { value: 'codex' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.openCodexSettings }))
+  expect(openCodexSettings).toHaveBeenCalledOnce()
+  expect(b.createBot).not.toHaveBeenCalled()
+  b.view.rerender(<PersonalSidebar {...b.props} useSettingsNavigation={selector => selector({ open: true, section: 'models', target: 'codex' })} />)
+  expect(screen.queryByRole('dialog')).toBeNull()
+  b.view.rerender(<PersonalSidebar {...b.props} />)
+  expect(screen.getByLabelText<HTMLInputElement>(zh.name).value).toBe('Unsaved native bot')
+  expect((screen.getByLabelText(zh.backend)).value).toBe('codex')
+  expect(b.createBot).not.toHaveBeenCalled()
 })

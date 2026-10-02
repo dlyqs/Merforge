@@ -3,6 +3,7 @@ import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
+import type { SettingsNavigation } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { PersonalKey } from './locales.ts'
 
@@ -16,6 +17,8 @@ export interface PersonalRecordsState {
 
 /** Mutations owned by the Client plugin's Remote adapter. */
 export interface PersonalActions {
+  /** Open Codex settings while retaining the current Bot draft. */
+  openCodexSettings?: () => void
   refresh(): Promise<void>
   loadModels?(): Promise<ModelCatalog>
   createProject(input: { name: string; description?: string; path?: string }): Promise<void>
@@ -50,7 +53,7 @@ export interface PersonalActions {
 
 /** Injected records and mutation interface. */
 export interface PersonalInjected extends PersonalActions {
-  hooks: { records: ObservableSnapshot<PersonalRecordsState>; modelCatalogRevision: ObservableSnapshot<number> }
+  hooks: { settingsNavigation: SettingsNavigation['view']; records: ObservableSnapshot<PersonalRecordsState>; modelCatalogRevision: ObservableSnapshot<number> }
 }
 
 /** Component props for the sidebar's personal seat. */

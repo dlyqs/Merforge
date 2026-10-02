@@ -10,9 +10,10 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'backend.openCodexSettings': '打开 Codex 设置',
   'backend.newConversation': '切换后端或 Codex 模型/推理等级会新建会话，不复制历史。',
-  'backend.codexCapabilities': 'Codex 使用原生工具；仅支持文字。应用命令、压缩、附件、插话、分叉和人工审批暂不可用。',
-  'backend.codexSetup': '无需 Merforge API key。请先在本机 Codex 完成登录，再刷新模型；运行时不可用时请检查应用安装。',
+  'backend.codexCapabilities': 'Codex 使用自己的上下文与原生工具；支持文字、任务回调、人工提问和一次审批。附件、插话、原生分叉与应用压缩暂不可用。',
+  'backend.codexSetup': '无需 Merforge API key。可在“设置 → 模型 → Codex”登录或重新检测；应用会复用已有本机登录。',
   'command.label': '模型',
   'command.description': '选择本会话使用的模型',
   'option.loadError': '目录加载失败：{message}',
@@ -42,9 +43,10 @@ export type ModelKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'backend.openCodexSettings': 'Open Codex settings',
   'backend.newConversation': 'Changing backend or Codex model/effort starts a new conversation without copying history.',
-  'backend.codexCapabilities': 'Codex uses native tools. Text only; application commands, compaction, attachments, steering, forks and human approvals are unavailable.',
-  'backend.codexSetup': 'No Merforge API key is needed. Sign in to Codex on this device, then refresh models. Check the application installation if the runtime is unavailable.',
+  'backend.codexCapabilities': 'Codex owns its context and native tools. Text, task callbacks, human questions and one-time approvals are supported. Attachments, steering, native forks and app compaction are unavailable.',
+  'backend.codexSetup': 'No Merforge API key is needed. Sign in or detect again in Settings → Models → Codex. Existing native sign-in is reused.',
   'command.label': 'Model',
   'command.description': 'Select the model for this conversation',
   'option.loadError': 'Catalog failed to load: {message}',

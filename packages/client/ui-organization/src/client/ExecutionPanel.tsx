@@ -193,6 +193,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
           setBackend(event.target.value === 'codex' ? 'codex' : 'harness-api'); setModel(''); setEffort(undefined); setConfirmed(false); setCatalog(undefined)
         }}><option value="harness-api">{t('executionApi')}</option><option value="codex">{t('executionCodex')}</option></select></label>
         {backend === 'codex' ? <>
+          {props.openCodexSettings && <Button disabled={busy} onClick={props.openCodexSettings}>{t('openCodexSettings')}</Button>}
           <Button disabled={busy} onClick={() => { void loadModels().then(() => { if (isAlive()) setConfirmed(false) })
             .catch((error: unknown) => { if (isAlive()) setNotice(t(executionError(error))) }) }}>{t('executionRefreshModels')}</Button>
           <label>{t('executionModel')}<select required value={model} disabled={busy} onChange={(event) => {

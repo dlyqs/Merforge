@@ -42,6 +42,8 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
   const modelCatalogRevision = props.useModelCatalogRevision(value => value)
+  const settingsNavigation = props.useSettingsNavigation(value => value)
+  const setupOpen = settingsNavigation.open && settingsNavigation.section === 'models' && settingsNavigation.target === 'codex'
   const records = useRecords(value => value)
   const sessions = useSessions(value => value)
   const statuses = useSessionStatus(value => value)
@@ -367,7 +369,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         <Button variant="outline" disabled={busy} onClick={closeOverlay}>{t('cancel')}</Button>
         {error !== null && <p role="alert">{t('error', { message: error })}</p>}
       </div></Modal>}
-    {draft !== null && <Modal open onClose={closeOverlay} closeLabel={t('close')}
+    {draft !== null && <Modal open={!setupOpen} onClose={closeOverlay} closeLabel={t('close')}
       title={t(draft.kind === 'project' ? draft.id === undefined ? 'addProject' : 'editProject' : draft.id === undefined ? 'addBot' : 'editBot')}
       className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}><form className={css.form} onSubmit={(event) => { event.preventDefault(); saveDraft() }}>
         <label>{t('name')}<input autoFocus required disabled={busy} value={draft.name} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} /></label>
@@ -397,7 +399,9 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
             {draft.model !== '' && !models?.groups.some(group => group.id === draft.provider && group.models.some(model => model.id === draft.model)) && <option value={JSON.stringify([draft.provider, draft.model])}>{draft.provider}/{draft.model}</option>}
             {models?.groups.filter(group => (group.backend ?? 'harness-api') === draft.backend).map(group => <optgroup key={group.id} label={group.name}>{group.models.map(model => <option key={model.id} value={JSON.stringify([group.id, model.id])}>{model.name}</option>)}</optgroup>)}
           </select></label>
-          {draft.backend === 'codex' && <><p>{t('codexCapabilities')}</p><p>{t('codexSetup')}</p></>}
+          {draft.backend === 'codex' && <><p>{t('codexCapabilities')}</p><p>{t('codexSetup')}</p>
+            {props.openCodexSettings && <Button variant="outline" disabled={busy} onClick={props.openCodexSettings}>{t('openCodexSettings')}</Button>}
+          </>}
           {loadModels !== undefined && <Button variant="outline" disabled={busy} onClick={() => { setModelRefresh(value => value + 1) }}>{t('refreshModels')}</Button>}
           {modelError !== null && <p role="alert">{modelError}</p>}
           {models?.failures.map(failure => <p key={failure.id}>{failure.name}: {failure.message}</p>)}

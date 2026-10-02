@@ -36,7 +36,7 @@
 | 能力 | 当前工程事实 | 应用消费方式 |
 | --- | --- | --- |
 | 持久 text thread、model/effort、多轮/interrupt | schema + fake 协议/进程测试通过；真实模型待用户 | Phase 3–4 已接入个人执行桥、Desktop 选择/Bot 默认值及冷重开/归档 |
-| 登录与配置 | 原生机制拥有；有效登录待用户 | 只读取安全可用状态，不输出凭据或邮箱 |
+| 登录与配置 | 原生机制拥有；Desktop 提供显式设备码开始/取消，真实登录待用户 | 设置卡片分开显示 runtime、认证与模型；只输出安全状态与 owner 短时验证码 |
 | 原生 shell/file/MCP/skills/memory/subagent | 使用 Codex 自身机制，未声明应用 guard 控制 | 原生执行器负责，任务管理桥只限制应用动作 |
 | 内部模型请求/重试限额 | 无应用逐请求 permit | 按有界运行/turn 和停止管理，不宣称逐请求预算 |
 | 完整模型可见日志 | `completeModelLog: false` | 应用只声明桥接转录；不作为准入门槛 |
@@ -50,7 +50,7 @@
 
 以下为用户操作步骤，工程验证没有启动页面、替用户登录或调用真实 Codex 模型。
 
-1. 使用本人已登录的本机 Codex 环境，启动 Desktop；Merforge 可以不配置 API key。打开输入框模型菜单，从 Codex 分组选择实际模型，再选择其提供的推理等级。缺登录时先在本机 Codex 完成登录，再在模型列表点击重试；Bot 编辑器使用“刷新模型”。空模型目录提示检查账号访问；运行时启动失败提示检查应用安装，不自动安装或切换 API。
+1. 启动 Desktop；Merforge 可以不配置 API key，也不要求全局 Codex CLI。缺登录时，从输入框模型菜单、Bot 编辑器或组织执行入口打开“设置 → 模型”的 Codex 卡片，明确开始设备码登录、复制验证码并打开官方验证网站。完成后重读原生认证和模型，再由用户选择实际模型与推理等级；已有原生认证直接复用。空模型目录提示检查账号访问；运行时启动失败提示检查应用安装。
 2. 发送一条包含约定信息的文字，再提问该信息，确认两轮上下文、流式文字及 Codex 结果卡。原生工具记录显示在同一会话中；“回合已完成”仅表示 Codex 终态，用量保持未知。
 3. 关闭并重新启动 Desktop，打开原会话并继续文字问答，确认原 Project/Bot 归属、记录与上下文；停止正在运行的回合后明确发送下一条。归档后无法发送，恢复归档后可继续原会话。重开核对失败或结果未知时应显示错误，不自动重发或新建 thread。
 4. 新建 Bot，选择 Codex 后端、模型和 effort；不选模型应无法保存。由该 Bot 新建会话应继承默认值。编辑 Bot 默认值只影响新会话；已有 native 会话保持自身选择。API Bot 与旧 API 会话继续使用已有 API 配置。
@@ -120,3 +120,13 @@ SQLite v12 只扩展显式原生调度记录，不转换 v11 API Run；固定签
 Desktop 固定操作为 snapshot/detect/start/cancel/openVerification/subscribe；destroyOwner 仅 Electron 到私有 Host。公共 snapshot 不含验证码/URL/原生 loginId，owner 的短时 view 单独返回品牌化 attempt ID 和 userCode，URL 保留 Host，仅固定 openVerification 回传已校验链接给 Electron。所有窗口共享安全状态，取消/打开必须匹配 owner 与 attempt。私有 Node IPC 使用 startup nonce/request ID；Electron 校验所属顶层窗口和 origin，并捕获 Host 与窗口代次，返回前重核对。Host 断连使短时视图失效，新 Host 不恢复设备码或重放 start。
 
 setup revision 更新失效共享 catalog；个人、Bot 和组织选择使用同一目录更新。目录失败固定原因包括 payload/startup/protocol/login-required/models-empty/catalog/busy/timeout/eof/rpc/unknown-start/cleanup/closed，与 API Provider 局部失败并列。旧请求不能发布新 revision 的模型或自动改默认选择。设备码、URL、身份、auth 路径和 raw 错误不进入通用 Remote、日志和持久层。
+
+## Desktop 设置与首次接入
+
+`ui-settings-models` 注册独立 `settings.models.native` Codex 卡片；API 设置读取失败仍保留原生卡片。一个插件注册拥有一个 `CodexSetupSource`、一个固定 preload 订阅和同一内存观察，设置与首次接入共享它。公开通知先清除旧 owner grant，再读取当前窗口的短时 view；低 revision 与旧 Host 代次回复不能恢复验证码。Host 关闭使 view 失效，替换 Host 可以从新的 revision 开始。卡片关闭不取消登录，窗口销毁与 Host 生命周期由原 owner 清理。
+
+卡片分别呈现 runtime、原生认证、模型目录、登录和取消确认/cleanup；可执行重新检测、开始、复制、官方打开和取消。账号 `none` 且 `requiresOpenaiAuth=false` 表示不要求认证，空模型不等于缺登录。已有认证不提供退出/切换账号操作。固定操作与剪贴板失败只记录 action 和 `category=desktop-operation`，不记录异常文本、代码或 URL。
+
+Desktop 新 profile 的可跳过步骤提供 Codex、API、稍后以及目录就绪后的继续。进入步骤只检测；选择路径只保存 `ui-settings-general.modelSetupVersion: 'v1'` 并导航，不登录、不选后端、不创建对话或运行组织任务。已完成偏好或已有非空 Session 不再显示。API 配置仍使用原有表单。
+
+`ui-settings` 定义 typed `SettingsNavigation`，`ui-settings-general` 提供服务；个人模型菜单、Bot 和组织执行面板通过固定 callback 打开 `models/codex`。设置面板保留已访问 section 的组件和草稿；从其他设置 section 进入接入时关闭返回来源。Bot 原编辑 owner 保持挂载，接入期间隐藏原 Modal，返回后保留未保存草稿。设置导航不保存模型选择，也不代替用户开始执行。

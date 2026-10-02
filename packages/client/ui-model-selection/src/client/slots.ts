@@ -13,6 +13,8 @@ import type { ModelDirectoryState } from './directory.ts'
 export interface ModelSelectInjected {
   /** Whether this session supports Agent-bound model inspection and selection. */
   available: boolean
+  /** Open the shell-owned Codex card without changing the current selection. */
+  openCodexSettings?: () => void
   /** The session's shared directory store (same instance the /model popup reads). */
   directory: SnapshotStore<ModelDirectoryState>
   /** Ensure the shared advisory catalog is loaded (errors land on the store). */

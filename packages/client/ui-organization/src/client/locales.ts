@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  openCodexSettings: '打开 Codex 设置',
   integrationTitle: '目标核验与最终交付',
   integrationHint: '请先手工应用已验收成果，再选择有许可的 Git 目录。应用只读取文件，不覆盖冲突。最终确认会重读同一目标；重启或失效后请重新选择并核验。',
   integrationDependenciesReady: '前置成果已就绪',
@@ -58,7 +59,7 @@ export const zh = {
   executionSelectModel: '请选择模型或推理强度',
   executionNativeApprovalHint: '答复后须明确继续。相同命令决定可供一个新原生请求使用；文件变更缺完整可比较提案时，旧审批不会转用于新请求。',
   executionNativeCleanupFailed: '原生回合结果已记录，但进程清理失败，请检查本机 Codex 进程。',
-  executionNativeUnavailable: '本机 Codex 暂不可用，请检查原生登录及模型后刷新。',
+  executionNativeUnavailable: '本机 Codex 暂不可用，请打开 Codex 设置查看运行时、认证与模型状态。',
   executionCodexHint: 'Codex 使用本机原生登录、配置与工具，无需 API 地址或密钥。应用只派发任务并记录输出；原生工具不经过内建文件权限管线。完成仍需员工提交及下发人验收。',
   executionNativeRecoveryHint: '先核对原生回合与派发回执，再明确继续。此摘要是本机转录校验值，不核验文件或保证任务质量。未知派发不会重发。人工答复不恢复旧原生审批。',
   'native-unbound': '尚未关联原生对话',
@@ -337,6 +338,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  openCodexSettings: 'Open Codex settings',
   integrationTitle: 'Target verification and final delivery',
   integrationHint: 'Apply accepted outputs manually, then select an authorized Git directory. Verification only reads files. Final confirmation rereads the same target. After restart or invalidation, select and verify again.',
   integrationDependenciesReady: 'Prerequisite outputs are ready',
@@ -395,7 +397,7 @@ export const en: Record<OrganizationKey, string> = {
   executionSelectModel: 'Select a model or effort',
   executionNativeApprovalHint: 'Continue explicitly after answering. An identical command decision can answer one new native request; a file change without a complete comparable proposal requires a new decision.',
   executionNativeCleanupFailed: 'The native outcome is recorded, but process cleanup failed. Check local Codex processes.',
-  executionNativeUnavailable: 'Local Codex is unavailable. Check native login and model access, then refresh.',
+  executionNativeUnavailable: 'Local Codex is unavailable. Open Codex settings to inspect runtime, authentication and model availability.',
   executionCodexHint: 'Codex uses local native login, configuration and tools without an API endpoint or key. The app dispatches tasks and records outputs; native tools do not use built-in file permissions. Completion still requires employee submission and issuer acceptance.',
   executionNativeRecoveryHint: 'Reconcile native turns and dispatch receipts before explicitly continuing. This digest covers the local transcript; it does not verify files or task quality. Unknown dispatches are never repeated. Human answers do not restore old native approvals.',
   'native-unbound': 'No native conversation associated',

@@ -5,7 +5,7 @@
  * close label, sections) arrives from registrants through slots; accessible
  * names resolve from localized content (trigger: shell locale; dialog:
  * aria-labelledby the title node; close: visually-hidden slot text). Modal
- * open state and the active section id are component-local viewing state;
+ * open state, section and model target come from the shell navigation service;
  * the onboarding coordinator mounts exactly one ordered registrant while the
  * sessions-derived empty-Hero fact is active. Visible dialog chrome belongs
  * to the step, so a mounted-but-deciding step paints nothing here.
@@ -18,6 +18,7 @@ import {
   IconPersonalizationOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SettingsSectionOwnerProps } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
 import { DesktopUpdateIndicator } from './DesktopUpdateIndicator.tsx'
@@ -43,6 +44,7 @@ type PanelProps = {
   activeId: string | undefined
   onSelect: (id: string) => void
   onClose: () => void
+  target?: SettingsSectionOwnerProps['target']
 }
 
 /**
@@ -50,11 +52,16 @@ type PanelProps = {
  * header button, a mask click, and document-level Escape (mounted only while
  * open, so the listener lifetime is the panel's).
  */
-function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelProps) {
+function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose, target }: PanelProps) {
   // Entries can unmount underneath the requested id, so the render-time
   // projection falls back to the first row when the id is gone.
   const active = rows.find(r => r.id === activeId)?.id ?? rows[0]?.id
   const titleId = useId()
+  const [visited, setVisited] = useState<readonly string[]>([])
+  useEffect(() => {
+    if (active !== undefined) setVisited(previous => previous.includes(active) ? previous : [...previous, active])
+  }, [active])
+  const mounted = active === undefined || visited.includes(active) ? visited : [...visited, active]
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +105,9 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
             </button>
           </div>
           <div className={css.options}>
-            {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
+            {mounted.filter(id => rows.some(row => row.id === id)).map(id => <div key={id} hidden={id !== active}>
+              {renderSlot('settings.section', { close: onClose, ...(id === active && target ? { target } : {}) }, { only: id })}
+            </div>)}
           </div>
         </div>
       </div>
@@ -114,10 +123,10 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
 export function SettingsRoot(props: SettingsRootComponentProps) {
   const {
     wide, reconnect, useConnectionState, useSections, useOnboardingSteps, useSessions, renderSlot, t,
-    useDesktopUpdate, openDesktopUpdate,
+    useDesktopUpdate, openDesktopUpdate, useNavigation, openSettingsSection, closeSettings,
   } = props
-  const [open, setOpen] = useState(false)
-  const [activeId, setActiveId] = useState<string | undefined>(undefined)
+  const navigation = useNavigation(value => value)
+  const { open, section: activeId, target } = navigation
   const [requestedOnboarding, setRequestedOnboarding] = useState<string | undefined>()
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
   const [showRecovery, setShowRecovery] = useState(false)
@@ -127,18 +136,16 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const triggerButton = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(open)
   const close = useCallback(() => {
-    setOpen(false)
-    setActiveId(undefined)
-  }, [])
+    closeSettings()
+  }, [closeSettings])
   // Restore after the close commit, when the dialog can no longer own focus.
   useEffect(() => {
     if (wasOpen.current && !open) triggerRow.current?.querySelector('button')?.focus()
     wasOpen.current = open
   }, [open])
-  const openSection = useCallback((id: string) => {
-    setActiveId(id)
-    setOpen(true)
-  }, [])
+  const openSection = useCallback((id: string, requestedTarget?: SettingsSectionOwnerProps['target']) => {
+    openSettingsSection(id, requestedTarget)
+  }, [openSettingsSection])
 
   // The ledger tick keeps the nav rows fresh: registrants re-register with
   // freshly localized text on locale change, and the trigger/header/close
@@ -221,14 +228,14 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   return (
     <>
       <div ref={triggerRow} className={clsx(css.triggerRow, !wide && css.railRow)}>
-        {renderSlot('settings.launcher', { wide, openSettings: () => { setOpen(true) }, openOnboarding: (id) => { setOpen(false); setRequestedOnboarding(id) } }, { fallback: <button
+        {renderSlot('settings.launcher', { wide, openSettings: () => { openSettingsSection(activeId ?? 'general') }, openOnboarding: (id) => { closeSettings(); setRequestedOnboarding(id) } }, { fallback: <button
           ref={triggerButton}
           type="button"
           className={clsx(css.trigger, !wide && css.rail)}
           aria-label={t('trigger')}
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={() => { setOpen(true) }}
+          onClick={() => { openSettingsSection(activeId ?? 'general') }}
         >
           {renderSlot('settings.trigger', { wide })}
         </button> })}
@@ -249,7 +256,8 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           rows={rows}
           renderSlot={renderSlot}
           activeId={activeId}
-          onSelect={setActiveId}
+          onSelect={openSection}
+          target={target}
           onClose={close}
         />
       )}

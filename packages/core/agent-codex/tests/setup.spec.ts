@@ -79,6 +79,18 @@ it('classifies EOF without treating process exit as a completed login', async ()
   expect(h.service.snapshot().login.cleanup).toBe('done')
 })
 
+it('retires a rejected device login and keeps the native error out of the public state', async () => {
+  const h = await setup()
+  await h.service.start(owner)
+  await h.command({ success: false })
+  await vi.waitFor(() => { expect(h.service.snapshot().login).toMatchObject({ status: 'failed', category: 'login-failed', cleanup: 'done' }) })
+  expect(h.service.view(owner).device).toBeUndefined()
+  expect(JSON.stringify(h.service.snapshot())).not.toContain('fixture-private-error')
+  expect((await h.calls()).filter(method => method === 'account/login/start')).toHaveLength(1)
+  for (const child of h.children) expect(await child.waitForExit()).toBe(true)
+  acquireCodexActivity('execution')()
+})
+
 it('expires the configured login lifetime and drains before releasing admission', async () => {
   const h = await setup({}, 400)
   await h.service.start(owner)

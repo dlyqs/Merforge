@@ -15,7 +15,7 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { zh, en } from './locales.ts'
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
-export const inject = ['slots', 'locale', 'remote', 'remote.session']
+export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.
@@ -43,6 +43,7 @@ export function apply(ctx: Context): void {
   }
   const bind = (): OrganizationInjected => ({ available: !!desktop,
     loadModels,
+    openCodexSettings: () => { ctx.settingsNavigation.open('models', 'codex') },
     connection: action => desktop ? desktop.connection(action) : unavailable(),
     server: action => desktop ? desktop.server(action) : unavailable(),
     secret: () => desktop ? desktop.secret() : unavailable(),

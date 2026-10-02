@@ -1,7 +1,7 @@
 /** Built private control, Loader and real managed subprocess; no window or account access. */
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -18,9 +18,22 @@ import Tools from '../../../packages/core/tools/lib/index.js'
 import Prompt from '../../../packages/core/system-prompt/lib/index.js'
 import Subprocess from '../../../packages/subprocess/subprocess-local/lib/index.js'
 import { installCodexSetupControl } from '../lib/index.js'
-const require = createRequire(new URL('../package.json', import.meta.url))
+const require = createRequire(process.env.MERFORGE_CODEX_PACKED_RESOLVER ?? new URL('../package.json', import.meta.url))
 const Codex = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-agent-codex')).href)
 const { codexSetupNativeMessageSchema } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-agent-codex/setup-protocol')).href)
+const resolveCodex = createRequire(require.resolve('@deepseek-ai/dsh-agent-codex/package.json'))
+const { codexAppServerArgv } = await import(pathToFileURL(resolveCodex.resolve('@deepseek-ai/dsh-codex-runtime')).href)
+const previousPath = process.env.PATH
+try {
+  process.env.PATH = ''
+  const argv = codexAppServerArgv()
+  assert.equal(argv[0], process.execPath)
+  assert.deepEqual(argv.slice(-2), ['app-server', '--stdio'])
+  await readFile(argv[1])
+} finally {
+  if (previousPath === undefined) delete process.env.PATH
+  else process.env.PATH = previousPath
+}
 const root = await mkdtemp(join(tmpdir(), 'codex-setup-built-')), ctx = new Context()
 const fixture = fileURLToPath(new URL('../../../packages/core/agent-codex/tests/fixtures/setup-peer.mjs', import.meta.url))
 const channel = new EventEmitter(), output = [], children = []
@@ -60,6 +73,28 @@ try {
   assert.deepEqual(cancelled.result.snapshot.login, { status: 'cancelled', cancellation: 'canceled', cleanup: 'done' })
   assert.equal(cancelled.result.device, undefined)
   assert.ok(!JSON.stringify(output.filter(result => result.type === 'codex-setup-changed')).includes('FIXTURE-PRIVATE-CODE'))
+  const second = await request({ kind: 'start' })
+  assert.equal(second.result.snapshot.login.status, 'waiting')
+  const confirmed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { channel.off('result', listener); reject(new Error('setup completion smoke timeout')) }, 5000)
+    const listener = result => {
+      if (result.type !== 'codex-setup-changed' || result.snapshot.login.status !== 'succeeded') return
+      clearTimeout(timer); channel.off('result', listener); resolve()
+    }
+    channel.on('result', listener)
+  })
+  await writeFile(join(root, 'fixture-command.json'), JSON.stringify({ auth: true }))
+  await confirmed
+  const ready = await request({ kind: 'snapshot' })
+  assert.equal(ready.result.device, undefined)
+  assert.equal(ready.result.snapshot.account.value.kind, 'chatgpt')
+  assert.equal(ready.result.snapshot.catalog.status, 'ready')
+  assert.equal(ready.result.snapshot.catalog.models[0].model, 'fixture')
+  const reopened = await request({ kind: 'start' })
+  assert.equal(reopened.result.device, undefined)
+  const calls = (await readFile(join(root, 'calls.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
+  assert.equal(calls.filter(method => method === 'account/login/start').length, 2)
+  assert.equal(calls.some(method => /thread|turn/.test(method)), false)
   for (const child of children) assert.equal(await child.waitForExit(), true)
-  console.log('codex setup built smoke: fixed private IPC, owner view, endpoint, cancel and real child cleanup passed')
+  console.log('codex setup built smoke: fixed private IPC, owner view, endpoint, cancellation, confirmed login, catalog, fixed payload without PATH and real child cleanup passed')
 } finally { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) }

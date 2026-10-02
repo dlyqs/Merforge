@@ -1,7 +1,7 @@
 /**
  * Models settings and product-onboarding plugin, browser half. It registers
- * the Models page plus the ordered internal-testing and official-DeepSeek
- * onboarding dialogs, whose UI shares this package's modal wrapper. The Host
+ * the Models page, Desktop Codex setup and optional first-use choices, plus
+ * browser credential onboarding, using this package's modal wrapper. The Host
  * settings and credential contracts stay behind their existing wire APIs.
  * Export discipline:
  * packages/client/AGENTS.md.
@@ -15,10 +15,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
 // (settings/credentials invalidations ride the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import { CodexSetupSource } from './codex-source.ts'
+import { CodexCard, type CodexCardInjected } from './CodexCard.tsx'
+import type { CodexSetupDesktopBridge } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import { ModelsSection } from './ModelsSection.tsx'
 import type { ModelsSectionInjected } from './ModelsSection.tsx'
 import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
 import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
+import { ModelSetupOnboarding, type ModelSetupOnboardingInjected } from './ModelSetupOnboarding.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
 import type { WelcomeNoticeInjected } from './WelcomeNotice.tsx'
 import { WelcomeNoticeStore } from './welcome-store.ts'
@@ -78,7 +82,10 @@ export function apply(ctx: ClientContext): void {
   const page = globalThis as Partial<Record<typeof ONBOARDING_CONFIG_GLOBAL, unknown>>
   const payload = page[ONBOARDING_CONFIG_GLOBAL]
   const configured = Config(payload === undefined ? {} : payload)
-  const isDesktop = 'dshDesktop' in globalThis
+  const carrier = (globalThis as typeof globalThis & {
+    dshDesktop?: { protocolVersion: number; codexSetup?: CodexSetupDesktopBridge }
+  }).dshDesktop
+  const isDesktop = carrier !== undefined
   const credentialOnboarding = configured.credentialOnboarding && !isDesktop
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-models: copy dictionaries')
 
@@ -90,6 +97,23 @@ export function apply(ctx: ClientContext): void {
   // Registration-time text (the nav label thunk) and the inject faces share
   // one bound translate; copy freshness rides the locale revision.
   const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
+  const codex = carrier?.protocolVersion === 2 && carrier.codexSetup ? new CodexSetupSource(carrier.codexSetup, (action) => {
+    ctx.logger.warn('component=codex-setup event=%s status=failed category=desktop-operation', action)
+  }) : undefined
+  const codexInjected = (): CodexCardInjected => {
+    if (!codex) throw new Error('Codex setup requires the Desktop preload')
+    return {
+      hooks: { codex: codex.store }, t,
+      ensure: () => { codex.ensure() },
+      detect: () => codex.detect(), start: () => codex.start(), cancel: () => codex.cancel(),
+      openVerification: () => codex.openVerification(),
+      copy: () => codex.copy(code => navigator.clipboard.writeText(code)),
+    }
+  }
+  ctx.effect(() => () => { codex?.dispose() }, 'ui-settings-models: Desktop setup observation')
+  if (codex) ctx.slots.inject('settings.models.native', () => ctx.slots.register({
+    name: 'settings.models.native', id: 'codex', order: 0, inject: codexInjected,
+  }, CodexCard))
   const injected = (): ModelsSectionInjected => ({
     controller,
     hooks: { snapshot: controller.store },
@@ -140,10 +164,27 @@ export function apply(ctx: ClientContext): void {
     label: () => t('nav'),
     inject: injected,
     children: {
+      'settings.models.native': { kind: 'list', scope: 'root' },
       'settings.models.provider-card': { kind: 'keyed', scope: 'root' },
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
   }, ModelsSection))
+  if (codex) {
+    const preference = ctx.configForms.get<Record<string, unknown>>(WELCOME_NOTICE_SETTINGS_NAMESPACE)
+    ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+      name: 'settings.onboarding', id: 'model-setup', order: 0,
+      inject: (): ModelSetupOnboardingInjected => ({
+        ...codexInjected(), hooks: { codex: codex.store, preference },
+        acknowledge: async () => {
+          try { await preference.set('modelSetupVersion', 'v1') } catch (error) {
+            void error // Completion preference errors never expose platform details.
+            return false
+          }
+          return preference.getSnapshot().value?.modelSetupVersion === 'v1'
+        },
+      }),
+    }, ModelSetupOnboarding))
+  }
   if (!isDesktop) {
     ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
       name: 'settings.onboarding',

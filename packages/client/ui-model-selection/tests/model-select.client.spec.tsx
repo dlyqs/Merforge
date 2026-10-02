@@ -487,3 +487,16 @@ describe('ModelSelect keyboard walk', () => {
     expect(document.activeElement).toBe(rows[0])
   })
 })
+
+it('opens the Codex settings card from a catalog failure without changing the selection', () => {
+  const directory = createSnapshotStore(state({ groups: [], failures: [{ id: 'codex', name: 'Codex', message: 'login required' }] }))
+  const select = vi.fn(async () => ({ ok: true as const, value: undefined }))
+  const openCodexSettings = vi.fn()
+  render(<ModelSelect locked={false} available directory={directory} load={() => {}}
+    select={select} openCodexSettings={openCodexSettings} t={t} />)
+  fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+  fireEvent.click(screen.getByRole('menuitem', { name: zh['backend.openCodexSettings'] }))
+  expect(openCodexSettings).toHaveBeenCalledOnce()
+  expect(select).not.toHaveBeenCalled()
+  expect(screen.queryByRole('menu')).toBeNull()
+})

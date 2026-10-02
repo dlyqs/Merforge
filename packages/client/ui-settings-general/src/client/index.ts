@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
+import { SettingsNavigationService } from './navigation.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
 import type { DesktopUpdateBridge } from '../types.ts'
@@ -111,15 +112,19 @@ export function apply(ctx: ClientContext): void {
   // source (uSES contract: getSnapshot returns the cached rows until the
   // ledger version moves). Labels may be locale-following thunks, so the cache
   // key includes the locale revision and subscribers ride both sources.
+  const navigation = new SettingsNavigationService(ctx)
   let rowsVersion = -1
   let rowsRevision = -1
   let rows: readonly SettingsSectionRow[] = []
   let onboardingVersion = -1
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
   const shellInjected = (): SettingsRootInjected => ({
+    openSettingsSection: (id, target) => { navigation.open(id, target) },
+    closeSettings: () => { navigation.close() },
     openDesktopUpdate: () => { desktopUpdate.open() },
     reconnect: () => { connection.reconnect() },
     hooks: {
+      navigation: navigation.view,
       desktopUpdate: desktopUpdate.store,
       connectionState: connection.state,
       sections: {

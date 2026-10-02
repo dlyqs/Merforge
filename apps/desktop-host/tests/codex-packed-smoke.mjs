@@ -59,10 +59,13 @@ try {
   }
   assert.equal((await readdir(root)).filter(name => name.endsWith('.tgz')).length, 2)
   for (const executable of [process.execPath, desktop('electron')]) {
-    const { stdout } = await execute(executable, [fileURLToPath(new URL('./codex-built-smoke.mjs', import.meta.url))], {
-      cwd: repository, timeout: 30000, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', MERFORGE_CODEX_PACKED_RESOLVER: resolverPath },
-    })
-    assert.ok(stdout.includes('codex built smoke:'))
+    for (const script of ['codex-built-smoke.mjs', 'codex-setup-built-smoke.mjs']) {
+      const { stdout } = await execute(executable, [fileURLToPath(new URL(script, import.meta.url))], {
+        cwd: repository, timeout: 30000,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', MERFORGE_CODEX_PACKED_RESOLVER: resolverPath },
+      })
+      assert.ok(stdout.includes(script === 'codex-built-smoke.mjs' ? 'codex built smoke:' : 'codex setup built smoke:'))
+    }
   }
-  console.log(`codex packed smoke passed: ${process.platform}/${process.arch}, npm tarball exports, Node + Electron Node mode, pinned argv, two turns and human replies`)
+  console.log(`codex packed smoke passed: ${process.platform}/${process.arch}, npm tarball exports, Node + Electron Node mode, pinned argv without PATH, new-user sign-in/cancel/catalog, two turns and human replies`)
 } finally { await rm(root, { recursive: true, force: true }) }

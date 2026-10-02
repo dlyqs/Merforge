@@ -22,6 +22,8 @@ import type { ProviderDirectoryEntry } from './store.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** Native backend cards, independent of API provider state. */
+    'settings.models.native': { kind: 'list'; scope: 'root'; owner: ModelsFooterOwnerProps }
     /**
      * One provider card's adapter extension area, dispatched with
      * `entryKey = settingsNs` on every card that renders a directory row: a

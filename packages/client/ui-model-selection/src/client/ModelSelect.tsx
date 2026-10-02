@@ -52,7 +52,7 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @returns the trigger and, while open, the two-level menu.
  */
 export function ModelSelect(
-  { locked, available, directory, load, select, t }:
+  { locked, available, directory, load, select, openCodexSettings, t }:
   ModelSelectInjected & { locked: boolean } & PropsLocale<'model'>,
 ) {
   const state = useSyncExternalStore(
@@ -394,7 +394,12 @@ export function ModelSelect(
         >
           <p>{t('backend.newConversation')}</p>
           {native && <p>{t('backend.codexCapabilities')}</p>}
-          {(native || state.failures.some(failure => failure.id === 'codex')) && <p>{t('backend.codexSetup')}</p>}
+          {(native || state.failures.some(failure => failure.id === 'codex')) && <>
+            <p>{t('backend.codexSetup')}</p>
+            {openCodexSettings && <button type="button" role="menuitem" className={css.cell} onClick={() => {
+              close(); openCodexSettings()
+            }}>{t('backend.openCodexSettings')}</button>}
+          </>}
           {pane === 'root' && (
             <>
               <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('model') }}>

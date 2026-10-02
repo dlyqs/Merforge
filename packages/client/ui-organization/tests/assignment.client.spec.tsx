@@ -211,6 +211,8 @@ it('selects native Codex without endpoint or file-tool controls and retains the 
     expiresAt: 100000, state: 'active', createdRevision: 3, version: 3 }], lease: { assignmentId: h.prep.assignment.id, delegationId, deviceId, fencingEpoch: 1,
     serverEpoch: randomUUID(), expiresAt: 100000, state: 'held', createdRevision: 3, version: 3 } })
   h.prep.delegations = prepared.delegations; h.prep.lease = prepared.lease
+  const openCodexSettings = vi.fn()
+  h.props.openCodexSettings = openCodexSettings
   h.props.loadModels = vi.fn<NonNullable<OrganizationProps['loadModels']>>(async () => ({ default: { provider: 'codex', model: 'native-model' }, routableProviders: ['codex'],
     groups: [{ id: 'codex', backend: 'codex', name: 'Codex', models: [{ id: 'native-model', name: 'Native model',
       reasoning: { efforts: [{ id: 'medium', name: 'medium' }], defaultEffort: 'medium' } }] }], failures: [] }))
@@ -233,6 +235,9 @@ it('selects native Codex without endpoint or file-tool controls and retains the 
   render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current />)
   const backend = await screen.findByLabelText(zh.executionBackend)
   fireEvent.change(backend, { target: { value: 'codex' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.openCodexSettings }))
+  expect(openCodexSettings).toHaveBeenCalledOnce()
+  expect(h.props.execution).not.toHaveBeenCalled()
   expect(screen.queryByLabelText(zh.executionEndpoint)).toBeNull()
   expect(screen.queryByLabelText(zh.executionRead)).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: zh.executionRefreshModels }))

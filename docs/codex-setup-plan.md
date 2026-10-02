@@ -10,7 +10,7 @@
 - automatic start phase: `none`
 - automatic stop phase: `none`
 - conversation relay: `off`
-- 计划状态：用户于 2026-10-02 授权“请完成 phase1-3”；闭区间 Phase 1–3 工程完成，已到达授权终点，恢复 `manual` 并清空自动边界。Phase 4–6 未授权，下一推荐阶段为 Phase 4。
+- 计划状态：用户于 2026-10-02 授权“请完成 phase4-6”；闭区间 Phase 4–6 工程实现、验证和交接已完成，全部 Phase 1–6 为 `completed`。已到达授权终点，恢复 `manual`、清空自动边界；真实账号、可见及跨平台产品验收仍待用户，不推进 7C。
 - 工作目录：`/Users/git_local/Merforge`
 - 工作流 Skill：`/Users/git_local/dev-workflow-skill/SKILL.md`
 - 用户目标：补齐上一轮确认缺失的 Codex 配置入口，参考 Multica 的入口组织方式。
@@ -100,9 +100,9 @@
 | Phase 1 | 协议与产品规则 | 固化设备码登录、状态和所有者 | completed | stable schema 与协议规则 | 离线测试通过 |
 | Phase 2 | runtime 与 setup service | 完成固定登录、取消和安全可用性 | completed | typed runtime、setup service 与共享准入 | 真实 subprocess fixture 通过 |
 | Phase 3 | Desktop 固定通道 | 所属窗口操作和目录失效同步 | completed | 私有 IPC v1、product API v2 与目录失效 | 无页面测试、类型/lint、构建和产物 smoke 通过 |
-| Phase 4 | Codex 设置卡片 | 状态、登录、取消与重新检测 | pending | — | 依赖 Phase 3 |
-| Phase 5 | 首次引导与失败入口 | Codex/API 选择和各入口直达设置 | pending | — | 依赖 Phase 4 |
-| Phase 6 | 组合、发行与交接 | 验证新用户流程并交付手工剧本 | pending | — | 依赖 Phase 5；真实验收单列 |
+| Phase 4 | Codex 设置卡片 | 状态、登录、取消与重新检测 | completed | 原生卡片、共享短时状态及中英反馈 | 无页面测试及 Client build 通过 |
+| Phase 5 | 首次引导与失败入口 | Codex/API 选择和各入口直达设置 | completed | 可跳过接入步骤、typed 导航与草稿保留 | Loader/纯逻辑回归与 Client build 通过 |
+| Phase 6 | 组合、发行与交接 | 验证新用户流程并交付手工剧本 | completed | Loader 到 Client、built/packed 及用户剧本 | 工程通过；真实账号/安装体待用户 |
 
 ## 阶段细节
 
@@ -209,12 +209,12 @@
 
 **验收清单：**
 
-- [ ] Codex 是独立原生后端卡片，与 API Provider 编辑并列，不出现 API key 输入或错误“未配置 API key”状态。
-- [ ] runtime 版本、认证方式、模型状态分别展示；成功状态说明复用本机登录，缺 runtime 提供应用安装修复说明及重新检测。
-- [ ] 设备码等待视图包含复制、用户点击打开官方验证站点、取消、有效状态及分类失败重试；不使用无协议依据的剩余秒数或成功推断。
-- [ ] 多处打开共享 Host 状态，短时码只给 owner 窗口；关闭卡片再打开可继续查看，旧代次不能覆盖最新结果。
-- [ ] 中英 locale、键盘操作、可访问名称、等待/禁用状态和模型列表均从 typed 状态派生；组件不自己建立外部订阅。
-- [ ] 仅展示模型/effort 能力；重新检测和登录不写默认模型、不创建或执行会话。
+- [x] Codex 是独立原生后端卡片，与 API Provider 编辑并列，不出现 API key 输入或错误“未配置 API key”状态。
+- [x] runtime 版本、认证方式、模型状态分别展示；成功状态说明复用本机登录，缺 runtime 提供应用安装修复说明及重新检测。
+- [x] 设备码等待视图包含复制、用户点击打开官方验证站点、取消、有效状态及分类失败重试；不使用无协议依据的剩余秒数或成功推断。
+- [x] 多处打开共享 Host 状态，短时码只给 owner 窗口；关闭卡片再打开可继续查看，旧代次不能覆盖最新结果。
+- [x] 中英 locale、键盘操作、可访问名称、等待/禁用状态和模型列表均从 typed 状态派生；组件不自己建立外部订阅。
+- [x] 仅展示模型/effort 能力；重新检测和登录不写默认模型、不创建或执行会话。
 
 **助理验证：** 无页面状态/操作和组件行为测试，聚焦类型、局部 lint、i18n、Slot/domain graph 与 Client 构建。禁止启动页面或浏览器。
 
@@ -222,7 +222,7 @@
 
 **依赖：** Phase 3。
 
-**实际完成：** 尚未执行。
+**实际完成：** ModelsSection 声明独立 settings.models.native 卡片，在 API join 失败时仍显示；CodexCard 与 codex-source 通过注册时 hooks/固定回调共享状态，内存保留 owner 验证码并拒绝迟到 revision 与旧 Host 代次。卡片分开呈现 runtime、原生认证、模型、登录、取消确认与 cleanup，官方网站只由固定操作打开。中英 typed locale、代码复制与键盘按钮、模型/effort 信息已完成，不写默认值或创建会话。聚焦 4 文件 124 tests 通过，追加 Desktop 注册/卸载后 apply 16 tests 通过；tsc -b ui-settings-models、变更文件 run-oxlint、verify-client-ui-i18n（842 sources）及 tsdown client filter 通过。布局、焦点和真实设备码留 Phase 6 用户验收。下一阶段 Phase 5。
 
 ### Phase 5：首次接入与失败直达设置
 
@@ -232,13 +232,13 @@
 
 **验收清单：**
 
-- [ ] 在既有欢迎流程增加可跳过的模型接入选择，含 Codex、已有 API 设置和稍后配置；Desktop 不启用原强制 API credential onboarding。
-- [ ] 已认证且模型可用时允许继续使用；缺登录/模型/runtime 时展示对应操作，不用 API credential 判断原生可用性。
-- [ ] 首次步骤完成/跳过的设置只保存偏好，不保存认证或验证码；重开不重复阻塞已有用户，设置卡片仍可随时访问。
-- [ ] 会话模型失败、Bot 原生模型失败、组织执行选择失败可直达同一 Codex 卡片，返回保留原草稿；通过 shell-owned typed 导航，不导入其他插件组件。
-- [ ] 登录完成使已有目录刷新，错误提示消退；用户仍明确选择模型/effort，组织资格继续由组织权威检查。
-- [ ] API 配置、旧 API 会话、Bot 默认值、已有 native 会话、后端切换建新会话和组织人工提交/验收均保持现有行为；登录成功不派发任务。
-- [ ] 纠正旧“先在本机 Codex 登录”文案，并按当前能力表修正关联入口中的过时限制说明，不扩展执行能力。
+- [x] 在既有欢迎流程增加可跳过的模型接入选择，含 Codex、已有 API 设置和稍后配置；Desktop 不启用原强制 API credential onboarding。
+- [x] 已认证且模型可用时允许继续使用；缺登录/模型/runtime 时展示对应操作，不用 API credential 判断原生可用性。
+- [x] 首次步骤完成/跳过的设置只保存偏好，不保存认证或验证码；重开不重复阻塞已有用户，设置卡片仍可随时访问。
+- [x] 会话模型失败、Bot 原生模型失败、组织执行选择失败可直达同一 Codex 卡片，返回保留原草稿；通过 shell-owned typed 导航，不导入其他插件组件。
+- [x] 登录完成使已有目录刷新，错误提示消退；用户仍明确选择模型/effort，组织资格继续由组织权威检查。
+- [x] API 配置、旧 API 会话、Bot 默认值、已有 native 会话、后端切换建新会话和组织人工提交/验收均保持现有行为；登录成功不派发任务。
+- [x] 纠正旧“先在本机 Codex 登录”文案，并按当前能力表修正关联入口中的过时限制说明，不扩展执行能力。
 
 **助理验证：** 首次/跳过/重开投影、shell 导航、目录失效和草稿保留的无页面测试；受影响类型/lint/i18n/Client 构建；现有 API/native 选择聚焦回归。
 
@@ -246,7 +246,7 @@
 
 **依赖：** Phase 4；与 7C 无实施依赖。
 
-**实际完成：** 尚未执行。
+**实际完成：** Desktop 新增 model-setup 可跳过步骤，modelSetupVersion 只保存 v1 偏好；已有非空会话或已完成偏好不再显示，原强制 API credential 步骤保持关闭。ui-settings 定义 SettingsNavigation/target 声明，ui-settings-general 提供导航服务和已访问页的挂载保留；模型菜单、Bot、组织 ExecutionPanel 使用固定 callbacks 打开同一 Codex 卡片。设置内来源返回原 section；Bot 暂时隐藏 Modal chrome，草稿由原 owner 保留。更新旧原生登录和过时能力提示，不改变业务派发。新 Client Loader 测试验证共享 source、仅 preference 写入、单 target 及卸载；pure/组件/原选择 7 文件初次 100 passed（旧切换卸载预期已改为隐藏保留），后续 9 文件 80 tests、5 文件 56 passed、修正新 Loader 断言后 2 文件 5 tests 通过。受影响六组 tsc、局部 lint、i18n（845 sources）、client-packages（59 packages）及全部相关 Client filter build 通过。domain graph 为既有 62 处，不含本轮导入。真实首次/返回布局仍留 Phase 6。下一阶段 Phase 6。
 
 ### Phase 6：组合验证、发行路径与用户交接
 
@@ -256,13 +256,13 @@
 
 **验收清单：**
 
-- [ ] 真实 Loader + managed subprocess + 固定 Desktop 通道验证：无登录 → 开始 → fixture 完成 → 重读认证/模型 → 目录可选；全链无 API 模型请求、thread/turn 和业务自动执行。
-- [ ] 缺 payload、版本不匹配、无认证、无需认证、模型为空、设备码拒绝、超时、取消竞争、旧通知、Host 重启/窗口销毁与拒绝来源均有行为证据。
-- [ ] 聚焦回归覆盖原个人/API/组织消费者，读取保持私有，one-shot 不获得登录写入权限。
-- [ ] Desktop build 和必要发布路径 smoke 通过；普通 Node/Electron Node mode 验证实际 exports/固定 payload 解析，隔离原生认证，不把 app-server 替身当作真实账号验收。
-- [ ] 发行检查覆盖平台 Codex payload 和独立 Electron Node executable；缺全局 CLI 不影响解析。当前不能执行的 Windows 安装包检查明确待用户，不计为通过。
-- [ ] 新用户手工剧本包含未装外部 Codex、没有原生登录、已有登录、验证码取消/过期、重开、模型选择/两轮对话、组织入口和 API 继续可用；可能影响原生登录的操作由用户在独立 OS 测试账号内进行。
-- [ ] 已运行命令、既有失败、新失败、未运行项和产品验收待办分别记录；不得通过修改全局基线或跳过门禁制造全绿。
+- [x] 真实 Loader + managed subprocess + 固定 Desktop 通道验证：无登录 → 开始 → fixture 完成 → 重读认证/模型 → 目录可选；全链无 API 模型请求、thread/turn 和业务自动执行。
+- [x] 缺 payload、版本不匹配、无认证、无需认证、模型为空、设备码拒绝、超时、取消竞争、旧通知、Host 重启/窗口销毁与拒绝来源均有行为证据。
+- [x] 聚焦回归覆盖原个人/API/组织消费者，读取保持私有，one-shot 不获得登录写入权限。
+- [x] Desktop build 和必要发布路径 smoke 通过；普通 Node/Electron Node mode 验证实际 exports/固定 payload 解析，隔离原生认证，不把 app-server 替身当作真实账号验收。
+- [x] 发行检查覆盖平台 Codex payload 和独立 Electron Node executable；缺全局 CLI 不影响解析。当前不能执行的 Windows 安装包检查明确待用户，不计为通过。
+- [x] 新用户手工剧本包含未装外部 Codex、没有原生登录、已有登录、验证码取消/过期、重开、模型选择/两轮对话、组织入口和 API 继续可用；可能影响原生登录的操作由用户在独立 OS 测试账号内进行。
+- [x] 已运行命令、既有失败、新失败、未运行项和产品验收待办分别记录；不得通过修改全局基线或跳过门禁制造全绿。
 
 **助理验证：** 按改动选择聚焦 vitest、受影响源程序类型、局部 lint、i18n/exports/JSDoc/事件/Config/组合/依赖门禁；执行一次必要完整 `pnpm run build` 与无窗口 built smoke。不默认跑全仓测试，已有通过项只在新修改或失败证据要求时重跑。
 
@@ -270,7 +270,32 @@
 
 **依赖：** Phase 5。
 
-**实际完成：** 尚未执行。
+**实际完成：** 新增 `codex-setup-flow.spec.ts`，贯通真实 Loader、managed subprocess、固定 Host control、Desktop handler、Client source 和实际 model catalog：无登录 → owner 验证码 → 用户固定打开 → fixture 完成 → 认证/模型复核 → 原生模型可选。保留 API 默认值，没有 thread/turn 或 Agent 执行。补齐设备码拒绝、payload 缺失/版本不匹配、平台 payload 文件保留、已有非空 Session 抑制首次步骤和固定诊断回归。source 卸载清除短时 view；API target 等异步表单就绪后定位一次，刷新不抢焦点。
+
+setup built smoke 验证取消、完成复核、已有认证复用与 child 排空；packed smoke 提取真实 tarball exports，在普通 Node/Electron Node mode 运行 setup 与两回合执行 smoke，并在空 PATH 下验证固定 wrapper。组织 built smoke 通过双员工、人工等待、冷重开、返工和最终集成。协议页、受影响 README、overview 与[验收交接](codex-backend-acceptance.md)已更新；手工剧本覆盖新用户、取消/过期/重开、来源返回、两轮真实对话、API 和分平台安装体验证。
+
+本阶段实际命令与结果（不同测试批次有重叠，不累加为唯一用例总数）：
+
+| 命令/检查 | 实际结果 |
+| --- | --- |
+| `pnpm exec vitest run packages/core/agent-codex/tests/setup.spec.ts apps/desktop-host/tests/codex-setup.spec.ts apps/desktop-host/tests/codex-setup-flow.spec.ts apps/desktop/tests/codex-setup-ipc.spec.ts apps/desktop/tests/host-process.spec.ts apps/desktop/tests/preload-app.spec.ts packages/subagent/codex-runtime/tests/protocol.spec.ts` | 7 files / 54 tests 通过；协议为离线 schema，未启动真实登录或模型 |
+| `pnpm exec vitest run apps/desktop/tests/prepare-package-set.spec.ts apps/desktop/tests/runtime-tree.spec.ts apps/desktop/tests/runtime-manifests.spec.ts apps/desktop/tests/runtime-file-policy.spec.ts apps/desktop/tests/prepared-runtime-smoke.spec.ts packages/subagent/codex-runtime/tests/process.spec.ts packages/subagent/codex-runtime/tests/runtime.spec.ts` | 7 files / 75 tests 通过 |
+| `pnpm exec vitest run packages/client/ui-settings-models/tests/codex-source.client.spec.ts packages/client/ui-settings-models/tests/model-setup-onboarding.client.spec.tsx packages/core/agent-codex/tests/setup.spec.ts packages/subagent/codex-runtime/tests/payload.spec.ts apps/desktop/tests/runtime-file-policy.spec.ts` | 最终负例增量 5 files / 38 tests 通过；payload mock lint 修正后独立重跑 5 tests 通过 |
+| `pnpm exec vitest run packages/client/ui-settings-models/tests/components.client.spec.tsx packages/client/ui-settings-models/tests/model-setup-onboarding.client.spec.tsx` | 108 passed / 1 failed；新增焦点测试误期待 OpenAI 而现有排序为 DeepSeek 优先，修正后按 `-t 'focuses the API destination'` 重跑 1 passed / 102 非目标用例 skipped；产品排序未改 |
+| `pnpm exec vitest run packages/client/ui-settings-models/tests/codex-source.client.spec.ts packages/client/ui-settings-models/tests/codex-composition.client.spec.ts` | source 卸载修改后 2 files / 5 tests 通过 |
+| `pnpm exec vitest run --config vitest.e2e.config.ts packages/subagent/codex-runtime/tests/built-runtime.e2e.ts` | 普通 Node 的 built runtime 1 test 通过；受控外部协议 fixture，不是 real-API 验收 |
+| `pnpm exec tsc -b packages/client/ui-settings-models packages/client/ui-settings-general packages/subagent/codex-runtime packages/core/agent-codex apps/desktop-host` | 通过；最后 source 修改后单独 `tsc -b packages/client/ui-settings-models` 通过；其他受影响 Client 类型见 Phase 5 |
+| `pnpm exec tsx scripts/run-oxlint.ts`，参数为全部变更 TS/TSX/MJS | 初次 46 files 只有新增 payload mock 两项 lint；修正后该文件与最后变更文件局部检查均通过，其余文件初次通过 |
+| `pnpm run build` | 初次及最终 source 调整后的完整 Desktop 构建均通过；最终记录 258 client artifacts / 3 public values，没有启动应用 |
+| `pnpm exec tsx -e 'import { readClientBuildRecord } from "./scripts/client-build-environment.ts"; const record = readClientBuildRecord(process.cwd()); console.log("client artifact record verified:", record.artifacts.fileCount);'` | 最终 258 个 Client 产物的构建记录与当前字节一致 |
+| `pnpm exec tsdown --env.DSH_BUILD_FACE client --filter '@deepseek-ai/dsh-client-ui-settings-models/client' --filter '@deepseek-ai/dsh-client-ui-personal/client'`；最后仅 models filter；`DSH_DESKTOP_BUILD_ONLY=1 pnpm run build:web` | 最终 Client 与 Vite 构建通过；Vite 保留既有 chunk size 提示 |
+| `node apps/desktop-host/tests/codex-setup-built-smoke.mjs` / `node apps/desktop-host/tests/codex-packed-smoke.mjs` / `node apps/desktop-host/tests/organization-codex-built-smoke.mjs` | 全部通过；packed/组织含普通 Node 与 Electron Node mode，当前机器 darwin/arm64 |
+| `pnpm exec tsx scripts/verify-export-jsdoc.ts` | 新 copy 参数注释修正后仅余 OrganizationLoginSession.read/save 两个既有 prose 缺项 |
+| `git diff --check` | 通过 |
+
+Phase 4–5 已通过 i18n（845 sources）、client-packages（59 packages）、相关 Client 构建；本轮 `verify-cordis-config`（21 configs）、`verify-application-entrypoints` 和 `gen-tsconfig-paths.ts --check` 通过。已运行的 `verify-package-dependencies` 仍为 file-upload 的 `assertPersonalSessionId` 分类缺项，`verify-no-unknown-casts` 仍为 session-controller 三处与 agent/inbox 两处，domain graph 仍为 62 处既有跨 domain 导入；未修改这些基线。Phase 1–3 所记录的 shell 组合失败与 Config/API 文档生成失败本轮未重跑，不计为新结果；新增 navigation service owner 已登记，接口事实在 owning README。
+
+真实设备码网站/账号策略、原生认证持久化、真实模型两轮、可见布局/焦点、macOS/Windows 安装包/签名/进程树均未执行。没有读取本人认证、启动页面/浏览器、安装 runtime、使用子代理/GitNexus、写 Agent Notes 或提交/推送；不将 fixture 成功或工程构建记为这些产品验收通过。
 
 ## 关键链路诊断
 

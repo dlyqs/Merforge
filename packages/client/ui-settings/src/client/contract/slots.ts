@@ -10,6 +10,7 @@
  */
 
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsNavigation } from '../navigation.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -124,6 +125,8 @@ export interface SettingsHeaderOwnerProps {
  * onboarding coordinator's `openSection`/`complete` precedent, inverted.
  */
 export interface SettingsSectionOwnerProps {
+  /** Fixed model-setup target requested by the originating entry. */
+  target?: 'codex' | 'api'
   /** Close the settings panel (the shell owns the open state). */
   close: () => void
 }
@@ -137,7 +140,7 @@ export interface SettingsOnboardingOwnerProps {
   /** Complete or skip this step and transfer ownership to the next entry. */
   complete: () => void
   /** Open the settings panel directly on one registered section. */
-  openSection: (id: string) => void
+  openSection: SettingsNavigation['open']
 }
 
 /** Sidebar launcher geometry and settings navigation. */

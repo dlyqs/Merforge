@@ -308,6 +308,29 @@ async function mountDeepSeekCard(overrides: Parameters<typeof scriptedFace>[0] =
 }
 
 describe('ModelsSection', () => {
+  it('focuses the API destination after its asynchronous settings load and does not steal focus on refresh', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    const scroll = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll })
+    try {
+      const { face } = scriptedFace()
+      const ctx = ctxWith(face)
+      const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
+      render(<ModelsSection controller={controller} useSnapshot={bindSnapshotSelector(controller.store)}
+        operations={operationsWith(face)} schema={settingsSchema} t={t} renderSlot={() => null} target="api" />)
+      await waitFor(() => { expect(controller.store.getSnapshot().status).toBe('ready') })
+      const button = screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })
+      expect(document.activeElement).toBe(button)
+      expect(scroll).toHaveBeenCalledOnce()
+      button.blur()
+      await act(async () => { await controller.load() })
+      expect(scroll).toHaveBeenCalledOnce()
+      expect(document.activeElement).not.toBe(button)
+    } finally {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', descriptor)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
   it('hides the add action when no settings namespace can open an editor', async () => {
     const scripted = scriptedFace()
     scripted.face.settings.describe.mockResolvedValue(remoteOk({ writable: true, hasDocument: false, namespaces: [] }))

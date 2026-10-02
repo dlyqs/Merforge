@@ -4,7 +4,7 @@
 
 ## 下一阶段计划入口
 
-[Codex 设置与首次使用实施计划](codex-setup-plan.md)本轮授权 Phase 1–3：固定版本设备码协议证据、Host setup service、共享执行准入和 Desktop 固定通道已实现。个人、Bot 和组织模型目录收到同一安全失效事件，保留显式模型选择并拒绝迟到旧结果。设置卡片、首次引导和失败直达入口仍为 Phase 4–5，尚未实现；不会要求全局 CLI、自动安装或改变默认后端，也不推进 7C。真实登录、窗口操作及平台持久化留用户验收，未代登录或启动页面。已达 Phase 3 终点，执行模式恢复 `manual`、自动边界 `none`、relay 关闭；工程检查和仓库基线问题见计划各阶段记录。
+[Codex 设置与首次使用实施计划](codex-setup-plan.md) Phase 1–6 工程完成，本轮已达到授权 Phase 4–6 终点，恢复 `manual`、自动边界 `none`、relay 关闭。固定版本设备码协议、Host setup service、共享执行准入和 Desktop 固定通道已实现；个人、Bot 和组织模型目录收到同一安全失效事件，保留显式模型选择并拒绝迟到旧结果。独立 Codex 卡片分开呈现 runtime、认证、模型与登录状态，可跳过的 Codex/API 首次接入及个人/Bot/组织失败导航共用该卡片并保留来源草稿；不要求全局 CLI、自动安装或改变默认后端，不推进 7C。真实 Loader 到 Client 的接入组合、Desktop build、tarball exports、普通 Node/Electron Node mode 的 setup/执行/组织 smoke 通过，最终产物记录已更新。[验收交接](codex-backend-acceptance.md)提供新用户、返回、取消/过期/重开和分平台剧本；真实账号、模型、可见与 macOS/Windows 安装体验证仍待用户。实际命令和既有全局门禁问题见计划，未代登录或启动页面。
 
 [Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–10 工程完成。用户最新要求“继续完成 phase9-10”，已达到 Phase 10 终点，恢复 `manual`、自动边界 `none`、relay 关闭。Phase 9–10 补齐个人五回合任务链、双员工独立 CSV/契约交付、跨组织/账号转录拒绝和重复旧终态回归；Desktop build、真实 npm tarball exports、普通 Node/Electron Node mode 的 Codex/API 私有 IPC smoke 通过。[Codex 验收交接](codex-backend-acceptance.md)提供平台、真实模型、三机与可见检查；全仓类型/依赖/JSDoc/unknown cast 的既有失败详见实施计划，未绕过门禁。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
 
@@ -89,7 +89,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 `apps/desktop-host/desktop.patch.yml` 挂载 `agent-codex`。`codexSetup` service 统一 runtime、account、catalog 和 login 的独立观察，driver catalog 复用其发现；`api/session-controller/src/catalog.ts` 合并原生分组与固定 `setupReason` 局部失败，`api-session/model-catalog-changed` 同步个人、Bot 和组织选择。共用 `codex-runtime` 的执行许可及 one-shot 的 spawn 前许可持续至 managed child 清理完成，与登录写入互斥。认证和原生工具仍由官方 runtime 管理，应用不读写认证文件、不使用全局 PATH。
 
-`apps/desktop-host/src/codex-setup.ts` 拥有私有 parent IPC，`apps/desktop/src/codex-setup-ipc.ts` 校验所属顶层窗口、origin、请求、Host 和窗口代次；preload product API v2 暴露 snapshot/detect/start/cancel/openVerification/subscribe。品牌化 attempt ID 与验证码仅给 owner，URL 保留 Host，并限于官方 HTTPS endpoint 的用户主动打开动作；窗口销毁取消并清理，Host 重启不恢复旧码或重放开始。模型设置尚无 Codex 卡片，首次引导尚未补齐；Phase 4–5 将消费既有 typed setup 接口。设置导航仍由 `ui-settings-general` shell 拥有。
+`apps/desktop-host/src/codex-setup.ts` 拥有私有 parent IPC，`apps/desktop/src/codex-setup-ipc.ts` 校验所属顶层窗口、origin、请求、Host 和窗口代次；preload product API v2 暴露 snapshot/detect/start/cancel/openVerification/subscribe。品牌化 attempt ID 与验证码仅给 owner，URL 保留 Host，并限于官方 HTTPS endpoint 的用户主动打开动作；窗口销毁取消并清理，Host 重启不恢复旧码或重放开始。模型设置的 CodexCard/codex-source 已消费 typed setup 接口，卡片状态和 owner 验证码通过注册时绑定的 observable 共享；ModelSetupOnboarding 只持久化完成/跳过偏好，既有非空会话不重复显示。SettingsNavigationService 为个人/Bot/组织入口提供 typed 导航，Bot 草稿和来源设置页在返回时保留。设置导航仍由 `ui-settings-general` shell 拥有。
 
 ## 维护说明
 

@@ -15,6 +15,7 @@ import type {
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 // Type-only: pulls the settings slot declarations the shell renders into.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SettingsNavigation, SettingsNavigationView } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { DesktopUpdateView } from '../types.ts'
 
 /** One nav row projected from a settings.section registration's options. */
@@ -36,11 +37,14 @@ export interface SettingsOnboardingStep {
  * sources, while the reconnect command remains a plain callback.
  */
 export type SettingsRootInjected = {
+  openSettingsSection: SettingsNavigation['open']
+  closeSettings: SettingsNavigation['close']
   /** Request the current shell-owned update action. */
   openDesktopUpdate: () => void
   /** Request a fresh logical generation and physical WebSocket immediately. */
   reconnect: () => void
   hooks: {
+    navigation: HostObservable<SettingsNavigationView>
     /** Shared Electron status for both sidebar locations. */
     desktopUpdate: HostObservable<DesktopUpdateView>
     /** Connection-owned state for the current Host connection. */

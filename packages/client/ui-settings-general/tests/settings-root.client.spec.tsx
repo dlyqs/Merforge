@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SettingsNavigationView } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -91,7 +93,14 @@ function mount({
     phase: 'ready', projectionsBySession: {},
   }
   const unusedHook = (() => { throw new Error('unused by SettingsRoot') }) as never
+  const navigation = createSnapshotStore<SettingsNavigationView>({ open: false })
+  const openSettingsSection: SettingsRootComponentProps['openSettingsSection'] = (section, target) => {
+    navigation.set({ open: true, section, ...(target === undefined ? {} : { target }) })
+  }
   const props: SettingsRootComponentProps = {
+    openSettingsSection,
+    closeSettings: () => { navigation.set({ open: false }) },
+    useNavigation: select => select(useSyncExternalStore(fn => navigation.subscribe(fn), () => navigation.getSnapshot())),
     useSessions: select => select(sessions),
     useSessionStatus,
     usePanelInfo, useSessionRetainInfo: () => undefined, useResource,
@@ -139,7 +148,7 @@ function mount({
     desktopUpdate = next
     view.rerender(<SettingsRoot {...props} />)
   }
-  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, setDesktopUpdate }
+  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, setDesktopUpdate, openSettingsSection }
 }
 
 function openPanel() {
@@ -359,7 +368,7 @@ describe('SettingsPanel navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Models' }))
     expect(screen.getByRole('button', { name: 'Models' }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByTestId('section-models')).toBeTruthy()
-    expect(screen.queryByTestId('section-general')).toBeNull()
+    expect(screen.getByTestId('section-general').parentElement?.hidden).toBe(true)
   })
 
   it('mounts onboarding steps in order and transfers ownership only on completion', () => {
@@ -452,4 +461,15 @@ it('opens Account from the contributed sidebar launcher', () => {
   act(() => { (launcher[1] as { openSettings: () => void }).openSettings() })
   expect(screen.getByTestId('section-account')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Account' }).querySelector('svg')).not.toBeNull()
+})
+
+it('opens the requested Codex card and keeps previously visited settings editors mounted', () => {
+  const b = mount({ onboardingActive: false })
+  fireEvent.click(screen.getByRole('button', { name: en.trigger }))
+  expect(screen.getByTestId('section-general')).toBeTruthy()
+  act(() => { b.openSettingsSection('models', 'codex') })
+  expect(screen.getByTestId('section-models')).toBeTruthy()
+  expect(screen.getByTestId('section-general')).toBeTruthy()
+  expect(b.renderSlot.mock.calls.some(call => call[0] === 'settings.section'
+    && (call[1] as { target?: string }).target === 'codex')).toBe(true)
 })

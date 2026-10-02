@@ -18,7 +18,7 @@ import { PersonalSidebar } from './PersonalSidebar.tsx'
 import { en, zh } from './locales.ts'
 
 /** Required services for records, Session identity, navigation, and copy. */
-export const inject = ['slots', 'sessions', 'workspaces', 'uiWorkspace', 'remote', 'remote.session', 'locale']
+export const inject = ['slots', 'sessions', 'workspaces', 'uiWorkspace', 'remote', 'remote.session', 'locale', 'settingsNavigation']
 
 /** Unwrap a generated business result while preserving its error message. */
 function valueOf<T>(result: RemoteResult<T>): T {
@@ -53,6 +53,7 @@ export function apply(ctx: Context): void {
   const actions: PersonalActions = {
     refresh,
     loadModels,
+    openCodexSettings: () => { ctx.settingsNavigation.open('models', 'codex') },
     createProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalCreateProject(input)) }),
     updateProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalUpdateProject(input)) }),
     pickDirectory: () => ctx.uiWorkspace.pickDirectory(),
@@ -91,7 +92,9 @@ export function apply(ctx: Context): void {
   ctx.slots.registerFactory({
     name: 'personal.manager', scope: 'root', locale: 'personal',
     children: { 'personal.manager.workflow': { kind: 'single', scope: 'root' } },
-    inject: (): PersonalInjected => ({ ...actions, hooks: { records, modelCatalogRevision } }),
+    inject: (): PersonalInjected => ({
+      ...actions, hooks: { records, modelCatalogRevision, settingsNavigation: ctx.settingsNavigation.view },
+    }),
   }, PersonalSidebar)
   ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal' }, PersonalSidebarEntry))
   const t = ctx.locale.bind('personal')

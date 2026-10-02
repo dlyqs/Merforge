@@ -55,6 +55,9 @@
     },
     {
       "path": "../ui-workspace"
+    },
+    {
+      "path": "../ui-settings/tsconfig.client.json"
     }
   ]
 }

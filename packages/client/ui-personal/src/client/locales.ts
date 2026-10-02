@@ -1,5 +1,6 @@
 /** Personal sidebar product copy. */
 export const zh = {
+  'openCodexSettings': '打开 Codex 设置',
   settingsTitle: '任务、项目与 Bot',
   settingsDescription: '集中管理任务计划、项目目录与 Bot 配置。',
   tasks: '任务',
@@ -39,7 +40,7 @@ export const zh = {
   'backendApi': 'API 模型',
   'backendCodex': 'Codex（原生登录）',
   'codexChooseModel': '请选择 Codex 模型',
-  'codexSetup': '无需 Merforge API key。请先在本机 Codex 完成登录，再刷新模型；运行时不可用时请检查应用安装。',
+  'codexSetup': '无需 Merforge API key。可在“设置 → 模型 → Codex”登录或重新检测；应用会复用已有本机登录。',
   'refreshModels': '刷新模型',
   'modelInherit': '继承默认模型',
   'codexCapabilities': 'Codex 使用自己的上下文、工具与许可；Bot 工具/Skill 限制不会约束原生工具。仅支持文字。',
@@ -78,6 +79,7 @@ export type PersonalKey = keyof typeof zh
 
 /** English translations complete for every key. */
 export const en = {
+  'openCodexSettings': 'Open Codex settings',
   settingsTitle: 'Tasks, Projects & Bots',
   settingsDescription: 'Manage task plans, project directories and Bot configuration.',
   tasks: 'Tasks',
@@ -117,7 +119,7 @@ export const en = {
   backendApi: 'API model',
   backendCodex: 'Codex (native sign-in)',
   codexChooseModel: 'Choose a Codex model',
-  codexSetup: 'No Merforge API key is needed. Sign in to Codex on this device, then refresh models. Check the application installation if the runtime is unavailable.',
+  codexSetup: 'No Merforge API key is needed. Sign in or detect again in Settings → Models → Codex. Existing native sign-in is reused.',
   refreshModels: 'Refresh models',
   modelInherit: 'Use default model',
   codexCapabilities: 'Codex owns its context, tools and permissions. Bot tool/Skill restrictions do not govern native tools. Text only.',

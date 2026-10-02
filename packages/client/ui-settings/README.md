@@ -25,6 +25,10 @@ This package lets web-client features expose editable preferences backed by the 
 
 Feature plugins use this package to store and edit their preferences without re-implementing transport or schema handling. Mount it once per composition; it injects the `remote` service with its `settings` namespace and owns the single `settings.describe` reader in the browser.
 
+### Settings navigation
+
+SettingsNavigation is the type-only service declaration for the active settings shell. The ui-settings-general provider owns ctx.settingsNavigation, its observable view and open/close operations. A model entry opens the models section with a fixed codex or api target without changing its underlying selection or draft. SettingsSectionOwnerProps.target and the onboarding openSection callback carry that target through the shell.
+
 ### Configuration forms
 
 `ctx.configForms.developerTools` owns the shared Web and desktop preference `ui-settings.enabled`, defaulting to `true`. Its `enabled` observable publishes accepted choices and `setEnabled` uses the same ordered settings writes. Desktop and loopback Web persist to the Host document; remote Web keeps this choice in one browser-local observable until reload without issuing Host writes. This controls presentation and HTML preview permissions, not Host authorization or Session recording. Host-backed clients keep developer features disabled until the first accepted schema-resolved value arrives; missing or failed initial responses do not enable them. Later refreshes retain the last accepted choice.
