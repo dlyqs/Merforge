@@ -142,7 +142,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   }
   if (c.kind === 'transition-run') {
     if (terminal(run.state)) fail()
-    if (run.backend === undefined && run.state === 'waiting-human' && c.state === 'paused') return result
+    if (run.state === 'waiting-human' && c.state === 'paused') return result
     // Stopping does not renew ownership; old devices may stop their own historical Run only.
     if (c.state === 'running') { owner(db, principal, d, c, epoch); requireNativeDispatch(db, run, limits.executionCodex); if (run.state !== 'prepared') fail() }
     if (['succeeded', 'failed'].includes(c.state) && (run.state !== 'running'
@@ -202,6 +202,15 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
   const run = read(db, 'execution_runs', query.runId, executionRunSchema)
   if (run.assignmentId !== a.id) throw new OrganizationError('forbidden')
   const delegation = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
+  let nativeActive = false
+  try {
+    owner(db, principal, delegation, run, epoch)
+    if (run.backend !== undefined) {
+      requireCodexPolicy(run.backend, codexPolicy)
+      nativeActive = run.state === 'running' && run.startedAt != null
+        && Date.now() - run.startedAt < run.backend.maxDurationMs
+    }
+  } catch (error) { if (!(error instanceof OrganizationError)) throw error }
   let eligible = false
   try { owner(db, principal, delegation, run, epoch); requireNativeDispatch(db, run, codexPolicy); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
   catch (error) { if (!(error instanceof OrganizationError)) throw error }
@@ -210,7 +219,7 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
   const humanRequests = db.prepare('SELECT data FROM execution_human_requests WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionHumanSchema.parse(JSON.parse(String(row.data))))
   return { run, delegation, actions, humanRequests, assigneeId: a.assigneeId, approvedBy: a.approvedBy,
-    serverTime: Date.now(), eligible, modelPolicy, codexPolicy }
+    serverTime: Date.now(), eligible, nativeActive, modelPolicy, codexPolicy }
 }
 /**
  * Retire stale execution authority and mark unconfirmed attempts unknown without refunding.

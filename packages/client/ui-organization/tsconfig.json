@@ -43,6 +43,12 @@
     },
     {
       "path": "../../util/crypto"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
     }
   ]
 }

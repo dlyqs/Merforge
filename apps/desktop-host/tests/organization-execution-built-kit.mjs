@@ -1,4 +1,5 @@
 /** Published exports only; no source loaders. */
+import Subprocess from '../../../packages/subprocess/subprocess-local/lib/index.js'
 import { Context } from '../../../vendor/cordis/lib/index.js'
 import Loader from '../../../vendor/loader/lib/index.js'
 import Include from '../../../vendor/include/lib/index.js'
@@ -48,4 +49,4 @@ export async function bootBuiltOrganization(config, executable = process.execPat
   }
 }
 const bootOrganization = bootBuiltOrganization
-export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, modules: new Map([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }
+export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, Subprocess, modules: new Map([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }

@@ -40,5 +40,8 @@
     "@deepseek-ai/dsh-organization-context": "workspace:*",
     "@deepseek-ai/dsh-organization-execution": "workspace:*",
     "@deepseek-ai/dsh-agent-codex": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-subprocess-local": "workspace:*"
   }
 }

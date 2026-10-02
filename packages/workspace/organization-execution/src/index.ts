@@ -1,4 +1,8 @@
 /** Isolated, durable Run/Session coordination and restricted execution intervals. */
+import { runCodexExecution, nativeLimitsSchema } from './codex.ts'
+import { nativeJournal, nativeBaseline, nativeItemEntry, nativeRequestEntry } from './codex-journal.ts'
+import type { CodexRuntimeLimits } from '@deepseek-ai/dsh-codex-runtime'
+import type {} from '@deepseek-ai/dsh-subprocess'
 import { inspectDirectory, inspectActions } from './recovery.ts'
 import { localModelSchema, executionAdapter } from './model.ts'
 import { createHash, randomUUID } from 'node:crypto'
@@ -35,6 +39,8 @@ export interface Config {
   executionLimits?: RuntimeLimits
   /** Explicit local text model routes and credential destinations. */
   models?: z.output<typeof localModelSchema>[]
+  /** Explicit native protocol limits; omission keeps Codex execution disabled. */
+  codex?: CodexRuntimeLimits
 }
 /**
  * Hash exactly the non-secret, validated configuration and inputs retained in the local log.
@@ -51,7 +57,7 @@ export default class OrganizationExecution extends Service {
     maxDurationMs: z.number().int().positive().max(2147483647),
     maxBytes: z.number().int().positive().max(2147483647),
     recheckMs: z.number().int().positive().max(2147483647),
-  }).strict().optional(), models: z.array(localModelSchema).max(100).optional() }).strict()
+  }).strict().optional(), models: z.array(localModelSchema).max(100).optional(), codex: nativeLimitsSchema.optional() }).strict()
   private readonly isolated = new Context()
   private state?: DomainGlobal<z.output<typeof stateSchema>>
   private tail: Promise<void> = Promise.resolve()
@@ -92,11 +98,16 @@ export default class OrganizationExecution extends Service {
    */
   async execute(request: ExecutionRequest, bridge: ExecutionBridge,
     runtime: { adapter: LlmAdapter; directory: string }, signal: AbortSignal): Promise<void> {
+    if (request.inputs.backend) throw new Error('organization-execution: native-selection-mismatch')
+    return this.executeInterval(request, bridge, { kind: 'api', ...runtime }, signal)
+  }
+  private async executeInterval(request: ExecutionRequest, bridge: ExecutionBridge,
+    runtime: { kind: 'api'; adapter: LlmAdapter; directory: string } | { kind: 'codex'; directory: string }, signal: AbortSignal): Promise<void> {
     const deployment = this.config.executionLimits
     if (!deployment) throw new Error('organization-execution: execution-disabled')
     const selection = executionRequestSchema.parse(request).inputs.execution
     if (!selection || selection.directory !== runtime.directory || selection.maxActions > deployment.maxActions
-      || selection.maxSteps > deployment.maxSteps || selection.maxDurationMs > deployment.maxDurationMs) {
+      || (!request.inputs.backend && selection.maxSteps > deployment.maxSteps) || selection.maxDurationMs > deployment.maxDurationMs) {
       throw new Error('organization-execution: explicit-local-authorization-required')
     }
     const limits: RuntimeLimits = { ...deployment, maxActions: selection.maxActions, maxSteps: selection.maxSteps,
@@ -118,10 +129,11 @@ export default class OrganizationExecution extends Service {
       if (!binding || (!request.resume && binding.state !== 'ready') || (request.resume && !['stopped', 'executing'].includes(binding.state))) throw new Error('organization-execution: explicit-reconciliation-required')
       const { id, state: _state, version: _version, createdRevision: _created,
         configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = prepared.run
-      const transition = (status: 'running' | 'paused' | 'succeeded') => online(executionCommandSchema.parse({
+      const transition = (status: 'running' | 'paused' | 'succeeded' | 'failed') => online(executionCommandSchema.parse({
         ...selector, runId: id, kind: 'transition-run', state: status, operationId: randomUUID(),
       }))
-      if (request.resume && !await this.reconcileActions(prepared, online, request.resume.baselineDigest, limits.maxBytes, lifetime)) {
+      if (request.resume && !request.inputs.backend
+        && !await this.reconcileActions(prepared, online, request.resume.baselineDigest, limits.maxBytes, lifetime)) {
         throw new Error('organization-execution: reconciliation-required')
       }
       await state.set({ ...saved, bindings: saved.bindings.map(item => item.sessionId === prepared.sessionId ? { ...item, state: 'executing' } : item) })
@@ -130,9 +142,12 @@ export default class OrganizationExecution extends Service {
           ? online(executionCommandSchema.parse({ ...selector, runId: id, kind: 'resume-run', operationId: randomUUID() }))
           : transition('running')))
         lifetime.throwIfAborted()
-        const result = await runExecution(prepared, authority, online, runtime.adapter, this.config.root, runtime.directory,
-          limits, lifetime, request.resume?.baselineDigest)
+        const result = runtime.kind === 'codex'
+          ? await this.nativeInterval(prepared, authority, online, limits, lifetime, request.resume)
+          : await runExecution(prepared, authority, online, runtime.adapter, this.config.root, runtime.directory,
+            limits, lifetime, request.resume?.baselineDigest)
         if (result === 'completed') await transition('succeeded')
+        else if (result === 'failed') await transition('failed')
       } catch (error) {
         // Stopping cannot restore an old lease; failed transport leaves authority reconciliation pending.
         await transition('paused').catch((stopError: unknown) => {
@@ -166,7 +181,19 @@ export default class OrganizationExecution extends Service {
     const baseline = request.resume.baselineDigest
     const work = this.tail.then(async () => {
       if (this.closing) throw new Error('organization-execution: unavailable')
-      await this.reconcileActions(prepared, bridge, baseline, limits.maxBytes, lifetime)
+      if (request.inputs.backend) {
+        await this.nativeInterval(prepared, await bridge(), bridge, limits, lifetime, { baselineDigest: baseline }, true)
+        const reader = await this.isolated.sessionPersistence.open(prepared.sessionId, 'read')
+        try {
+          const facts = inspectActions((await reader.read()).events, await bridge())
+          for (const record of facts.settlements) {
+            const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest,
+              backend: _backend, startedAt: _started, stopReason: _stop, ...selector } = prepared.run
+            await bridge(executionCommandSchema.parse({ ...selector, runId: id, kind: 'settle-action', operationId: randomUUID(),
+              actionId: record.action.actionId, outcome: record.outcome, evidenceDigest: record.evidenceDigest }))
+          }
+        } finally { await reader.close() }
+      } else await this.reconcileActions(prepared, bridge, baseline, limits.maxBytes, lifetime)
       return prepared
     }).finally(() => { this.running.delete(cancel) })
     this.tail = work.then(() => {}, () => {})
@@ -215,12 +242,25 @@ export default class OrganizationExecution extends Service {
       return response
     }
     const authority = await online()
-    if (authority.execution.run.backend !== undefined) throw new Error('organization-execution: native-executor-not-mounted')
+    if (JSON.stringify(authority.execution.run.backend) !== JSON.stringify(request.inputs.backend)) throw new Error('organization-execution: native-selection-mismatch')
+    if (request.inputs.backend) {
+      if (!this.config.codex || !this.ctx.get('subprocess')) throw new Error('organization-execution: native-execution-disabled')
+      return this.executeInterval(request, online, { kind: 'codex', directory: selection.directory }, signal)
+    }
     const adapter = executionAdapter(this.ctx, request, this.config.models ?? [], online, signal)
     if (!authority.execution.modelPolicy.some(p => p.model === request.inputs.model && p.endpoint === request.inputs.endpoint)) {
       throw new Error('organization-execution: organization-model-policy-denied')
     }
     await this.execute(request, online, { adapter, directory: selection.directory }, signal)
+  }
+  private nativeInterval(binding: ExecutionResult, authority: ExecutionAuthority, bridge: ExecutionBridge,
+    limits: RuntimeLimits, signal: AbortSignal, resume?: ExecutionRequest['resume'], reconcile = false) {
+    const subprocess = this.ctx.get('subprocess'), config = this.config.codex, selection = binding.inputs.execution
+    if (!subprocess || !config || !selection) throw new Error('organization-execution: native-execution-disabled')
+    return runCodexExecution(binding, authority, bridge, this.isolated.sessionPersistence, {
+      cwd: selection.directory, env: {}, experimentalApi: true, limits: config,
+      spawn: request => subprocess.spawn(request),
+    }, limits, signal, resume && { ...resume, reconcile })
   }
   /**
    * Read the employee's local transcript under fresh exact-task access.
@@ -273,7 +313,30 @@ export default class OrganizationExecution extends Service {
       }
       const limit = this.config.executionLimits?.maxBytes
       if (!limit) throw new Error('organization-execution: execution-disabled')
-      if (binding.inputs.execution && ['executing', 'stopped'].includes(binding.state)) {
+      if (binding.inputs.backend) {
+        const journal = nativeJournal(events)
+        report.native = { status: journal.status, waitingHuman: first.execution.run.state === 'waiting-human',
+          cleanupFailed: events.some(event => event.type === 'organization/execution-native' && event.data.kind === 'diagnostic') }
+        for (const event of events) {
+          if (event.type !== 'organization/execution-native') continue
+          if (event.data.kind === 'result') {
+            const result = event.data
+            if (event.data.recovered && events.some(e => e.type === 'organization/execution-native'
+              && e.data.kind === 'result' && e.data.inputId === result.inputId && !e.data.recovered && e.data.status !== 'unknown')) continue
+            for (const item of event.data.items) {
+              const entry = nativeItemEntry(item)
+              if (entry) report.entries.push(entry)
+            }
+          } else if (event.data.kind === 'item') {
+            const item = event.data
+            if (events.some(e => e.type === 'organization/execution-native'
+              && e.data.kind === 'result' && e.data.turnId === item.turnId && e.data.status !== 'unknown')) continue
+            const entry = nativeItemEntry(event.data.item)
+            if (entry) report.entries.push(entry)
+          } else if (event.data.kind === 'human') report.entries.push(nativeRequestEntry(event.data.params, event.data.digest))
+        }
+        report.recovery = { inputs: binding.inputs, baselineDigest: nativeBaseline(events), actions: inspectActions(events, first).actions }
+      } else if (binding.inputs.execution && ['executing', 'stopped'].includes(binding.state)) {
         const directory = await inspectDirectory(binding.inputs.execution.directory, limit).catch((_error: unknown) => undefined)
         report.recovery = { inputs: binding.inputs, baselineDigest: directory?.digest ?? null,
           actions: inspectActions(events, first, directory?.files).actions }
@@ -299,6 +362,9 @@ export default class OrganizationExecution extends Service {
       if (reader.header.createdAt !== binding.createdAt || reader.header.cwd !== undefined || reader.header.parentSession !== undefined
         || reader.header.agentPreset !== undefined || reader.header.origin !== undefined || reader.header.isSeeded
         || JSON.stringify(binding.state === 'executing' || binding.state === 'stopped' ? events.slice(0, expected.length) : events) !== JSON.stringify(prefix ? expected.slice(0, events.length) : expected)) throw new Error('organization-execution: binding/log mismatch')
+      const native = nativeJournal(events)
+      if (binding.inputs.backend ? native.preparing !== undefined && native.preparing.directory !== binding.inputs.execution?.directory
+        : native.status !== 'unbound') throw new Error('organization-execution: native-log-mismatch')
       const actions = new Map<string, ActionEvidence>()
       for (const event of events.slice(expected.length)) {
         if (event.type === 'organization/execution-binding') throw new Error('organization-execution: duplicate binding event')
@@ -314,8 +380,8 @@ export default class OrganizationExecution extends Service {
           || (evidence.file !== undefined && action.capability !== 'fs-write')
           || (evidence.stage === 'reserved' ? previous !== undefined
             : evidence.stage === 'issued' ? previous?.stage !== 'reserved'
-              : previous === undefined || previous.stage === 'settled'
-                || (evidence.outcome === 'succeeded' && previous.stage !== 'issued'))) {
+              : previous === undefined || previous.stage === 'settled' && !(action.capability === 'codex-turn' && previous.outcome === 'unknown')
+                || (evidence.outcome === 'succeeded' && previous.stage !== 'issued' && !(action.capability === 'codex-turn' && previous.outcome === 'unknown')))) {
           throw new Error('organization-execution: action/log mismatch')
         }
         actions.set(action.actionId, evidence)
@@ -386,6 +452,7 @@ export default class OrganizationExecution extends Service {
         || r.planRevision !== a.task.revision || a.task.planId !== r.planId || a.task.id !== original.taskId
         || original.serverId !== a.serverId || original.accountId !== a.accountId
           || original.organizationId !== r.organizationId || original.planId !== r.planId
+        || JSON.stringify(r.backend) !== JSON.stringify(request.inputs.backend)
         || r.configDigest !== executionInputsDigest(request.inputs) || request.inputs.capabilities.some(
         c => !a.execution.delegation.capabilities.includes(c))
         || a.generation !== first.generation || a.serverId !== first.serverId || a.accountId !== first.accountId) throw new Error('organization-execution: superseded')

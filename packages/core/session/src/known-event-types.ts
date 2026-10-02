@@ -59,6 +59,7 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'organization/context',
   'organization/execution-action',
   'organization/execution-binding',
+  'organization/execution-native',
   'organization/task-snapshot',
   'permission/preset',
   'personal-workflow/assessment',

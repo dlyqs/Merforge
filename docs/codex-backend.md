@@ -1,6 +1,6 @@
 # Codex 后端协议与消费规则
 
-本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–6 已提供协议核验、共用 runtime、主对话驱动、个人 Desktop 模型/Bot 接入、显式任务管理桥与人工请求，以及组织原生调度策略和资格。Codex 模式由应用派发输入并接收输出和结果；组织实际 Codex 执行桥与选择 UI 属于 Phase 7–8。
+本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–8 已提供协议核验、共用 runtime、主对话驱动、个人 Desktop 模型/Bot 接入、显式任务管理桥与人工请求，以及组织原生调度、独立转录、执行与已有任务选择。Codex 模式由应用派发输入并接收输出和结果；组织实际 Codex 执行桥与选择 UI 已实现，7C 目标对话仍单独待建。
 
 ## 固定版本与证据等级
 
@@ -26,7 +26,7 @@
 
 应用转录记录发送内容、接收输出和原生工具条目，不宣称是完整模型日志。`thread/read` 的 typed items、raw response 与 `instructionSources` 路径不能重建完整请求；这仍是能力事实，但不再阻塞 Codex 接入。`completeModelLog: false` 继续如实声明。Harness API 后端仍保留自身完整请求日志和工具 guard；这些规则不强加到 Codex 内部执行。
 
-组织应用后续仍复核是否允许向指定设备派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
+组织应用仍复核是否允许向指定设备派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
 
 
 不向 Renderer 或业务消费者开放通用 RPC（Host 底层 transport 仅供协议实现共用）、CustomArgs、PATH fallback、任意二进制路径、原生登录修改或自动安装。one-shot 保留现有权限模式、ephemeral 单 turn、最终回答选择和安全诊断；共享传输与进程 owner，不扩大其恢复或工具能力。
@@ -40,9 +40,9 @@
 | 原生 shell/file/MCP/skills/memory/subagent | 使用 Codex 自身机制，未声明应用 guard 控制 | 原生执行器负责，任务管理桥只限制应用动作 |
 | 内部模型请求/重试限额 | 无应用逐请求 permit | 按有界运行/turn 和停止管理，不宣称逐请求预算 |
 | 完整模型可见日志 | `completeModelLog: false` | 应用只声明桥接转录；不作为准入门槛 |
-| 任务动作与人工请求 | 固定 callback + Loader/真实工具权限/JSONL 回归通过 | 个人工作流评估/提案/报告完成、现有提问和一次审批；组织执行消费者尚未挂载 |
+| 任务动作与人工请求 | 固定 callback + Loader/真实工具权限/JSONL 回归通过 | 个人任务评估/提案/报告；组织独立 Run、Inbox 等待及显式继续；命令决定可消费一次，文件审批不能复用缺提案的旧 item |
 | steering、fork、图像/附件 | 当前共用 runtime 拒绝 | Host/UI 同步声明不可用 |
-| 组织调度资格 | 显式 policy、codex-turn、SQLite v12 与固定签名传输回归通过 | 准许指定设备启动/继续；实际原生执行与 UI 属于 Phase 7–8 |
+| 组织调度资格 | 显式 policy、codex-turn、SQLite v12 与固定签名传输回归通过 | 准许指定设备启动/继续；独立原生执行与已有任务 UI 已接入 |
 
 当前 runtime 仍只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；这描述现有代码，没有据此宣布未来调度桥已实现。后续组织资格由任务管理消费方拥有，不再以“关闭全部原生工具、重建全部内部模型请求”作为实现目标。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
 
@@ -85,7 +85,7 @@ Phase 3 保留 `AgentRegistry` 的唯一 factory slot：`agent-loop` factory 在
 
 API 选择保持既有 provider/model/reasoningEffort 事件；外部选择通过 `agent/backend {kind: codex, runtimeVersion, model, effort}` 固定。创建优先级是显式 Session 选择 → Bot 默认选择 → 现有 API 默认值。没有后端事件的旧 Session 保留 API；resume 使用持久选择，显式冲突拒绝。API↔Codex 或 native model/effort 切换创建关联新 Session，`agent/backend-handoff` 记录源 Session 和 `scope: none`，不复制历史或原生 thread。Bot、cwd、runtime 或应用授权变化要求重核对；原生账号由 Codex 管理，重开检查登录可用性；缺能力/模型/认证明确失败，没有 API fallback。
 
-Agent 公共能力按 driver 返回：`followup`/下一 turn inbox 支持 text；`cancel` 和 owned `dispose` 保持 drain；`whenIdle` 只表示生命周期静止，不证明单消息成功。steer/下一 step 注入、clear、fork seed、图片、附件、应用 slash commands/compaction 和尚未桥接工具在 Host 入口拒绝；UI 同步禁用附件与 steering、隐藏 fork。当前 Codex driver 拒绝通用 `inject`；显式任务与方法消息由真实 pre-step 管线追加、记录并发送。Codex 自身加载的上下文由原生机制拥有；模型、effort 修改通过空闲时显式新建会话。session-controller、personal-project、查询/归档及 Desktop 已消费该选择；personal-workflow 与 skill-dev-workflow 已消费显式任务和方法管线；organization-execution 的实际 Codex 派发仍属于 Phase 7。
+Agent 公共能力按 driver 返回：`followup`/下一 turn inbox 支持 text；`cancel` 和 owned `dispose` 保持 drain；`whenIdle` 只表示生命周期静止，不证明单消息成功。steer/下一 step 注入、clear、fork seed、图片、附件、应用 slash commands/compaction 和尚未桥接工具在 Host 入口拒绝；UI 同步禁用附件与 steering、隐藏 fork。当前 Codex driver 拒绝通用 `inject`；显式任务与方法消息由真实 pre-step 管线追加、记录并发送。Codex 自身加载的上下文由原生机制拥有；模型、effort 修改通过空闲时显式新建会话。session-controller、personal-project、查询/归档及 Desktop 已消费该选择；personal-workflow 与 skill-dev-workflow 已消费显式任务和方法管线；organization-execution 已通过独立 Run 转录消费 Codex，见下文组织调度与执行。
 
 ## 持久意图、日志与重开
 
@@ -99,6 +99,8 @@ resume 前核对登录可用性、runtime、cwd、Project/Bot 归属、应用授
 
 现有 organization modelPolicy 是 model/endpoint 对，API 执行在 HTTP dispatch 前消费 one-use permit 并禁重定向。Codex 原生执行不能伪造 endpoint 或复用该 permit。当前 `executionCodex` policy 默认关闭，显式原生委托与 Run 保存 backend/runtime/model/effort、device-native 方式及 maxTurns/maxDurationMs，在应用启动/继续派发点复核精确任务版本、read/依赖、接受、委托、device lease 和运行限额；不以内部模型或原生工具动作作为 Merforge 可观测的逐动作许可。
 
-SQLite v12 只扩展显式原生调度记录，不转换 v11 API Run；固定签名 HTTPS/native/IPC 承载选择而不传凭据。turn-limit 记录应用调度预算耗尽，最后一个在途 turn 仍可结算；duration-limit 和 authority-lost 持久暂停并取消旧人工请求。组织运行桥尚未挂载，当前消费者拒绝 native-executor-not-mounted；详见[组织执行协议](organization-execution.md)。
+SQLite v12 只扩展显式原生调度记录，不转换 v11 API Run；固定签名 HTTPS/native/IPC 承载选择而不传凭据。turn-limit 记录应用调度预算耗尽，最后一个在途 turn 仍可结算；duration-limit 和 authority-lost 持久暂停并取消旧人工请求。组织运行桥和已有任务 Desktop 选择已挂载；派发、转录、原生回合核对和 Inbox 在本机独立保存，真人提交/验收仍使用既有固定动作；详见[组织执行协议](organization-execution.md)。
 
 7B 消费显式 personal workflow 和已有组织任务，通过输入派发、结果接收与应用任务管理工具连接现有服务。批准、接受、委托、开始、提交和验收仍由现有真人动作拥有。7C 后续调用相同 backend create/resume/send/cancel/read + capability 接口，不在 loop 内复制组织业务。7B 基础执行桥不依赖 7C 自动识别；完整组织目标对话仍需两者完成。
+
+7B Phase 7–8 已有任务接口接受显式 `inputs.backend`，其 kind/runtime/model/effort/turn/time 与组织 Run 必须一致；Codex 路径不接受 endpoint，也不解析 API 凭据。7C 后续应复用该选择与固定真人动作，不创建新的组织运行或批准权威。7C 当前仍未实现，7B 已有任务消费不表示无任务目标规划或组织自然目标对话已完成。

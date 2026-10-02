@@ -10,3 +10,7 @@ it('runs CSV through native authorization, human wait, Host reopen, rework, two-
 it.each(['budget', 'revoked', 'lost-response', 'sleep', 'identity', 'server-restart'])('contains %s across native authorization, tools and cold Host recovery', async (fault) => {
   await executionScenario(kit, undefined, fault)
 }, 30000)
+
+it('runs organization Codex through native HTTPS scheduling, human Inbox, cold reopen, employee submission and issuer acceptance', async () => {
+  await executionScenario({ ...kit, native: true })
+}, 90000)

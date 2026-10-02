@@ -12,15 +12,18 @@ import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
+import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
+
 type Inputs = Parameters<OrganizationDesktopBridge['execution']>[0]['inputs']
 type Preparation = Extract<NonNullable<ConnectionResult['assignment']>['result'], { kind: 'preparation' }>['value']
 function executionError(error: unknown): OrganizationKey {
   const code = error instanceof Error ? error.message : ''
-  if (/model-policy-denied|model-route-denied/.test(code)) return 'executionPolicyDenied'
+  if (/native-selection|model-policy-denied|model-route-denied/.test(code)) return 'executionPolicyDenied'
+  if (/native-unavailable|native-execution-disabled/.test(code)) return 'executionNativeUnavailable'
   if (/credential-unavailable/.test(code)) return 'executionCredentialMissing'
   if (/action-limit|step-limit|duration-limit|size-limit|explicit-local-authorization-required/.test(code)) return 'executionLimitReached'
   if (/directory-|path-escape|linked-path|invalid-relative-path/.test(code)) return 'executionDirectoryDenied'
-  if (/reconciliation-required|permit-unconfirmed/.test(code)) return 'executionUnknown'
+  if (/native-result-unknown|native-thread-unknown|reconciliation-required|permit-unconfirmed/.test(code)) return 'executionUnknown'
   if (/baseline-changed/.test(code)) return 'executionBaselineChanged'
   if (/resume-qualification-required/.test(code)) return 'executionRenewRequired'
   if (/authority-lost|permit-expired|permit-revoked|superseded/.test(code)) return 'qualificationRecheck'
@@ -35,6 +38,9 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   const [views, setViews] = useState<{ generation: number; items: OrganizationExecutionView[]; total: number; offset: number }>()
   const [pages, setPages] = useState([0])
   const offset = pages.at(-1) ?? 0
+  const [backend, setBackend] = useState<'harness-api' | 'codex'>('harness-api')
+  const [effort, setEffort] = useState<NonNullable<Inputs['backend']>['effort']>()
+  const [catalog, setCatalog] = useState<ModelCatalog>()
   const [model, setModel] = useState(''), [endpoint, setEndpoint] = useState(''), [directory, setDirectory] = useState('')
   const [actions, setActions] = useState(''), [steps, setSteps] = useState(''), [minutes, setMinutes] = useState('')
   const [message, setMessage] = useState(''), [read, setRead] = useState(false), [write, setWrite] = useState(false)
@@ -43,9 +49,12 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [stopping, setStopping] = useState(false)
   const [notice, setNotice] = useState('')
   const [report, setReport] = useState<Awaited<ReturnType<OrganizationDesktopBridge['executionReport']>>>()
+  const draft = useRef<{ body: string; grantId: string; createId: string; expiresAt: number; openId: Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'] }>()
   const alive = useRef(true), sequence = useRef(0)
   useEffect(() => { alive.current = true; return () => { alive.current = false; sequence.current++ } }, [])
-  const isAlive = () => alive.current
+  const scope = `${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${task.id}:${task.revision}`
+  const currentScope = useRef(scope); currentScope.current = scope
+  const isAlive = () => alive.current && currentScope.current === scope
   const ready = props.current && c.phase === 'ready' && c.mode === 'organization'
   const memberId = c.organizations.find(org => org.id === c.organizationId)?.membershipId
   const load = async () => {
@@ -77,11 +86,11 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     })
     return () => { current = false; sequence.current++ }
   }, [ready, c.generation, task.revision, offset])
-  const mine = preparation?.assignment.assigneeId === memberId
+  const mine = views?.generation === c.generation && preparation?.assignment.assigneeId === memberId
   const start = async () => {
     if (!preparation || !confirmed) return
     setBusy(true); setNotice('')
-    const current = () => { if (!alive.current) throw new Error('superseded') }
+    const current = () => { if (!isAlive()) throw new Error('superseded') }
     try {
       const selector = { organizationId: preparation.assignment.organizationId, projectId: props.projectId,
         planId: task.planId, assignmentId: preparation.assignment.id }
@@ -91,27 +100,40 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       if (!lease || lease.state !== 'held') throw new Error('version-conflict')
       const delegation = p.delegations.find(d => d.deviceId === lease.deviceId && d.state === 'active')
       if (!delegation) throw new Error('forbidden')
-      const inputs: Inputs = { model, endpoint, capabilities: ['model', ...(read ? ['fs-read' as const] : []), ...(write ? ['fs-write' as const] : [])],
-        requireWriteApproval: writeApproval,
-        execution: { directory, maxActions: Number(actions), maxSteps: Number(steps), maxDurationMs: Number(minutes) * 60000 },
+      if (backend === 'codex' && (!effort || !catalog?.groups.some(g => g.backend === 'codex' && g.models.some(m => m.id === model
+        && m.reasoning?.efforts.some(e => e.id === effort))))) throw new Error('native-unavailable')
+      const native: Inputs['backend'] = backend === 'codex' && effort ? { kind: 'codex', dispatch: 'device-native',
+        runtimeVersion: '0.153.4', model, effort, maxTurns: Number(actions), maxDurationMs: Number(minutes) * 60000 } : undefined
+      const inputs: Inputs = { model, ...(native ? { backend: native } : { endpoint, requireWriteApproval: writeApproval }),
+        capabilities: native ? ['codex-turn'] : ['model', ...(read ? ['fs-read' as const] : []), ...(write ? ['fs-write' as const] : [])],
+        execution: { directory, maxActions: Number(actions), maxSteps: native ? Number(actions) : Number(steps),
+          maxDurationMs: Number(minutes) * 60000 },
         materials: [], messages: [message] }
+      const body = JSON.stringify({ inputs, selector, revision: task.revision, device: lease.deviceId,
+        serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, delegationId: delegation.id })
+      if (draft.current?.body !== body) draft.current = { body, grantId: randomUUID(), createId: randomUUID(),
+        expiresAt: p.serverTime + Number(minutes) * 60000,
+        openId: randomUUID() as Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'] }
+      const attempt = draft.current
       const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(inputs))); current()
       const configDigest = Array.from(new Uint8Array(bytes), n => n.toString(16).padStart(2, '0')).join('')
       const grant = await props.connection({ kind: 'execution-command', request: { ...selector, kind: 'grant-execution',
-        operationId: randomUUID(), planRevision: task.revision, delegationId: delegation.id, capabilities: inputs.capabilities,
-        budget: Number(actions), expiresAt: p.serverTime + Number(minutes) * 60000, configDigest } }); current()
+        operationId: attempt.grantId, planRevision: task.revision, delegationId: delegation.id,
+        ...(native ? { backend: native } : {}), capabilities: inputs.capabilities,
+        budget: Number(actions), expiresAt: attempt.expiresAt, configDigest } }); current()
       const created = await props.connection({ kind: 'execution-command', request: { ...selector, kind: 'create-run',
-        operationId: randomUUID(), planRevision: task.revision, executionDelegationId: grant.receipt?.execution?.executionDelegationId,
+        operationId: attempt.createId, planRevision: task.revision, ...(native ? { backend: native } : {}),
+        executionDelegationId: grant.receipt?.execution?.executionDelegationId,
         serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, configDigest } }); current()
       const runId = created.receipt?.execution?.runId
       if (!runId) throw new Error('unavailable')
-      await props.execution({ ...selector, runId, operationId: randomUUID() as Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'], inputs, start: true })
+      await props.execution({ ...selector, runId, operationId: attempt.openId, inputs, start: true })
       current(); setNotice(t('executionFinished'))
-    } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
+    } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
     finally {
-      if (alive.current) {
+      if (isAlive()) {
         setBusy(false); setConfirmed(false)
-        void load().catch((error: unknown) => { if (alive.current) setNotice(t(executionError(error))) })
+        void load().catch((error: unknown) => { if (isAlive()) setNotice(t(executionError(error))) })
       }
     }
   }
@@ -120,8 +142,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       const r = view.run
       const result = await props.executionReport({ organizationId: r.organizationId, projectId: r.projectId,
         planId: r.planId, assignmentId: r.assignmentId, runId: r.id })
-      if (alive.current) { setReport(result); setResumeConfirmed(false) }
-    } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
+      if (isAlive()) { setReport(result); setResumeConfirmed(false) }
+    } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
   }
   const resume = async (view: OrganizationExecutionView, reconcile = false) => {
     const recovery = report?.report.recovery
@@ -132,9 +154,9 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       await props.execution({ organizationId: r.organizationId, projectId: r.projectId, planId: r.planId,
         assignmentId: r.assignmentId, runId: r.id, operationId: randomUUID() as Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'],
         inputs: recovery.inputs, start: !reconcile, reconcile, resume: { baselineDigest: recovery.baselineDigest } })
-      if (alive.current) { setReport(undefined); await load() }
-    } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
-    finally { if (alive.current) { setBusy(false); setResumeConfirmed(false) } }
+      if (isAlive()) { setReport(undefined); await load() }
+    } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
+    finally { if (isAlive()) { setBusy(false); setResumeConfirmed(false) } }
   }
   const stop = async (view: OrganizationExecutionView, state: 'paused' | 'cancelled') => {
     setStopping(true)
@@ -143,31 +165,51 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
         configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
         deviceId: _device, ...selector } = view.run
       await props.connection({ kind: 'execution-command', request: { ...selector, runId: id, operationId: randomUUID(), kind: 'transition-run', state } })
-      if (alive.current) await load()
-    } catch (error) { if (alive.current) setNotice(t(executionError(error))) }
-    finally { if (alive.current) setStopping(false) }
+      if (isAlive()) await load()
+    } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
+    finally { if (isAlive()) setStopping(false) }
   }
   return <><p hidden={ready} role="status">{t('qualificationRecheck')}</p>
     <section hidden={!ready} className={css.card} aria-busy={busy}>
-      <h4>{t('executionTitle')}</h4><p>{t('executionHint')}</p>
+      <h4>{t('executionTitle')}</h4><p>{t(backend === 'codex' ? 'executionCodexHint' : 'executionHint')}</p>
       {notice && <p role="status">{notice}</p>}
       {mine && preparation && preparation.assignment.state === 'accepted' && <form className={css.form} onSubmit={(event) => { event.preventDefault(); void start() }}>
-        <label>{t('executionModel')}<Input required value={model} disabled={busy} onChange={(e) => { setModel(e.target.value); setConfirmed(false) }} /></label>
-        <label>{t('executionEndpoint')}<Input required type="url" value={endpoint} disabled={busy} onChange={(e) => { setEndpoint(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t('executionBackend')}<select value={backend} disabled={busy || !!c.pendingOperation} onChange={(event) => {
+          setBackend(event.target.value === 'codex' ? 'codex' : 'harness-api'); setModel(''); setEffort(undefined); setConfirmed(false); setCatalog(undefined)
+        }}><option value="harness-api">{t('executionApi')}</option><option value="codex">{t('executionCodex')}</option></select></label>
+        {backend === 'codex' ? <>
+          <Button disabled={busy} onClick={() => { void props.loadModels?.().then((value) => {
+            if (isAlive()) { setCatalog(value); setConfirmed(false) } })
+            .catch((error: unknown) => { if (isAlive()) setNotice(t(executionError(error))) }) }}>{t('executionRefreshModels')}</Button>
+          <label>{t('executionModel')}<select required value={model} disabled={busy} onChange={(event) => {
+            const m = catalog?.groups.filter(g => g.backend === 'codex').flatMap(g => g.models).find(m => m.id === event.target.value)
+            setModel(event.target.value); setEffort(m?.reasoning?.defaultEffort as NonNullable<Inputs['backend']>['effort']); setConfirmed(false)
+          }}><option value="">{t('executionSelectModel')}</option>{catalog?.groups.filter(g => g.backend === 'codex').flatMap(g => g.models)
+              .map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
+          <label>{t('executionEffort')}<select required value={effort ?? ''} disabled={busy} onChange={(event) => {
+            setEffort(event.target.value as NonNullable<Inputs['backend']>['effort']); setConfirmed(false)
+          }}><option value="">{t('executionSelectModel')}</option>{catalog?.groups.filter(g => g.backend === 'codex').flatMap(g => g.models)
+              .find(m => m.id === model)?.reasoning?.efforts.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
+          {catalog?.failures.some(f => f.id === 'codex') && <p role="alert">{t('executionNativeUnavailable')}</p>}
+        </> : <label>{t('executionModel')}<Input required value={model} disabled={busy} onChange={(e) => { setModel(e.target.value); setConfirmed(false) }} /></label>}
+        {backend === 'harness-api' && <label>{t('executionEndpoint')}<Input required type="url" value={endpoint} disabled={busy} onChange={(e) => { setEndpoint(e.target.value); setConfirmed(false) }} /></label>}
         <label>{t('executionDirectory')}<Input required value={directory} disabled={busy} onChange={(e) => { setDirectory(e.target.value); setConfirmed(false) }} /></label>
-        <label>{t('executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
-        <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>
+        <label>{t(backend === 'codex' ? 'executionTurns' : 'executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
+        {backend === 'harness-api' && <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>}
         <label>{t('executionMinutes')}<Input required type="number" min={1} step={1} value={minutes} disabled={busy} onChange={(e) => { setMinutes(e.target.value); setConfirmed(false) }} /></label>
         <label>{t('executionMessage')}<Input required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
-        <Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
-        <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
-        <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} />
+        {backend === 'harness-api' && <><Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
+          <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
+          <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} /></>}
         <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
         <Button type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button>
       </form>}
       {views?.items.map(view => <div key={view.run.id} hidden={views.generation !== c.generation}>
         <p>{t('taskVersion', { revision: view.run.planRevision })} · {t(`run-${view.run.state}`)}</p>
         <p>{t('assignee')}: {preparation?.assignment.assigneeId} · {t('deviceId')}: {view.run.deviceId}</p>
+        <p>{t('executionBackend')}: {t(view.run.backend ? 'executionCodex' : 'executionApi')} · {view.run.backend?.model ?? report?.report.recovery?.inputs.model} {view.run.backend?.effort}</p>
+        <p>{t('executionRun')}: {view.run.id}</p>
+        {view.run.backend && <p>{t('executionCodexHint')}</p>}
         <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
         {!view.eligible && <p>{t('qualificationRecheck')}</p>}
         {view.actions.some(a => a.state === 'unknown') && <p role="alert">{t('executionUnknown')}</p>}
@@ -175,7 +217,9 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
         {preparation && <DeliveryPanel {...props} assignment={preparation.assignment} run={view.run} />}
         {mine && <Button onClick={() => { void readReport(view) }}>{t('executionTranscript')}</Button>}
         {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section>
-          <h5>{t('executionRecovery')}</h5><p>{t('executionRecoveryHint')}</p>
+          <h5>{t('executionRecovery')}</h5><p>{t(view.run.backend ? 'executionNativeRecoveryHint' : 'executionRecoveryHint')}</p>
+          {report.report.native && <p>{t(`native-${report.report.native.status}`)}</p>}
+          {report.report.native?.cleanupFailed && <p role="alert">{t('executionNativeCleanupFailed')}</p>}
           <p>{t('executionDirectory')}: {report.report.recovery.inputs.execution?.directory}</p>
           <code>{report.report.recovery.baselineDigest}</code>
           {!report.report.recovery.baselineDigest && <p role="alert">{t('executionBaselineUnavailable')}</p>}
@@ -200,6 +244,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       </div>}
       {report?.generation === c.generation && <section>
         <h4>{t('executionTranscript')}</h4><p>{t('executionTranscriptPrivate')}</p>
+        {report.report.native?.cleanupFailed && <p role="alert">{t('executionNativeCleanupFailed')}</p>}
         {report.report.truncated && <p>{t('executionTranscriptTruncated')}</p>}
         {report.report.entries.map((entry, index) => <div key={index}>
           <h5>{t(`executionRole-${entry.role}`)}</h5><pre className={css.transcript}>{entry.text}</pre>

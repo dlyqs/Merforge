@@ -134,7 +134,7 @@ Desktop 的 `OrganizationIntegration` 是本机核验服务。`integration-read`
 
 任务详情提供依赖阻塞、必要成果与哈希、核验结果、目标目录选择和最终确认。内容按原生代次隐藏，集成事件按当前任务及输入可见权投影为无正文失效通知。它们不改变模型提示词、token、KV cache 或 Session JSONL 格式；没有自动向模型注入前置文件，员工仍通过现有授权产物下载和显式本机输入准备资料。可见 Desktop、Windows 及三机产品验收仍由用户执行。
 
-## Codex 原生调度资格（7B Phase 6）
+## Codex 原生调度与执行（7B Phase 6–8）
 
 当前组织 SQLite schema 为 v12。v11 升级只推进 schema stamp，历史 API Run JSON 保持原字节；不推断或授予 Codex 权限。停服备份写 v12，恢复接受校验通过的 v2–v11 备份并在 staging 升级，原设备、租约和执行授权按既有流程退休。
 
@@ -144,4 +144,12 @@ Desktop 的 `OrganizationIntegration` 是本机核验服务。`integration-read`
 
 首次 running 保存 startedAt，暂停和人工等待不重置累计时长。时长到期持久暂停并记录 duration-limit；设备/授权丢失记录 authority-lost，同时取消未答复的原生请求。turn 或委托 budget 用尽记录 turn-limit，已保留的最后一个 turn 仍可结算并写终态。员工停止和原生终态使用 employee-stop/native-terminal 等独立原因。旧设备仅可对既有动作提交历史结果，不能据此恢复调度。
 
-传输复用固定签名 HTTPS/native 命令、当前身份 generation、Host nonce 和顶层窗口核验。Renderer 不获得通用 Codex JSON-RPC 或组织代理。组织 Codex 实际执行桥属于 7B Phase 7，选择及运行 UI 属于 Phase 8；当前 `executeConfigured` 对 native Run 明确报 `native-executor-not-mounted`，不会转用 API 模型。工程资格测试不能代表员工真实 Codex 执行或三机验收通过。
+传输复用固定签名 HTTPS/native 命令、当前身份 generation、Host nonce 和顶层窗口核验。Renderer 不获得通用 Codex JSON-RPC 或组织代理。组织 Codex 执行桥已消费上述调度资格。Desktop 在已接受任务中明确选择 API 或本机 Codex；Codex 模型与推理选项来自本机安全 catalog，不填写 endpoint/key。部署同时需要组织 `executionCodex` policy 与员工 Host 的 `codex` 限额。后端、真人责任人、设备、准确版本、Run、原生状态、待谁处理和交付分别展示。失败授权草稿保留同一幂等键和截止时间，unknown 回执先核对，不重复派发。
+
+本机每个 Run 预留独立 Session、thread 和 JSONL，派发只包含获准任务、员工明确选择的资料/消息及显式继续时的真人答复。`organization/execution-native` 记录准备、关联、输入意图、回执、原生条目/终态、Inbox 请求及一次性决定。个人搜索、fork 和上传拒绝该命名空间；组织共享数据没有原生转录、账号或配置。原生登录与上下文仍由员工设备 Codex 持有。
+
+`nativeActive` 与允许新派发的 `eligible` 分开：前者复核已运行回合的访问/依赖/模型策略/委托/设备租约及累计时长，预算用尽后最后一个回合可以完成；撤权或时长到期则不能继续。执行桥在准备和执行时轮询该值；断线、休眠、退出、员工停止和身份变化取消并等待所属进程退出。原生工具不经过应用逐动作 guard。
+
+人工请求先保存 Inbox，再取消原生 callback 并停止本次区间。真人答复不会启动执行；员工明确继续后重检资格并创建下一原生回合。命令审批可对语义字段及 cwd 完全一致的新 callback 使用一次原决定，先保存消费记录并再次检查当前权限；变更请求重新确认。文件变更缺完整可比较提案时，旧审批不用于新 item，须重新请求。停止/断线从不复活旧 callback。
+
+原生恢复摘要校验本机转录，不扫描任务文件。已有确切回执可读取原 thread/turn 核对终态并补报历史结果；缺回执、未确认 thread 或仍运行的 native turn 保留 unknown，不重发或另建。completed 仅表示原生回合完成；员工提交、下发人验收及最终目标核验仍使用原有固定真人动作。纯 presenter 仅输出已知原生文本/工具字段与固定状态，原始协议和 stderr 不作为共享内容。工程测试不能代表真实模型、Windows、可见或三机验收通过。

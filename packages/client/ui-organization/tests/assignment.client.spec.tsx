@@ -11,7 +11,7 @@ import type { ConnectionResult, OrganizationDesktopSnapshot } from '@deepseek-ai
 import type { OrganizationProps } from '../src/client/contract.ts'
 import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
 import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
-import { executionViewSchema } from '@deepseek-ai/dsh-organization/execution'
+import { executionViewSchema, executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import { Inbox } from '../src/client/Inbox.tsx'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
@@ -26,7 +26,8 @@ it('pages authorized Run history without starting execution and hides it when of
       configDigest: 'a'.repeat(64), state: 'paused', createdRevision: 3, version: 3 },
     delegation: { ...selector, id: executionDelegationId, delegationId: randomUUID(), capabilities: ['model'],
       configDigest: 'a'.repeat(64), state: 'active', budget: 10, used: 1, expiresAt: Date.now() + 60000,
-      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [], assigneeId: a.assigneeId, approvedBy: a.approvedBy, humanRequests: [],
+      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [],
+    assigneeId: a.assigneeId, approvedBy: a.approvedBy, humanRequests: [],
   })
   h.connection.mockImplementation(async (action) => {
     if (action.kind === 'execution-list') return { generation: 1, executions: { items: [view.run], total: 2,
@@ -195,4 +196,64 @@ it('reports a partial access update without dispatching or replaying the failed 
   await screen.findByText(`${zh.partialAccessSaved} ${zh.unavailable}`)
   expect(h.connection.mock.calls.filter(([action]) => action.kind === 'command')).toHaveLength(1)
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
+})
+
+it('selects native Codex without endpoint or file-tool controls and retains the exact failed grant draft', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const deviceId = brandString<import('@deepseek-ai/dsh-organization').OrganizationDeviceId>(randomUUID())
+  const delegationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationDelegationId>(randomUUID())
+  const executionDelegationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationExecutionDelegationId>(randomUUID())
+  const runId = brandString<import('@deepseek-ai/dsh-organization').OrganizationRunId>(randomUUID())
+  h.prep.assignment.state = 'accepted'
+  const prepared = preparationSchema.parse({ ...h.prep, delegations: [{
+    id: delegationId, assignmentId: h.prep.assignment.id, planRevision: 1,
+    membershipId: h.prep.assignment.assigneeId, deviceId, executorId: 'desktop-builtin', capabilities: ['task-read'], budget: 3,
+    expiresAt: 100000, state: 'active', createdRevision: 3, version: 3 }], lease: { assignmentId: h.prep.assignment.id, delegationId, deviceId, fencingEpoch: 1,
+    serverEpoch: randomUUID(), expiresAt: 100000, state: 'held', createdRevision: 3, version: 3 } })
+  h.prep.delegations = prepared.delegations; h.prep.lease = prepared.lease
+  h.props.loadModels = vi.fn<NonNullable<OrganizationProps['loadModels']>>(async () => ({ default: { provider: 'codex', model: 'native-model' }, routableProviders: ['codex'],
+    groups: [{ id: 'codex', backend: 'codex', name: 'Codex', models: [{ id: 'native-model', name: 'Native model',
+      reasoning: { efforts: [{ id: 'medium', name: 'medium' }], defaultEffort: 'medium' } }] }], failures: [] }))
+  const nativeCommand = (request: unknown) => {
+    if (typeof request !== 'object' || request === null) throw new Error('invalid native command')
+    return executionCommandSchema.parse({ ...request, deviceId })
+  }
+  let fail = true
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'execution-list') return { generation: 1, executions: { items: [], total: 0, offset: 0 } }
+    if (action.kind === 'execution-command') {
+      if (fail) { fail = false; throw new Error('unavailable') }
+      const command = nativeCommand(action.request)
+      return { receipt: { operationId: command.operationId, revision: 4,
+        execution: { executionDelegationId, runId } } }
+    }
+    return base(action)
+  })
+  vi.mocked(h.props.execution).mockRejectedValue(new Error('native-execution-disabled'))
+  render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  const backend = await screen.findByLabelText(zh.executionBackend)
+  fireEvent.change(backend, { target: { value: 'codex' } })
+  expect(screen.queryByLabelText(zh.executionEndpoint)).toBeNull()
+  expect(screen.queryByLabelText(zh.executionRead)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: zh.executionRefreshModels }))
+  await screen.findByRole('option', { name: 'Native model' })
+  fireEvent.change(screen.getByLabelText(zh.executionModel), { target: { value: 'native-model' } })
+  for (const [label, value] of [[zh.executionDirectory, '/employee/work'], [zh.executionTurns, '3'],
+    [zh.executionMinutes, '1'], [zh.executionMessage, 'Selected task input']] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+  }
+  fireEvent.click(screen.getByLabelText(zh.executionConfirm))
+  fireEvent.click(screen.getByRole('button', { name: zh.executionStart }))
+  await screen.findByText(zh.unavailable)
+  h.prep.serverTime = 200
+  fireEvent.click(screen.getByLabelText(zh.executionConfirm))
+  fireEvent.click(screen.getByRole('button', { name: zh.executionStart }))
+  await waitFor(() => { expect(h.props.execution).toHaveBeenCalledOnce() })
+  const grants = h.connection.mock.calls.filter(([a]) => a.kind === 'execution-command'
+    && nativeCommand(a.request).kind === 'grant-execution')
+  expect(grants).toHaveLength(2); expect(grants[0]).toEqual(grants[1])
+  expect(vi.mocked(h.props.execution).mock.calls[0]![0].inputs).toMatchObject({
+    backend: { kind: 'codex', model: 'native-model', effort: 'medium' }, capabilities: ['codex-turn'],
+  })
+  expect(vi.mocked(h.props.execution).mock.calls[0]![0].inputs.endpoint).toBeUndefined()
 })

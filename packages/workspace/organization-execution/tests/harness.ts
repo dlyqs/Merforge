@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
@@ -27,17 +28,18 @@ afterEach(async () => {
   for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
-export async function boot(root?: string, executionLimits?: import('../src/runtime.ts').RuntimeLimits, models?: import('zod').z.output<typeof import('../src/model.ts').localModelSchema>[]) {
+export async function boot(root?: string, executionLimits?: import('../src/runtime.ts').RuntimeLimits, models?: import('zod').z.output<typeof import('../src/model.ts').localModelSchema>[], codex?: import('@deepseek-ai/dsh-codex-runtime').CodexRuntimeLimits) {
   root ??= await mkdtemp(join(tmpdir(), 'organization-context-'))
   if (!roots.includes(root)) roots.push(root)
   const ctx = new Context(); contexts.push(ctx)
   ctx.baseUrl = pathToFileURL(root).href + '/'
-  const modules = new Map<string, unknown>([['storage', Storage], ['json', JsonStorage], ['domain', Domain],
+  const modules = new Map<string, unknown>([['subprocess', Subprocess], ['storage', Storage], ['json', JsonStorage], ['domain', Domain],
     ['sessions', Sessions], ['projections', Projections], ['query', Query], ['invariants', Invariants], ['execution-invariant', ExecutionInvariant], ['agents', Agents], ['jsonl', Jsonl], ['organization-context', OrganizationContext], ['organization-execution', OrganizationExecution]])
   const config = [{ name: 'storage' }, { name: 'json', config: { root: join(root, 'data') } },
     { name: 'domain', config: { backend: 'json' } }, { name: 'sessions' }, { name: 'agents' }, { name: 'projections' }, { name: 'query' }, { name: 'invariants' },
     { name: 'jsonl', config: { root: join(root, 'personal'), compression: 'none' } },
-    { name: 'organization-context', config: { root: join(root, 'organization') } }, { name: 'organization-execution', config: { root: join(root, 'execution'), executionLimits, models } }, { name: 'execution-invariant' }]
+    { name: 'organization-context', config: { root: join(root, 'organization') } }, { name: 'organization-execution', config: { root: join(root, 'execution'), executionLimits, models, codex } }, { name: 'execution-invariant' }]
+  if (codex) config.unshift({ name: 'subprocess' })
   const configPath = join(root, 'cordis.yml'); await writeFile(configPath, JSON.stringify(config))
   await ctx.plugin(Loader); ctx.loader.builtins.include = Include
   ctx.loader.internal = { version: 'v2', async import(specifier: string) { return modules.get(specifier) } } as never

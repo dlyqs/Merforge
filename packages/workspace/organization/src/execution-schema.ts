@@ -100,6 +100,7 @@ export const executionModelSchema = z.object({ model: z.string().min(1).max(200)
 export const executionViewSchema = z.object({ run: executionRunSchema, delegation: executionDelegationSchema,
   assigneeId: executionHumanSchema.shape.handlerId, approvedBy: executionHumanSchema.shape.handlerId,
   humanRequests: z.array(executionHumanSchema), actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean(),
+  nativeActive: z.boolean().default(false),
   codexPolicy: z.array(executionCodexPolicySchema).max(100).default([]),
   modelPolicy: z.array(executionModelSchema).max(100) }).strict()
 

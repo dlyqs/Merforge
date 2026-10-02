@@ -42,6 +42,7 @@ export function ExecutionHumanRequest(props: OrganizationProps & { request: Requ
       <code>{request.requestDigest}</code>
       <Button onClick={() => { void props.executionReport({ organizationId: a.organizationId, projectId: a.projectId,
         planId: a.planId, assignmentId: a.id, runId: request.runId }).then(setPreview).catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('executionTranscript')}</Button>
+      {preview?.generation === c.generation && preview.report.native && <p>{t('executionNativeApprovalHint')}</p>}
       {preview?.generation === c.generation && preview.report.entries.filter(entry => entry.role === 'tool').map((entry, index) => <pre key={index}>{entry.text}</pre>)}
     </>}
     {request.answer && <p>{request.answer}</p>}

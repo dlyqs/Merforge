@@ -16,7 +16,7 @@
 
 范围外：外部 Codex 执行器、跨设备接力、自动人员调度、自动批准或自动委托、共享 Runner、企业 IM、全套岗位系统、私人 Bot/记忆进入组织、自动学习、自动应用或 push 成果、公开发布和产品 Phase 8 的真实三机总验收。首版仍沿用 Phase 7A 已支持的内建模型和有界文件工具，不顺带开放 shell、subagent、job 或终端。
 
-与 [Phase 7B Codex 后端计划](codex-backend-plan.md)的衔接：本计划仍可用内建 API 后端独立完成；规划宿主准入按后端能力区分，HTTP/endpoint/key 校验只适用于 API 路径。Codex 的原生运行时、登录、受控工具和组织执行由 7B 建设；选 Codex 后不得要求另一个 API 模型负责规划。7B 可用后，组织目标/任务对话消费同一权限和规划接口，不另建任务权威或改变真人确认规则。完整 Codex 自然目标流程需两者均完成，各自主表保持独立。
+与 [Phase 7B Codex 后端计划](codex-backend-plan.md)的衔接：本计划仍可用内建 API 后端独立完成；规划宿主准入按后端能力区分，HTTP/endpoint/key 校验只适用于 API 路径。Codex 的原生运行时、登录与组织执行由 7B 建设；原生工具由 Codex 拥有，不经过 Harness 逐动作权限管线。已有组织任务使用与 Run 完全一致的 `inputs.backend`（kind/runtime/model/effort/turn/time），不填写 endpoint/key。7C 复用该消费者和固定真人动作；选 Codex 后不得要求另一个 API 模型负责规划。7B 可用后，组织目标/任务对话消费同一权限和规划接口，不另建任务权威或改变真人确认规则。完整 Codex 自然目标流程需两者均完成，各自主表保持独立。
 
 ## 静态核验基线与复用位置
 

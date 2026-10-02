@@ -47,6 +47,19 @@
           maxDurationMs: 3600000
           maxBytes: 1048576
           recheckMs: 1000
+        codex:
+          startupTimeoutMs: 30000
+          rpcTimeoutMs: 30000
+          turnTimeoutMs: 3600000
+          humanTimeoutMs: 300000
+          interruptTimeoutMs: 10000
+          disposeGraceMs: 3000
+          maxFrameBytes: 1048576
+          maxEarlyEvents: 1024
+          maxTurnBytes: 1048576
+          modelCacheMs: 60000
+          modelPageSize: 100
+          maxModelPages: 100
         models:
           - model: deepseek-flash
             endpoint: https://api.deepseek.com/anthropic/v1

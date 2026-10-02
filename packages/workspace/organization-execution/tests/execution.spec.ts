@@ -28,7 +28,7 @@ it('waits for an outstanding report authorization on disposal and never delivers
   expect(closed).toBe(true)
 })
 
-it('rejects a native Run before resolving API credentials or mounting an API executor', async () => {
+it('rejects a mismatched native selection before resolving API credentials or mounting an API executor', async () => {
   const h = await boot(), f = fixture()
   const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4',
     model: 'native-test', effort: 'medium', maxTurns: 2, maxDurationMs: 10000 } as const
@@ -39,7 +39,7 @@ it('rejects a native Run before resolving API credentials or mounting an API exe
     directory: h.root, maxActions: 2, maxSteps: 2, maxDurationMs: 10000 } } }
   const bridge = vi.fn(async () => authority)
   const fetch = vi.spyOn(globalThis, 'fetch')
-  await expect(h.service.executeConfigured(request, bridge, signal())).rejects.toThrow('native-executor-not-mounted')
+  await expect(h.service.executeConfigured(request, bridge, signal())).rejects.toThrow('native-selection-mismatch')
   expect(bridge).toHaveBeenCalledOnce()
   expect(fetch).not.toHaveBeenCalled()
   expect(h.ctx.agents.list()).toEqual([])

@@ -154,7 +154,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
     </section>}
     {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
     {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
-    {retainedTask && !draft && <ExecutionPanel key={retainedTask.id} {...props} task={retainedTask}
+    {retainedTask && !draft && <ExecutionPanel key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${retainedTask.id}:${retainedTask.revision}`} {...props} task={retainedTask}
       projectId={props.project.id} current={!!task} />}
     {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
       task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}

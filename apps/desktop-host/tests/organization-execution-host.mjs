@@ -4,7 +4,7 @@ import { localExecution } from './organization-execution-fixture.mjs'
 import { installOrganizationContextControl } from '../lib/types/organization-context.js'
 import { installOrganizationExecutionControl } from '../lib/types/organization-execution.js'
 
-const host = await localExecution(kit, process.argv[2])
+const host = await localExecution({ ...kit, native: process.argv[3] === 'codex' }, process.argv[2])
 const channel = { on: (event, listener) => process.on(event, listener), off: (event, listener) => process.off(event, listener),
   send: message => { if (process.connected) process.send(message) } }
 installOrganizationContextControl(host.ctx, channel)

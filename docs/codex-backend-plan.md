@@ -8,7 +8,7 @@
 
 这是涉及 Agent 驱动、持久日志、工具许可、组织权限及 Desktop 组合的大目标。用户于 2026-10-02 明确授权“请自动完成 phase1-2”；该次执行范围为 Phase 1 至 Phase 2，已完成。用户随后于 2026-10-02 明确授权“[codex-backend-plan.md](docs/codex-backend-plan.md) 请自动完成 phase3-4”；原连续执行范围为 Phase 3 至 Phase 4，包含首尾；用户随后要求完成 Phase 3 后停止，本轮终点已相应缩至 Phase 3。
 
-用户随后于 2026-10-02 明确调整责任：“如果使用 codex 那么任务的完成不需要当前应用来确保……当前应用只需要能作为一个桥传递发送信息给 codex 执行，然后能获取到 codex 的输出和执行结果就行。”该说明替代先前“保留原门槛”的决定。Codex 模式由原生执行器拥有上下文、工具和执行质量；Merforge 拥有任务调度、发送记录、thread 关联、输出/结果接收、停止与组织真人动作。应用记录桥接转录，不要求重建 Codex 内部模型请求，也不以自身工具 guard、逐模型请求许可或独立产物核验作为 Codex 接入前置。API 后端仍遵循既有执行和日志要求。该责任定义继续有效。用户于 2026-10-02 随后要求“继续完成 phase4”，该次完成 Phase 4 后停止，没有进入 Phase 5。用户随后于 2026-10-02 要求“继续完成 phase5-6”，本轮范围为 Phase 5 至 Phase 6，包含首尾，完成后停止。
+用户随后于 2026-10-02 明确调整责任：“如果使用 codex 那么任务的完成不需要当前应用来确保……当前应用只需要能作为一个桥传递发送信息给 codex 执行，然后能获取到 codex 的输出和执行结果就行。”该说明替代先前“保留原门槛”的决定。Codex 模式由原生执行器拥有上下文、工具和执行质量；Merforge 拥有任务调度、发送记录、thread 关联、输出/结果接收、停止与组织真人动作。应用记录桥接转录，不要求重建 Codex 内部模型请求，也不以自身工具 guard、逐模型请求许可或独立产物核验作为 Codex 接入前置。API 后端仍遵循既有执行和日志要求。该责任定义继续有效。用户于 2026-10-02 随后要求“继续完成 phase4”，该次完成 Phase 4 后停止，没有进入 Phase 5。用户随后于 2026-10-02 要求“继续完成 phase5-6”，该轮范围为 Phase 5 至 Phase 6，包含首尾，已完成后停止。用户于 2026-10-02 随后要求“继续完成 phase7-8”，本轮范围为 Phase 7 至 Phase 8，包含首尾，完成后停止。
 
 范围内：
 
@@ -76,9 +76,9 @@
 | Phase 3 | 日志与对话驱动 | 多后端路由、Session、发送/流/重开 | completed | 单 factory native driver、持久意图/回执/结果、停止与恢复 | 聚焦回归/build/无窗口 smoke 通过；真实模型待验 |
 | Phase 4 | 个人 Desktop 接入 | 无 API key 选择 Codex、持续对话和配置 | completed | catalog、Bot 默认值、模型/effort 选择与刷新、多轮/冷重开/归档回归、Desktop build | 工程验收完成；真实登录/模型和可见验收待用户 |
 | Phase 5 | 个人工作流与人工请求 | 任务管理桥、审批/等待、停止/恢复 | completed | 任务管理工具、原生完成报告、人工请求及停止/显式恢复 | 工程回归与产物 smoke 通过；真实 Codex/可见验收待用户 |
-| Phase 6 | 组织调度资格 | 外部策略、启动/继续许可与固定传输 | completed | 独立 opt-in policy、设备调度资格、累计限额与 SQLite v12 | API 回归/迁移/固定传输通过；Phase 7 执行器仍未挂载 |
-| Phase 7 | 组织 Codex 执行桥 | 任务派发、独立转录与原生结果 | pending | — | 依赖 Phase 6 |
-| Phase 8 | 组织 Desktop 消费 | 选择/运行/待处理/提交及后续 7C 接口 | pending | — | 依赖 Phase 7；已有任务可独立验证 |
+| Phase 6 | 组织调度资格 | 外部策略、启动/继续许可与固定传输 | completed | 独立 opt-in policy、设备调度资格、累计限额与 SQLite v12 | API 回归/迁移/固定传输通过；执行器见 Phase 7 |
+| Phase 7 | 组织 Codex 执行桥 | 任务派发、独立转录与原生结果 | completed | 原生执行、独立转录、Inbox、停止及恢复核对 | 工程回归与无窗口产物验证通过；真实模型待验 |
+| Phase 8 | 组织 Desktop 消费 | 选择/运行/待处理/提交及后续 7C 接口 | completed | 后端/model/effort 选择、私有转录与固定真人动作 | 静态验证与 Desktop 构建通过；可见验收待用户 |
 | Phase 9 | 组合与故障回归 | 个人/组织双后端、访问隔离/取消/恢复回归 | pending | — | 依赖 Phase 8；7C 可用时加组合验证 |
 | Phase 10 | 发行与验收交接 | 闭包/build/smoke、真实 Codex 验收剧本 | pending | — | 依赖 Phase 9；不自动公开发布 |
 
@@ -253,7 +253,7 @@ node packages/workspace/personal-workflow/tests/built-smoke.mjs
 
 实际完成（2026-10-02）：组织 `executionCodex` 默认为空，显式固定 0.153.4/runtime/model/effort 和 device-native 调度方式；与 API endpoint/model 策略分开，不保存本机账号、token 或 home。grant/create/start/resume/reserve 在权威处复核准确任务版本、已验收且可读依赖、接受/委托、设备、server/fencing epoch 租约及当前 policy。`codex-turn` 只属于原生 Run，未确认的 reserved/unknown turn 阻止重叠调度，已收费 turn 不退款。
 
-原生首次 running（包括未启动就暂停后的首次 resume）固定 startedAt；暂停/人工等待不重置累计时长，turn-limit、duration-limit、authority-lost、employee-stop 和 native-terminal 分别记录。最后一个 turn 保持可结算，撤权/时长到期持久暂停并取消旧人工请求，原设备只可报告历史结果。SQLite v12 迁移保留 v11 API Run JSON 原字节；启动和停服备份恢复校验新增后端/委托/capability/start-time 关系，恢复接受经校验的 v2–v11。固定签名 HTTPS/native/IPC 复用严格 schema、当前 generation、nonce 与顶层窗口检查，更新所有 selector 消费者。当前组织执行消费者先拒绝 `native-executor-not-mounted`，不会解析 API adapter 或请求 API 模型，Phase 7 未实施。
+原生首次 running（包括未启动就暂停后的首次 resume）固定 startedAt；暂停/人工等待不重置累计时长，turn-limit、duration-limit、authority-lost、employee-stop 和 native-terminal 分别记录。最后一个 turn 保持可结算，撤权/时长到期持久暂停并取消旧人工请求，原设备只可报告历史结果。SQLite v12 迁移保留 v11 API Run JSON 原字节；启动和停服备份恢复校验新增后端/委托/capability/start-time 关系，恢复接受经校验的 v2–v11。固定签名 HTTPS/native/IPC 复用严格 schema、当前 generation、nonce 与顶层窗口检查，更新所有 selector 消费者。Phase 6 收尾时组织执行消费者拒绝 `native-executor-not-mounted`，不解析 API adapter 或请求 API 模型；后续执行器已在 Phase 7 完成。
 
 验证通过：组织资格/人工/API/执行消费者最新 4 文件/32 测试；受影响迁移/验收/交付/集成/WorkGraph/分配 5 文件/62 测试；真实 HTTPS 事件流及 Desktop 全链 2 文件/18 测试（其中 Desktop 7 场景）。普通 Node 与 Electron Node mode 产物 smoke 完成 CSV、人等待、Host 重开、返工/交付以及撤权、回执丢失和服务重启场景。产物验证发现并修复心跳仍有少量缓冲时误判慢客户端的断线：不推进 cursor、不队列 payload，排空后重新复核权限，保留背压与最大连接期限；确定性权限/缓冲回归通过。测试驱动关闭时等待父进程授权回调，修复服务重启尚未完成就读结果/删临时目录的竞态。相关类型、局部 lint、完整 Desktop build、最终组织包产物重建、持久目录生成、scoped-events/tsconfig-paths 检查和 diff whitespace 通过。运行命令：
 
@@ -283,15 +283,19 @@ Phase 5–6 工程终点已达到；恢复 manual，自动起止均 none、relay
 
 验收清单：
 
-- [ ] 从获准任务和明确选定的本机资料构造派发输入；应用不主动附带其他私人 Session/Bot 历史。
-- [ ] 独立 Run/Session/thread 关联与转录访问权限；个人搜索/fork/上传不跨入组织转录。原生账号和配置留在员工设备。
-- [ ] 应用派发和应用任务管理动作复核调度资格；原生文件/shell/MCP/子代理由 Codex 管理，不宣称应用逐动作控制。
-- [ ] 失联/休眠/撤权/停止阻止新调度并 await 所属进程退出；重连不自动重发，未知结果明确保留。
-- [ ] 人工请求接入现有 Inbox；原生 completed、员工提交、下发人验收分别记录。应用不以 Codex 自报替真人验收，也不独立保证执行结果正确。
+- [x] 从获准任务和明确选定的本机资料构造派发输入；应用不主动附带其他私人 Session/Bot 历史。
+- [x] 独立 Run/Session/thread 关联与转录访问权限；个人搜索/fork/上传不跨入组织转录。原生账号和配置留在员工设备。
+- [x] 应用派发和应用任务管理动作复核调度资格；原生文件/shell/MCP/子代理由 Codex 管理，不宣称应用逐动作控制。
+- [x] 失联/休眠/撤权/停止阻止新调度并 await 所属进程退出；重连不自动重发，未知结果明确保留。
+- [x] 人工请求接入现有 Inbox；原生 completed、员工提交、下发人验收分别记录。应用不以 Codex 自报替真人验收，也不独立保证执行结果正确。
 
 助理验证：真实 Loader/HTTPS/SQLite/JSONL 与 fake app-server 的派发、输出、结果、恢复、停止及访问隔离组合；真人提交/验收沿既有固定动作测试。用户检查：员工 Codex 执行、停止、人工答复、提交与下发人验收/返工。依赖：Phase 6；不以完整内部请求日志或原生工具禁用作为准入。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：`organization-execution/src/codex.ts` 接入固定 runtime 和 Host subprocess，派发准确任务及显式资料/消息，不挂内建 loop、不请求 API 模型或扫描文件树。`codex-journal.ts` 与必需事件 `organization/execution-native` 保存独立 Session/thread、发送意图/回执、原生条目/终态和 Inbox；当前读取者、持久目录及 schema 同步更新，SQLite v12、domain v1 和 Session envelope 不变。`nativeActive` 区分最后一个在途回合与新派发资格，权限/租约/策略/时长丢失停止并等待进程和日志排空；已观测终态不因独立清理失败改写。
+
+人工请求持久到 Inbox 后取消旧 callback。答复不启动工作；明确继续时同语义字段和 cwd 的命令决定可消费一次，先持久并再次复核在线资格。缺完整提案的文件变更审批不能复用旧 item。恢复只核对私有日志及原 thread/turn：确切回执允许补报终态，缺回执或 thread 关联不确定保留 unknown，绝不重发或新建替代 thread。个人搜索/fork/上传继续拒绝组织转录。员工提交、验收、返工与目标交付沿用现有真人动作。
+
+工程证据：离线 managed child 的 8 项回归覆盖最终预算回合、无文本工具结果、停止、丢回执/终态、明确继续审批、撤权、清理故障和损坏关联；真实 Loader/HTTPS/SQLite/JSONL 全链覆盖 native 派发、人工等待、冷重开、提交/返工/验收。普通 Node 和 Electron Node mode 的 published private IPC smoke 通过，使用离线 native peer，没有打开窗口或使用真实账户。相关类型与 Desktop 构建通过；命令和既有门禁限制见 Phase 8。真实 Codex 登录/模型、Windows、可见与三机验收仍待用户。下一阶段 Phase 8 已在本轮范围内完成。
 
 ## Phase 8：组织 Desktop 展示及 7C 接口衔接
 
@@ -301,15 +305,40 @@ Phase 5–6 工程终点已达到；恢复 manual，自动起止均 none、relay
 
 验收清单：
 
-- [ ] 真人责任人、执行后端、设备、模型、能力限制、当前版本、Run/待谁处理/产物分别展示；选 Codex 不要求填写 API endpoint/key。
-- [ ] 开始/停止/继续/提交/验收都是现有权威动作，失败草稿/unknown 回执不重复发送；身份变化与迟到响应隐藏旧内容。
-- [ ] Codex 进度及权限/输入请求用纯 presenter 和持久 metadata，原始协议和 stderr 不直接作为共享 UI 内容。
-- [ ] 7C 的后端选择不能写死 HTTP/key；Codex 原生规划结果接入任务管理，真实分配由人确认。若 7C 尚未实现，仅完成定义及已有任务消费者，不创建重复组织对话模块。
-- [ ] API 后端的有界文件执行、人工介入和交付展示继续可用；不因支持 Codex 顺带开放 API Run shell。
+- [x] 真人责任人、执行后端、设备、模型、能力限制、当前版本、Run/待谁处理/产物分别展示；选 Codex 不要求填写 API endpoint/key。
+- [x] 开始/停止/继续/提交/验收都是现有权威动作，失败草稿/unknown 回执不重复发送；身份变化与迟到响应隐藏旧内容。
+- [x] Codex 进度及权限/输入请求用纯 presenter 和持久 metadata，原始协议和 stderr 不直接作为共享 UI 内容。
+- [x] 7C 的后端选择不能写死 HTTP/key；Codex 原生规划结果接入任务管理，真实分配由人确认。若 7C 尚未实现，仅完成定义及已有任务消费者，不创建重复组织对话模块。
+- [x] API 后端的有界文件执行、人工介入和交付展示继续可用；不因支持 Codex 顺带开放 API Run shell。
 
 助理验证：权限/身份/事件的纯投影与固定操作测试、局部类型/lint/i18n/Client 构建；不启动页面。用户检查：工作台现有任务 Codex 选择及操作全链；7C 可用后另检查对话入口同样选择。依赖：Phase 7；7C 未完成不是已有任务路径的阻塞条件。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：`ExecutionPanel.tsx` 增加 API/Codex 选择、本机模型/effort catalog 刷新与 native turn 限额；Codex 不填写 endpoint/key，不显示 API 文件工具控件。已有任务展示责任人、设备、版本、后端、Run、恢复、私有转录、Inbox 及原有提交/验收/交付。失败 grant/create/open 草稿保留固定幂等键与原 expiry，身份/任务版本变化拒绝迟到结果。原生 item 和请求经纯 presenter，清理故障独立展示，locale 中英同步。Remote 复用 modelCatalog；7C 仅更新后端选择和真人动作衔接，仍为 pending，不创建重复目标对话模块。
+
+验证：最终受影响源程序类型、局部 source/test lint、840 Client 文件 i18n、Cordis 组合、Config 所有权和应用入口检查通过；持久目录重新生成，diff whitespace 通过。Desktop 完整构建通过，最终 Node/Electron Node mode smoke 通过。聚焦回归分批覆盖 13 文件/93 项测试：最终组合运行 92/93 通过，一条组织资格测试超过原有 5 秒时限；该组单独重跑 8/8 通过（与组合运行重叠，不合计）。中间测试替身问题已修正并复核，不将失败的组合命令计为全绿。实际运行的主要命令：
+
+```sh
+pnpm exec vitest run packages/workspace/organization-execution/tests apps/desktop-host/tests/organization-execution.spec.ts packages/workspace/organization/tests/execution-codex.spec.ts packages/client/ui-organization/tests
+pnpm exec vitest run packages/workspace/organization-execution/tests/codex.spec.ts packages/client/ui-organization/tests/assignment.client.spec.tsx
+pnpm exec vitest run packages/client/ui-organization/tests/assignment.client.spec.tsx
+pnpm exec vitest run packages/workspace/organization/tests/execution-codex.spec.ts
+pnpm exec tsc -b packages/workspace/organization-execution packages/client/ui-organization apps/desktop-host apps/desktop --pretty false
+pnpm exec tsx scripts/run-oxlint.ts packages/workspace/organization-execution packages/workspace/organization/src/execution.ts packages/workspace/organization/src/execution-schema.ts packages/client/ui-organization apps/desktop-host/tests/organization-execution.spec.ts
+pnpm run verify-client-ui-i18n
+pnpm run verify-cordis-config
+pnpm run verify-config-source-ownership
+pnpm run verify-application-entrypoints
+pnpm run gen-client-catalog
+pnpm run gen-persistence-catalog
+pnpm run build
+pnpm run bundle:lib:host
+node apps/desktop-host/tests/organization-codex-built-smoke.mjs
+git diff --check
+```
+
+未计为通过的既有全仓问题：`verify-export-jsdoc` 的 `OrganizationLoginSession.read/save` 缺说明 prose；`verify-package-dependencies` 的 file-upload 导入 `assertPersonalSessionId` 未分类；`verify-no-unknown-casts` 的 session-controller 三处和 agent/inbox 两处旧断言；`gen-config-catalog` 无法解析 organization-api 的 `./tls.ts` 和 organization 的 `./schema.ts` local schema import。单独执行 `pnpm run build:lib:client` 被全仓既有 Client 测试类型问题阻止；本轮新增测试类型/lint 问题已修正，受影响源程序类型与 Desktop 构建通过。没有改例外表或扩大修复范围。
+
+用户待验：已有组织任务的原生登录/真实模型、Codex 选择与运行、停止/明确继续、Inbox 请求、成果上传/提交及下发人验收/返工；Windows、可见和三机行为未运行。文件审批缺完整提案的限制保留；原生完成不代表任务已验收。授权终点 Phase 8 已达到，恢复 manual、自动边界 none、relay 关闭；Phase 9–10 保持 pending，本轮不继续。
 
 ## Phase 9：组合回归、取消恢复与能力拒绝
 
@@ -366,7 +395,7 @@ Phase 5–6 工程终点已达到；恢复 manual，自动起止均 none、relay
 - `automatic start phase: none`
 - `automatic stop phase: none`
 - `conversation relay: off`
-- 执行授权：2026-10-02 用户要求“继续完成 phase5-6”。本轮连续完成 Phase 5 至 Phase 6，包含首尾；终点完成后恢复 manual、两个自动边界 none、relay 关闭，不进入 Phase 7。
+- 执行授权：2026-10-02 用户要求“继续完成 phase7-8”。本轮已连续完成 Phase 7 至 Phase 8，包含首尾；授权终点已达到，恢复 manual、两个自动边界 none、relay 关闭，不进入 Phase 9。
 
 1. 新计划先评审，创建本文件不启动 Phase 1。后续执行先读取本文、overview、当前用户要求及适用 AGENTS；改 `packages/` 前读 architecture，生命周期/并发/销毁前读 defensive-patterns。
 2. “执行 Phase X”只执行该阶段，包含明确单阶段命令时该轮不推进下一阶段；不改变既有自动模式，除非用户也要求变更。“继续”先重检有关 blocked 的解除条件，随后选择首个 in_progress，否则首个 pending；依赖未完成且不可隔离时停止报告依赖。

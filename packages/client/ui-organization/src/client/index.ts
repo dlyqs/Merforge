@@ -1,4 +1,6 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -13,7 +15,7 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { zh, en } from './locales.ts'
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'remote', 'remote.session']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.
@@ -32,6 +34,11 @@ export function apply(ctx: Context): void {
       restoreOnLaunch: false } } })
   const unavailable = (): never => { throw new Error('desktop-required') }
   const bind = (): OrganizationInjected => ({ available: !!desktop,
+    loadModels: async () => {
+      const result = await ctx.remote.session.modelCatalog()
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value
+    },
     connection: action => desktop ? desktop.connection(action) : unavailable(),
     server: action => desktop ? desktop.server(action) : unavailable(),
     secret: () => desktop ? desktop.secret() : unavailable(),

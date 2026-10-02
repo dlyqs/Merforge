@@ -5,6 +5,8 @@ import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@de
 import type { OrganizationKey } from './locales.ts'
 /** Native connection callbacks and safe reactive facts. */
 export interface OrganizationInjected {
+  /** Safe local model discovery; never carries native authentication materials. */
+  loadModels?(): Promise<import('@deepseek-ai/dsh-api-session-controller/types').ModelCatalog>
   available: boolean
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']

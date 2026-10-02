@@ -67,6 +67,15 @@
     },
     {
       "path": "../../interaction/user-questions"
+    },
+    {
+      "path": "../../subagent/codex-runtime"
+    },
+    {
+      "path": "../../subprocess/subprocess"
+    },
+    {
+      "path": "../../session/session-persistence"
     }
   ]
 }

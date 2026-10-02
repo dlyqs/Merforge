@@ -15,6 +15,11 @@ const vault = { isEncryptionAvailable: () => true, getSelectedStorageBackend: ()
   encryptString: text => Buffer.from(text), decryptString: bytes => bytes.toString() }
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
 const tool = (name, args) => ({ name, args })
+export const nativeLimits = { startupTimeoutMs: 5000, rpcTimeoutMs: 5000, turnTimeoutMs: 60000, humanTimeoutMs: 5000,
+  interruptTimeoutMs: 1000, disposeGraceMs: 100, maxFrameBytes: 1000000, maxEarlyEvents: 100, maxTurnBytes: 1000000,
+  modelCacheMs: 1000, modelPageSize: 100, maxModelPages: 10 }
+export const nativeBackend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4', model: 'scripted-csv',
+  effort: 'medium', maxTurns: 30, maxDurationMs: 60000 }
 const csv = 'name,note\nAlice,"hello,world"\nBob,"say ""hi"""\n'
 
 export async function until(predicate) {
@@ -53,7 +58,7 @@ export async function localExecution(kit, root) {
       return this.execute(request, authorize, { adapter: new ScriptedAdapter(script), directory: request.inputs.execution.directory }, signal)
     }
   }
-  const modules = new Map([...kit.modules, ['execution', kit.liveRoute ? kit.OrganizationExecution : ScriptedExecution]])
+  const modules = new Map([...kit.modules, ['execution', kit.liveRoute || kit.native ? kit.OrganizationExecution : ScriptedExecution]])
   const config = [{ name: 'storage' }, { name: 'json', config: { root: join(root, 'data') } },
     { name: 'domain', config: { backend: 'json' } }, { name: 'sessions' }, { name: 'agents' },
     { name: 'jsonl', config: { root: join(root, 'personal'), compression: 'none' } },
@@ -62,6 +67,17 @@ export async function localExecution(kit, root) {
   if (kit.liveRoute) {
     modules.set('credentials', kit.Credentials)
     config.unshift({ name: 'credentials', config: { path: join(root, 'credentials.yml'), watch: false } })
+  }
+  if (kit.native) {
+    class NativeSubprocess extends kit.Subprocess {
+      spawn(spec) {
+        assert.equal(spec.argv.at(-2), 'app-server'); assert.equal(spec.argv.at(-1), '--stdio')
+        return super.spawn({ ...spec, argv: [process.execPath, new URL('../../../packages/workspace/organization-execution/tests/fixtures/codex-app-server.mjs', import.meta.url).pathname],
+          env: { ...spec.env, MERFORGE_CODEX_FIXTURE: root } })
+      }
+    }
+    modules.set('subprocess', NativeSubprocess); config.unshift({ name: 'subprocess' })
+    config.find(entry => entry.name === 'execution').config.codex = nativeLimits
   }
   const configPath = join(root, 'execution.yml')
   await writeFile(configPath, JSON.stringify(config))
@@ -107,7 +123,7 @@ export async function executionScenario(kit, createHost = root => localExecution
       await writeFile(join(directory, 'untouched.txt'), 'PRIVATE_UNSELECTED_SENTINEL')
     }
     const server = join(root, 'server')
-    const config = { authority: { deviceChallengeMaxPerAccount: 1000, ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
+    const config = { authority: { deviceChallengeMaxPerAccount: 1000, ...(kit.native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: nativeBackend.model, efforts: ['medium'], maxTurns: 30, maxDurationMs: 60000 }] } : {}), ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
     app = await kit.bootOrganization(config)
     const init = await app.authority.initialize({ operationId: randomUUID(), username: 'owner', password,
       organizationName: 'CSV team', recoveryToken: randomBytes(32).toString('base64url') })
@@ -144,6 +160,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     let host = await createHost(localRoot); hosts.push(host)
     const inputs = { model: kit.liveRoute?.model ?? 'scripted-csv', ...(kit.liveRoute ? { endpoint: kit.liveRoute.endpoint } : {}), capabilities: ['model', 'fs-read', 'fs-write'], materials: ['CSV columns name,note'],
       messages: [kit.liveRoute ? `Write result.csv using write_file with EXACT UTF-8 content ${JSON.stringify(csv)}. Then read it using read_file and finish. Do not touch other files or request human input.` : 'PRIVATE_EXECUTION_SENTINEL: prepare CSV evidence'], execution: { directory: work, maxActions: 30, maxSteps: 15, maxDurationMs: 60000 } }
+    if (kit.native) { inputs.backend = nativeBackend; inputs.capabilities = ['codex-turn']; inputs.execution.maxSteps = 30 }
     const configDigest = kit.executionInputsDigest(inputs)
     async function prepare(taskId, planRevision, budget = 30) {
       const approved = await active(owner, { kind: 'assignment-command', request: { ...query, taskId, planRevision,
@@ -159,10 +176,10 @@ export async function executionScenario(kit, createHost = root => localExecution
       const delegationId = delegated.receipt.delegationId
       const lease = (await active(member, { kind: 'lease-claim', request: { ...selector, delegationId } })).receipt.lease
       const granted = await active(member, { kind: 'execution-command', request: { ...selector, planRevision, kind: 'grant-execution',
-        operationId: randomUUID(), delegationId, capabilities: inputs.capabilities, budget, expiresAt: Date.now() + 240000, configDigest } })
+        operationId: randomUUID(), delegationId, ...(kit.native ? { backend: nativeBackend } : {}), capabilities: inputs.capabilities, budget, expiresAt: Date.now() + 240000, configDigest } })
       const ownerFields = { ...selector, planRevision, executionDelegationId: granted.receipt.execution.executionDelegationId,
         serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
-      const runId = (await active(member, { kind: 'execution-command', request: { ...ownerFields, kind: 'create-run', operationId: randomUUID(), configDigest } })).receipt.execution.runId
+      const runId = (await active(member, { kind: 'execution-command', request: { ...ownerFields, kind: 'create-run', operationId: randomUUID(), configDigest, ...(kit.native ? { backend: nativeBackend } : {}) } })).receipt.execution.runId
       return { selector, ownerFields, lease, request: kit.executionRequestSchema.parse({ ...selector, runId, operationId: randomUUID(), inputs, start: true }) }
     }
     const runView = async run => (await active(member, { kind: 'execution-read', request: { ...run.selector, runId: run.request.runId } })).execution

@@ -4,9 +4,9 @@
 
 ## 下一阶段计划入口
 
-[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–6 工程完成，Phase 7–10 为 `pending`。用户最新要求“继续完成 phase5-6”，已在 Phase 6 终点停止，保持 `manual`、自动边界 `none`、relay 关闭。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
+[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–8 工程完成，Phase 9–10 为 `pending`。用户最新要求“继续完成 phase7-8”，已在 Phase 8 终点停止，保持 `manual`、自动边界 `none`、relay 关闭。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
 
-个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织新增独立 opt-in Codex 调度策略、设备/任务/租约资格、累计 turn/时长与停止原因，SQLite 当前为 v12，v11 API Run 不转换。组织原生执行消费者尚未挂载，当前明确拒绝 `native-executor-not-mounted`；结果回传和 Desktop 组织消费留给 Phase 7–8。
+个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织新增独立 opt-in Codex 调度策略、设备/任务/租约资格、累计 turn/时长与停止原因，SQLite 当前为 v12，v11 API Run 不转换。组织原生执行已接入独立 Run/Session/thread 与私有 JSONL，派发准确任务和显式输入，停止等待所属进程及日志排空，未知发送不重放。人工请求进入持久 Inbox，答复后需明确继续；完整相同的命令决定只消费一次，缺完整提案的文件审批不能复用。工作台已有任务支持 Codex 后端、原生模型/effort 选择、运行/恢复/请求及现有提交、验收、返工和交付动作，不要求 API endpoint/key。
 
 Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。相关聚焦回归、Client/Host 类型、局部 lint、i18n/组合/入口门禁、Desktop build、个人/Codex 产物 smoke 及组织普通 Node/Electron Node mode 私有 IPC smoke 通过；命令与既有全局门禁问题见实施计划。真实登录/模型、Windows、可见与三机验收仍待用户。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力、限制与个人验收步骤。
 

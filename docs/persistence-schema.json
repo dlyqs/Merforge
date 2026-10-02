@@ -11640,7 +11640,7 @@
       "kind": "event",
       "event": "organization/execution-binding",
       "surface": false,
-      "digest": "3ae376d91315462aaa273aec46e7b8336f20164192c5eb9c283c3d183073cc6e",
+      "digest": "1cbb2cb23eb3f79409043ac62b5d9a4c5dc4f578dade3eb73aa5a2ea3da9de0a",
       "schema": {
         "root": 0,
         "nodes": [
@@ -11659,12 +11659,12 @@
               },
               {
                 "name": "seq",
-                "type": 12,
+                "type": 16,
                 "optional": false
               },
               {
                 "name": "time",
-                "type": 12,
+                "type": 16,
                 "optional": false
               },
               {
@@ -11690,12 +11690,12 @@
               },
               {
                 "name": "owner",
-                "type": 15,
+                "type": 28,
                 "optional": false
               },
               {
                 "name": "run",
-                "type": 17,
+                "type": 30,
                 "optional": false
               },
               {
@@ -11714,8 +11714,13 @@
             "kind": "object",
             "properties": [
               {
-                "name": "capabilities",
+                "name": "backend",
                 "type": 4,
+                "optional": true
+              },
+              {
+                "name": "capabilities",
+                "type": 18,
                 "optional": false
               },
               {
@@ -11725,17 +11730,17 @@
               },
               {
                 "name": "execution",
-                "type": 11,
+                "type": 25,
                 "optional": true
               },
               {
                 "name": "materials",
-                "type": 13,
+                "type": 26,
                 "optional": false
               },
               {
                 "name": "messages",
-                "type": 13,
+                "type": 26,
                 "optional": false
               },
               {
@@ -11745,211 +11750,8 @@
               },
               {
                 "name": "requireWriteApproval",
-                "type": 14,
+                "type": 27,
                 "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 5
-          },
-          {
-            "kind": "union",
-            "types": [
-              6,
-              7,
-              8,
-              9,
-              10
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": "shell"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-read"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-write"
-          },
-          {
-            "kind": "literal",
-            "value": "codex-turn"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "directory",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxActions",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "maxSteps",
-                "type": 12,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "array",
-            "element": 2
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "accountId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "serverId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "version",
-                "type": 16,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": 1
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "assignmentId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "backend",
-                "type": 18,
-                "optional": true
-              },
-              {
-                "name": "configDigest",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "createdRevision",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "deviceId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "executionDelegationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "fencingEpoch",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planRevision",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "serverEpoch",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "startedAt",
-                "type": 31,
-                "optional": true
-              },
-              {
-                "name": "state",
-                "type": 33,
-                "optional": false
-              },
-              {
-                "name": "stopReason",
-                "type": 41,
-                "optional": true
-              },
-              {
-                "name": "version",
-                "type": 12,
-                "optional": false
               }
             ],
             "indices": []
@@ -11959,27 +11761,27 @@
             "properties": [
               {
                 "name": "dispatch",
-                "type": 19,
+                "type": 5,
                 "optional": false
               },
               {
                 "name": "effort",
-                "type": 20,
+                "type": 6,
                 "optional": false
               },
               {
                 "name": "kind",
-                "type": 29,
+                "type": 15,
                 "optional": false
               },
               {
                 "name": "maxDurationMs",
-                "type": 12,
+                "type": 16,
                 "optional": false
               },
               {
                 "name": "maxTurns",
-                "type": 12,
+                "type": 16,
                 "optional": false
               },
               {
@@ -11989,7 +11791,7 @@
               },
               {
                 "name": "runtimeVersion",
-                "type": 30,
+                "type": 17,
                 "optional": false
               }
             ],
@@ -12002,14 +11804,14 @@
           {
             "kind": "union",
             "types": [
-              21,
-              22,
-              23,
-              24,
-              25,
-              26,
-              27,
-              28
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
             ]
           },
           {
@@ -12049,13 +11851,216 @@
             "value": "codex"
           },
           {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
             "kind": "literal",
             "value": "0.153.4"
           },
           {
+            "kind": "array",
+            "element": 19
+          },
+          {
             "kind": "union",
             "types": [
-              12,
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "codex-turn"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "directory",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxActions",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "maxSteps",
+                "type": 16,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 29,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "backend",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "configDigest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "startedAt",
+                "type": 31,
+                "optional": true
+              },
+              {
+                "name": "state",
+                "type": 33,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 41,
+                "optional": true
+              },
+              {
+                "name": "version",
+                "type": 16,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              16,
               32
             ]
           },
@@ -12139,22 +12144,22 @@
             "properties": [
               {
                 "name": "acceptance",
-                "type": 13,
+                "type": 26,
                 "optional": false
               },
               {
                 "name": "artifacts",
-                "type": 13,
+                "type": 26,
                 "optional": false
               },
               {
                 "name": "assignable",
-                "type": 14,
+                "type": 27,
                 "optional": false
               },
               {
                 "name": "dependsOn",
-                "type": 13,
+                "type": 26,
                 "optional": false
               },
               {
@@ -12164,7 +12169,7 @@
               },
               {
                 "name": "hasUndisclosedPrerequisite",
-                "type": 14,
+                "type": 27,
                 "optional": false
               },
               {
@@ -12194,12 +12199,12 @@
               },
               {
                 "name": "required",
-                "type": 14,
+                "type": 27,
                 "optional": false
               },
               {
                 "name": "revision",
-                "type": 12,
+                "type": 16,
                 "optional": false
               },
               {
@@ -12229,6 +12234,477 @@
           {
             "kind": "literal",
             "value": "organization/execution-binding"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:organization/execution-native",
+      "kind": "event",
+      "event": "organization/execution-native",
+      "surface": false,
+      "digest": "568fda2556335598a166e5dfa64f9d8d6f48be89c97cd197ab6170f0dfdb351b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 38,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 39,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              5,
+              8,
+              10,
+              15,
+              23,
+              32,
+              34,
+              36
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "category",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "cleanup"
+          },
+          {
+            "kind": "literal",
+            "value": "diagnostic"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "directory",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "preparing"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "bound"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "decision",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "digest",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "accept"
+          },
+          {
+            "kind": "literal",
+            "value": "decline"
+          },
+          {
+            "kind": "literal",
+            "value": "decision"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "method",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "human"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 17
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 6,
+                "value": 17
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalText",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "items",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "recovered",
+                "type": 20,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "usage",
+                "type": 28,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              21
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 19
+          },
+          {
+            "kind": "literal",
+            "value": "result"
+          },
+          {
+            "kind": "union",
+            "types": [
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "completed"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "interrupted"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 33,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "intent"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 35,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "receipt"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "item",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 37,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "item"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/execution-native"
           }
         ]
       }
@@ -23499,6 +23975,20 @@
   ],
   "types": [
     {
+      "digest": "00bc7516df99a58551bcecdc312a08c797a5a49e241f4a9c522f0819fb326bba",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "cleanup"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "0116b1f89c05221d56b0ba35c83d302bf4857bc7277d247e9bbaf74b27d2c66e",
       "schema": {
         "root": 0,
@@ -23688,6 +24178,20 @@
           {
             "kind": "literal",
             "value": "max"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "058792b0aa16a46fea7448d490f9ebeb3a27eccca62f79f14ce4958475f95338",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "organization/execution-native"
           }
         ]
       },
@@ -24658,6 +25162,31 @@
       "sources": [
         "packages/subagent/tool-subagent/src/model-selection-state.ts:17"
       ]
+    },
+    {
+      "digest": "0df2ed996581de31509ff4bb0e3f4f8e02099bedde44f532cae1381ad4a3481d",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "accept"
+          },
+          {
+            "kind": "literal",
+            "value": "decline"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "0e10d7c096b47e61defe372a5fc8bd37d835199410eac44367f95c45082498bd",
@@ -26980,6 +27509,568 @@
       "sources": []
     },
     {
+      "digest": "10df667337e07bf61ebb82e4c626035e2cf7cb30afad270ebe80eeb51a71137f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "contextSessionId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "inputs",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "run",
+                "type": 29,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 46,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "backend",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "capabilities",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "endpoint",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "execution",
+                "type": 24,
+                "optional": true
+              },
+              {
+                "name": "materials",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "requireWriteApproval",
+                "type": 26,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "dispatch",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "effort",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "maxTurns",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "runtimeVersion",
+                "type": 16,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "device-native"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "none"
+          },
+          {
+            "kind": "literal",
+            "value": "ultra"
+          },
+          {
+            "kind": "literal",
+            "value": "xhigh"
+          },
+          {
+            "kind": "literal",
+            "value": "high"
+          },
+          {
+            "kind": "literal",
+            "value": "low"
+          },
+          {
+            "kind": "literal",
+            "value": "max"
+          },
+          {
+            "kind": "literal",
+            "value": "medium"
+          },
+          {
+            "kind": "literal",
+            "value": "minimal"
+          },
+          {
+            "kind": "literal",
+            "value": "codex"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "0.153.4"
+          },
+          {
+            "kind": "array",
+            "element": 18
+          },
+          {
+            "kind": "union",
+            "types": [
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "codex-turn"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "directory",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "maxActions",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "maxSteps",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 28,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "backend",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "configDigest",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "startedAt",
+                "type": 30,
+                "optional": true
+              },
+              {
+                "name": "state",
+                "type": 32,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 40,
+                "optional": true
+              },
+              {
+                "name": "version",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              15,
+              31
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "union",
+            "types": [
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "literal",
+            "value": "waiting-human"
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "union",
+            "types": [
+              31,
+              41,
+              42,
+              43,
+              44,
+              45
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "native-terminal"
+          },
+          {
+            "kind": "literal",
+            "value": "authority-lost"
+          },
+          {
+            "kind": "literal",
+            "value": "turn-limit"
+          },
+          {
+            "kind": "literal",
+            "value": "duration-limit"
+          },
+          {
+            "kind": "literal",
+            "value": "employee-stop"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 47,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 47,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              31
+            ]
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "10e386801903f9d424602c31d3ff837a94aef623c8b391376d8d9e253525fabe",
       "schema": {
         "root": 0,
@@ -27226,563 +28317,6 @@
           {
             "kind": "literal",
             "value": "infeasible"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "12ba39bb756c3281e57793bb4537832585803052f442347aa01ce49f5fc82f64",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "contextSessionId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "inputs",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "run",
-                "type": 16,
-                "optional": false
-              },
-              {
-                "name": "snapshot",
-                "type": 46,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "capabilities",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "endpoint",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "execution",
-                "type": 10,
-                "optional": true
-              },
-              {
-                "name": "materials",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "messages",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "requireWriteApproval",
-                "type": 13,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 4
-          },
-          {
-            "kind": "union",
-            "types": [
-              5,
-              6,
-              7,
-              8,
-              9
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": "shell"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-read"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-write"
-          },
-          {
-            "kind": "literal",
-            "value": "codex-turn"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "directory",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "maxActions",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "maxSteps",
-                "type": 11,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "array",
-            "element": 1
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "accountId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "serverId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "version",
-                "type": 15,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": 1
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "assignmentId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "backend",
-                "type": 17,
-                "optional": true
-              },
-              {
-                "name": "configDigest",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "createdRevision",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "deviceId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "executionDelegationId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "fencingEpoch",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "planRevision",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "serverEpoch",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "startedAt",
-                "type": 30,
-                "optional": true
-              },
-              {
-                "name": "state",
-                "type": 32,
-                "optional": false
-              },
-              {
-                "name": "stopReason",
-                "type": 40,
-                "optional": true
-              },
-              {
-                "name": "version",
-                "type": 11,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "dispatch",
-                "type": 18,
-                "optional": false
-              },
-              {
-                "name": "effort",
-                "type": 19,
-                "optional": false
-              },
-              {
-                "name": "kind",
-                "type": 28,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "maxTurns",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "runtimeVersion",
-                "type": 29,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "device-native"
-          },
-          {
-            "kind": "union",
-            "types": [
-              20,
-              21,
-              22,
-              23,
-              24,
-              25,
-              26,
-              27
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "none"
-          },
-          {
-            "kind": "literal",
-            "value": "ultra"
-          },
-          {
-            "kind": "literal",
-            "value": "xhigh"
-          },
-          {
-            "kind": "literal",
-            "value": "high"
-          },
-          {
-            "kind": "literal",
-            "value": "low"
-          },
-          {
-            "kind": "literal",
-            "value": "max"
-          },
-          {
-            "kind": "literal",
-            "value": "medium"
-          },
-          {
-            "kind": "literal",
-            "value": "minimal"
-          },
-          {
-            "kind": "literal",
-            "value": "codex"
-          },
-          {
-            "kind": "literal",
-            "value": "0.153.4"
-          },
-          {
-            "kind": "union",
-            "types": [
-              11,
-              31
-            ]
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "union",
-            "types": [
-              33,
-              34,
-              35,
-              36,
-              37,
-              38,
-              39
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "paused"
-          },
-          {
-            "kind": "literal",
-            "value": "prepared"
-          },
-          {
-            "kind": "literal",
-            "value": "running"
-          },
-          {
-            "kind": "literal",
-            "value": "succeeded"
-          },
-          {
-            "kind": "literal",
-            "value": "waiting-human"
-          },
-          {
-            "kind": "literal",
-            "value": "cancelled"
-          },
-          {
-            "kind": "literal",
-            "value": "failed"
-          },
-          {
-            "kind": "union",
-            "types": [
-              31,
-              41,
-              42,
-              43,
-              44,
-              45
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "native-terminal"
-          },
-          {
-            "kind": "literal",
-            "value": "authority-lost"
-          },
-          {
-            "kind": "literal",
-            "value": "turn-limit"
-          },
-          {
-            "kind": "literal",
-            "value": "duration-limit"
-          },
-          {
-            "kind": "literal",
-            "value": "employee-stop"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "assignable",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "hasUndisclosedPrerequisite",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 47,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "phaseTitle",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "revision",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "suggestedMembershipId",
-                "type": 47,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              1,
-              31
-            ]
           }
         ]
       },
@@ -30405,6 +30939,607 @@
       "sources": []
     },
     {
+      "digest": "1cbb2cb23eb3f79409043ac62b5d9a4c5dc4f578dade3eb73aa5a2ea3da9de0a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 49,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 50,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "contextSessionId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "inputs",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "owner",
+                "type": 28,
+                "optional": false
+              },
+              {
+                "name": "run",
+                "type": 30,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 47,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "backend",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "capabilities",
+                "type": 18,
+                "optional": false
+              },
+              {
+                "name": "endpoint",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "execution",
+                "type": 25,
+                "optional": true
+              },
+              {
+                "name": "materials",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "requireWriteApproval",
+                "type": 27,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "dispatch",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "effort",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "maxTurns",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "runtimeVersion",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "device-native"
+          },
+          {
+            "kind": "union",
+            "types": [
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "none"
+          },
+          {
+            "kind": "literal",
+            "value": "ultra"
+          },
+          {
+            "kind": "literal",
+            "value": "xhigh"
+          },
+          {
+            "kind": "literal",
+            "value": "high"
+          },
+          {
+            "kind": "literal",
+            "value": "low"
+          },
+          {
+            "kind": "literal",
+            "value": "max"
+          },
+          {
+            "kind": "literal",
+            "value": "medium"
+          },
+          {
+            "kind": "literal",
+            "value": "minimal"
+          },
+          {
+            "kind": "literal",
+            "value": "codex"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "0.153.4"
+          },
+          {
+            "kind": "array",
+            "element": 19
+          },
+          {
+            "kind": "union",
+            "types": [
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "codex-turn"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "directory",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "maxActions",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "maxSteps",
+                "type": 16,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "accountId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 29,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "assignmentId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "backend",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "configDigest",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "createdRevision",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "deviceId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "executionDelegationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "fencingEpoch",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "organizationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planRevision",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "projectId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "serverEpoch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "startedAt",
+                "type": 31,
+                "optional": true
+              },
+              {
+                "name": "state",
+                "type": 33,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 41,
+                "optional": true
+              },
+              {
+                "name": "version",
+                "type": 16,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              16,
+              32
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "union",
+            "types": [
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "paused"
+          },
+          {
+            "kind": "literal",
+            "value": "prepared"
+          },
+          {
+            "kind": "literal",
+            "value": "running"
+          },
+          {
+            "kind": "literal",
+            "value": "succeeded"
+          },
+          {
+            "kind": "literal",
+            "value": "waiting-human"
+          },
+          {
+            "kind": "literal",
+            "value": "cancelled"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "union",
+            "types": [
+              32,
+              42,
+              43,
+              44,
+              45,
+              46
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "native-terminal"
+          },
+          {
+            "kind": "literal",
+            "value": "authority-lost"
+          },
+          {
+            "kind": "literal",
+            "value": "turn-limit"
+          },
+          {
+            "kind": "literal",
+            "value": "duration-limit"
+          },
+          {
+            "kind": "literal",
+            "value": "employee-stop"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "assignable",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "hasUndisclosedPrerequisite",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 48,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "phaseTitle",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "planId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "revision",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "suggestedMembershipId",
+                "type": 48,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              32
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/execution-binding"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "1ccb56061942f5ccb0d30c9e4f2883b9d115ff906560029de637b61d3cde896d",
       "schema": {
         "root": 0,
@@ -31364,6 +32499,20 @@
       ]
     },
     {
+      "digest": "1cd980b41efad86959905c9e347ba3b7d23683feebe606e6d430ff55beec5985",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "human"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "1cde1bedde79c5e8a56aee9c05c8e0a579cf5bc611deb85b93fa331a16ca978f",
       "schema": {
         "root": 0,
@@ -31443,6 +32592,20 @@
       ]
     },
     {
+      "digest": "1d82914973a66a22bb7dd5e6af0c49fd05f97e11f9cce983767717a23eeff7f5",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "receipt"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "1d9cb3caa96100b18b1911fa3ff8c751ef6992971a03c5f4d9aefc1a0004a345",
       "schema": {
         "root": 0,
@@ -31470,6 +32633,87 @@
           {
             "kind": "primitive",
             "type": "string"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "1db5ff8846ce3619982eeebb5ee120ae774ffe8516881256ef597039e7c59865",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "intent"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 1,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
           }
         ]
       },
@@ -34241,6 +35485,20 @@
       ]
     },
     {
+      "digest": "21dbbe7d4980883fb1e0b1ed5163306641b581e04d823a524161cd410e7625af",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "preparing"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "21efffbc276b0b1e4d91a48b9e963a51e44e96bf73e0f368b9594e292318eb12",
       "schema": {
         "root": 0,
@@ -35041,6 +36299,514 @@
       },
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "267fe5402df461ab7112a3c29a46231f41469bfaced8430313fa0447bf8fa081",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "decision",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "digest",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "accept"
+          },
+          {
+            "kind": "literal",
+            "value": "decline"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "decision"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "26bc410b1dd38cb616ca2e40b0907a8967c71f50e93dad8d12c7fb3a85751d8a",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              4,
+              7,
+              9,
+              14,
+              22,
+              31,
+              33,
+              35
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "category",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "cleanup"
+          },
+          {
+            "kind": "literal",
+            "value": "diagnostic"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "directory",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "preparing"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "bound"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "decision",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "digest",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              11,
+              12
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "accept"
+          },
+          {
+            "kind": "literal",
+            "value": "decline"
+          },
+          {
+            "kind": "literal",
+            "value": "decision"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "method",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "human"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              17,
+              18,
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 16
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 5,
+                "value": 16
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalText",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "inputId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "items",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "recovered",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 23,
+                "optional": false
+              },
+              {
+                "name": "usage",
+                "type": 30,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              20
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 18
+          },
+          {
+            "kind": "literal",
+            "value": "result"
+          },
+          {
+            "kind": "union",
+            "types": [
+              27,
+              28,
+              29,
+              30
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "completed"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "interrupted"
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 32,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "intent"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 34,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "receipt"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "item",
+                "type": 18,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 36,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "item"
+          }
+        ]
+      },
+      "names": [
+        "packages/workspace/organization-execution/src/codex-journal.ts#NativeJournal"
+      ],
+      "sources": [
+        "packages/workspace/organization-execution/src/codex-journal.ts:29"
+      ]
     },
     {
       "digest": "26c879bdd130e8b8683a6ce588414fad2244783d6573ca399fa0de184a2b0bb1",
@@ -36225,6 +37991,20 @@
           {
             "kind": "literal",
             "value": "team-message"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "2e671931f8a983a0e46805ac63e168700e7273a65891e42b2d332e41966fae0b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "decision"
           }
         ]
       },
@@ -44244,602 +46024,6 @@
       "sources": []
     },
     {
-      "digest": "3ae376d91315462aaa273aec46e7b8336f20164192c5eb9c283c3d183073cc6e",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 49,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 50,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "contextSessionId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "inputs",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "owner",
-                "type": 15,
-                "optional": false
-              },
-              {
-                "name": "run",
-                "type": 17,
-                "optional": false
-              },
-              {
-                "name": "snapshot",
-                "type": 47,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "capabilities",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "endpoint",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "execution",
-                "type": 11,
-                "optional": true
-              },
-              {
-                "name": "materials",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "messages",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "requireWriteApproval",
-                "type": 14,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 5
-          },
-          {
-            "kind": "union",
-            "types": [
-              6,
-              7,
-              8,
-              9,
-              10
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": "shell"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-read"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-write"
-          },
-          {
-            "kind": "literal",
-            "value": "codex-turn"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "directory",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "maxActions",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "maxSteps",
-                "type": 12,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "array",
-            "element": 2
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "accountId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "serverId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "version",
-                "type": 16,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": 1
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "assignmentId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "backend",
-                "type": 18,
-                "optional": true
-              },
-              {
-                "name": "configDigest",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "createdRevision",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "deviceId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "executionDelegationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "fencingEpoch",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "organizationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planRevision",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "serverEpoch",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "startedAt",
-                "type": 31,
-                "optional": true
-              },
-              {
-                "name": "state",
-                "type": 33,
-                "optional": false
-              },
-              {
-                "name": "stopReason",
-                "type": 41,
-                "optional": true
-              },
-              {
-                "name": "version",
-                "type": 12,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "dispatch",
-                "type": 19,
-                "optional": false
-              },
-              {
-                "name": "effort",
-                "type": 20,
-                "optional": false
-              },
-              {
-                "name": "kind",
-                "type": 29,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "maxTurns",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "runtimeVersion",
-                "type": 30,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "literal",
-            "value": "device-native"
-          },
-          {
-            "kind": "union",
-            "types": [
-              21,
-              22,
-              23,
-              24,
-              25,
-              26,
-              27,
-              28
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "none"
-          },
-          {
-            "kind": "literal",
-            "value": "ultra"
-          },
-          {
-            "kind": "literal",
-            "value": "xhigh"
-          },
-          {
-            "kind": "literal",
-            "value": "high"
-          },
-          {
-            "kind": "literal",
-            "value": "low"
-          },
-          {
-            "kind": "literal",
-            "value": "max"
-          },
-          {
-            "kind": "literal",
-            "value": "medium"
-          },
-          {
-            "kind": "literal",
-            "value": "minimal"
-          },
-          {
-            "kind": "literal",
-            "value": "codex"
-          },
-          {
-            "kind": "literal",
-            "value": "0.153.4"
-          },
-          {
-            "kind": "union",
-            "types": [
-              12,
-              32
-            ]
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "union",
-            "types": [
-              34,
-              35,
-              36,
-              37,
-              38,
-              39,
-              40
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "paused"
-          },
-          {
-            "kind": "literal",
-            "value": "prepared"
-          },
-          {
-            "kind": "literal",
-            "value": "running"
-          },
-          {
-            "kind": "literal",
-            "value": "succeeded"
-          },
-          {
-            "kind": "literal",
-            "value": "waiting-human"
-          },
-          {
-            "kind": "literal",
-            "value": "cancelled"
-          },
-          {
-            "kind": "literal",
-            "value": "failed"
-          },
-          {
-            "kind": "union",
-            "types": [
-              32,
-              42,
-              43,
-              44,
-              45,
-              46
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "native-terminal"
-          },
-          {
-            "kind": "literal",
-            "value": "authority-lost"
-          },
-          {
-            "kind": "literal",
-            "value": "turn-limit"
-          },
-          {
-            "kind": "literal",
-            "value": "duration-limit"
-          },
-          {
-            "kind": "literal",
-            "value": "employee-stop"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "assignable",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "hasUndisclosedPrerequisite",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 48,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "phaseTitle",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "planId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "revision",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "suggestedMembershipId",
-                "type": 48,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              2,
-              32
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "organization/execution-binding"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "3b1be838223869fe0a08210db85bf773796ed3f2373ac16555dff227cade0c48",
       "schema": {
         "root": 0,
@@ -45544,6 +46728,20 @@
           {
             "kind": "literal",
             "value": "next-step"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "3e3aec9fb7ad8bebaa8726f4ac3eeac043fa5c7e581b7ef8a279c22075bd82a1",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "intent"
           }
         ]
       },
@@ -48698,6 +49896,45 @@
       "sources": []
     },
     {
+      "digest": "45999b297a6ea67dec2f61c73d407bb243e5e098ca5fc8783ebe336cff33d82f",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "bound"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "45f2a07ea94573123b6ae14db787a40062dec3834f36d8be92c523d40ba28448",
       "schema": {
         "root": 0,
@@ -51496,6 +52733,61 @@
       ]
     },
     {
+      "digest": "4cfc118cd2c3a59d7d0fb384b41e8ed149a5b4e2101d5f21402c1d1585bb900c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "4dea09eedef0e4fddcd1c32c8e2d61bb9388959fe2e34828d41c4a8dd339cd1d",
       "schema": {
         "root": 0,
@@ -54185,6 +55477,475 @@
           {
             "kind": "primitive",
             "type": "string"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "568fda2556335598a166e5dfa64f9d8d6f48be89c97cd197ab6170f0dfdb351b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 38,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 22,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 39,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              5,
+              8,
+              10,
+              15,
+              23,
+              32,
+              34,
+              36
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "category",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "cleanup"
+          },
+          {
+            "kind": "literal",
+            "value": "diagnostic"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "directory",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "preparing"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "bound"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "decision",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "digest",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "accept"
+          },
+          {
+            "kind": "literal",
+            "value": "decline"
+          },
+          {
+            "kind": "literal",
+            "value": "decision"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "method",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "human"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 17
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 6,
+                "value": 17
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalText",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "items",
+                "type": 25,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 26,
+                "optional": false
+              },
+              {
+                "name": "recovered",
+                "type": 20,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 27,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "usage",
+                "type": 28,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              21
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 19
+          },
+          {
+            "kind": "literal",
+            "value": "result"
+          },
+          {
+            "kind": "union",
+            "types": [
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "completed"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "interrupted"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 33,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "intent"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 35,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "receipt"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "item",
+                "type": 19,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 37,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "item"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "organization/execution-native"
           }
         ]
       },
@@ -57498,6 +59259,236 @@
               }
             ],
             "indices": []
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "57c72318a47dd8dfd924b0abb91ca8ad51ec82a043b8058d19add0c8e1b1e172",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "backend",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "capabilities",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "endpoint",
+                "type": 14,
+                "optional": true
+              },
+              {
+                "name": "execution",
+                "type": 23,
+                "optional": true
+              },
+              {
+                "name": "materials",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "messages",
+                "type": 24,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "requireWriteApproval",
+                "type": 25,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "dispatch",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "effort",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "maxTurns",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "model",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "runtimeVersion",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "device-native"
+          },
+          {
+            "kind": "union",
+            "types": [
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "high"
+          },
+          {
+            "kind": "literal",
+            "value": "low"
+          },
+          {
+            "kind": "literal",
+            "value": "max"
+          },
+          {
+            "kind": "literal",
+            "value": "medium"
+          },
+          {
+            "kind": "literal",
+            "value": "minimal"
+          },
+          {
+            "kind": "literal",
+            "value": "none"
+          },
+          {
+            "kind": "literal",
+            "value": "ultra"
+          },
+          {
+            "kind": "literal",
+            "value": "xhigh"
+          },
+          {
+            "kind": "literal",
+            "value": "codex"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "0.153.4"
+          },
+          {
+            "kind": "array",
+            "element": 17
+          },
+          {
+            "kind": "union",
+            "types": [
+              18,
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "codex-turn"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-read"
+          },
+          {
+            "kind": "literal",
+            "value": "fs-write"
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "shell"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "directory",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "maxActions",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "maxDurationMs",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "maxSteps",
+                "type": 13,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 14
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
           }
         ]
       },
@@ -62713,6 +64704,20 @@
       "sources": []
     },
     {
+      "digest": "6a04bdf050e7deea709f730b0b6b7778e3b4b3efde881b348985ee8d6cffc3a2",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "accept"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "6a4f72e2e179e17b922f2a9392c0e1c8f8c707f32494372454850a3eb184a6e7",
       "schema": {
         "root": 0,
@@ -66762,133 +68767,6 @@
       "sources": []
     },
     {
-      "digest": "77469c6a0e41a881d57cc10f28f3500a636680af626fd7f2674e964a97347f5b",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "capabilities",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "endpoint",
-                "type": 8,
-                "optional": true
-              },
-              {
-                "name": "execution",
-                "type": 9,
-                "optional": true
-              },
-              {
-                "name": "materials",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "messages",
-                "type": 11,
-                "optional": false
-              },
-              {
-                "name": "model",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "requireWriteApproval",
-                "type": 12,
-                "optional": true
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 2
-          },
-          {
-            "kind": "union",
-            "types": [
-              3,
-              4,
-              5,
-              6,
-              7
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "codex-turn"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-read"
-          },
-          {
-            "kind": "literal",
-            "value": "fs-write"
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": "shell"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "directory",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "maxActions",
-                "type": 10,
-                "optional": false
-              },
-              {
-                "name": "maxDurationMs",
-                "type": 10,
-                "optional": false
-              },
-              {
-                "name": "maxSteps",
-                "type": 10,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "array",
-            "element": 8
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "77eb69f2cb3af182837da16bb730ed0ef17b64b421f32c9c073324acf76222c4",
       "schema": {
         "root": 0,
@@ -67106,6 +68984,45 @@
           {
             "kind": "literal",
             "value": "session/title"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "7a9e3959b74409f655886e5332df0cd86f72b3c7a697482b570d37ab48caeb76",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "cwd",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "directory",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "preparing"
           }
         ]
       },
@@ -68929,6 +70846,20 @@
       ]
     },
     {
+      "digest": "83384fda94a729ec2cecc6810be628cd2bbd98109834a9add38e61325431e837",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "result"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "8338ee303e2bd448e9e6144069942f63e3cfd5868962bddc9347d7009e8919d6",
       "schema": {
         "root": 0,
@@ -68965,6 +70896,50 @@
           {
             "kind": "primitive",
             "type": "string"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "8374adf65c7c9b178db1d396120cd4c03deeebb1ce4d79208903e20a409320d7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "inputId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "receipt"
           }
         ]
       },
@@ -70542,6 +72517,20 @@
       "sources": [
         "packages/llm/llm/src/types.ts:444"
       ]
+    },
+    {
+      "digest": "898111ebe8e5eec479d78fe8526df5e0e039d785cae83c93f547261cfedd48bd",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "bound"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "8a046b52331959aa3394680d6acbe09b8a5447c6b61375f263445bfcef19b7f1",
@@ -72698,6 +74687,20 @@
           {
             "kind": "literal",
             "value": "settled"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "9a28f8549f35c8ed51d5683afef2001b106b392c8edbbab6e07d7b270d381932",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "item"
           }
         ]
       },
@@ -79836,6 +81839,107 @@
       "sources": []
     },
     {
+      "digest": "b546f078210cb6155cc3aff0b2df07af4c72b9f22fd7f249363b7edd833994b0",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "digest",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "inboxId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "method",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "params",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "requestId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": "human"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 1,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "b54940ff095c17e874c5be03815f4c2145a256cf3a1d34dae4ab2f7769dfffe8",
       "schema": {
         "root": 0,
@@ -83815,6 +85919,20 @@
       "sources": []
     },
     {
+      "digest": "bd52631be57164618280755b2dfa3eeacf467008fa804242e6ca2d2e91c80b76",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "diagnostic"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "bf16d2e98a7f13894ded2cffe5ce857bf473954a0e3c0ed9bc7739e2e1c7b78a",
       "schema": {
         "root": 0,
@@ -87745,6 +89863,40 @@
       ]
     },
     {
+      "digest": "cac2d16cd7499160070684357cd6a546bfa410597ac2266d82dc309978c36339",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "category",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "cleanup"
+          },
+          {
+            "kind": "literal",
+            "value": "diagnostic"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "cb1c8959e1726f82f9a3d2ef2bc90bf8c451a98fd56175e956022124c770c818",
       "schema": {
         "root": 0,
@@ -87800,6 +89952,148 @@
           {
             "kind": "literal",
             "value": "block-start"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "cbdbd375c622896d5170f8bd38a0619ed855eca2f565406a73561d8be72d398b",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "finalText",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "inputId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "items",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "recovered",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "status",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "usage",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 3,
+                "value": 6
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3,
+              5,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "result"
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "completed"
+          },
+          {
+            "kind": "literal",
+            "value": "failed"
+          },
+          {
+            "kind": "literal",
+            "value": "interrupted"
           }
         ]
       },
@@ -88022,6 +90316,20 @@
       "sources": [
         "packages/llm/llm-retry/src/types.ts:17"
       ]
+    },
+    {
+      "digest": "cee334fcf460c11fc9594f40e3554c7e90d7eeccfd0df012496014d22e54a5d7",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "decline"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "cf6e3aaf1e2de6480aa0157730a41b9a492108a55304100b0f7e112711dd4331",
@@ -90261,6 +92569,87 @@
           {
             "kind": "literal",
             "value": "compaction/start"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "e2e71e152038299961c1df268fa49f392bda6321dc17ff79507eaefb6bd24fb1",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "item",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "kind",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "threadId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "turnId",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "item"
           }
         ]
       },

@@ -1,4 +1,5 @@
 /** Source-plane Desktop composition, with only a scripted model and test OS vault. */
+import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
@@ -16,4 +17,4 @@ import { bootOrganization } from '../src/organization-boot.ts'
 import { openOrganizationExecution, readOrganizationExecution } from '../../desktop/src/organization-execution.ts'
 import { OrganizationIntegration } from '../../desktop/src/organization-integration.ts'
 
-export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, modules: new Map<string, unknown>([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }
+export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, Subprocess, modules: new Map<string, unknown>([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }

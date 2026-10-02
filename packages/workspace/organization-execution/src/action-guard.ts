@@ -37,6 +37,7 @@ export class ActionGuard {
   private readonly owner: ExecutionAuthority
   private attempts = 0
   private halted = false
+  private nativeAction?: string
   private tail: Promise<void> = Promise.resolve()
   private readonly deadline: number
   constructor(private readonly binding: ExecutionResult, authority: ExecutionAuthority,
@@ -53,7 +54,11 @@ export class ActionGuard {
   private validate(authority: ExecutionAuthority): void {
     const expected = this.binding.run, actual = authority.execution.run
     if (authority.generation !== this.owner.generation || authority.serverId !== this.owner.serverId
-      || authority.accountId !== this.owner.accountId || !authority.execution.eligible || actual.state !== 'running'
+      || authority.accountId !== this.owner.accountId
+      || !(this.nativeAction
+        ? authority.execution.nativeActive && authority.execution.actions.some(a => a.actionId === this.nativeAction)
+        : authority.execution.eligible)
+      || actual.state !== 'running'
       || actual.id !== expected.id || actual.assignmentId !== expected.assignmentId
       || actual.executionDelegationId !== expected.executionDelegationId || actual.deviceId !== expected.deviceId
       || actual.serverEpoch !== expected.serverEpoch || actual.fencingEpoch !== expected.fencingEpoch
@@ -124,6 +129,7 @@ export class ActionGuard {
     const action = authority.execution.actions.find(item => item.actionId === actionId)
     if (!action || action.runId !== this.binding.run.id || action.requestDigest !== requestDigest || action.capability !== capability
       || action.state !== 'reserved') throw new Error('organization-execution: permit-unconfirmed')
+    if (capability === 'codex-turn') this.nativeAction = action.actionId
     const expires = started + (action.expiresAt - authority.execution.serverTime)
     const check = () => { this.check(); if (performance.now() >= expires) throw new Error('organization-execution: permit-expired') }
     const dispatchState = { issued: false }
