@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
-import { taskGrantRowSchema, workgraphPlanSchema, workgraphVersionSchema, type workgraphSaveSchema } from './workgraph-schema.ts'
+import { workgraphDefinitionSchema, taskGrantRowSchema, workgraphPlanSchema, workgraphVersionSchema, type workgraphSaveSchema } from './workgraph-schema.ts'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationPlanVersion } from './workgraph-types.ts'
 import type { Principal, OrganizationProjectId } from './types.ts'
 
@@ -105,6 +105,13 @@ export function saveWorkgraph(
     authorizedProject(db, principal, request.projectId, 'read')
     authorizedProject(db, principal, request.projectId, 'write')
   }
+  return commitWorkgraph(db, principal, request, eventRevision, limits, plan)
+}
+
+function commitWorkgraph(db: DatabaseSync, principal: Principal, request: Save, eventRevision: number,
+  limits: WorkgraphLimits, plan?: Plan): OrganizationPlanVersion {
+  const member = principal.membershipId
+  if (!member) throw new OrganizationError('forbidden')
   if ((plan?.currentRevision ?? 0) !== request.expectedRevision) throw new OrganizationError('version-conflict')
   if (plan && plan.rootTaskId !== request.definition.taskId) throw new OrganizationError('invalid-input')
   const previous = plan ? readWorkgraphVersion(db, plan.id, plan.currentRevision) : undefined
@@ -148,4 +155,51 @@ export function saveWorkgraph(
   }
   db.prepare('INSERT INTO workgraph_events VALUES (?,?)').run(eventRevision, request.planId)
   return version
+}
+
+/**
+ * Commit a server-merged subtree after the caller verified current subtree edit permission.
+ * @param db - Active write transaction.
+ * @param principal - Current member.
+ * @param request - Replacement subtree normalized to a parentless root.
+ * @param eventRevision - Owning audit event.
+ * @param limits - Deployment ceilings.
+ * @param root - Exact currently editable subtree root.
+ * @returns New immutable full version, retained only within the authority.
+ */
+export function saveWorkgraphSubtree(db: DatabaseSync, principal: Principal, request: Save, eventRevision: number,
+  limits: WorkgraphLimits, root: import('./workgraph-types.ts').OrganizationTaskId): OrganizationPlanVersion {
+  authorizedProject(db, principal, request.projectId, 'read')
+  const row = db.prepare("SELECT p.* FROM organization_plans p JOIN task_grants g ON g.planId=p.id WHERE p.id=? AND p.projectId=? AND p.organizationId=? AND g.taskId=? AND g.membershipId=? AND g.scope='subtree' AND g.canRead=1 AND g.canEdit=1 AND g.structureVersion=p.structureVersion")
+    .get(request.planId, request.projectId, request.organizationId, root, principal.membershipId ?? null)
+  if (!row) throw new OrganizationError('forbidden')
+  const plan = workgraphPlanSchema.parse(row)
+  const previous = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
+  const target = previous.tasks.find(t => t.id === root)
+  if (!target || root === plan.rootTaskId || request.definition.taskId !== root) throw new OrganizationError('invalid-input')
+  const ids = new Set([root])
+  let size = 0
+  while (size !== ids.size) {
+    size = ids.size
+    for (const task of previous.tasks) if (task.parentTaskId && ids.has(task.parentTaskId)) ids.add(task.id)
+  }
+  const proposedRoot = request.definition.tasks.find(t => t.id === root)
+  if (!proposedRoot || ['goal', 'scope', 'acceptance', 'artifacts', 'required', 'suggestedMembershipId'].some(key =>
+    JSON.stringify(Reflect.get(target, key)) !== JSON.stringify(Reflect.get(proposedRoot, key)))) throw new OrganizationError('forbidden')
+  const replacements = request.definition.tasks.map((task) => {
+    if (previous.tasks.some(t => t.id === task.id && !ids.has(t.id))) throw new OrganizationError('forbidden')
+    const old = previous.tasks.find(t => t.id === task.id)
+    // External prerequisites are authority-owned and cannot be removed or expanded by the employee.
+    return { ...task, parentTaskId: task.id === root ? target.parentTaskId : task.parentTaskId,
+      dependsOn: [...task.dependsOn, ...(old?.dependsOn.filter(id => !ids.has(id)) ?? [])] }
+  })
+  const phaseIds = new Set(previous.phases.map(p => p.id))
+  for (const phase of request.definition.phases) {
+    if (phaseIds.has(phase.id) && previous.phases.find(p => p.id === phase.id)?.title !== phase.title)
+      throw new OrganizationError('forbidden')
+  }
+  const definition = workgraphDefinitionSchema.parse({ taskId: previous.taskId,
+    phases: [...previous.phases, ...request.definition.phases.filter(p => !phaseIds.has(p.id))],
+    tasks: [...previous.tasks.filter(t => !ids.has(t.id)), ...replacements] })
+  return commitWorkgraph(db, principal, { ...request, definition }, eventRevision, limits, plan)
 }

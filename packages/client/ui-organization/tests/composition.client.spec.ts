@@ -5,6 +5,7 @@ import { ok } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { SESSION_FORMAT_VERSION, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionFollowFrame } from '@deepseek-ai/dsh-api-session-controller/types'
+import { OrganizationConversation } from '../src/client/Conversation.tsx'
 import { AccountMenu } from '../src/client/AccountMenu.tsx'
 import { OrganizationSidebar, OrganizationSettings } from '../src/client/Organization.tsx'
 const it = createClientTest({ roster: webApp })
@@ -21,6 +22,7 @@ it('registers organization settings while retaining the personal management fact
   expect(app.ctx.slots.entries('sidebar.personal')[0]?.component).toBe(OrganizationSidebar)
   expect(app.ctx.slots.entries('settings.section').find(item => item.options.id === 'organization')?.component).toBe(OrganizationSettings)
   expect(JSON.stringify(app.ctx.slots.snapshot('factory:personal.manager'))).toContain('personal.manager.workflow')
+  expect(app.ctx.slots.entries('main').find(e => e.options.key === 'organization-conversation')?.component).toBe(OrganizationConversation)
   const slots = app.ctx.slots
   await app.ctx.fiber.dispose()
   expect(slots.entries('sidebar.personal')).toHaveLength(0)

@@ -1,12 +1,12 @@
 # @deepseek-ai/dsh-organization-conversation
 
-Owns installation-local, account-private organization project conversations described in [conversation planning](../../../docs/conversation-planning.md). Desktop loads this service alongside the unchanged read-only context and execution services. `perform` accepts only open, read, settings and explicit send operations through the private Node IPC consumer. Electron authenticates project read and supplies generation-bound online planning callbacks. Renderer cannot supply a Session ID, authority, credential, arbitrary URL or tool permission.
+Owns installation-local, account-private organization project conversations described in [conversation planning](../../../docs/conversation-planning.md). Desktop loads this service alongside the unchanged read-only context and execution services. `perform` accepts open, read, stop, settings, explicit send and member-suggestion operations through the private Node IPC consumer. Electron authenticates project read and supplies generation-bound online planning callbacks. Renderer cannot supply a Session ID, authority, credential, arbitrary URL or tool permission.
 
 The `organization_conversation` storage domain atomically reserves a server/account/organization/project/conversation owner before materializing its separately durable JSONL. Authorized opening recovers the same reserved Session after partial persistence. All organization conversation IDs use a dedicated namespace rejected by personal Session/Agent registries, JSONL, query, upload and fork consumers. Opening or reading never activates an Agent. The `./invariant` companion compares independent domain and JSONL ownership, exact accepted input/settings/authority, assessment sources and duplicate/orphan evidence. The real Loader tests execute it and check disposal.
 
 Opening and preference changes also retain operation digests; conflicting control retries are refused, and repeated settings writes do not increment revisions again. Each explicit send saves its operation identity and goal before dispatch. Repeating a received operation returns its original conversation state; changed input under the same identity is refused. Interrupted or uncertain sends require a new explicit message and are never replayed automatically. Clarification references an existing goal assessed as `clarify`. Account settings are stored by server/account/organization, with revision checks and no personal preference fallback.
 
-A send mounts fresh isolated Session and Agent registries, the standard loop, tools, prompt assembly and a text-only model adapter. The only tools are private `workflow_assess` and current `planning_authorization`; disabling automatic assessment removes the former. No file, shell, execution, assignment or approval service is mounted. Every model-visible input carries the effective settings, method version and exact online project/model qualification in its normal `user/message`. Separate permission events persist each native command intent before mutation and its historical receipt after acknowledgment.
+A send mounts fresh isolated Session and Agent registries, the standard loop, tools, prompt assembly and a text-only model adapter. The tools are `workflow_assess`, `workflow_propose`, `planning_authorization` and `planning_members`; disabling automatic planning removes assessment and proposal tools. No file, shell, execution, assignment or approval service is mounted. Every model-visible input carries the effective settings, method version and exact online project/model qualification in its normal `user/message`. Separate permission events persist each native command intent before mutation and its historical receipt after acknowledgment.
 
 `models` explicitly binds model/endpoint pairs to local credential references. The authority policy and that local policy must both admit the route. Immediately before each Messages HTTP request, including provider retries, the adapter reserves request count and actual serialized payload bytes plus its maximum output ceiling, then consumes a one-use permit online. Permission loss or an unknown receipt prevents dispatch. Redirects are refused. Consumed or uncertain attempts remain charged. Polling, deadlines and identity/window cancellation stop and drain the owned interval; reconnecting does not start another turn.
 
@@ -18,12 +18,12 @@ Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxRepo
 
 #### What the model sees
 
-The private conversation history and a JSON user message containing the accepted request, stable goal, effective organization settings, current authorized project facts and finite planning permission. The method is `organization-planning/v1`.
+The private conversation history and a JSON user message containing the accepted request, stable goal, effective organization settings, current authorized project facts and finite planning permission. The method is `organization-planning/v2`.
 
 ##### Verbatim enabled method
 
 ```markdown
-Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. Planning stops at advice; shared plan saving is unavailable. Never claim assignment, approval or execution. Respect the requested granularity.
+Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. For a clarified complex goal, call workflow_propose to save an unapproved plan. For modifications preserve task identities and exact version; progress queries only read the current plan. Shared plan changes invalidate approvals, grants on structure changes, Runs and delivery eligibility. Subtree edits preserve the original root scope, acceptance and resources. Name suggestions require current visible membership IDs; never guess identities. Shared definitions contain task summaries and authorized project facts only; never copy chat transcripts, credentials or private context. Never claim assignment, approval or execution. Respect the requested granularity.
 ```
 
 ##### Verbatim disabled method
@@ -44,7 +44,7 @@ Messages append to the same private Session history. A new isolated runtime reus
 
 #### What the model sees
 
-`workflow_assess` records simple, clarify, infeasible or complex advice for the current goal when enabled. `planning_authorization` reads current project planning permission. Neither tool can create shared tasks or execute work.
+`workflow_assess` records simple, clarify, infeasible or complex advice for the current input and stable goal. `workflow_propose` requires that input’s complex assessment, validates the complete definition and records intent before a versioned authority save. Without edit access it records a private suggestion. `planning_authorization` reads current permission and `planning_members` returns paginated visible member identities. None approves, assigns or executes tasks.
 
 #### Token effect
 
@@ -56,4 +56,10 @@ Calls and results append. Tool selection changes the request envelope when the a
 
 ## Known Limitations and Deferred Work
 
-Shared draft creation and task conversations belong to later planning phases; the current service saves private assessment only. Ordinary organization chat controls are wired in Phase 6. This host currently admits the built-in API backend; native Codex project planning requires its own planning capability and is never replaced with an API model. No offline reads, automatic resumption, personal Bot/history import, attachment, export or cross-device preference synchronization is offered. A finite qualification can be explicitly renewed after authority restart without resetting previously charged request/byte usage. Local filesystem confidentiality still depends on the owning OS account.
+Shared drafts and ordinary project chat controls are implemented. Automatic employee conversation creation after assignment and conversation-based execution confirmations remain in later phases. This host currently admits the built-in API backend; native Codex project planning requires its own planning capability and is never replaced with an API model. No offline reads, automatic resumption, personal Bot/history import, attachment, export or cross-device preference synchronization is offered. A finite qualification can be explicitly renewed after authority restart without resetting previously charged request/byte usage. Local filesystem confidentiality still depends on the owning OS account.
+
+## Proposal persistence and recovery
+
+The required `organization/planning-proposal` event records private, unknown, shared or conflicting proposals; the Session projection `organizationPlanning` reconstructs assessments and proposals. Older v1 input records remain readable. One authority goal association selects one plan and subtree. Exact repeated operations restore their recorded result; changed payloads and stale revisions are rejected. Conflicting and private edits remain visible without replacing the shared definition. Reports reread current shared definitions, and unknown writes recover through the authority association. A save-induced native generation change permits same-identity read recovery only, never a replayed input or model call.
+
+Every interval reauthorizes task references already present in private history before dispatch and during online checks. Revoked task access prevents history replay and withholds old transcript/plan content. `stop` cancels the matching owner before waiting for the serialized read. The fixed `suggest` action validates newly selected members, updates only the suggestion, and cannot grant access or approve an assignment. The invariant also checks proposal ownership, preceding goals and receipt correlation.

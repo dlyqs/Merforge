@@ -1,4 +1,5 @@
-import { planningCommandSchema, planningReadSchema, planningCandidatesSchema, type planningViewSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
+import { readPlanningPlan } from './planning-draft.ts'
+import { planningCommandSchema, planningReadSchema, planningPlanReadSchema, type planningPlanViewSchema, planningCandidatesSchema, type planningViewSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
 import { changePlanning, readPlanning, planningCandidates } from './planning.ts'
 import { integrationReadSchema, integrationCommandSchema, integrationRecordSchema, type integrationViewSchema } from './integration-schema.ts'
 import { integrationView, changeIntegration } from './integration.ts'
@@ -981,7 +982,7 @@ export class OrganizationService extends Service {
         }
         const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint,
           (revision) => {
-            const planning = changePlanning(db, principal, command, revision, this.serverEpoch, this.config.planning)
+            const planning = changePlanning(db, principal, command, revision, this.serverEpoch, this.config.planning, this.config)
             db.prepare('INSERT INTO planning_events VALUES (?,?,?,?)').run(revision, command.conversationId,
               principal.accountId, JSON.stringify(planning))
             return { organizationId: command.organizationId, projectId: command.projectId, planning }
@@ -991,6 +992,20 @@ export class OrganizationService extends Service {
       return result.committed ? this.recordCommit(result.receipt) : result.receipt
     })
   }
+  /**
+   * Read a current task subtree without requiring or exposing hidden relatives.
+   * @param token - Current credential.
+   * @param input - Exact project/plan/task selector.
+   * @param deliver - Synchronous authorized handoff.
+   * @returns Completion after current permission checks.
+   */
+  readPlanningPlan(token: LoginToken, input: unknown, deliver: (value: z.output<typeof planningPlanViewSchema>) => void): Promise<void> {
+    return this.enqueue('planning-plan', (db) => {
+      const query = parse(planningPlanReadSchema, input)
+      deliver(transaction(db, () => readPlanningPlan(db, this.principal(db, token, query.organizationId), query)))
+    })
+  }
+
   /**
    * Read project facts and current planning eligibility under one fresh authority transaction.
    * @param token - Native bearer owner.

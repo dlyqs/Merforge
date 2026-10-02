@@ -1,6 +1,6 @@
 # 对话规划协议与消费者
 
-本文拥有产品 Phase 7C 的输入路由、有效设置、组织规划准入和对话关联语义。实施范围与进度只在[施工计划](conversation-planning-plan.md)记录。个人消费者在 Phase 2 实现；Phase 3–4 已实现有限组织规划许可和独立项目对话宿主，共享计划写入及普通对话控件仍属后续阶段。既有[个人工作流](personal-workflow.md)、[WorkGraph](organization-workgraph.md)、[分配](organization-assignment.md)和[执行](organization-execution.md)继续拥有各自业务事实。
+本文拥有产品 Phase 7C 的输入路由、有效设置、组织规划准入和对话关联语义。实施范围与进度只在[施工计划](conversation-planning-plan.md)记录。个人消费者在 Phase 2 实现；Phase 3–6 已实现有限组织规划许可、独立项目对话宿主、共享草案/子树修改及普通对话控件；明确分配、员工对话自动建立和对话执行确认仍属后续阶段。既有[个人工作流](personal-workflow.md)、[WorkGraph](organization-workgraph.md)、[分配](organization-assignment.md)和[执行](organization-execution.md)继续拥有各自业务事实。
 
 ## 有效设置与兼容
 
@@ -45,11 +45,11 @@
 
 组织对话保存本机输入意图与绑定，组织权威保存共享业务操作回执，两者分步恢复。批量确认逐项使用原子固定动作，各项发送前保存 operationId，呈现成功/冲突/未确认；不承诺跨项事务。未知分配只核对回执。缺目标负责人 read 时单独明确补 grant，且必须有 grant 管理权；人员建议不自动授权、下发或委托。
 
-## 子树修改与资格失效（后续）
+## 子树修改与资格失效
 
-当前 workgraphSave 只支持完整定义、project write 和根 edit；当前 task grant 不允许非根 edit。Phase 5 必须实现专用子树命令及真实授权，不把现有接口当作已支持。服务端读取完整版本、只替换选定子树，不要求员工提交或回读隐藏兄弟/祖先。外部依赖、原目标、资源、预算上限及原批准条件不能扩大；含义差异由原下发人审阅并重新批准，不声称自然语言可机器证明。
+完整 workgraphSave 继续要求 project write 和根 edit。`save-planning-draft` 支持指定非根子树的独立 read/edit grant，`readPlanningPlan` 只返回该子树和编辑资格。服务端读取完整版本、只替换选定子树，不要求员工提交或回读隐藏兄弟/祖先。外部依赖、原目标、资源、预算上限及原批准条件不能扩大；含义差异由原下发人审阅并重新批准，不声称自然语言可机器证明。
 
-任何定义变化产生新的整计划 revision；结构变化增加 structureVersion，旧结构 task grant 不再满足当前读取/编辑资格，按既有规则明确重新授权。旧批准、待接受或已接受分配及依赖的委托、租约、Run 新动作资格失效；在途动作由原执行机制收敛，历史回执和不可变成果保留。当前 revision 的前置、提交验收和集成资格重新计算，不把旧叶子变父任务后自动继承已交付状态。确认差异卡必须显示受影响批准、grant、Run 和交付资格。新叶子由原下发人重新批准；员工无代批权。限额只能继承或收窄，不能通过细分重置已消耗预算。
+任何定义变化产生新的整计划 revision；结构变化增加 structureVersion，旧结构 task grant 不再满足当前读取/编辑资格，按既有规则明确重新授权。旧批准、待接受或已接受分配及依赖的委托、租约、Run 新动作资格失效；在途动作由原执行机制收敛，历史回执和不可变成果保留。当前 revision 的前置、提交验收和集成资格重新计算，不把旧叶子变父任务后自动继承已交付状态。对话编辑前显示批准、grant、Run 和交付资格失效提示。SQLite planning_reapprovals 按原批准祖先保存不可替换的原下发人；新叶子由其重新批准，员工无代批权。限额只能继承或收窄，不能通过细分重置已消耗预算。
 
 ## 服务角色、消费路径与销毁
 
@@ -60,7 +60,7 @@
 | Agent/Tools/Skill 既有注册 | 标准 preset；托管方法走普通 user/message；proposal tool result 保存准确快照 | Skill 或工具禁用、Session 归属变化拒绝旧评估；注册及监听随 fiber 撤销 |
 | organization 权威与 organization-api 固定 HTTPS | organization-connection generation/回执/SSE；apps/desktop/src/organization-context.ts 和 organization-execution.ts | Electron 持 token 和设备材料，所属 top frame、nonce/request/generation 复核；断线/休眠/身份切换取消并排空 |
 | organization-context 现有两事件只读 writer | apps/desktop-host/src/organization-context.ts、ui-organization 固定 context 消费者 | 保持只读格式，不伪造 task、不作为规划 Agent 入口 |
-| organization-conversation（Phase 4） | 独立本机 Session/Agent 注册域、私有固定 IPC、项目目标与澄清发送；员工对话和普通控件后续接入 | 保留独立 namespace；个人发送/搜索/上传/fork/恢复拒绝其 ID；冷重开先在线复核 |
+| organization-conversation（Phase 4） | 独立本机 Session/Agent 注册域、私有固定 IPC、项目目标、澄清、修改、查询及成员建议；员工对话自动建立后续接入 | 保留独立 namespace；个人发送/搜索/上传/fork/恢复拒绝其 ID；冷重开先在线复核 |
 | ConversationNodeDefinition + keyed renderer（Phase 6） | uiConversation.events → conversation.chat.node；ui-organization 提取纯展示/动作消费者 | 按稳定业务 ID 与准确 revision 从既有 Session 事件重建，不开启第二条历史流；fiber 清理贡献 |
 | assignment/execution 固定真人动作（Phase 7–8 对话消费） | 现有 AssignmentPanel/Inbox/ExecutionPanel/DeliveryPanel/AcceptanceReview/IntegrationPanel 与新确认卡 | generation、准确版本和当前权限复核；用户确认后才执行，接受和建对话不自动启动 |
 
@@ -69,12 +69,14 @@
 
 ## 当前项目规划接口与恢复
 
-`organization` 提供 `readPlanning`、`planningCommand` 和 `readPlanningCandidates`；固定 HTTPS POST 为 `/organization/v1/planning/read`、`/planning/command`、`/planning/candidates`。命令仅有 open-planning、reserve-planning-request、consume-planning-request，Renderer 只可查询资格和候选，规划写命令由 Electron 私有 `planningCommand(input, generation)` 消费。候选分页只返回当前同项目 read、账号/成员均启用的 membershipId 与 username；不提供职责或管理员成员整表。未知 mutation 持久进入原生 pending journal，先查回执，不重发。
+`organization` 提供 `readPlanning`、`planningCommand` 和 `readPlanningCandidates`；固定 HTTPS POST 为 `/organization/v1/planning/read`、`/planning/command`、`/planning/candidates`。命令包含 open-planning、reserve-planning-request、consume-planning-request 和 save-planning-draft，Renderer 固定动作可查询资格、候选及获准子树，规划写命令由 Electron 私有 `planningCommand(input, generation)` 消费。候选分页只返回当前同项目 read、账号/成员均启用的 membershipId 与 username；不提供职责或管理员成员整表。未知 mutation 持久进入原生 pending journal，先查回执，不重发。
 
 资格绑定 server epoch、账户/成员/project grant 版本、完整策略摘要及模型选择。新的显式发送可续期失效资格，保留首次限额和累积 usedRequests/usedBytes；不重置预算，也不重新启用旧 qualificationRevision 的未消费 permit。冷重开和重连只读取，不自动续期或启动模型。每次最终 HTTP payload 在 credential/preparation 后按 UTF-8 实际字节预留 inputBytes 与输出上限；预留和消费意图各先 flush，回执确认后再在线读与同步取消/到期检查，然后 fetch。provider retry 使用新的一次性许可；消费重放拒绝，历史回执仍可核对。预留、取消和不确定派发不退款。
 
-`organization-conversation.perform` 只接受 open、read、settings、send，固定选择 organizationId/projectId/conversationId/operationId；SessionId、服务身份、文件路径、credential 和任意 URL 由调用方注入均拒绝。open 原子预留独立 `organization-conversation:` Session 后创建 JSONL，半完成重开恢复同一绑定。send 先持久输入身份、稳定 goalId、设置和方法，new_goal 创建目标，clarification 必须明确引用本对话已评为 clarify 的目标。相同 operation 只读原状态；相同文本的新 operation 可以提出新目标。发送一旦进入 sending，崩溃后呈现 unknown，取消呈现 stopped，均不自动重放。
+`organization-conversation.perform` 只接受 open、read、stop、settings、send、suggest，固定选择 organizationId/projectId/conversationId/operationId；SessionId、服务身份、文件路径、credential 和任意 URL 由调用方注入均拒绝。open 原子预留独立 `organization-conversation:` Session 后创建 JSONL，半完成重开恢复同一绑定。send 先持久输入身份、稳定 goalId、设置和方法，new_goal 创建目标，clarification 必须明确引用本对话已评为 clarify 的目标。相同 operation 只读原状态；相同文本的新 operation 可以提出新目标。发送一旦进入 sending，崩溃后呈现 unknown，取消呈现 stopped，均不自动重放。
 
-四个必需 Session 事件是 organization/conversation-owner、organization/planning-input、organization/planning-assessment、organization/planning-operation。普通 user/message 记录 organization-planning/v1 方法与实际有效授权输入，标准 request/header 和模型/工具事件记录请求历史。`./invariant` 比较本机预留、JSONL owner、输入/评估归属和重复/孤儿记录；真实 Loader 执行校验。个人 Session/Agent、查询、持久化、上传和 fork 消费者拒绝该 namespace；原 organization-context 两事件不变。
+五个必需 Session 事件是 organization/conversation-owner、organization/planning-input、organization/planning-assessment、organization/planning-operation、organization/planning-proposal。普通 user/message 记录 organization-planning/v2 方法（兼容读取旧 v1 输入）与实际有效授权输入，标准 request/header 和模型/工具事件记录请求历史。`./invariant` 比较本机预留、JSONL owner、输入/评估归属和重复/孤儿记录；真实 Loader 执行校验。个人 Session/Agent、查询、持久化、上传和 fork 消费者拒绝该 namespace；原 organization-context 两事件不变。
 
-发送挂载隔离标准 loop、text-only DeepSeekAdapter 和两工具 workflow_assess/planning_authorization；关闭自动识别时移除评估工具。只能回答、澄清和保存私有评估，共享草案留 Phase 5。Host 通过 nonce/request/authorizationId 对应在线授权，Electron 核验 generation、所属 top-frame、Host 和窗口寿命；销毁、身份切换、离线、休眠与权限复核失败取消并排空。普通组织控件留 Phase 6，可见验收由用户检查。
+发送挂载隔离标准 loop、text-only DeepSeekAdapter 和 workflow_assess/workflow_propose/planning_authorization/planning_members；关闭自动识别时移除评估及提案工具。当前输入的 complex 评估允许保存未批准共享草案，无 edit 者只保存本人私有建议。Host 通过 nonce/request/authorizationId 对应在线授权，Electron 核验 generation、所属 top-frame、Host 和窗口寿命；销毁、身份切换、离线、休眠与权限复核失败取消并排空。组织主面板支持普通发送、稳定目标选择、设置、树/版本、负责人建议和权威业务详情；个人对话从已有快照增量构造 personal-plan 节点。可见验收由用户检查。
+
+SQLite 当前 v14，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。

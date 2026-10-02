@@ -45,7 +45,7 @@ v1/v2 启动时先校验旧结构，再在同一事务增加缺失表，最后�
 
 ## 当前权限及历史投影
 
-任务 read 需要有效账号、有效组织成员、项目 read 和显式任务 read。编辑只有根 subtree edit 加 read 及项目 write；node edit 不支持。管理员只能管理 grant，不自动得到正文。授权管理请求携带已知 IDs、actions、scope、expectedVersion、OperationId；响应只有这些管理元数据和新 version。
+任务 read 需要有效账号、有效组织成员、项目 read 和显式任务 read。完整计划编辑要求根 subtree edit 加 read 及项目 write；对话规划的非根替换只接受准确子树 read/edit grant，由服务端合并。node edit 不支持。管理员只能管理 grant，不自动得到正文。授权管理请求携带已知 IDs、actions、scope、expectedVersion、OperationId；响应只有这些管理元数据和新 version。
 
 新增、删除、移位任一任务都会改变 plan 的 `structureVersion`，所有旧 grant 因 epoch 不符失效；这是保守的整计划失效策略。唯一例外是提交完整新树的当前根编辑者：其本次保存显式确认新树，事务更新它的根 grant epoch 和 version。其他根读者、根编辑者及子树读者都必须显式重授。正文、阶段、建议责任人或依赖变化不改变树覆盖范围，不更新结构 epoch；事件只比较当前授权下的前后投影，隐藏任务正文改变不向局部读者发送任务失效引用。成员/账号有效性变化使游标失效，重新派生 assignable。
 
@@ -139,8 +139,12 @@ JSONL provider 的 namespace 默认为 personal；组织插件在独立 Context 
 
 项目列表进入任务工作台，服务端裁剪后分页/搜索，Client 只依据当页可见父子关系显示树。详情显示获准目标、范围、版本、建议责任人、必要性、依赖和验收/产物文字；下发人明确为尚未下发。GUI 创建单任务计划，已有复杂计划只能在完整读取获准后修改节点文字，不把局部投影回写为完整定义。
 
-任务授权管理独立于正文读取：管理员可在项目授权区输入项目、计划和任务 ID，查看 grant 元数据或授予 node/subtree read、根 subtree read/edit。工作台也提供相同管理控件。编辑/授权最终都由服务端拒绝无权动作。
+任务授权管理独立于正文读取：管理员可在项目授权区输入项目、计划和任务 ID，查看 grant 元数据或授予 node/subtree read、subtree read/edit。工作台也提供相同管理控件。编辑/授权最终都由服务端拒绝无权动作。
 
 现有计划草稿随代次变化隐藏，在线重验完整定义权限后可查看；版本变化禁止覆盖。相同失败内容重试保持 operationId，修改已尝试内容使用新 operationId。不确定写入先查回执。关闭工作台或切换身份丢弃草稿，不提供持久草稿或离线队列。新建且尚未提交的草稿没有远端正文，可在同一身份在线时继续填写。
 
 WorkGraph 拒绝只说明该次任务操作无权：原生清空代次内容，重新核验组织并恢复事件监听，仍有效的组织选择保留。身份、账号或组织失效依旧清空选择。真实三机及 Desktop 可见检查见[验收剧本](organization-workgraph-acceptance.md)，尚待用户完成。
+
+## 对话规划子树写入
+
+对话规划通过 `save-planning-draft` 复用同一计划、revision 和任务索引。非根 read/edit grant 只允许提交归一化的指定子树；服务端保存隐藏父节点和外部依赖并合并完整定义。子树根目标、范围、验收、产物、必要性和负责人建议不能扩大或替换，语义变化仍需原下发人审阅。结构变更失效旧 grant、批准及执行资格，员工不会自动保留新子树的访问权；管理员明确重授后，原下发人才能批准新叶子。SQLite v14 的目标关联与原批准责任独立校验。完整协议见[对话规划](conversation-planning.md)。

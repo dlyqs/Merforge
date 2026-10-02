@@ -37,18 +37,22 @@ export async function organizationConversation(connection: OrganizationConnectio
     return state.principal
   }
   const selector = { organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId }
+  const draft = { sent: false }
   const bridge: ConversationBridge = async (command) => {
     const principal = current()
     if (command && (command.organizationId !== request.organizationId || command.projectId !== request.projectId
       || command.conversationId !== request.conversationId)) throw new Error('forbidden')
-    const receipt = command ? await connection.planningCommand(command, initial.generation) : undefined
+    if (command?.kind === 'save-planning-draft') draft.sent = true
+    const plan = command?.kind === 'read-planning-plan' ? (await connection.perform({ kind: 'planning-plan', request: command })).planningPlan : undefined
+    const candidates = command?.kind === 'read-planning-members' ? (await connection.perform({ kind: 'planning-candidates', request: { organizationId: command.organizationId, projectId: command.projectId, search: command.search, offset: command.offset } })).candidates : undefined
+    const receipt = command && command.kind !== 'read-planning-plan' && command.kind !== 'read-planning-members' ? await connection.planningCommand(command, initial.generation) : undefined
     current()
     const response = await connection.perform({ kind: 'planning-read', request: selector })
     current()
     if (response.generation !== initial.generation || !response.planning) throw new Error('superseded')
     return conversationAuthoritySchema.parse({ serverId: principal.serverId, accountId: principal.accountId,
       generation: initial.generation, view: response.planning,
-      ...(receipt ? { receipt } : {}) })
+      ...(receipt ? { receipt } : {}), ...(plan ? { plan } : {}), ...(candidates ? { candidates } : {}) })
   }
   const unsubscribe = connection.subscribe(() => { if (connection.snapshot().generation !== initial.generation) cancel.abort() })
   try {
@@ -57,5 +61,21 @@ export async function organizationConversation(connection: OrganizationConnectio
     const result = await host.organizationConversation(request, bridge, duration, signal)
     await bridge(); current()
     return { generation: initial.generation, result }
+  } catch (error) {
+    if (!draft.sent || lifetime.aborted || connection.snapshot().generation === initial.generation) throw error
+    // A committed draft can invalidate the initiating stream. Recover only a read, never another send.
+    await new Promise<void>((resolve, reject) => {
+      const done = (failure?: Error) => { clearTimeout(timer); off(); lifetime.removeEventListener('abort', abort); if (failure) reject(failure); else resolve() }
+      const check = () => {
+        const state = connection.snapshot()
+        if (state.principal?.serverId !== initial.principal?.serverId || state.principal?.accountId !== initial.principal?.accountId
+          || state.organizationId !== request.organizationId || state.mode !== 'organization' || ['offline', 'disconnected', 'signed-out'].includes(state.phase)) done(new Error('superseded'))
+        else if (state.phase === 'ready') done()
+      }
+      const abort = () => { done(new Error('superseded')) }
+      const off = connection.subscribe(check), timer = setTimeout(() => { done(new Error('superseded')) }, connection.timeoutMs)
+      lifetime.addEventListener('abort', abort, { once: true }); check()
+    })
+    return await organizationConversation(connection, host, { kind: 'read', ...selector, operationId: request.operationId }, assertCurrent, lifetime)
   } finally { unsubscribe(); cancel.abort() }
 }

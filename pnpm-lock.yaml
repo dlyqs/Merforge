@@ -3114,6 +3114,9 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:*
         version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:*
+        version: link:../ui-layout
       '@deepseek-ai/dsh-client-ui-personal':
         specifier: workspace:*
         version: link:../ui-personal
@@ -3138,6 +3141,9 @@ importers:
       '@deepseek-ai/dsh-organization-connection':
         specifier: workspace:*
         version: link:../../host/organization-connection
+      '@deepseek-ai/dsh-organization-conversation':
+        specifier: workspace:*
+        version: link:../../workspace/organization-conversation
       '@deepseek-ai/dsh-remote-mock':
         specifier: workspace:*
         version: link:../../test-support/remote-mock
@@ -3309,6 +3315,9 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:*
         version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-chat':
+        specifier: workspace:*
+        version: link:../ui-chat
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:*
         version: link:../ui-conversation

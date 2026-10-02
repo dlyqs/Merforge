@@ -40,3 +40,5 @@ Fixed POST `/integration/read` and `/integration/command` expose exact-version i
 
 
 Fixed POST `/planning/read`, `/planning/command` and `/planning/candidates` use the authenticated organization prefix. They expose current project-read/model eligibility, the closed finite planning command set and minimal enabled project-reader identities. Bodies reject credentials, arbitrary URLs, task/Run and personal Session fields. Historical receipts still recheck current project read. The authority owns charging and one-use consumption; this transport never runs a model or stores private conversation text.
+
+`POST /organization/v1/planning/plan` reads a current authorized subtree and edit eligibility. `/planning/command` also accepts strict `save-planning-draft` requests with exact revisions and stable goal associations. The authority merges non-root definitions internally; hidden relatives and external prerequisites are never returned to the employee. All current authorization, operation receipts and validation remain in the organization service.

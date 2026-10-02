@@ -9,6 +9,8 @@ export interface OrganizationInjected {
   openCodexSettings?: () => void
   /** Safe local model discovery; never carries native authentication materials. */
   loadModels?(): Promise<import('@deepseek-ai/dsh-api-session-controller/types').ModelCatalog>
+  conversation?: OrganizationDesktopBridge['conversation']
+  openConversation?: () => void
   available: boolean
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']

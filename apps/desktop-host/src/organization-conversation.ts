@@ -32,7 +32,7 @@ export function installOrganizationConversationControl(ctx: Context, channel: {
       if (!authorization) return
       active.authorizations.delete(message.authorizationId)
       if (message.authority && !message.error) authorization.resolve(message.authority)
-      else authorization.reject(new Error('organization-conversation: denied'))
+      else authorization.reject(new Error(message.error === 'version-conflict' ? 'version-conflict' : 'organization-conversation: denied'))
       return
     }
     if (pending.has(message.requestId)) return

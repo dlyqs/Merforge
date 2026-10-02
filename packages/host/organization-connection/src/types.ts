@@ -7,7 +7,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
-  | { kind: 'planning-read' | 'planning-candidates'; request: unknown }
+  | { kind: 'planning-read' | 'planning-candidates' | 'planning-plan'; request: unknown }
   | { kind: 'integration-read' | 'integration-verify' | 'integration-confirm' | 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
@@ -45,6 +45,7 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  planningPlan?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningPlanViewSchema>
   planning?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningViewSchema>
   candidates?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningCandidatesPageSchema>
   integration?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').integrationViewSchema>

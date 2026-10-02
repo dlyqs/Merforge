@@ -1,6 +1,7 @@
 /** Fixed planning-only authority protocol; no task, device, credential or execution fields. */
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+import { workgraphSaveSchema, workgraphDefinitionSchema, workgraphVersionSchema } from './workgraph-schema.ts'
 import { executionModelSchema } from './execution-schema.ts'
 import type { OrganizationId, OrganizationProjectId, OperationId, AccountId, MembershipId } from './types.ts'
 const id = <T extends Branded<string>>() => z.uuid().transform(brandString<T>)
@@ -26,8 +27,21 @@ export const planningReserveSchema = base.extend({ kind: z.literal('reserve-plan
 export const planningConsumeSchema = base.extend({ kind: z.literal('consume-planning-request'),
   permitId: id<Branded<'OrganizationPlanningPermitId'>>(), requestDigest: planningReserveSchema.shape.requestDigest,
 }).strict()
+/** One stable private goal writes one shared plan; editing preserves its exact selected root. */
+export const planningDraftSchema = base.extend({ kind: z.literal('save-planning-draft'),
+  goalId: id<Branded<'OrganizationConversationGoalId'>>(), assessmentId: id<OperationId>(), settingsRevision: integer,
+  planId: workgraphSaveSchema.shape.planId, expectedRevision: workgraphSaveSchema.shape.expectedRevision,
+  definition: workgraphDefinitionSchema,
+}).strict()
+/** Current subtree read is separately authorized and carries no mutation intent. */
+export const planningPlanReadSchema = planningReadSchema.extend({ kind: z.literal('read-planning-plan'),
+  planId: workgraphSaveSchema.shape.planId, taskId: workgraphDefinitionSchema.shape.taskId }).strict()
+/** Authorized subtree plus impact information, without hidden sibling identifiers or content. */
+export const planningPlanViewSchema = z.object({ version: workgraphVersionSchema, canEdit: z.boolean(),
+  structuralEdit: z.boolean(), invalidatesQualifications: z.literal(true),
+  requiresOriginalApproval: z.literal(true) }).strict()
 /** Closed planning command set used only by the private native planning channel. */
-export const planningCommandSchema = z.discriminatedUnion('kind', [planningOpenSchema, planningReserveSchema, planningConsumeSchema])
+export const planningCommandSchema = z.discriminatedUnion('kind', [planningOpenSchema, planningReserveSchema, planningConsumeSchema, planningDraftSchema])
 /** Durable finite qualification; policy and current grants are rechecked on every use. */
 export const planningGrantSchema = planningReadSchema.extend({ accountId: id<AccountId>(), membershipId: id<MembershipId>(),
   serverEpoch: z.uuid(), policyDigest: planningReserveSchema.shape.requestDigest, accessDigest: planningReserveSchema.shape.requestDigest,
@@ -43,7 +57,9 @@ export const planningPermitSchema = planningReserveSchema.omit({ kind: true, ope
 }).strict()
 /** Historical receipt identifiers contain no fresh permission. */
 export const planningReceiptSchema = z.object({ conversationId: planningReadSchema.shape.conversationId,
-  permitId: planningConsumeSchema.shape.permitId.optional(), permitExpiresAt: integer.optional() }).strict()
+  permitId: planningConsumeSchema.shape.permitId.optional(), permitExpiresAt: integer.optional(),
+  planId: workgraphSaveSchema.shape.planId.optional(),
+  planRevision: integer.positive().optional(), taskId: workgraphDefinitionSchema.shape.taskId.optional() }).strict()
 /** Strict planning mutation receipt excludes every unrelated business record. */
 export const planningMutationReceiptSchema = z.object({ operationId: id<OperationId>(), revision: integer,
   organizationId: planningReadSchema.shape.organizationId, projectId: planningReadSchema.shape.projectId,
@@ -51,6 +67,9 @@ export const planningMutationReceiptSchema = z.object({ operationId: id<Operatio
 /** Fresh project authorization and optional finite qualification. */
 export const planningViewSchema = z.object({ project: z.object({ id: planningReadSchema.shape.projectId,
   organizationId: planningReadSchema.shape.organizationId, name: z.string(), version: integer }).strict(),
+canWrite: z.boolean().default(false),
+plans: z.array(z.object({ goalId: planningDraftSchema.shape.goalId, planId: workgraphSaveSchema.shape.planId,
+  taskId: workgraphDefinitionSchema.shape.taskId }).strict()).default([]),
 grant: planningGrantSchema.nullable(), eligible: z.boolean(), serverTime: integer, policy: planningPolicySchema,
 }).strict()
 /** Candidate query is scoped to current project read; name matching never resolves an identity implicitly. */

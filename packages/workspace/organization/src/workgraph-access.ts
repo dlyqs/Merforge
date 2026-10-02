@@ -105,7 +105,6 @@ export function setTaskGrant(
     || !db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(request.membershipId, principal.organizationId ?? null)) {
     throw new OrganizationError('forbidden')
   }
-  if (request.actions.includes('edit') && request.taskId !== plan.rootTaskId) throw new OrganizationError('invalid-input')
   const row = db.prepare('SELECT * FROM task_grants WHERE planId=? AND taskId=? AND membershipId=? AND scope=?')
     .get(plan.id, request.taskId, request.membershipId, request.scope)
   if ((row ? taskGrantRowSchema.parse(row).version : 0) !== request.expectedVersion) throw new OrganizationError('version-conflict')

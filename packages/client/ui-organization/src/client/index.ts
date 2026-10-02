@@ -1,4 +1,6 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import { OrganizationConversation, OrganizationConversationIcon } from './Conversation.tsx'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,7 +17,7 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { zh, en } from './locales.ts'
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
-export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation']
+export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.
@@ -41,7 +43,9 @@ export function apply(ctx: Context): void {
     if (!result.ok) throw new Error(result.error.message)
     return revision === modelCatalogRevision.getSnapshot() ? result.value : loadModels()
   }
-  const bind = (): OrganizationInjected => ({ available: !!desktop,
+  const bind = (): OrganizationInjected => ({
+    conversation: request => desktop ? desktop.conversation(request) : unavailable(),
+    openConversation: () => { ctx.layout.selectPanel('organization-conversation' as MainPanelId) }, available: !!desktop,
     loadModels,
     openCodexSettings: () => { ctx.settingsNavigation.open('models', 'codex') },
     connection: action => desktop ? desktop.connection(action) : unavailable(),
@@ -61,6 +65,10 @@ export function apply(ctx: Context): void {
     return () => { alive = false; unsubscribe() }
   }, 'organization.native-state')
   const t = ctx.locale.bind('organization')
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'organization-conversation',
+    order: -90, label: () => t('conversationTitle') }, OrganizationConversationIcon))
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-conversation',
+    locale: 'organization', inject: bind }, OrganizationConversation))
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section',
     id: 'organization',
     order: 27,

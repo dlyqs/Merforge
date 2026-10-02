@@ -154,7 +154,7 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/members$/.exec(path)
-      const method = ['/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
+      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
         : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
@@ -167,6 +167,7 @@ export class OrganizationApiService extends Service {
       const token = brandString<LoginToken>(match[1])
       if (receiptRoute?.[1]) { this.respond(res, 200, await authority.receipt(token, receiptRoute[1])); return }
       if (path === '/planning/command') { this.respond(res, 200, await authority.planningCommand(token, await this.body(req))); return }
+      if (path === '/planning/plan') { await authority.readPlanningPlan(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/planning/read') { await authority.readPlanning(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/planning/candidates') { await authority.readPlanningCandidates(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/assignment/command') { this.respond(res, 200, await authority.assignmentCommand(token, await this.body(req))); return }

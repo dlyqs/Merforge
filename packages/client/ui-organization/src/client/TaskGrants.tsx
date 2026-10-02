@@ -55,7 +55,7 @@ export function TaskGrants(props: OrganizationProps & { projectId: string; task?
           const next = event.target.value as typeof permission
           setPermission(next); if (next === 'edit') setScope('subtree')
         }}><option value="read">{t('accessRead')}</option>
-          {(!props.task || props.task.parentTaskId === null) && <option value="edit">{t('accessEdit')}</option>}
+          <option value="edit">{t('accessEdit')}</option>
           <option value="none">{t('accessNone')}</option>
         </select></label>
         <label className={css.field}>{t('grantScope')}<select value={scope} disabled={permission === 'edit'} onChange={(event) => { setScope(event.target.value === 'subtree' ? 'subtree' : 'node') }}>

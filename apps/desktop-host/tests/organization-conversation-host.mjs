@@ -33,7 +33,7 @@ await ctx.loader.await()
 if (!ctx.get('organizationConversation')) throw new Error('planning Loader unavailable')
 globalThis.fetch = async (_url, init) => {
   const body = JSON.parse(init.body)
-  if (body.tools.some(t => !['workflow_assess', 'planning_authorization'].includes(t.name))) throw new Error('unexpected planning tool')
+  if (body.tools.some(t => !['workflow_assess', 'workflow_propose', 'planning_authorization', 'planning_members'].includes(t.name))) throw new Error('unexpected planning tool')
   const events = [{ type: 'message_start', message: { id: 'smoke-message', model: 'deepseek-flash', usage: { input_tokens: 10, output_tokens: 0 } } },
     { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
     { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Private project planning smoke' } },

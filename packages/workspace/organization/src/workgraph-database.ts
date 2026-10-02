@@ -54,7 +54,7 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
       const author = db.prepare('SELECT accountId FROM memberships WHERE id=? AND organizationId=?').get(version.createdBy, plan.organizationId)
       if (version.planId !== plan.id || version.revision !== index + 1 || version.projectId !== plan.projectId
         || version.organizationId !== plan.organizationId || version.definition.taskId !== plan.rootTaskId
-        || !author || !['save-plan', 'reject-delivery'].includes(String(event?.kind)) || event?.organizationId !== plan.organizationId || event.actorId !== author.accountId
+        || !author || !['save-plan', 'save-planning-draft', 'reject-delivery'].includes(String(event?.kind)) || event?.organizationId !== plan.organizationId || event.actorId !== author.accountId
         || !db.prepare('SELECT revision FROM workgraph_events WHERE revision=? AND planId=?').get(revision.eventRevision ?? null, plan.id)
         || (index === 0 && version.createdBy !== plan.createdBy)) fail()
       const next = new Set<string>()
@@ -78,11 +78,11 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
     const plan = workgraphPlanSchema.parse(db.prepare('SELECT * FROM organization_plans WHERE id=?').get(grant.planId))
     if (!db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(grant.membershipId, plan.organizationId)
       || grant.structureVersion > plan.structureVersion || grant.version < grant.structureVersion
-      || (grant.canEdit && (!grant.canRead || grant.scope !== 'subtree' || grant.taskId !== plan.rootTaskId))) fail()
+      || (grant.canEdit && (!grant.canRead || grant.scope !== 'subtree'))) fail()
   }
   if (db.prepare(`SELECT 1 FROM workgraph_events w LEFT JOIN plan_revisions r ON r.eventRevision=w.revision AND r.planId=w.planId
     JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
     WHERE (r.planId IS NULL AND e.kind NOT IN ('set-task-grant','verify-integration','confirm-integration')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind IN ('save-plan','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('save-plan','save-planning-draft','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

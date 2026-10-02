@@ -1,4 +1,4 @@
-import { planningCommandSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
+import { planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 import { integrationReadSchema, integrationCommandSchema, integrationViewSchema } from '@deepseek-ai/dsh-organization/delivery'
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
 import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema } from '@deepseek-ai/dsh-organization/delivery'
@@ -317,7 +317,7 @@ export class OrganizationConnection {
         this.uncertain.delete(key); this.savePending(); this.publish({ pendingOperation: undefined })
         return receipt
       } catch (error) {
-        if (error instanceof Error && ['invalid-input', 'forbidden', 'operation-conflict', 'rate-limited'].includes(error.message)) {
+        if (error instanceof Error && ['invalid-input', 'forbidden', 'operation-conflict', 'rate-limited', 'version-conflict'].includes(error.message)) {
           this.uncertain.delete(key); this.savePending()
           if (key === this.identityKey()) this.publish({ pendingOperation: this.pending?.operationId })
         }
@@ -447,6 +447,12 @@ export class OrganizationConnection {
           if (!['grant-execution', 'revoke-execution', 'create-run', 'transition-run'].includes(String(input.kind))
             || input.kind === 'transition-run' && input.state !== 'paused' && input.state !== 'cancelled') throw new Error('forbidden')
           return await this.mutate({ ...input, deviceId: this.localDeviceId() }, undefined, 'execution', this.material())
+        }
+        case 'planning-plan': {
+          const query = planningPlanReadSchema.parse(action.request)
+          this.assertOrganization(query.organizationId)
+          const planningPlan = planningPlanViewSchema.parse(await this.request('/planning/plan', query, generation))
+          return { generation, planningPlan }
         }
         case 'planning-read': {
           const query = planningReadSchema.parse(action.request)

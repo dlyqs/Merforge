@@ -55,6 +55,8 @@ export function selectedAssignment(db: DatabaseSync, query: z.output<typeof assi
 export function reviewAssignment(db: DatabaseSync, principal: Principal, query: z.output<typeof approvalReviewSchema>): boolean {
   const plan = authorizeWorkgraph(db, principal, query.projectId, query.planId, true)
   if (plan.currentRevision !== query.planRevision) throw new OrganizationError('version-conflict')
+  const required = db.prepare('SELECT membershipId FROM planning_reapprovals WHERE planId=? AND taskId=?').get(plan.id, query.taskId)
+  if (required && required.membershipId !== principal.membershipId) throw new OrganizationError('forbidden')
   const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
   const task = definition.tasks.find(item => item.id === query.taskId)
   if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')

@@ -64,6 +64,7 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'organization/planning-assessment',
   'organization/planning-input',
   'organization/planning-operation',
+  'organization/planning-proposal',
   'organization/task-snapshot',
   'permission/preset',
   'personal-workflow/assessment',

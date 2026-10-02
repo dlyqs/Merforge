@@ -6,7 +6,7 @@
 
 把个人与组织的自然对话接到已有持久计划、任务分配和执行交付服务：普通问答和简单目标保持普通对话；复杂新目标在正常设置下自动评估、必要澄清并保存可审阅任务树；用户在同一对话内调整计划、选择真人负责人、明确确认分配，再从各自独立对话完成接受、委托、开始、人工介入、提交、验收、返工及目标交付。组织工作台继续提供辅助总览。
 
-歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。初始请求仅授权生成计划。2026-10-02 用户先要求“请自动完成 phase1-2”，随后要求“请自动完成 phase3-4”；当前自动授权包含首尾的 Phase 3–4。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
+歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。初始请求仅授权生成计划。2026-10-02 用户先要求“请自动完成 phase1-2”，随后要求“请自动完成 phase3-4”；随后用户要求“请自动完成 phase5-6”；当前自动授权包含首尾的 Phase 5–6。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
 
 目标可行：个人规划、组织 WorkGraph、分配、设备许可和交付消费者已经存在。难点是尚未有任务时的组织规划模型授权、独立组织对话的完整生命周期、子树修改及分配后对话的幂等恢复。仅启用个人增强模式或把工作台表单搬到聊天旁边不能完成本期。
 
@@ -70,8 +70,8 @@
 | Phase 2 | 个人默认自动识别 | 用户策略、目标/澄清关联及兼容迁移 | completed | 本人默认设置、稳定目标路由、方法 v2 与设置消费者 | 112 项聚焦回归通过；真实模型与可见待验 |
 | Phase 3 | 组织规划权威 | 模型许可、可见成员与固定传输 | completed | 规划 grant/permit、SQLite v13、固定 HTTPS/native、项目候选 | 当前资格/计费/迁移/未知回执通过 |
 | Phase 4 | 组织对话宿主 | 项目目标对话、隔离模型与持久恢复 | completed | 独立 organization-conversation、私有 IPC、JSONL、隔离标准 Agent | Node/Electron 无窗口 smoke 通过；真实模型/可见待验 |
-| Phase 5 | 结构化计划写入 | 根草案、准确修改与获准子树细分 | pending | — | 依赖 Phase 4 |
-| Phase 6 | 对话内计划管理 | 普通发送、树/版本、修改、查询与负责人 | pending | — | 依赖 Phase 2、5 |
+| Phase 5 | 结构化计划写入 | 根草案、准确修改与获准子树细分 | completed | SQLite v14、真实提案工具、根/子树权威保存与原批准责任 | 迁移、回执恢复、冷重开与范围负例通过 |
+| Phase 6 | 对话内计划管理 | 普通发送、树/版本、修改、查询与负责人 | completed | 个人内联计划节点、组织对话主入口与负责人建议 | 聚焦测试/构建/无窗口 smoke 通过；可见待验 |
 | Phase 7 | 分配及员工对话 | 逐项/批量确认、授权及独立对话恢复 | pending | — | 依赖 Phase 6 |
 | Phase 8 | 对话内执行交付 | 接受到提交、验收/返工/集成完整确认 | pending | — | 依赖 Phase 7 |
 | Phase 9 | 组合及故障验证 | 正常模式双人 CSV 和路由/权限负例 | pending | — | 依赖 Phase 8 |
@@ -197,16 +197,20 @@ Desktop/Host private IPC、preload typed conversation 接口及发布闭包已�
 
 验收清单：
 
-- [ ] 复杂、已澄清目标提交校验过的结构化草案；simple 不建树，无 write 者只存私有建议并清楚标明状态。
-- [ ] 相同已接收目标/operation 重试只有一棵树，失去回执先核对；不同内容同键拒绝，版本冲突不覆盖。
-- [ ] 保存处在线复核当前设置、项目/task edit、评估版本及目标归属；模型草案不包含领导完整聊天或私人秘密。
-- [ ] 服务端合并获准子树，隐藏兄弟不参与客户端输入/返回；非法祖先/跨树依赖、预算资源扩大、历史移除 ID 重用均拒绝。
-- [ ] 文本修改和结构修改准确递增版本，按原机制失效资格；变更前可查影响，新叶子只由原下发人重新批准，不隐式继承旧叶子许可。
-- [ ] 对话和工作台重读同一权威记录；依赖查询、提交及父级汇合消费细分后的当前定义。
+- [x] 复杂、已澄清目标提交校验过的结构化草案；simple 不建树，无 write 者只存私有建议并清楚标明状态。
+- [x] 相同已接收目标/operation 重试只有一棵树，失去回执先核对；不同内容同键拒绝，版本冲突不覆盖。
+- [x] 保存处在线复核当前设置、项目/task edit、评估版本及目标归属；模型草案不包含领导完整聊天或私人秘密。
+- [x] 服务端合并获准子树，隐藏兄弟不参与客户端输入/返回；非法祖先/跨树依赖、预算资源扩大、历史移除 ID 重用均拒绝。
+- [x] 文本修改和结构修改准确递增版本，按原机制失效资格；变更前可查影响，新叶子只由原下发人重新批准，不隐式继承旧叶子许可。
+- [x] 对话和工作台重读同一权威记录；依赖查询、提交及父级汇合消费细分后的当前定义。
 
 助理验证：领域事务/权限/迁移/并发测试、真实提案工具管线与回执丢失、下发后细分及重新批准；独立查询 SQLite 校验隐藏子树未被修改。用户检查：从对话调整草案、修改目标、细分授权任务及确认失效影响。依赖：Phase 4。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：SQLite 单调升级至 v14，新增 planning_goals 和 planning_reapprovals；v13 用量不重置，旧版本及备份夹具同步。新增 readPlanningPlan 与 save-planning-draft，固定 HTTPS/native/私有 Host 接线，复用 WorkGraph 唯一 writer。非根 edit 只接受准确子树，服务端保留父节点和外部依赖、合并完整版本；隐藏兄弟不变，原目标/范围/验收/产物、跨树依赖及历史 ID 重用受校验。结构修改不隐式续 grant；旧资格失效，新叶子由原下发人重新批准，其他根编辑者也不能代替。
+
+真实 workflow_propose 工具消费当前输入的 complex 评估，方法升级 v2；新必需 proposal 事件、Session 投影与 reader/catalog 已接入。保存前先持久意图，无 edit 仅保留本人私有建议，冲突不覆盖；同键变更拒绝，丢回执通过原生 journal 和权威 goal 关联恢复。自己的保存引发 generation 更新时，身份不变才允许只读恢复，不重发输入/模型/保存。历史任务失权拒绝旧正文重放。新成员建议复核当前可见性；没有自动批准、分配、委托或运行。
+
+领域与真实工具管线验证覆盖冷重开、迁移、隐藏外部依赖、范围扩大拒绝、旧批准失效、原下发人重新批准、共享/私有/冲突/回执丢失与撤权。冷重开曾发现新审计 kind 未加入枚举，已补齐并通过；临时诊断已移除。模型只使用 HTTP 替身；自然语言范围不被声称可机器证明，最终仍由原下发人审阅。具体命令统一记在下方 Phase 5–6 验证记录。
 
 ## Phase 6：对话内计划树、修改和负责人选择
 
@@ -216,16 +220,33 @@ Desktop/Host private IPC、preload typed conversation 接口及发布闭包已�
 
 验收清单：
 
-- [ ] 普通发送直接进入自动路由，不依赖斜杠命令、手工根任务表单或测试开关；简单目标正常显示答复。
-- [ ] 树、版本、授权状态和当前目标关联来自持久记录；澄清答复、自然语言修改和进度查询针对当前目标。
-- [ ] 详情持续显示目标/范围、验收、责任人、版本、运行状态、待谁处理及最新提交；无权者看到明确限制，不显示旧内容。
-- [ ] 支持“开发交给某成员”等建议及控件选择，姓名歧义、成员失效和无任务查看权分别提示；选择本身不分配。
-- [ ] 保存冲突保留本人修改但拒绝覆盖；generation 变化隐藏正文，重取后再允许动作；对话销毁释放订阅并拒绝迟到响应。
-- [ ] 工作台与对话对同一任务有相同授权业务事实；展示状态不新增 Session 业务事件。
+- [x] 普通发送直接进入自动路由，不依赖斜杠命令、手工根任务表单或测试开关；简单目标正常显示答复。
+- [x] 树、版本、授权状态和当前目标关联来自持久记录；澄清答复、自然语言修改和进度查询针对当前目标。
+- [x] 详情持续显示目标/范围、验收、责任人、版本、运行状态、待谁处理及最新提交；无权者看到明确限制，不显示旧内容。
+- [x] 支持“开发交给某成员”等建议及控件选择，姓名歧义、成员失效和无任务查看权分别提示；选择本身不分配。
+- [x] 保存冲突保留本人修改但拒绝覆盖；generation 变化隐藏正文，重取后再允许动作；对话销毁释放订阅并拒绝迟到响应。
+- [x] 工作台与对话对同一任务有相同授权业务事实；展示状态不新增 Session 业务事件。
 
 助理验证：类型、局部 lint、i18n/Client 图与 slot 门禁、投影/路由纯逻辑测试；不拉起页面。用户检查：不打开工作台完成建树、修改、查询及负责人选择；检查两种语言和复杂树可读性。依赖：Phase 2、5；视觉检查留待用户，不阻断后续可静态验证的接线。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：ui-organization 注册独立 organization-conversation 主面板、侧栏和图标，普通发送使用本人项目对话、稳定目标、自动规划设置和显式模型选择；支持已有授权任务、澄清/修改、查询答复、新目标和停止/重读。计划卡重读同一权威树，显示版本、范围/验收/产物、责任人、Run 状态、待处理方和最新提交。候选分页搜索、姓名歧义和失效提示、本人选择仅写建议；分配查看权只调用既有 review，实际批准留 Phase 7。
+
+ui-personal-workflow 从现有 snapshot 增量注册 personal-plan 节点和 keyed renderer，内联当前树、准确版本、字段编辑及执行证据，不新增业务事件或另一计划 writer。组织 generation 变化隐藏旧内容，销毁请求停止并丢弃迟到结果；失败输入保留 operation 身份，早期目标修改后保持当前选择；个人保存冲突保留草稿，显式刷新后才使用最新 revision。全部产品文案经 typed locale，贡献随 fiber 释放。
+
+Phase 5–6 实际验证记录：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/planning-draft.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/workspace/organization/tests/planning.spec.ts packages/workspace/organization-conversation/tests/conversation.spec.ts packages/client/ui-organization/tests packages/client/ui-personal-workflow/tests --testTimeout=20000`：18 文件、88 项通过。后续新增外部依赖及撤权测试后，draft 5 项通过；撤权最终并入下面 23 项传输回归。
+- `pnpm exec vitest run packages/workspace/organization-conversation/tests/conversation.spec.ts packages/host/organization-connection/tests/planning.spec.ts packages/host/organization-connection/tests/workgraph.spec.ts --testTimeout=20000`：23 项通过，含私有建议成员校验和失权正文重放拒绝。
+- `pnpm exec vitest run packages/client/ui-personal-workflow/tests/conversation.client.spec.tsx packages/client/ui-organization/tests/conversation.client.spec.tsx --testTimeout=20000`：4 项通过；随后增加早期目标选择保持用例，单独运行后者，4 项通过。
+- `pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/execution.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/execution-codex.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/acceptance.spec.ts packages/workspace/organization/tests/integration.spec.ts --testNamePattern='migrat|restor|backup|schema' --testTimeout=20000`：15 项通过，74 项由名称过滤跳过。
+- `pnpm exec vitest run apps/desktop/tests/host-process.spec.ts packages/host/organization-connection/tests/connection.spec.ts packages/host/organization-connection/tests/assignment.spec.ts --testTimeout=20000 --maxWorkers=2`：47 通过、4 个旧 schema 夹具失败；更新 v14 manifest 断言及旧表降级夹具后，`pnpm exec vitest run packages/host/organization-connection/tests/connection.spec.ts --testNamePattern='backup|restor' --testTimeout=20000` 的10项全部通过，其余6项由过滤跳过。
+- `pnpm exec tsc -b packages/client/ui-organization/tsconfig.json packages/client/ui-personal-workflow/tsconfig.json apps/desktop/tsconfig.json apps/desktop-host/tsconfig.json --pretty false` 通过。两个 Client 包目录分别执行 `pnpm exec tsdown --env.DSH_BUILD_FACE=client`，实际 browser client.js 和 Node loader 均构建成功。根级仅包名 filter 曾只选中 Node loader，未用该结果替代 browser 构建。
+- `pnpm exec tsdown --filter @deepseek-ai/dsh-session --filter @deepseek-ai/dsh-organization --filter @deepseek-ai/dsh-organization-api --filter @deepseek-ai/dsh-organization-connection --filter @deepseek-ai/dsh-organization-conversation --filter @deepseek-ai/dsh-desktop --filter @deepseek-ai/dsh-desktop-host --env.DSH_BUILD_FACE=host` 通过；`node apps/desktop-host/tests/organization-conversation-built-smoke.mjs` 及 `--electron` 通过。首次 smoke 的旧工具白名单已同步为当前四个工具，重跑成功；均未创建窗口。
+- 变更 TS/TSX/MJS 的 `pnpm exec tsx scripts/run-oxlint.ts` 局部 lint、`verify-client-ui-i18n`（849 文件）、`verify-client-packages`、`verify-client-route-resolution`、`verify-tsconfig-paths`、`verify-scoped-events`、`gen-persistence-catalog` 及其 `--check`、新增文档链接和 `git diff --check` 通过。
+
+未通过的全仓检查单独保留：本轮曾执行 `pnpm run test:gui`，该次为 509 文件通过/20 文件失败、7317 项通过/70 项失败/1 跳过，不能作为全仓通过证据；其中本轮相关的 native 迁移夹具问题已修复并定向复测，其余 settings/input-bar/styles/binary RPC/license 等失败未在本轮扩范围处理。`verify-client-domain-graph` 报告 62 项范围外违规；`verify-package-dependencies` 为未修改 file-upload 的导入分类；`verify-export-jsdoc` 仅剩未修改 login-session 的两处描述缺失。本轮新增 JSDoc 问题已修正，未修改例外表掩盖失败。
+
+未运行真实模型、页面、Playwright、浏览器自动化、GitNexus、完整发行或三机验收，视觉和真实识别效果仍由用户检查。Codex 原生项目规划仍待专用能力，不用 API 替代。Phase 5–6 工程完成，达到授权 Phase 6 终点，恢复 manual、自动边界 none、relay 关闭；没有进入 Phase 7、提交或推送。
 
 ## Phase 7：明确分配与员工独立任务对话
 
@@ -336,9 +357,9 @@ execution mode: manual
 automatic start phase: none
 automatic stop phase: none
 conversation relay: off
-plan review: accepted for Phase 1–4
-execution authorization: 用户于 2026-10-02 要求“请自动完成 phase3-4”；仅 Phase 3–4，relay 关闭
-execution result: 2026-10-02 Phase 3–4 工程验收完成，到达 Phase 4 授权终点，恢复 manual 并停止
+plan review: accepted for Phase 1–6
+execution authorization: 用户要求“请自动完成 phase5-6”；仅 Phase 5–6，relay 关闭
+execution result: 2026-10-03 Phase 5–6 工程完成，达到 Phase 6 授权终点，恢复 manual 并停止
 ```
 
 1. 本计划是 Phase 7C 唯一施工入口。首次评审后，用户明确“执行 Phase 1”才开始实现；选择 skill 或本次“给出计划”不授权实现。
@@ -353,4 +374,4 @@ execution result: 2026-10-02 Phase 3–4 工程验收完成，到达 Phase 4 授
 10. Relay 默认关闭，不创建新聊天或 worktree；开启需用户对本计划另行明确授权，并先读取 `/Users/git_local/dev-workflow-skill/references/conversation-relay.md`，按其规定补齐所有权、批次和交接字段；worktree relay 另读 `worktree-return.md`。开启前不能凭历史对话自动转移执行。
 11. 不创建专用 executor skill；现有入口 skill 与本文足够。以后确需复杂多会话接力，再评估执行包装，阶段事实仍只在本文。
 
-Phase 1–4 已完成；后续从 **Phase 5** 开始，须由用户另行授权。
+Phase 1–6 已完成；后续从 **Phase 7** 开始，须由用户另行授权。

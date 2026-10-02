@@ -67,9 +67,9 @@ export async function boot(root: string) {
         } else {
           void query.authorize(response.command).then(authority => bus.emit('message',
             { requestId: response.requestId, nonce, authorizationId: response.authorizationId,
-              type: 'organization-conversation-authorized', authority }), () => bus.emit('message', {
+              type: 'organization-conversation-authorized', authority }), (error: unknown) => bus.emit('message', {
             type: 'organization-conversation-authorized', requestId: response.requestId, nonce,
-            authorizationId: response.authorizationId, error: 'denied' }))
+            authorizationId: response.authorizationId, error: error instanceof Error && error.message === 'version-conflict' ? 'version-conflict' : 'denied' }))
         }
       } })
     const host: ConversationHost = { organizationConversation: async (request: ConversationRequest, authorize: ConversationBridge,
@@ -87,17 +87,17 @@ export async function boot(root: string) {
     return { ctx, host, bus, root, service: ctx.organizationConversation, close: () => ctx.fiber.dispose() }
   } catch (error) { await ctx.fiber.dispose(); throw error }
 }
-export function reply(classification?: 'simple' | 'clarify' | 'complex', text = 'Private planning answer'): Response {
+export function reply(classification?: 'simple' | 'clarify' | 'complex', text = 'Private planning answer', tool?: { name: string; args: object }): Response {
   const events: object[] = [{ type: 'message_start', message: { id: 'msg-' + randomUUID(), model: selection.model,
     usage: { input_tokens: 10, output_tokens: 0 } } }]
-  if (classification) events.push({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use',
-    id: 'assessment-' + randomUUID(), name: 'workflow_assess', input: {} } },
+  if (classification || tool) events.push({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use',
+    id: 'assessment-' + randomUUID(), name: tool?.name ?? 'workflow_assess', input: {} } },
   { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta',
-    partial_json: JSON.stringify({ classification, rationale: 'Current goal requirements' }) } },
+    partial_json: JSON.stringify(tool?.args ?? { classification, rationale: 'Current goal requirements' }) } },
   { type: 'content_block_stop', index: 0 })
   else events.push({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
     { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }, { type: 'content_block_stop', index: 0 })
-  events.push({ type: 'message_delta', delta: { stop_reason: classification ? 'tool_use' : 'end_turn' },
+  events.push({ type: 'message_delta', delta: { stop_reason: classification || tool ? 'tool_use' : 'end_turn' },
     usage: { output_tokens: 10 } }, { type: 'message_stop' })
   return new Response(events.map(event => `event: ${Reflect.get(event, 'type')}\ndata: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
 }

@@ -57,10 +57,10 @@ it('logs method/settings/exact authority and model input, keeps clarification on
   const clarified = await h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID(),
     text: 'Use revenue by month', route: 'clarification', goalId: first.result.goals[0]?.id }))
   expect(clarified.result.goals).toHaveLength(1); expect(clarified.result.sessionId).toBe(opened.result.sessionId)
-  expect(wire[0]).toContain('organization-planning/v1'); expect(wire[0]).toContain('balanced')
+  expect(wire[0]).toContain('organization-planning/v2'); expect(wire[0]).toContain('balanced')
   expect(wire.join('')).not.toMatch(/HIDDEN_TASK|HIDDEN_ROOT|local-only-test-key/)
   const tools = z.object({ tools: z.array(z.object({ name: z.string() })) }).parse(JSON.parse(wire[0]!)).tools.map(t => t.name)
-  expect(tools.sort()).toEqual(['planning_authorization', 'workflow_assess'])
+  expect(tools.sort()).toEqual(['planning_authorization', 'planning_members', 'workflow_assess', 'workflow_propose'])
   const reads = await h.connection.perform({ kind: 'planning-read', request: { organizationId: h.request.organizationId,
     projectId: h.request.projectId, conversationId: h.request.conversationId } })
   expect(reads.planning?.grant?.usedRequests).toBe(3)
@@ -195,4 +195,79 @@ it('charges each actual provider retry with a distinct consumed permit', async (
     projectId: h.request.projectId, conversationId: h.request.conversationId } })
   expect(view.planning?.grant?.usedRequests).toBe(2)
   await h.local.service.verifyBindings()
+}, 20000)
+
+it.each(['shared', 'private', 'conflict', 'lost'] as const)('saves a %s proposal through the model pipeline and keeps one goal on replay', async (status) => {
+  const h = await setup()
+  if (status === 'private') {
+    let version = 0
+    await h.remote.app.authority.readGrants(h.remote.owner.token, {
+      organizationId: h.request.organizationId, projectId: h.request.projectId },
+    (rows) => {
+      version = rows.find(r => r.membershipId === h.remote.member.membershipId)!.version
+    })
+    await h.remote.app.authority.grant(h.remote.owner.token, { kind: 'set-grant', organizationId: h.request.organizationId,
+      projectId: h.request.projectId, membershipId: h.remote.member.membershipId, expectedVersion: version, actions: ['read'],
+      operationId: randomUUID() })
+    await h.connection.perform({ kind: 'reconnect' })
+  }
+  await h.perform()
+  const native = h.connection.planningCommand.bind(h.connection)
+  const writes = vi.spyOn(h.connection, 'planningCommand').mockImplementation(async (command, generation) => {
+    if (command.kind === 'save-planning-draft' && status === 'conflict') throw new Error('version-conflict')
+    const receipt = await native(command, generation)
+    if (command.kind === 'save-planning-draft' && status === 'lost') throw new Error('lost-reply')
+    return receipt
+  })
+  const phase = randomUUID(), root = randomUUID(), child = randomUUID()
+  const task = (id: string, parentTaskId: string | null) => ({ id, parentTaskId, phaseId: phase, goal: 'Revenue CSV', scope: 'Monthly values',
+    acceptance: ['Totals checked'], artifacts: ['report.csv'], required: true, dependsOn: [], suggestedMembershipId: null })
+  const definition = { taskId: root, phases: [{ id: phase, title: 'Report' }], tasks: [task(root, null), task(child, root)] }
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(reply('complex'))
+    .mockResolvedValueOnce(reply(undefined, '', { name: 'workflow_propose', args: { operationId: randomUUID(), expectedRevision: 0, definition } }))
+    .mockResolvedValue(reply())
+  const send = conversationRequestSchema.parse({ ...h.request, kind: 'send', operationId: randomUUID(), selection,
+    route: 'new_goal', text: 'Create a validated monthly revenue CSV' })
+  await h.perform(send)
+  const result = await h.perform(send)
+  expect(result.result.goals).toHaveLength(1)
+  expect(result.result.goals[0]?.proposal?.status).toBe(status === 'lost' ? 'shared' : status)
+  expect(result.result.goals[0]?.proposal?.definition).toEqual(definition)
+  expect(fetch.mock.calls.length).toBeGreaterThanOrEqual(2)
+  expect(fetch.mock.calls.length).toBeLessThanOrEqual(3)
+  const proposal = result.result.goals[0]!.proposal!
+  const shared = await h.remote.call('/workgraph/read', { organizationId: h.request.organizationId, projectId: h.request.projectId,
+    planId: proposal.planId }, h.remote.member.token)
+  expect(shared.status).toBe(status === 'shared' || status === 'lost' ? 200 : 403)
+  expect(writes.mock.calls.filter(([c]) => c.kind === 'save-planning-draft')).toHaveLength(status === 'private' ? 0 : 1)
+  if (status === 'private') {
+    const suggestion = { ...h.request, kind: 'suggest', goalId: result.result.goals[0]!.id, taskId: root,
+      expectedRevision: 0, operationId: randomUUID(), membershipId: randomUUID() }
+    await expect(h.perform(conversationRequestSchema.parse(suggestion))).rejects.toThrow()
+    const updated = await h.perform(conversationRequestSchema.parse({ ...suggestion,
+      operationId: randomUUID(), membershipId: h.remote.member.membershipId }))
+    expect(updated.result.goals[0]?.proposal?.status).toBe('private')
+    expect(updated.result.goals[0]?.proposal?.definition?.tasks[0]?.suggestedMembershipId).toBe(h.remote.member.membershipId)
+    expect(writes.mock.calls.some(([c]) => c.kind === 'save-planning-draft')).toBe(false)
+  }
+  await h.local.service.verifyBindings()
+}, 20000)
+
+it('hides previously authorized task text after task revocation and refuses history replay to the model', async () => {
+  const h = await setup(); await h.perform()
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(reply())
+  const send = conversationRequestSchema.parse({ ...h.request, kind: 'send', operationId: randomUUID(), selection,
+    route: 'new_goal', text: 'Review this authorized task', target: { planId: h.remote.save.planId, taskId: h.remote.grant.taskId } })
+  const first = await h.perform(send)
+  expect(first.result.entries.length).toBeGreaterThan(0)
+  expect((await h.remote.call('/workgraph/grant', { ...h.remote.grant, operationId: randomUUID(),
+    expectedVersion: h.remote.receipt.revision, actions: [] })).status).toBe(200)
+  await h.connection.perform({ kind: 'reconnect' })
+  await expect(h.perform({ ...h.request, kind: 'read',
+    operationId: randomUUID() as typeof h.request.operationId })).rejects.toThrow()
+  await h.connection.perform({ kind: 'reconnect' })
+  const calls = fetch.mock.calls.length
+  await expect(h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID(), target: undefined,
+    route: 'new_goal', text: 'Continue with the prior task context' }))).rejects.toThrow()
+  expect(fetch).toHaveBeenCalledTimes(calls)
 }, 20000)

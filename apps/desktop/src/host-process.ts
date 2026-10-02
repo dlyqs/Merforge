@@ -214,10 +214,10 @@ export class DesktopHostProcess {
             if (this.conversationQueries.get(response.requestId) === query && child.connected)
               child.send({ type: 'organization-conversation-authorized', requestId: response.requestId, nonce: response.nonce,
                 authorizationId: response.authorizationId, authority })
-          }, () => {
+          }, (error: unknown) => {
             if (this.conversationQueries.get(response.requestId) === query && child.connected)
               child.send({ type: 'organization-conversation-authorized', requestId: response.requestId, nonce: response.nonce,
-                authorizationId: response.authorizationId, error: 'denied' })
+                authorizationId: response.authorizationId, error: error instanceof Error && error.message === 'version-conflict' ? 'version-conflict' : 'denied' })
           }).catch(() => { query.reject(new Error('organization-conversation-unavailable')) })
         }
         return

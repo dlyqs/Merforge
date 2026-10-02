@@ -1,3 +1,4 @@
+import { installProposal, planningProjection } from './proposal.ts'
 /** One explicit planning interval in a fresh isolated standard Agent/Session composition. */
 import { Context } from '@deepseek-ai/cordis'
 import Sessions from '@deepseek-ai/dsh-session'
@@ -44,12 +45,13 @@ export async function runConversation(owner: Context, root: string, sessionId: S
     await ctx.plugin(Retry)
     await ctx.plugin(Loop, { agents: [], maxParallelToolCalls: 1 })
     const record = async (command: Parameters<ConversationBridge>[0], authority?: ConversationAuthority) => {
-      if (!command) throw new Error('organization-conversation: command-required')
+      if (!command || command.kind === 'read-planning-plan' || command.kind === 'read-planning-members') throw new Error('organization-conversation: command-required')
       agent.session.append('organization/planning-operation', conversationOperationSchema.parse({ command,
         ...(authority?.receipt ? { receipt: authority.receipt } : {}) }))
       if (!await ctx.sessions.flush(agent.session)) throw new Error('organization-conversation: log-not-durable')
     }
     ctx.llm.registerAdapter(['organization-planning'], conversationAdapter(owner, request, routes, bridge, record, combined))
+    ctx.effect(() => ctx.sessionProjections.register(planningProjection), 'organization-conversation.projection')
     const handle = await ctx.agents.resume({ resumeSessionId: sessionId,
       agentOptions: { provider: 'organization-planning', model: request.selection.model }, signal: combined })
     const agent = handle.agent
@@ -66,11 +68,26 @@ export async function runConversation(owner: Context, root: string, sessionId: S
         execute: async (args) => {
           combined.throwIfAborted(); await bridge(); combined.throwIfAborted()
           const assessment = conversationAssessmentSchema.parse({ goalId: input.goalId, operationId: request.operationId, ...args })
+          const previous = ctx.sessionProjections.stateOf(agent.session, 'organizationPlanning')?.assessments
+            .find(a => a.goalId === input.goalId && a.operationId === request.operationId)
+          if (previous) {
+            if (JSON.stringify(previous) !== JSON.stringify(assessment)) throw new Error('organization-conversation: assessment-conflict')
+            return JSON.stringify(previous)
+          }
           agent.session.append('organization/planning-assessment', assessment)
           if (!await ctx.sessions.flush(agent.session)) throw new Error('organization-conversation: log-not-durable')
           return JSON.stringify(assessment)
         },
       }))
+      installProposal(ctx, agent, input, bridge, combined)
+      ctx.effect(() => ctx.tools.register(defineTool({ name: 'planning_members',
+        description: 'Search currently visible human project members. Present all matching identities when ambiguous; never infer assignment or task read permission from membership visibility.',
+        parameters: { search: { type: 'string', required: true }, offset: { type: 'integer', required: true } },
+        output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
+        execute: async args => JSON.stringify((await bridge({ kind: 'read-planning-members',
+          organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
+          search: args.search, offset: args.offset })).candidates),
+      })), 'organization-conversation.members')
       ctx.tools.register(defineTool({ name: 'planning_authorization',
         description: 'Read current project planning permission. Project read does not grant task editing, assignment or execution.',
         parameters: {}, output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
@@ -107,8 +124,8 @@ export async function runConversation(owner: Context, root: string, sessionId: S
       try {
         await bridge(); combined.throwIfAborted()
         agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: JSON.stringify({
-          method: { version: 'organization-planning/v1', text: input.settings.enabled
-            ? 'Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. Planning stops at advice; shared plan saving is unavailable. Never claim assignment, approval or execution. Respect the requested granularity.'
+          method: { version: 'organization-planning/v2', text: input.settings.enabled
+            ? 'Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. For a clarified complex goal, call workflow_propose to save an unapproved plan. For modifications preserve task identities and exact version; progress queries only read the current plan. Shared plan changes invalidate approvals, grants on structure changes, Runs and delivery eligibility. Subtree edits preserve the original root scope, acceptance and resources. Name suggestions require current visible membership IDs; never guess identities. Shared definitions contain task summaries and authorized project facts only; never copy chat transcripts, credentials or private context. Never claim assignment, approval or execution. Respect the requested granularity.'
             : 'Answer within the current organization project. Automatic goal assessment is disabled. Shared plan saving, assignment and execution are unavailable.' },
           input,
         }) }] }))

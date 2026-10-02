@@ -2,6 +2,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
+import { savePlanningDraft } from './planning-draft.ts'
+import type { WorkgraphLimits } from './workgraph.ts'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
 import { planningGrantSchema, planningPermitSchema, planningViewSchema, planningCandidatesPageSchema, planningReceiptSchema,
@@ -53,7 +55,10 @@ function eligible(db: DatabaseSync, principal: Principal, query: Selection, gran
 export function readPlanning(db: DatabaseSync, principal: Principal, query: Selection, epoch: string,
   policy: Policy): z.output<typeof planningViewSchema> {
   const project = authorizedProject(db, principal, query.projectId, 'read'), grant = readGrant(db, principal, query)
-  return planningViewSchema.parse({ project, grant, eligible: eligible(db, principal, query, grant, epoch, policy),
+  return planningViewSchema.parse({ project, grant,
+    canWrite: !!db.prepare('SELECT 1 FROM resource_grants WHERE projectId=? AND membershipId=? AND canWrite=1').get(query.projectId, principal.membershipId ?? null),
+    plans: db.prepare('SELECT goalId,planId,taskId FROM planning_goals WHERE accountId=? AND conversationId=?').all(principal.accountId, query.conversationId),
+    eligible: eligible(db, principal, query, grant, epoch, policy),
     serverTime: Date.now(), policy })
 }
 /**
@@ -64,10 +69,11 @@ export function readPlanning(db: DatabaseSync, principal: Principal, query: Sele
  * @param revision - Owning durable event.
  * @param epoch - Active service epoch.
  * @param policy - Validated deployment ceilings and destinations.
+ * @param limits - Full WorkGraph deployment limits.
  * @returns Historical permission identifiers, without a reusable token.
  */
 export function changePlanning(db: DatabaseSync, principal: Principal, command: z.output<typeof planningCommandSchema>,
-  revision: number, epoch: string, policy: Policy): z.output<typeof import('./planning-schema.ts').planningReceiptSchema> {
+  revision: number, epoch: string, policy: Policy, limits: WorkgraphLimits): z.output<typeof import('./planning-schema.ts').planningReceiptSchema> {
   authorizedProject(db, principal, command.projectId, 'read')
   const grant = readGrant(db, principal, command)
   if (command.kind === 'open-planning') {
@@ -87,6 +93,10 @@ export function changePlanning(db: DatabaseSync, principal: Principal, command: 
     db.prepare('INSERT INTO planning_grants VALUES (?,?,?,?,?) ON CONFLICT(conversationId,accountId) DO UPDATE SET data=excluded.data').run(command.conversationId, principal.accountId,
       command.organizationId, command.projectId, JSON.stringify(created))
     return { conversationId: command.conversationId }
+  }
+  if (command.kind === 'save-planning-draft') {
+    if (!grant) throw new OrganizationError('forbidden')
+    return savePlanningDraft(db, principal, command, revision, limits)
   }
   if (!grant || !eligible(db, principal, command, grant, epoch, policy)) throw new OrganizationError('forbidden')
   if (command.kind === 'reserve-planning-request') {
@@ -182,6 +192,9 @@ export function validatePlanningDatabase(db: DatabaseSync): void {
       || receipt.conversationId !== grant.conversationId) throw new OrganizationError('incompatible-store')
     if (row.kind === 'open-planning') {
       if (receipt.permitId !== undefined || receipt.permitExpiresAt !== undefined) throw new OrganizationError('incompatible-store')
+    } else if (row.kind === 'save-planning-draft') {
+      const link = db.prepare('SELECT 1 FROM planning_goals WHERE accountId=? AND conversationId=? AND planId=? AND taskId=?').get(grant.accountId, grant.conversationId, receipt.planId ?? null, receipt.taskId ?? null)
+      if (!link || !db.prepare('SELECT 1 FROM plan_revisions WHERE planId=? AND revision=?').get(receipt.planId ?? null, receipt.planRevision ?? null)) throw new OrganizationError('incompatible-store')
     } else {
       const storedPermit = db.prepare('SELECT data FROM planning_permits WHERE id=?').get(receipt.permitId ?? null)
       const permit = storedPermit ? planningPermitSchema.parse(JSON.parse(String(storedPermit.data))) : null

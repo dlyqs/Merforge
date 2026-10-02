@@ -1,4 +1,6 @@
 /** Task view registration over the personal sidebar's extension seat. */
+import { personalPlanDefinition } from './conversation-node.ts'
+import { ConversationPlan } from './ConversationPlan.tsx'
 import type { Context } from '@deepseek-ai/cordis'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -17,7 +19,7 @@ import { Workflow } from './Workflow.tsx'
 import { en, zh } from './locales.ts'
 
 /** Services used by the Remote adapter and navigation. */
-export const inject = ['slots', 'remote', 'remote.session', 'locale', 'uiWorkspace', 'layout']
+export const inject = ['slots', 'remote', 'remote.session', 'locale', 'uiWorkspace', 'layout', 'uiConversation']
 
 function valueOf<T>(result: RemoteResult<T>): T {
   if (!result.ok) throw new Error(result.error.message)
@@ -47,6 +49,9 @@ export function apply(ctx: Context): void {
     exportPlan: async request => valueOf(await ctx.remote.session.workflowExport(request)),
     openSession: (id) => { ctx.uiWorkspace.openSession(id) },
   }
+  ctx.effect(() => ctx.uiConversation.events.register(personalPlanDefinition), 'personal-workflow.conversation-node')
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'personal-plan',
+    locale: 'personalWorkflow', inject: () => ({ list: workflowActions.list, save: (request: Parameters<WorkflowActions['save']>[0]) => workflowActions.save(request) }) }, ConversationPlan))
   ctx.slots.inject('personal.manager.workflow', () => ctx.slots.register({
     name: 'personal.manager.workflow', locale: 'personalWorkflow', inject: () => ({ openTasks }),
   }, WorkflowEntry))

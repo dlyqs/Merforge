@@ -1,13 +1,13 @@
 /** Durable local ownership, input intents and planning evidence validators. */
 import { z } from 'zod'
 import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
-import { planningCommandSchema, planningMutationReceiptSchema } from '@deepseek-ai/dsh-organization/planning'
+import { planningCommandSchema, planningDraftSchema, planningMutationReceiptSchema } from '@deepseek-ai/dsh-organization/planning'
 import { conversationOwnerSchema, conversationResultSchema, conversationSettingsSchema, conversationGoalSchema,
   conversationAuthoritySchema, conversationRequestSchema } from './protocol.ts'
 /** Effective input and method reference enter the same private Session as model dispatch. */
 export const conversationInputSchema = z.object({ request: conversationRequestSchema, goalId: conversationGoalSchema,
   settings: conversationSettingsSchema, authority: conversationAuthoritySchema,
-  methodVersion: z.literal('organization-planning/v1') }).strict()
+  methodVersion: z.enum(['organization-planning/v1', 'organization-planning/v2']) }).strict()
 /** Private assessment remains separate from shared WorkGraph definitions. */
 export const conversationAssessmentSchema = z.object({ goalId: conversationGoalSchema,
   operationId: planningCommandSchema.options[0].shape.operationId,
@@ -32,3 +32,7 @@ export const conversationStateSchema = z.object({ bindings: z.array(conversation
 /** Independent local domain; organization authority never stores private conversation text. */
 export const conversationDomain = defineDomain({ name: 'organization_conversation', version: 1, tables: {},
   global: { schema: conversationStateSchema, initial: { bindings: [], intents: [], controls: [], preferences: [] } } })
+
+/** Proposal intent is durable before dispatch; unknown outcomes never imply a retry. */
+export const conversationProposalSchema = z.object({ command: planningDraftSchema,
+  status: z.enum(['private', 'unknown', 'shared', 'conflict']), receipt: planningMutationReceiptSchema.optional() }).strict()
