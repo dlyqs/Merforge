@@ -25,6 +25,9 @@
     },
     {
       "path": "../../workspace/organization-execution"
+    },
+    {
+      "path": "../../workspace/organization-conversation"
     }
   ]
 }

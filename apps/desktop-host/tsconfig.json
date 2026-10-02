@@ -67,6 +67,9 @@
     },
     {
       "path": "../../packages/core/agent-codex"
+    },
+    {
+      "path": "../../packages/workspace/organization-conversation"
     }
   ]
 }

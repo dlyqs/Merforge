@@ -1,3 +1,4 @@
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,6 +28,7 @@ async function boot(root?: string) {
 
 async function enablePlanning(service: PersonalWorkflow, session: Session): Promise<void> {
   await service.setMode(session, { sessionId: session.id, enabled: true, expectedRevision: 0, operationId: operation(20) })
+  session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'A complex test goal' }] }), { surfaceOp: 'append' })
   await service.assess(session, { modeRevision: 1, decision: 'complex', explanation: 'Validated test plan' })
 }
 

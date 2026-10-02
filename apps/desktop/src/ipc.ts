@@ -12,6 +12,7 @@ export const DESKTOP_IPC = {
   organizationSnapshot: 'dsh-desktop:organization-snapshot',
   organizationExecution: 'dsh-desktop:organization-execution',
   organizationExecutionReport: 'dsh-desktop:organization-execution-report',
+  organizationConversation: 'dsh-desktop:organization-conversation',
   organizationContext: 'dsh-desktop:organization-context',
   organizationConnection: 'dsh-desktop:organization-connection',
   organizationServer: 'dsh-desktop:organization-server',

@@ -73,6 +73,30 @@
             maxTokens: 16384
             contextWindow: 1000000
             idleTimeoutMs: 300000
+    - id: organization-conversation
+      name: '@deepseek-ai/dsh-organization-conversation'
+      config:
+        root: !!js dshHomePath('organization-conversation-sessions')
+        maxSteps: 40
+        recheckMs: 1000
+        maxDurationMs: 1800000
+        maxReportBytes: 1048576
+        defaultSettings:
+          enabled: true
+          granularity: balanced
+        models:
+          - model: deepseek-flash
+            endpoint: https://api.deepseek.com/anthropic/v1
+            credential: DEEPSEEK_API_KEY
+            maxTokens: 16384
+            contextWindow: 1000000
+            idleTimeoutMs: 300000
+          - model: deepseek-v4-pro
+            endpoint: https://api.deepseek.com/anthropic/v1
+            credential: DEEPSEEK_API_KEY
+            maxTokens: 16384
+            contextWindow: 1000000
+            idleTimeoutMs: 300000
     - id: organization-context
       name: '@deepseek-ai/dsh-organization-context'
       config:

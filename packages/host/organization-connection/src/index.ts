@@ -1,3 +1,4 @@
+import { planningCommandSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 import { integrationReadSchema, integrationCommandSchema, integrationViewSchema } from '@deepseek-ai/dsh-organization/delivery'
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
 import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema } from '@deepseek-ai/dsh-organization/delivery'
@@ -179,7 +180,7 @@ export class OrganizationConnection {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
-        if (route.startsWith('/integration/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
+        if (route.startsWith('/planning/') || route.startsWith('/integration/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
           || route.startsWith('/assignment/') || route.startsWith('/device/')) {
           // Automatic detail readers retry after refresh; repeated denials must settle in that generation.
           if (!this.denialRefreshed) {
@@ -292,6 +293,39 @@ export class OrganizationConnection {
     }
     return { generation, signal, run, read: () => track(read),
       command: (input: z.output<typeof executionCommandSchema>) => track(() => command(input)) }
+  }
+  /**
+   * Commit one private Host planning command with a durable native uncertainty journal.
+   * @param input - Closed project-bound planning operation; not exposed through Renderer actions.
+   * @param generation - Captured online identity generation.
+   * @returns Historical receipt. An uncertain attempt must be reconciled before any new mutation.
+   */
+  async planningCommand(input: z.output<typeof planningCommandSchema>, generation: number): Promise<import('@deepseek-ai/dsh-organization/types').Receipt> {
+    const command = planningCommandSchema.parse(input)
+    this.assertOrganization(command.organizationId)
+    const principal = this.state.principal
+    if (this.closed || !principal || generation !== this.generation || this.state.phase !== 'ready') throw new Error('superseded')
+    if (this.journalError) throw new Error('invalid-operation-journal')
+    if (this.writing || this.pending) throw new Error('operation-pending')
+    const task = (async () => {
+      this.writing = true
+      const key = this.identityKey()
+      try {
+        this.pending = { ...principal, operationId: command.operationId, organizationId: command.organizationId }
+        this.publish({ pendingOperation: command.operationId })
+        const receipt = receiptSchema.parse(await this.request('/planning/command', command, generation))
+        this.uncertain.delete(key); this.savePending(); this.publish({ pendingOperation: undefined })
+        return receipt
+      } catch (error) {
+        if (error instanceof Error && ['invalid-input', 'forbidden', 'operation-conflict', 'rate-limited'].includes(error.message)) {
+          this.uncertain.delete(key); this.savePending()
+          if (key === this.identityKey()) this.publish({ pendingOperation: this.pending?.operationId })
+        }
+        throw error
+      } finally { this.writing = false }
+    })()
+    this.operations.add(task)
+    try { return await task } finally { this.operations.delete(task) }
   }
   private async performAction(input: ConnectionAction): Promise<ConnectionResult> {
     const action = actionSchema.parse(input)
@@ -413,6 +447,18 @@ export class OrganizationConnection {
           if (!['grant-execution', 'revoke-execution', 'create-run', 'transition-run'].includes(String(input.kind))
             || input.kind === 'transition-run' && input.state !== 'paused' && input.state !== 'cancelled') throw new Error('forbidden')
           return await this.mutate({ ...input, deviceId: this.localDeviceId() }, undefined, 'execution', this.material())
+        }
+        case 'planning-read': {
+          const query = planningReadSchema.parse(action.request)
+          this.assertOrganization(query.organizationId)
+          const planning = planningViewSchema.parse(await this.request('/planning/read', query, generation))
+          return { generation, planning }
+        }
+        case 'planning-candidates': {
+          const query = planningCandidatesSchema.parse(action.request)
+          this.assertOrganization(query.organizationId)
+          const candidates = planningCandidatesPageSchema.parse(await this.request('/planning/candidates', query, generation))
+          return { generation, candidates }
         }
         case 'execution-list': {
           const request = executionListSchema.parse(action.request)

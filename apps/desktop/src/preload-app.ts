@@ -29,6 +29,7 @@ function createProductApi(): DshDesktopProductApi {
     organization: {
       executionReport: request => ipcRenderer.invoke(DESKTOP_IPC.organizationExecutionReport, request),
       execution: request => ipcRenderer.invoke(DESKTOP_IPC.organizationExecution, request),
+      conversation: request => ipcRenderer.invoke(DESKTOP_IPC.organizationConversation, request),
       context: request => ipcRenderer.invoke(DESKTOP_IPC.organizationContext, request),
       snapshot: () => ipcRenderer.invoke(DESKTOP_IPC.organizationSnapshot) as Promise<OrganizationDesktopSnapshot>,
       connection: action => ipcRenderer.invoke(DESKTOP_IPC.organizationConnection, action) as Promise<ConnectionResult>,

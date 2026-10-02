@@ -15,7 +15,7 @@ it('stays off until a gesture commits and preserves failed gesture identity for 
   const props = {
     sessionId: 'mode' as SessionId, t: makeTranslate(zh, commonZh),
     readMode: vi.fn().mockResolvedValue({ enabled: false, revision: 0 }), setMode,
-    useSession: () => false,
+    useSession: () => false, readTesting: vi.fn().mockResolvedValue({ forceDecomposition: false, revision: 0 }),
   } as Partial<ModeProps>
   render(<Mode {...props as ModeProps} />)
   const toggle = await screen.findByRole('switch')
@@ -27,4 +27,17 @@ it('stays off until a gesture commits and preserves failed gesture identity for 
   fireEvent.click(toggle)
   await waitFor(() => { expect(toggle.getAttribute('aria-checked')).toBe('true') })
   expect(setMode.mock.calls[0]?.[0]).toEqual(setMode.mock.calls[1]?.[0])
+})
+
+it('displays the test override while preserving the explicit conversation choice', async () => {
+  const props = {
+    sessionId: 'forced-mode' as SessionId, t: makeTranslate(zh, commonZh),
+    readMode: vi.fn().mockResolvedValue({ enabled: false, revision: 1 }), setMode: vi.fn(),
+    readTesting: vi.fn().mockResolvedValue({ forceDecomposition: true, revision: 1 }), useSession: () => false,
+  } as Partial<ModeProps>
+  render(<Mode {...props as ModeProps} />)
+  const toggle = await screen.findByRole('switch')
+  expect(toggle.getAttribute('aria-checked')).toBe('false')
+  expect(screen.getByText(zh.testingOverrides)).toBeDefined()
+  expect(props.setMode).not.toHaveBeenCalled()
 })

@@ -32,6 +32,8 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('settings.personal.testing', () => ctx.slots.register({
     name: 'settings.personal.testing', locale: 'personalWorkflow',
     inject: (): TestingPreferencesActions => ({
+      readPlanningPreferences: async () => valueOf(await ctx.remote.session.workflowPreferences()),
+      setPlanningPreferences: async request => valueOf(await ctx.remote.session.workflowSetPreferences(request)),
       readPreferences: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
       setPreferences: async request => valueOf(await ctx.remote.session.workflowSetTestingPreferences(request)),
     }),
@@ -62,6 +64,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left', id: 'personal-workflow-mode', locale: 'personalWorkflow',
     inject: (): ModeActions => ({
+      readTesting: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
       readMode: async sessionId => valueOf(await ctx.remote.session.workflowMode(sessionId)),
       setMode: async request => valueOf(await ctx.remote.session.workflowSetMode(request)),
     }),

@@ -33,6 +33,7 @@ export interface Principal {
 }
 /** Persisted mutation result without credentials or private profile data. */
 export interface Receipt {
+  planning?: import('zod').z.output<typeof import('./planning-schema.ts').planningReceiptSchema> | undefined
   integration?: import('zod').z.output<typeof import('./integration-schema.ts').integrationReceiptSchema> | undefined
   delivery?: import('zod').z.output<typeof import('./delivery-schema.ts').deliveryReceiptSchema> | undefined
   execution?: import('./execution-types.ts').OrganizationExecutionReceipt | undefined

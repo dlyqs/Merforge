@@ -1,3 +1,5 @@
+import { planningCommandSchema, planningReadSchema, planningCandidatesSchema, type planningViewSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
+import { changePlanning, readPlanning, planningCandidates } from './planning.ts'
 import { integrationReadSchema, integrationCommandSchema, integrationRecordSchema, type integrationViewSchema } from './integration-schema.ts'
 import { integrationView, changeIntegration } from './integration.ts'
 import { authorizeAcceptance, changeAcceptance, submissionView } from './acceptance.ts'
@@ -153,6 +155,7 @@ export class OrganizationService extends Service {
       if (receipt.organizationId) {
         const manage = ['invite', 'set-membership', 'create-project', 'set-grant', 'set-task-grant'].includes(String(event?.kind))
         const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
+        if (receipt.planning && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'read')
         if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
         if (receipt.integration) {
           const r = integrationRecordSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM organization_integrations WHERE id=?').get(receipt.integration.integrationId)?.data)))
@@ -242,6 +245,8 @@ export class OrganizationService extends Service {
       receipt.operationId, receipt.execution.runId ?? 'none', receipt.execution.actionId ?? 'none', receipt.revision)
     if (receipt.execution?.requestId) this.ctx.logger.info('organization component=human-request runId=%s requestId=%s result=waiting-human',
       receipt.execution.runId, receipt.execution.requestId)
+    if (receipt.planning) this.ctx.logger.info('organization component=planning-model operationId=%s permitId=%s revision=%s result=committed',
+      receipt.operationId, receipt.planning.permitId ?? 'none', receipt.revision)
     if (receipt.assignmentId) this.ctx.logger.info('organization component=assignment operationId=%s assignmentId=%s revision=%s result=committed',
       receipt.operationId, receipt.assignmentId, receipt.revision)
     this.publishCommit(receipt.revision)
@@ -953,6 +958,64 @@ export class OrganizationService extends Service {
     })
     this.ctx.logger.info('organization component=lease operation=expire revision=%s result=committed', revision)
     this.publishCommit(revision)
+  }
+
+  /**
+   * Commit a finite planning qualification or charged model attempt, without execution authority.
+   * @param token - Current native login.
+   * @param input - Closed planning command; no credentials or private text.
+   * @returns Historical receipt. Consumption replay is refused; uncertain consumption is only reconciled.
+   */
+  planningCommand(token: LoginToken, input: unknown): Promise<Receipt> {
+    return this.enqueue('planning-command', async (db) => {
+      const command = parse(planningCommandSchema, input)
+      const fingerprint = await requestFingerprint('planning', command)
+      const result = transaction(db, () => {
+        const principal = this.principal(db, token, command.organizationId)
+        authorizedProject(db, principal, command.projectId, 'read')
+        const scope = `account:${principal.accountId}`
+        const previous = this.previous(db, scope, command.operationId, fingerprint)
+        if (previous) {
+          if (command.kind === 'consume-planning-request') throw new OrganizationError('operation-conflict')
+          return { receipt: previous, committed: false }
+        }
+        const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint,
+          (revision) => {
+            const planning = changePlanning(db, principal, command, revision, this.serverEpoch, this.config.planning)
+            db.prepare('INSERT INTO planning_events VALUES (?,?,?,?)').run(revision, command.conversationId,
+              principal.accountId, JSON.stringify(planning))
+            return { organizationId: command.organizationId, projectId: command.projectId, planning }
+          })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
+    })
+  }
+  /**
+   * Read project facts and current planning eligibility under one fresh authority transaction.
+   * @param token - Native bearer owner.
+   * @param input - Exact project/conversation selector.
+   * @param deliver - Synchronous response writer inside the transaction.
+   */
+  readPlanning(token: LoginToken, input: unknown, deliver: (value: z.output<typeof planningViewSchema>) => void): Promise<void> {
+    return this.enqueue('planning-read', (db) => {
+      const query = parse(planningReadSchema, input)
+      deliver(transaction(db, () => readPlanning(db, this.principal(db, token, query.organizationId),
+        query, this.serverEpoch, this.config.planning)))
+    })
+  }
+  /**
+   * Query minimal enabled project-reader identities without administrator member data.
+   * @param token - Current login.
+   * @param input - Scoped project, literal name filter and offset.
+   * @param deliver - Synchronous current-authority response writer.
+   */
+  readPlanningCandidates(token: LoginToken, input: unknown,
+    deliver: (value: z.output<typeof planningCandidatesPageSchema>) => void): Promise<void> {
+    return this.enqueue('planning-candidates', (db) => {
+      const query = parse(planningCandidatesSchema, input)
+      deliver(transaction(db, () => planningCandidates(db, this.principal(db, token, query.organizationId), query, this.config.pageSize)))
+    })
   }
 
   /**

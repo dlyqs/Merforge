@@ -3,6 +3,7 @@ import type { TaskRun, ExecutionReceipt } from './execution-types.ts'
 export type * from './execution-types.ts'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
+import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** Stable task identity; a root task also identifies its plan. */
@@ -50,6 +51,7 @@ export interface PlanRevision {
   readonly sessionId: SessionId | null
   readonly createdAt: number
   readonly approval: PlanApproval | null
+  readonly goalId?: GoalId | undefined
 }
 /** Compare-and-save request; zero is reserved for initial creation. */
 export interface SavePlanRequest {
@@ -142,6 +144,8 @@ export interface WorkflowAssessment {
   readonly modeRevision: number
   readonly decision: 'simple' | 'clarify' | 'infeasible' | 'complex'
   readonly explanation: string
+  /** Absent on legacy assessments, which cannot authorize new proposals. */
+  readonly context?: WorkflowAssessmentContext | undefined
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
@@ -155,10 +159,10 @@ declare module '@deepseek-ai/dsh-session/types' {
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    personalWorkflowMode: WorkflowMode
+    personalWorkflowMode: WorkflowModeSelection
   }
   interface SessionProjectionMap {
-    personalWorkflowMode: WorkflowMode
+    personalWorkflowMode: WorkflowModeSelection
   }
 }
 
@@ -171,4 +175,70 @@ export interface WorkflowTestingPreferences {
 export interface SetWorkflowTestingPreferencesRequest {
   readonly forceDecomposition: boolean
   readonly expectedRevision: number
+}
+
+/** Stable goal identity within a personal conversation. */
+export type GoalId = Branded<'PersonalWorkflowGoalId'>
+/** Internal selection distinguishes an initial default from a logged explicit off. */
+export interface WorkflowModeSelection extends WorkflowMode {
+  readonly selected: boolean
+}
+/** Profile-owned automatic planning preferences; execution remains explicitly authorized. */
+export interface WorkflowPreferences {
+  readonly enabled: boolean
+  readonly granularity: 'balanced' | 'fine'
+  readonly revision: number
+}
+/** Compare-and-set user preference gesture. */
+export interface SetWorkflowPreferencesRequest {
+  readonly enabled: boolean
+  readonly granularity: 'balanced' | 'fine'
+  readonly expectedRevision: number
+}
+/** Effective settings and permission references recorded with each managed input. */
+export interface WorkflowPolicy {
+  readonly enabled: boolean
+  readonly forced: boolean
+  readonly granularity: 'balanced' | 'fine'
+  readonly modeRevision: number
+  readonly preferencesRevision: number
+  readonly testingRevision: number
+  /** Exact affiliation history position and Bot permission fields, without secrets. */
+  readonly affiliation: string
+}
+/** Model-selected input meaning; execution and human answers use their own consumers. */
+export type WorkflowRoute = 'new_goal' | 'clarification' | 'modify' | 'query'
+/** Assessment input; omitted route means a new goal for existing callers. */
+export interface WorkflowAssessmentRequest {
+  readonly modeRevision: number
+  readonly decision: WorkflowAssessment['decision']
+  readonly explanation: string
+  readonly route?: WorkflowRoute | undefined
+  readonly goalId?: GoalId | null | undefined
+}
+/** Exact durable input and settings authorizing one assessment. */
+export interface WorkflowAssessmentContext {
+  readonly goalId: GoalId
+  readonly messageId: MessageId
+  readonly route: WorkflowRoute
+  readonly policy: WorkflowPolicy
+}
+/** Rebuilt goal summary; plan revisions are read from the sole plan authority. */
+export interface WorkflowGoal {
+  readonly goalId: GoalId
+  readonly decision: WorkflowAssessment['decision']
+  readonly taskId: TaskId | null
+  readonly revision: number | null
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** Managed method and effective settings carried by the ordinary logged input pipeline. */
+    'personal-workflow-method': {
+      kind: 'personal-workflow-method'
+      modeRevision: number
+      methodVersion: number
+      readonly policy?: WorkflowPolicy | undefined
+    }
+  }
 }

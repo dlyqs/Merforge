@@ -12,6 +12,7 @@ import type { ModeProps } from './contract.ts'
  */
 export function Mode(props: ModeProps) {
   const [mode, setMode] = useState<WorkflowMode | null>(null)
+  const [forced, setForced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
@@ -20,11 +21,13 @@ export function Mode(props: ModeProps) {
   const running = props.useSession(value => value.running)
   useEffect(() => {
     let active = true
-    void props.readMode(props.sessionId).then((value) => { if (active) { setMode(value); setError(null) } }, (reason: unknown) => {
+    void Promise.all([props.readMode(props.sessionId), props.readTesting()]).then(([value, testing]) => {
+      if (active) { setMode(value); setForced(testing.forceDecomposition); setError(null) }
+    }, (reason: unknown) => {
       if (active) setError(String(reason))
     })
     return () => { active = false }
-  }, [props.sessionId, props.readMode, reload])
+  }, [props.sessionId, props.readMode, props.readTesting, reload, running])
   const select = async (enabled: boolean): Promise<void> => {
     if (mode === null || lock.current) return
     lock.current = true; setBusy(true); setError(null)
@@ -40,7 +43,8 @@ export function Mode(props: ModeProps) {
   return <div className={css.modeControl}>
     {mode === null ? <Button variant="ghost" disabled={error === null} onClick={() => { setReload(value => value + 1) }}>{props.t(error === null ? 'modeLoading' : 'refresh')}</Button>
       : <Tooltip label={props.t('modeHint')}><span className={css.modePill} data-enabled={mode.enabled}><IconBranchOutlineRegular size={14} />{props.t('mode')}<Switch label={props.t('mode')} checked={mode.enabled} disabled={busy || running}
-        onChange={(enabled) => { void select(enabled) }} /></span></Tooltip>}
+        onChange={(enabled) => { void select(enabled) }} />{forced && <span className={css.testTag}>{props.t('testingOverrides')}</span>}</span></Tooltip>}
+    {mode !== null && error === null && <Button variant="ghost" size="sm" disabled={busy || running} onClick={() => { setReload(value => value + 1) }}>{props.t('refresh')}</Button>}
     {error !== null && <><p className={css.error} role="alert">{props.t('error', { message: error })}</p>
       <Button variant="ghost" disabled={busy} onClick={() => {
         pending.current = null; setMode(null); setReload(value => value + 1)

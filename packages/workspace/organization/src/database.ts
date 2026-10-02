@@ -1,3 +1,4 @@
+import { planningDdl, validatePlanningDatabase } from './planning.ts'
 import { integrationDdl, validateIntegrationDatabase } from './integration.ts'
 import { integrationRecordSchema } from './integration-schema.ts'
 /** Organization-only SQLite schema, transaction ownership and durable validation. */
@@ -16,7 +17,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 12
+export const ORGANIZATION_SCHEMA_VERSION = 13
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -86,11 +87,12 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
-          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl)
+          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl + planningDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
-        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9 || stamp === 10 || stamp === 11) && app === applicationId) {
+        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9
+        || stamp === 10 || stamp === 11 || stamp === 12) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -103,6 +105,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 9) db.exec(deliveryDdl)
         if (stamp < 10) db.exec(acceptanceDdl)
         if (stamp < 11) db.exec(integrationDdl)
+        if (stamp < 13) db.exec(planningDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -122,7 +125,7 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
     if (workgraph) validateWorkgraphDatabase(db)
     if (assignments) {
       validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db)
-      validateDeliveryDatabase(db); validateAcceptanceDatabase(db); validateIntegrationDatabase(db)
+      validateDeliveryDatabase(db); validateAcceptanceDatabase(db); validateIntegrationDatabase(db); validatePlanningDatabase(db)
     }
     if (resources) {
       for (const row of db.prepare('SELECT * FROM organization_projects').all()) projectSchema.parse(row)
@@ -146,6 +149,14 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
       const stored = receiptRowSchema.strict().parse(row)
       const receipt = receiptSchema.parse(JSON.parse(stored.response))
       if (receipt.operationId !== stored.operationId) throw new OrganizationError('incompatible-store')
+      if (receipt.planning) {
+        const event = db.prepare('SELECT x.*,e.kind,e.organizationId FROM planning_events x JOIN organization_events e ON e.revision=x.revision WHERE x.revision=?').get(receipt.revision)
+        const g = db.prepare('SELECT projectId,organizationId FROM planning_grants WHERE conversationId=? AND accountId=?').get(receipt.planning.conversationId, event?.accountId ?? null)
+        if (!g || event?.conversationId !== receipt.planning.conversationId || event.result !== JSON.stringify(receipt.planning)
+          || g.projectId !== receipt.projectId || g.organizationId !== receipt.organizationId || event.organizationId !== g.organizationId
+          || !['open-planning','reserve-planning-request','consume-planning-request'].includes(String(event.kind))) throw new OrganizationError('incompatible-store')
+        continue
+      }
       if (receipt.integration) {
         const event = db.prepare('SELECT * FROM integration_events WHERE revision=?').get(receipt.revision)
         const r = integrationRecordSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM organization_integrations WHERE id=?').get(receipt.integration.integrationId)?.data)))

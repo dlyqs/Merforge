@@ -13,6 +13,9 @@ export const storedPlanSchema: z.ZodType<StoredPlan> = z.object({
   if (plan.revisions.some((revision, index) => revision.revision !== index + 1 || revision.definition.taskId !== plan.taskId)) {
     ctx.addIssue({ code: 'custom', message: 'invalid revision sequence or plan identity' })
   }
+  if (plan.revisions.some(revision => revision.goalId !== plan.revisions[0]?.goalId)) {
+    ctx.addIssue({ code: 'custom', message: 'plan goal identity changed across revisions' })
+  }
   if (new Set(plan.receipts.map(receipt => receipt.operationId)).size !== plan.receipts.length) {
     ctx.addIssue({ code: 'custom', message: 'duplicate operation receipt' })
   }

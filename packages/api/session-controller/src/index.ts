@@ -317,6 +317,23 @@ export class SessionController extends TypertRemoteService {
     return this.workflow().setMode(resolved.agent.session, request)
   }
 
+  /** Read profile-owned automatic planning preferences.
+   * @returns Durable defaults, separate from explicit conversation selections.
+   */
+  @Remote('workflowPreferences')
+  workflowPreferences(): import('@deepseek-ai/dsh-personal-workflow/types').WorkflowPreferences {
+    return this.workflow().preferences()
+  }
+
+  /** Save the user's default planning choice without authorizing execution.
+   * @param request - Exact preference revision and desired values.
+   * @returns Committed profile preferences.
+   */
+  @Remote('workflowSetPreferences')
+  workflowSetPreferences(request: import('@deepseek-ai/dsh-personal-workflow/types').SetWorkflowPreferencesRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowPreferences> {
+    return this.workflow().setPreferences(request)
+  }
+
   /** Read local workflow testing preferences.
    * @returns User-owned switch and revision.
    */

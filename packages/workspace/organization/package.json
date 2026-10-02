@@ -51,6 +51,10 @@
     "./delivery": {
       "types": "./lib/types/delivery-schema.d.ts",
       "default": "./lib/types/delivery-schema.js"
+    },
+    "./planning": {
+      "types": "./lib/types/planning-schema.d.ts",
+      "default": "./lib/types/planning-schema.js"
     }
   },
   "files": [

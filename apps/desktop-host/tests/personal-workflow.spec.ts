@@ -185,6 +185,7 @@ it.each(['project', 'bot'] as const)('keeps ordinary %s conversations usable wit
     ['systemPrompt', SystemPrompt], ['agents', Agents], ['tools', Tools], ['skills', Skills], ['llm', Llm], ['method', Method], ['personalRuntime', PersonalRuntime],
   ])
   try {
+    await service.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
     const model = new MockAdapter([
       textResponse('name,note'),
       toolCallResponse('simple', 'workflow_assess', { modeRevision: 1, decision: 'simple', explanation: 'A single CSV header needs no plan' }),
@@ -194,6 +195,8 @@ it.each(['project', 'bot'] as const)('keeps ordinary %s conversations usable wit
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(Typert)
     const controller = createSessionTestController(ctx, { defaultModelSelection: () => ({ provider: 'simple', model: 'mock' }), cwd: root })
+    expect(controller.workflowPreferences()).toEqual({ enabled: false, granularity: 'balanced', revision: 1 })
+    await expect(controller.workflowSetPreferences({ enabled: false, granularity: 'fine', expectedRevision: 1 })).resolves.toEqual({ enabled: false, granularity: 'fine', revision: 2 })
     const affiliation = entry === 'project'
       ? { projectId: (await ctx.personalProjects.createProject({ name: 'CSV project', description: '', path: root })).id }
       : { botId: (await ctx.personalProjects.createBot({ name: 'CSV bot', identity: '', direction: '', allowedSkills: ['dev-workflow'] })).id }

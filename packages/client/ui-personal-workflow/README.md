@@ -10,7 +10,7 @@ The web-app bundle registers the `tasks` navigation entry, `sidebar.tasks` list 
 
 The main workspace contains revision actions, a full-width top-down task mind map, and a selected-task detail card floating over the canvas at the upper right. The detail card scrolls independently and can be dismissed; selecting a node reopens it. Stage and dependency groups stay below the map. Curved links represent parent/child breakdown only; prerequisites remain explicit in the details and the initially expanded stage section. The map supports zoom, fit, locating the selected task, mouse panning, native touch scrolling, and branch collapse. Selecting a hidden task through a stage entry reveals its ancestors. Invalid parent edits remain visible with a warning until corrected; the Host still validates saves. Map nodes and stage entries share the selected state; status labels accompany their color indicators. Details group acceptance criteria, artifact declarations, execution evidence, and deduplicated conversation links. The detail card stays within the canvas on narrow windows; the layout uses shared light/dark theme tokens, and keeps controls reachable through keyboard focus. Execution selection groups the task summary, authorization budgets, and run controls; loading, empty, and failure states use localized copy.
 
-The conversation composer provides an explicit task enhancement switch backed by `workflowMode` and `workflowSetMode`. The choice persists separately from submitting a goal; failed writes remain off and expose retry/refresh actions. Current conversations provide the Session identity through the standard scope adapter.
+The conversation composer provides an automatic planning switch backed by `workflowMode` and `workflowSetMode`. The choice persists separately from submitting a goal; failed writes retain the last committed choice and expose retry/refresh actions. Unselected conversations inherit the profile default, initially on. A separate badge shows when the explicit testing override takes precedence; refresh rereads current defaults and the test switch. Current conversations provide the Session identity through the standard scope adapter.
 
 ## Model Experience
 
@@ -30,8 +30,12 @@ The composer task dropdown offers only ready candidates. Its authorization form 
 
 ## Integration acceptance
 
-The no-page Desktop Host component test is `apps/desktop-host/tests/personal-workflow.spec.ts`. It covers ordinary Project/Bot routing and a reviewed CSV fork/join delivery with concurrent tools, a user-requested handoff, independently checked files and durable reopen. It uses deterministic model responses; Desktop interaction and real-model acceptance remain pending. See the [Desktop acceptance script](../../../../docs/personal-workflow-acceptance.md) for user steps and evidence requirements.
+The no-page Desktop Host component test is `apps/desktop-host/tests/personal-workflow.spec.ts`. It covers ordinary Project/Bot routing and a reviewed CSV fork/join delivery with concurrent tools, a user-requested handoff, independently checked files and durable reopen. It uses deterministic model responses; Desktop interaction and real-model acceptance remain pending. See the [Desktop acceptance script](../../../docs/personal-workflow-acceptance.md) for user steps and evidence requirements.
 
 ## Temporary workflow testing
 
 Settings → Tasks, Projects & Bots includes “Always decompose tasks”, off by default. The control reads `workflowTestingPreferences` and writes `workflowSetTestingPreferences` with an exact revision; pending or failed writes never appear committed, and conflicts require a refresh. The local preference survives Host restart. It enables planning for unbound conversations even when their individual mode is off, but does not modify that individual selection. Turning it off restores ordinary routing. Existing selected-task execution, approvals and tool permissions remain enforced.
+
+## Automatic planning preferences
+
+The existing personal settings extension also exposes the profile's automatic recognition switch and balanced/fine suggested granularity through `workflowPreferences` / `workflowSetPreferences`. Writes compare the exact revision, show the committed value, and offer refresh after conflicts. Explicit conversation mode events override the profile default; no setting approves or starts a task. Execution controls continue to default to manual and require the selected exact task, stop phase and budgets. The temporary test switch remains separate and off by default.

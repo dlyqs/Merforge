@@ -40,5 +40,6 @@ export const revisionSchema = z.object({
   revision: z.number().int().positive(), definition: definitionSchema,
   source: z.enum(['user', 'model']), sessionId: z.string().min(1).transform(SessionId).nullable(),
   createdAt: z.number().int().nonnegative(),
+  goalId: z.uuid().transform(value => value as import('./types.ts').GoalId).optional(),
   approval: z.object({ operationId: operationIdSchema, time: z.number().int().nonnegative() }).strict().nullable(),
 }).strict()

@@ -1,3 +1,4 @@
+import { organizationConversation } from './organization-conversation.ts'
 import { OrganizationIntegration } from './organization-integration.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 import { openOrganizationExecution, readOrganizationExecution } from './organization-execution.ts'
@@ -413,6 +414,21 @@ async function main(): Promise<void> {
         event.sender.removeListener('render-process-gone', abort)
       }
     })
+  ipcMain.handle(DESKTOP_IPC.organizationConversation, async (event, input: unknown) => {
+    assertProductSender(event)
+    const host = backend.host
+    if (!host) throw new Error('organization-conversation-unavailable')
+    const lifetime = new AbortController(), abort = () => { lifetime.abort() }
+    event.sender.once('destroyed', abort); event.sender.once('render-process-gone', abort)
+    try {
+      return await organizationConversation(organizationManager.connection, host, input, () => {
+        assertProductSender(event)
+        if (backend.host !== host) throw new Error('superseded')
+      }, lifetime.signal)
+    } finally {
+      event.sender.removeListener('destroyed', abort); event.sender.removeListener('render-process-gone', abort)
+    }
+  })
   ipcMain.handle(DESKTOP_IPC.organizationContext, async (event, input: unknown) => {
     assertProductSender(event)
     const host = backend.host
@@ -463,6 +479,7 @@ async function main(): Promise<void> {
           updateStopFailure = error
         }
       },
+      organizationConversation: host.organizationConversation.bind(host),
       codexSetup: host.codexSetup.bind(host),
       subscribeCodexSetup: host.subscribeCodexSetup.bind(host),
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),

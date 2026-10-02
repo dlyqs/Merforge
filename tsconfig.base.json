@@ -330,6 +330,8 @@
 
       "@deepseek-ai/dsh-organization/delivery": ["./packages/workspace/organization/src/delivery-schema.ts"],
       "@deepseek-ai/dsh-organization/execution": ["./packages/workspace/organization/src/execution-schema.ts"],
+      "@deepseek-ai/dsh-organization/planning": ["./packages/workspace/organization/src/planning-schema.ts"],
+      "@deepseek-ai/dsh-organization-conversation/protocol": ["./packages/workspace/organization-conversation/src/protocol.ts"],
       "@deepseek-ai/dsh-organization-execution/protocol": ["./packages/workspace/organization-execution/src/protocol.ts"],
       "@deepseek-ai/dsh-organization-context/protocol": ["./packages/workspace/organization-context/src/protocol.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
@@ -412,6 +414,8 @@
       "@deepseek-ai/dsh-organization-connection": ["./packages/host/organization-connection/src"],
       "@deepseek-ai/dsh-organization-context": ["./packages/workspace/organization-context/src"],
       "@deepseek-ai/dsh-organization-context/invariant": ["./packages/workspace/organization-context/src/invariant.ts"],
+      "@deepseek-ai/dsh-organization-conversation": ["./packages/workspace/organization-conversation/src"],
+      "@deepseek-ai/dsh-organization-conversation/invariant": ["./packages/workspace/organization-conversation/src/invariant.ts"],
       "@deepseek-ai/dsh-organization-execution": ["./packages/workspace/organization-execution/src"],
       "@deepseek-ai/dsh-organization-execution/invariant": ["./packages/workspace/organization-execution/src/invariant.ts"],
       "@deepseek-ai/dsh-output-retention": ["./packages/util/output-retention/src"],

@@ -28,6 +28,7 @@ it('loads a portable authorized method, preserves off input, records enabled con
       send() {}, followup() {}, steer() {}, inject() {}, cancel() {}, whenIdle: async () => {},
       runMaintenance: task => task(new AbortController().signal),
     }
+    await service.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
     const signal = new AbortController().signal
     const messages = [createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Prepare CSV export with independent test data' }] })]
     const step = () => agentEvents(ctx, agent).waterfall('agent/pre-step', { messages, turn: 1, step: 1, signal }, async () => ({ kind: 'enter' as const, messages }))
@@ -108,6 +109,7 @@ it('runs ordinary and complex goals through the real AgentLoop and durable model
       agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text }] }))
       await agent.whenIdle()
     }
+    await service.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
     await send('Explain CSV')
     expect(service.list()).toEqual([])
     expect(model.requests).toHaveLength(1)
@@ -123,7 +125,7 @@ it('runs ordinary and complex goals through the real AgentLoop and durable model
     expect(service.list()).toHaveLength(1)
     expect(service.list()[0]?.snapshot.approval).toBeNull()
     expect(model.requests[complexRequest]?.tools?.some(tool => tool.name === 'workflow_propose')).toBe(true)
-    expect(JSON.stringify(model.requests[complexRequest]?.messages)).toContain('managed method v1')
+    expect(JSON.stringify(model.requests[complexRequest]?.messages)).toContain('managed method v2')
     await ctx.sessions.flush(agent.session)
     await using reader = await ctx.sessionPersistence.open(agent.id, 'read')
     const saved = (await reader.read()).events

@@ -1,3 +1,4 @@
+import { installOrganizationConversationControl } from './organization-conversation.ts'
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
 import { installCodexSetupControl } from './codex-setup.ts'
 export { installCodexSetupControl } from './codex-setup.ts'
@@ -68,6 +69,11 @@ async function main(): Promise<void> {
   })
   process.once('disconnect', () => { void stop() })
   const { ctx } = await application
+  installOrganizationConversationControl(ctx, {
+    on: (event, listener) => process.on(event, listener),
+    off: (event, listener) => process.off(event, listener),
+    send: (message) => { if (!process.connected || !process.send) throw new Error('organization-conversation: disconnected'); process.send(message) },
+  })
   installOrganizationContextControl(ctx, {
     on: (event, listener) => process.on(event, listener),
     off: (event, listener) => process.off(event, listener),

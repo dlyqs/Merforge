@@ -1,10 +1,14 @@
 /** Personal task plan authority over atomic storage-domain records. */
 import { z } from 'zod'
 import { WorkflowExecution } from './execution.ts'
-import { createHash } from 'node:crypto'
+import { preferencesSchema, setPreferencesSchema, assessmentSchema } from './planning.ts'
+import { assertPersonalSessionId } from '@deepseek-ai/dsh-session'
+import { createHash, randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { defineDomain, domainTable, type KvTable, type DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-personal-project'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-session-query'
@@ -15,7 +19,8 @@ import { exportPlan } from './projection.ts'
 import type {
   ApprovePlanRequest, OperationId, PlanDefinition, PlanRevision, PlanView, ReadPlanRequest,
   WorkflowTestingPreferences, SetWorkflowTestingPreferencesRequest, SavePlanRequest, StoredPlan, TaskId,
-  WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment,
+  WorkflowSnapshot, WorkflowMode, SetWorkflowModeRequest, WorkflowAssessment, WorkflowAssessmentRequest,
+  WorkflowPreferences, SetWorkflowPreferencesRequest, WorkflowPolicy, WorkflowGoal, GoalId,
 } from './types.ts'
 export type * from './types.ts'
 export { exportPlan, projectPlan } from './projection.ts'
@@ -23,6 +28,11 @@ export { exportPlan, projectPlan } from './projection.ts'
 const domainSpec = defineDomain({
   name: 'personal_workflow', version: 1,
   tables: { plans: domainTable<TaskId, StoredPlan>(storedPlanSchema) },
+})
+
+const preferencesSpec = defineDomain({
+  name: 'personal_workflow_preferences', version: 1, tables: {},
+  global: { schema: preferencesSchema, initial: { enabled: true, granularity: 'balanced' as const, revision: 0 } },
 })
 
 const testingPreferencesSpec = defineDomain({
@@ -65,6 +75,7 @@ export class PersonalWorkflow extends Service {
   /** Task execution writer sharing atomic plan transactions. */
   readonly execution: WorkflowExecution
   static inject = ['storageDomain', 'sessions', 'sessionPersistence', 'sessionQuery', 'personalProjects', 'sessionProjections']
+  private preferencesStore?: DomainGlobal<WorkflowPreferences>
   private testing?: DomainGlobal<WorkflowTestingPreferences>
   private plans?: KvTable<TaskId, StoredPlan>
   private tail: Promise<void> = Promise.resolve()
@@ -91,10 +102,25 @@ export class PersonalWorkflow extends Service {
       await this.tail
       await testing.close()
     }, 'personal-workflow.testingClose')
+    const preferences = await this.ctx.storageDomain.open(preferencesSpec)
+    this.preferencesStore = preferences.global
+    this.ctx.effect(() => async () => {
+      this.closing = true
+      await this.tail
+      await preferences.close()
+    }, 'personal-workflow.preferencesClose')
     await this.execution.recover()
     const ids = new Set<TaskId>()
+    const goals = new Set<string>()
     for (const [key, plan] of this.plans.entries()) {
       if (key !== plan.taskId) throw new Error('personal-workflow: stored plan identity mismatch')
+      const bindings = new Set(plan.revisions.filter(revision => revision.goalId !== undefined && revision.sessionId !== null)
+        .map(revision => JSON.stringify([revision.sessionId, revision.goalId])))
+      if (bindings.size > 1) throw new Error('personal-workflow: plan belongs to multiple conversation goals')
+      for (const binding of bindings) {
+        if (goals.has(binding)) throw new Error('personal-workflow: goal belongs to multiple plans')
+        goals.add(binding)
+      }
       const owned = new Set(plan.revisions.flatMap(revision => revision.definition.tasks.map(task => task.id)))
       for (const id of owned) {
         if (ids.has(id)) throw new Error('personal-workflow: task identity belongs to multiple plans')
@@ -113,6 +139,79 @@ export class PersonalWorkflow extends Service {
     const result = this.tail.then(work)
     this.tail = result.then(() => undefined, () => undefined)
     return result
+  }
+
+  /** Read this profile's automatic planning defaults.
+   * @returns Durable user preference and compare-and-set revision.
+   */
+  preferences(): WorkflowPreferences {
+    if (this.preferencesStore === undefined) throw new Error('personal-workflow: preferences unavailable')
+    return this.preferencesStore.get()
+  }
+
+  /** Save user defaults without changing explicit conversation selections or authorizing work.
+   * @param request - User choice and exact settings revision.
+   * @returns Committed preferences; stale writes are refused.
+   */
+  setPreferences(request: SetWorkflowPreferencesRequest): Promise<WorkflowPreferences> {
+    const parsed = setPreferencesSchema.parse(request)
+    return this.enqueue(async () => {
+      const current = this.preferences()
+      if (parsed.expectedRevision !== current.revision) throw new Error('preferences-revision-conflict')
+      const next = { enabled: parsed.enabled, granularity: parsed.granularity, revision: current.revision + 1 }
+      if (this.preferencesStore === undefined) throw new Error('personal-workflow: preferences unavailable')
+      await this.preferencesStore.set(next)
+      this.ctx.logger.info(`component=planning-settings settingsRevision=${next.revision} operation=preferences result=committed`)
+      return next
+    })
+  }
+
+  /** Resolve persisted mode, profile defaults and the explicit testing override.
+   * @param session - Personal conversation whose permission references are captured.
+   * @returns Effective planning policy, never execution authorization.
+   */
+  async resolve(session: Session): Promise<WorkflowPolicy> {
+    assertPersonalSessionId(session.id)
+    const mode = await this.mode(session)
+    const preferences = this.preferences()
+    const testing = this.testingPreferences()
+    const affiliation = this.ctx.personalProjects.affiliation(session)
+    const bot = affiliation.current.botId === undefined ? undefined : this.ctx.personalProjects.getBot(affiliation.current.botId)
+    const permitted = this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')
+      && (bot?.allowedTools === undefined || ['workflow_assess', 'workflow_propose'].every(tool => bot.allowedTools?.includes(tool)))
+    return {
+      enabled: permitted && (mode.enabled || testing.forceDecomposition), forced: testing.forceDecomposition,
+      granularity: preferences.granularity, modeRevision: mode.revision,
+      preferencesRevision: preferences.revision, testingRevision: testing.revision,
+      affiliation: JSON.stringify({ current: affiliation.current, seq: affiliation.history.at(-1)?.seq ?? null,
+        allowedTools: bot?.allowedTools ?? null, allowedSkills: bot?.allowedSkills ?? null }),
+    }
+  }
+
+  /** Rebuild stable goal identities and current plan associations without creating plans.
+   * @param session - Personal Session containing the assessment history.
+   * @returns Latest decision and authoritative plan reference for each goal.
+   */
+  async goals(session: Session): Promise<WorkflowGoal[]> {
+    assertPersonalSessionId(session.id)
+    await using handle = await this.ctx.sessionPersistence.open(session.id, 'read')
+    const { events } = await handle.read()
+    const goals = new Map<GoalId, WorkflowGoal>()
+    for (const event of events) {
+      if (event.type !== 'personal-workflow/assessment' || event.data.context === undefined || event.data.context.route === 'query') continue
+      const goalId = event.data.context.goalId
+      const revision = this.goalPlan(session.id, goalId)
+      goals.set(goalId, { goalId, decision: event.data.decision,
+        taskId: revision?.definition.taskId ?? null, revision: revision?.revision ?? null })
+    }
+    return [...goals.values()]
+  }
+
+  private goalPlan(sessionId: SessionId, goalId: GoalId): PlanRevision | undefined {
+    for (const [, plan] of this.table().entries()) {
+      if (plan.revisions.some(revision => revision.sessionId === sessionId && revision.goalId === goalId)) return plan.revisions.at(-1)
+    }
+    return undefined
   }
 
   /** Read the local testing override; it never authorizes task execution.
@@ -146,19 +245,20 @@ export class PersonalWorkflow extends Service {
   selectedMode(session: Session): WorkflowMode {
     const mode = this.ctx.sessionProjections.stateOf(session, 'personalWorkflowMode')
     if (mode === undefined) throw new Error('personal-workflow: mode projection unavailable')
-    return mode
+    return { enabled: mode.selected ? mode.enabled : this.preferences().enabled, revision: mode.revision }
   }
 
   /** Read only the persisted mode, so a failed flush never enables planning.
    * @param session - Session selected by the user.
-   * @returns Latest durable selection, initially disabled.
+   * @returns Latest explicit selection, otherwise the profile default.
    */
   async mode(session: Session): Promise<WorkflowMode> {
     await using handle = await this.ctx.sessionPersistence.open(session.id, 'read')
     const { events } = await handle.read()
     const event = events.findLast(item => item.type === 'personal-workflow/mode')
     return event?.type === 'personal-workflow/mode'
-      ? workflowModeSchema.parse({ enabled: event.data.enabled, revision: event.data.revision }) : { enabled: false, revision: 0 }
+      ? workflowModeSchema.parse({ enabled: event.data.enabled, revision: event.data.revision })
+      : { enabled: this.preferences().enabled, revision: 0 }
   }
 
   /** Persist an explicit user mode selection without creating a plan or starting work.
@@ -194,14 +294,46 @@ export class PersonalWorkflow extends Service {
    * @param assessment - Goal classification and reason, with the observed mode version.
    * @returns Durable routing decision; never an execution authorization.
    */
-  assess(session: Session, assessment: WorkflowAssessment): Promise<WorkflowAssessment> {
+  assess(session: Session, assessment: WorkflowAssessmentRequest): Promise<WorkflowAssessment> {
+    const parsed = assessmentSchema.parse(assessment)
     return this.enqueue(async () => {
-      await this.requireMode(session, assessment.modeRevision)
-      if (this.testingPreferences().forceDecomposition && assessment.decision === 'simple') throw new Error('personal-workflow: testing requires decomposition; clarify or assess complex before proposing')
-      session.append('personal-workflow/assessment', assessment)
+      await this.requireMode(session, parsed.modeRevision)
+      if (this.execution.forSession(session.id) !== null) throw new Error('personal-workflow: selected execution cannot be decomposed')
+      const policy = await this.resolve(session)
+      const route = parsed.route ?? 'new_goal'
+      if (policy.forced && parsed.decision === 'simple' && route !== 'query') throw new Error('personal-workflow: testing requires decomposition; clarify or assess complex before proposing')
+      using observation = await this.ctx.sessionQuery.observeSession(session.id, { projectionMode: 'none' })
+      const goal = observation.events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
+      if (goal?.type !== 'user/message') throw new Error('personal-workflow: assessment requires an accepted user message')
+      const method = observation.events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'personal-workflow-method')
+      if (method?.type === 'user/message' && method.data.source.kind === 'personal-workflow-method'
+        && (method.seq < goal.seq || JSON.stringify(method.data.source.policy) !== JSON.stringify(policy))) {
+        throw new Error('personal-workflow: planning settings or affiliation changed; send a new input')
+      }
+      const retry = observation.events.find(event => event.type === 'personal-workflow/assessment' && event.data.context?.messageId === goal.data.id)
+      let data: WorkflowAssessment
+      if (retry?.type === 'personal-workflow/assessment' && retry.data.context !== undefined) {
+        if (retry.data.modeRevision !== parsed.modeRevision || retry.data.decision !== parsed.decision
+          || retry.data.explanation !== parsed.explanation || retry.data.context.route !== route
+          || (route !== 'new_goal' && retry.data.context.goalId !== parsed.goalId)) throw new Error('message-assessment-conflict')
+        if (JSON.stringify(retry.data.context.policy) !== JSON.stringify(policy)) throw new Error('personal-workflow: planning settings or affiliation changed; send a new input')
+        data = retry.data
+      } else {
+        if (route === 'new_goal' && parsed.goalId != null) throw new Error('personal-workflow: new goals cannot reuse a goal identity')
+        const previous = route === 'new_goal' ? undefined : observation.events.findLast(event => event.type === 'personal-workflow/assessment'
+          && event.data.context?.goalId === parsed.goalId && event.data.context?.route !== 'query')
+        if (route !== 'new_goal' && previous?.type !== 'personal-workflow/assessment') throw new Error('personal-workflow: unknown goal in this conversation')
+        if (route === 'clarification' && previous?.type === 'personal-workflow/assessment' && previous.data.decision !== 'clarify') throw new Error('personal-workflow: goal is not awaiting clarification')
+        if (route === 'modify' && (parsed.goalId == null || this.goalPlan(session.id, parsed.goalId) === undefined)) throw new Error('personal-workflow: modification requires an existing plan')
+        const goalId = route === 'new_goal' ? randomUUID() as GoalId : parsed.goalId
+        if (goalId == null) throw new Error('personal-workflow: goal identity is required')
+        data = { modeRevision: parsed.modeRevision, decision: parsed.decision, explanation: parsed.explanation,
+          context: { goalId, messageId: goal.data.id, route, policy } }
+        session.append('personal-workflow/assessment', data)
+      }
       if (!await this.ctx.sessions.flush(session)) throw new Error('personal-workflow: Session has no durability listener')
-      this.ctx.logger.info(`personal-workflow sessionId=${session.id} decisionCode=${assessment.decision} result=assessed`)
-      return assessment
+      this.ctx.logger.info(`component=planning goalId=${data.context?.goalId} sessionId=${session.id} settingsRevision=${policy.preferencesRevision} decisionCode=${data.decision} operation=${route} result=assessed`)
+      return data
     })
   }
 
@@ -211,10 +343,23 @@ export class PersonalWorkflow extends Service {
    * @returns Validated conversation selection, or a rejection; the testing override can admit a disabled selection.
    */
   async requireMode(session: Session, revision: number): Promise<WorkflowMode> {
+    assertPersonalSessionId(session.id)
     const mode = await this.mode(session)
     if ((!mode.enabled && !this.testingPreferences().forceDecomposition) || mode.revision !== revision) throw new Error('personal-workflow: enhancement mode is off or changed')
-    if (!this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')) throw new Error('dev-workflow Skill is disabled by the current Bot')
+    this.assertPlanningPermissions(session)
     return mode
+  }
+
+  private assertPlanningPermissions(session: Session): void {
+    if (!this.ctx.personalProjects.allowsSkill(session, 'dev-workflow')) throw new Error('dev-workflow Skill is disabled by the current Bot')
+    const botId = this.ctx.personalProjects.affiliation(session).current.botId
+    const allowedTools = botId === undefined ? undefined : this.ctx.personalProjects.getBot(botId)?.allowedTools
+    if (allowedTools !== undefined && !['workflow_assess', 'workflow_propose'].every(tool => allowedTools.includes(tool))) throw new Error('personal-workflow: workflow tools are disabled by the current Bot')
+    const agent = this.ctx.get('agents')?.get(session.id)
+    if (agent !== undefined) {
+      const tools = this.ctx.get('tools')
+      if (tools === undefined || !['workflow_assess', 'workflow_propose'].every(tool => tools.get(tool, agent) !== undefined)) throw new Error('personal-workflow: workflow tools are unavailable under the current tool permissions')
+    }
   }
 
   /** Read all current plan views; this does not bind or start a Session.
@@ -259,31 +404,46 @@ export class PersonalWorkflow extends Service {
   private commitProposal(request: SavePlanRequest, source: 'user' | 'model', sessionId: SessionId | null, enhancement?: { session: Session; modeRevision: number }): Promise<PlanRevision> {
     return this.enqueue(async () => {
       try {
-        if (enhancement !== undefined) {
-          await this.requireMode(enhancement.session, enhancement.modeRevision)
-          if (this.testingPreferences().forceDecomposition && request.definition.tasks.filter(task => task.parentTaskId !== null && task.required).length < 2) throw new Error('personal-workflow: testing requires at least two required subtasks')
-          await using handle = await this.ctx.sessionPersistence.open(enhancement.session.id, 'read')
-          const { events } = await handle.read()
-          const assessment = events.findLast(event => event.type === 'personal-workflow/assessment')
-          if (assessment?.type !== 'personal-workflow/assessment' || assessment.data.modeRevision !== enhancement.modeRevision || assessment.data.decision !== 'complex') throw new Error('personal-workflow: clarify and assess a complex goal before proposing')
-          const goal = events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
-          if (goal !== undefined && assessment.seq < goal.seq) throw new Error('personal-workflow: assess the current goal before proposing')
-          const affiliation = this.ctx.personalProjects.affiliation(enhancement.session).current
-          if (request.definition.projectId !== (affiliation.projectId ?? null) || request.definition.botId !== (affiliation.botId ?? null)) throw new Error('personal-workflow: proposal affiliation differs from its conversation')
-        }
         const parsed = saveSchema.parse(request)
         const { definition, operationId } = parsed
         const fingerprint = digest({ kind: 'save', source, sessionId, ...parsed })
         const table = this.table()
         const previous = table.get(definition.taskId)
+        if (enhancement !== undefined) await this.requireMode(enhancement.session, enhancement.modeRevision)
         const retry = this.retry(previous, operationId, fingerprint)
         if (retry) return retry
+        let goalId: GoalId | undefined
+        if (enhancement !== undefined) {
+          if (this.execution.forSession(enhancement.session.id) !== null) throw new Error('personal-workflow: selected execution cannot be decomposed')
+          if (this.testingPreferences().forceDecomposition && request.definition.tasks.filter(task => task.parentTaskId !== null && task.required).length < 2) throw new Error('personal-workflow: testing requires at least two required subtasks')
+          await using handle = await this.ctx.sessionPersistence.open(enhancement.session.id, 'read')
+          const { events } = await handle.read()
+          const assessment = events.findLast(event => event.type === 'personal-workflow/assessment')
+          if (assessment?.type !== 'personal-workflow/assessment' || assessment.data.modeRevision !== enhancement.modeRevision || assessment.data.decision !== 'complex'
+            || assessment.data.context === undefined || assessment.data.context.route === 'query') throw new Error('personal-workflow: clarify and assess a complex goal before proposing')
+          const goal = events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
+          using current = await this.ctx.sessionQuery.observeSession(enhancement.session.id, { projectionMode: 'none' })
+          const liveGoal = current.events.findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')
+          if (goal?.type !== 'user/message' || assessment.data.context.messageId !== goal.data.id
+            || (liveGoal?.type === 'user/message' && liveGoal.data.id !== goal.data.id)) throw new Error('personal-workflow: assess the current goal before proposing')
+          const policy = await this.resolve(enhancement.session)
+          if (JSON.stringify(policy) !== JSON.stringify(assessment.data.context.policy)) throw new Error('personal-workflow: planning settings or affiliation changed; reassess the goal')
+          goalId = assessment.data.context.goalId
+          const bound = this.goalPlan(enhancement.session.id, goalId)
+          if (bound !== undefined && bound.definition.taskId !== definition.taskId) throw new Error('personal-workflow: goal already has a plan')
+          if (previous !== undefined && !previous.revisions.some(revision => revision.goalId === goalId && revision.sessionId === sessionId)) throw new Error('personal-workflow: plan belongs to another goal')
+          const affiliation = this.ctx.personalProjects.affiliation(enhancement.session).current
+          if (request.definition.projectId !== (affiliation.projectId ?? null) || request.definition.botId !== (affiliation.botId ?? null)) throw new Error('personal-workflow: proposal affiliation differs from its conversation')
+        }
+        if (enhancement !== undefined) this.assertPlanningPermissions(enhancement.session)
         if ((previous?.revisions.length ?? 0) !== parsed.expectedRevision) throw new Error('revision-conflict')
         if (previous?.runs?.some(run => run.status === 'running' || run.actions.some(action => action.status === 'pending' || action.status === 'unknown') || run.handoffs.some(handoff => handoff.status === 'prepared'))) throw new Error('stop-execution-before-editing')
         this.validateIdentity(definition, previous)
+        const linkedGoal = goalId ?? previous?.revisions.at(-1)?.goalId
         const snapshot: PlanRevision = {
           revision: parsed.expectedRevision + 1, definition, source, sessionId,
           createdAt: Date.now(), approval: null,
+          ...(linkedGoal === undefined ? {} : { goalId: linkedGoal }),
         }
         const next: StoredPlan = {
           ...previous, taskId: definition.taskId, revisions: [...previous?.revisions ?? [], snapshot],

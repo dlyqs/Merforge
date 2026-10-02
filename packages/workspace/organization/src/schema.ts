@@ -1,3 +1,4 @@
+import { planningPolicySchema, planningReceiptSchema } from './planning-schema.ts'
 import { integrationReceiptSchema } from './integration-schema.ts'
 /** Strict JSON and durable-row parsers for the organization authority. */
 import { deliveryReceiptSchema } from './delivery-schema.ts'
@@ -25,6 +26,11 @@ const digest = z.string().regex(/^[a-f0-9]{64}$/)
 /** Validated deployment limits; no request may override them. */
 export const configSchema = z.object({
   path: z.string().min(1),
+  planning: planningPolicySchema.default({ models: [
+    { model: 'deepseek-flash', endpoint: 'https://api.deepseek.com/anthropic/v1' },
+    { model: 'deepseek-v4-pro', endpoint: 'https://api.deepseek.com/anthropic/v1' },
+  ], ttlMs: 1800000, permitTtlMs: 10000, maxRequests: 40, maxInputBytes: 1048576,
+  maxOutputBytes: 1048576, maxTotalBytes: 41943040, maxDurationMs: 1800000 }),
   artifactMaxFiles: z.number().int().min(1).max(1000).default(20),
   artifactMaxFileBytes: z.number().int().min(1).max(67108864).default(262144),
   artifactMaxTotalBytes: z.number().int().min(1).max(1073741824).default(1048576),
@@ -124,6 +130,7 @@ export const receiptSchema = z.object({
   execution: executionReceiptSchema.optional(),
   delivery: deliveryReceiptSchema.optional(),
   integration: integrationReceiptSchema.optional(),
+  planning: planningReceiptSchema.optional(),
 }).strict()
 /** Rate-window persistence parser. */
 export const attemptSchema = z.object({
@@ -132,7 +139,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['open-planning', 'reserve-planning-request', 'consume-planning-request', 'verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })

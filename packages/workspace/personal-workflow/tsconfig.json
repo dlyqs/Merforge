@@ -40,6 +40,12 @@
     },
     {
       "path": "../../util/task-graph"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/tools"
     }
   ]
 }

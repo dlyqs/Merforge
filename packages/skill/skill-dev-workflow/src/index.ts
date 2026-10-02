@@ -12,7 +12,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 
 const bodyURL = new URL('../assets/SKILL.md', import.meta.url)
 const candidate: SkillCandidate = {
-  name: 'dev-workflow', description: 'Managed task enhancement, available only when the user explicitly enables the conversation mode.',
+  name: 'dev-workflow', description: 'Managed task enhancement, automatically assesses new goals under the user’s planning preferences.',
   invocation: { modelInvocable: false, userInvocable: false }, provider: 'dev-workflow', source: 'bundled',
   rank: BUNDLED_SKILL_RANK, locator: bodyURL,
   resourceBase: { kind: 'directory', path: fileURLToPath(new URL('../assets/', import.meta.url)) },
@@ -24,8 +24,6 @@ declare module '@deepseek-ai/dsh-llm' {
     'personal-workflow-execution': { kind: 'personal-workflow-execution' }
     /** Authorized continuation of the same selected task. */
     'personal-workflow-continue': { kind: 'personal-workflow-continue' }
-    /** Mode and managed method recorded by the ordinary user-message pipeline. */
-    'personal-workflow-method': { kind: 'personal-workflow-method'; modeRevision: number; methodVersion: number }
   }
 }
 
@@ -53,6 +51,7 @@ export function apply(ctx: Context): void {
           && ctx.personalWorkflow.execution.limits.blockedTools.includes(tool)) return false
         if (tool === 'workflow_complete') return ctx.personalWorkflow.execution.forSession(agent.session.id)?.sessionId === agent.session.id
         if (tool !== 'workflow_assess' && tool !== 'workflow_propose') return true
+        if (ctx.personalWorkflow.execution.forSession(agent.session.id) !== null) return false
         return (ctx.personalWorkflow.selectedMode(agent.session).enabled || ctx.personalWorkflow.testingPreferences().forceDecomposition)
           && ctx.personalProjects.allowsSkill(agent.session, 'dev-workflow')
       })
@@ -66,15 +65,16 @@ export function apply(ctx: Context): void {
     const execution = await ctx.personalWorkflow.execution.enterTurn(agent.session)
     if (execution !== null) return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'personal-workflow-execution' }, content: [{ type: 'text', text: execution }] })] }
     const mode = await ctx.personalWorkflow.mode(agent.session)
-    const forced = ctx.personalWorkflow.testingPreferences().forceDecomposition
-    if (!mode.enabled && !forced && mode.revision === 0) {
+    const policy = await ctx.personalWorkflow.resolve(agent.session)
+    const forced = policy.forced
+    if (!policy.enabled && !forced && mode.revision === 0) {
       await using handle = await ctx.sessionPersistence.open(agent.session.id, 'read')
       const { events } = await handle.read()
       if (!events.some(event => event.type === 'user/message' && event.data.source.kind === 'personal-workflow-method')) return decision
     }
     signal.throwIfAborted()
     let text = 'Task enhancement is now disabled. Ignore earlier enhancement instructions and continue ordinary assistance. Do not submit task assessments or proposals.'
-    if (mode.enabled || forced) {
+    if (policy.enabled || forced) {
       await ctx.personalWorkflow.requireMode(agent.session, mode.revision)
       if (ctx.tools.get('workflow_assess', agent) === undefined || ctx.tools.get('workflow_propose', agent) === undefined) {
         throw new Error('personal-workflow: workflow tools are unavailable under the current tool permissions')
@@ -82,13 +82,13 @@ export function apply(ctx: Context): void {
       const skill = await ctx.skills.get('dev-workflow', { scope: agent, cwd: agent.session.header.cwd, signal })
       if (skill === undefined || skill.provider !== candidate.provider) throw new Error('personal-workflow: bundled dev-workflow Skill unavailable')
       const affiliation = ctx.personalProjects.affiliation(agent.session).current
-      text = `Task enhancement is enabled. Mode revision: ${mode.revision}. Conversation affiliation: ${JSON.stringify({ projectId: affiliation.projectId ?? null, botId: affiliation.botId ?? null })}\n${renderSkillContent(skill)}`
+      text = `Task enhancement is enabled. Mode revision: ${mode.revision}. Effective planning policy: ${JSON.stringify(policy)}. Conversation affiliation: ${JSON.stringify({ projectId: affiliation.projectId ?? null, botId: affiliation.botId ?? null })}. Model configuration: ${JSON.stringify({ backend: agent.options.backend ?? null, provider: agent.options.provider ?? null, model: agent.options.model ?? null })}. Existing goals: ${JSON.stringify(await ctx.personalWorkflow.goals(agent.session))}\n${renderSkillContent(skill)}`
       if (forced) text += '\nTemporary testing override is ON for this device. For every new goal, including simple goals, clarify only if needed, then assess complex and propose a plan with at least two required subtasks. Do not take the simple route or perform the requested work directly. Await user review and explicit task selection; never approve or start tasks yourself. This overrides the ordinary simple-goal routing above.'
       else text += '\nTemporary testing override is OFF. Ignore earlier temporary forced-decomposition instructions; use the managed method’s normal simple/complex routing.'
       ctx.logger.info(`personal-workflow sessionId=${agent.session.id} decisionCode=method-loaded result=ready`)
     }
     return { ...decision, messages: [...decision.messages, createUserMessage({
-      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 1 },
+      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 2, policy },
       content: [{ type: 'text', text }],
     })] }
   })
@@ -99,12 +99,17 @@ export function apply(ctx: Context): void {
       modeRevision: { type: 'integer', required: true, description: 'Current mode revision provided with the managed method.' },
       decision: { type: 'string', enum: ['simple', 'clarify', 'infeasible', 'complex'], required: true },
       explanation: { type: 'string', required: true, description: 'Concise reasoning about scope, ambiguity and feasibility.' },
+      route: { type: 'string', enum: ['new_goal', 'clarification', 'modify', 'query'], description: 'Meaning of the current input. Omit only for a new goal. Queries cannot create plans.' },
+      goalId: { type: 'string', description: 'Existing goal UUID required for clarification, modification or query. Omit for a new goal.' },
     },
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
     async execute(args, exec) {
       if (exec.agent === undefined) throw new Error('workflow_assess requires a conversation')
       if (!args.explanation.trim()) throw new Error('assessment explanation is required')
-      return JSON.stringify(await ctx.personalWorkflow.assess(exec.agent.session, args))
+      const { goalId, ...assessment } = args
+      return JSON.stringify(await ctx.personalWorkflow.assess(exec.agent.session, { ...assessment,
+        ...(goalId === undefined ? {} : { goalId: goalId as import('@deepseek-ai/dsh-personal-workflow').GoalId }),
+      }))
     },
     presentCall(args) { return { card: 'generic', title: 'Assess task goal', kind: 'read', rawInput: args.explanation } },
   }))

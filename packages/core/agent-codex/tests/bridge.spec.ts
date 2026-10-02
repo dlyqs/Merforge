@@ -523,6 +523,7 @@ it('revokes pending native answers on stop and ignores a late human answer after
 
 it('keeps native task declarations available when enhancement is enabled after the original thread starts', async () => {
   const { ctx, root, peer } = await fixture(true, true)
+  await ctx.personalWorkflow.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
   const handle = await ctx.agents.create({ sessionId: SessionId('native-mode-transition'), agentOptions: { backend: selection }, meta: { cwd: root } })
   peer.onTurn = async (server, threadId, turnId) => {
     expect(await server.request('item/tool/call', { threadId, turnId, callId: 'assessment', tool: 'workflow_assess',
@@ -545,6 +546,7 @@ it('keeps native task declarations available when enhancement is enabled after t
 
 it('retains ordinary legacy threads and refuses task context when their original declarations are unavailable', async () => {
   const { ctx, root, peer } = await fixture(true, true)
+  await ctx.personalWorkflow.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
   const handle = await ctx.agents.create({ sessionId: SessionId('native-legacy-tools'), agentOptions: { backend: selection }, meta: { cwd: root } })
   const append = handle.agent.session.append.bind(handle.agent.session)
   const legacy = vi.spyOn(handle.agent.session, 'append').mockImplementation((type, data, options) => {

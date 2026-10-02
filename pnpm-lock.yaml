@@ -206,6 +206,9 @@ importers:
       '@deepseek-ai/dsh-organization-context':
         specifier: workspace:*
         version: link:../../packages/workspace/organization-context
+      '@deepseek-ai/dsh-organization-conversation':
+        specifier: workspace:*
+        version: link:../../packages/workspace/organization-conversation
       '@deepseek-ai/dsh-organization-execution':
         specifier: workspace:*
         version: link:../../packages/workspace/organization-execution
@@ -351,6 +354,9 @@ importers:
       '@deepseek-ai/dsh-organization-context':
         specifier: workspace:*
         version: link:../../packages/workspace/organization-context
+      '@deepseek-ai/dsh-organization-conversation':
+        specifier: workspace:*
+        version: link:../../packages/workspace/organization-conversation
       '@deepseek-ai/dsh-organization-execution':
         specifier: workspace:*
         version: link:../../packages/workspace/organization-execution
@@ -7845,6 +7851,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-organization-conversation':
+        specifier: workspace:*
+        version: link:../../workspace/organization-conversation
 
   packages/host/plugin-inventory:
     dependencies:
@@ -12466,6 +12475,82 @@ importers:
         specifier: workspace:*
         version: link:../workspace
 
+  packages/workspace/organization-conversation:
+    dependencies:
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop':
+        specifier: workspace:*
+        version: link:../../core/agent-loop
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:*
+        version: link:../../util/brand
+      '@deepseek-ai/dsh-credentials':
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-llm-deepseek':
+        specifier: workspace:*
+        version: link:../../llm/llm-deepseek
+      '@deepseek-ai/dsh-llm-retry':
+        specifier: workspace:*
+        version: link:../../llm/llm-retry
+      '@deepseek-ai/dsh-organization':
+        specifier: workspace:*
+        version: link:../organization
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:*
+        version: link:../../session/session-persistence-jsonl
+      '@deepseek-ai/dsh-session-projection':
+        specifier: workspace:*
+        version: link:../../session/session-projection
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:*
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-credentials-local':
+        specifier: workspace:*
+        version: link:../../credentials/credentials-local
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:*
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-organization-connection':
+        specifier: workspace:*
+        version: link:../../host/organization-connection
+      '@deepseek-ai/dsh-session-query':
+        specifier: workspace:*
+        version: link:../../session-query/session-query
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:*
+        version: link:../../storage/storage
+      '@deepseek-ai/dsh-storage-json':
+        specifier: workspace:*
+        version: link:../../storage/storage-json
+
   packages/workspace/organization-execution:
     dependencies:
       '@deepseek-ai/dsh-agent':
@@ -12636,6 +12721,9 @@ importers:
       '@deepseek-ai/cordis-plugin-loader':
         specifier: workspace:~
         version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:*
+        version: link:../../core/agent
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm
@@ -12666,6 +12754,9 @@ importers:
       '@deepseek-ai/dsh-storage-json':
         specifier: workspace:*
         version: link:../../storage/storage-json
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
       '@deepseek-ai/dsh-workspace':
         specifier: workspace:*
         version: link:../workspace

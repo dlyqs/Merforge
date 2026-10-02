@@ -6,7 +6,7 @@
 
 把个人与组织的自然对话接到已有持久计划、任务分配和执行交付服务：普通问答和简单目标保持普通对话；复杂新目标在正常设置下自动评估、必要澄清并保存可审阅任务树；用户在同一对话内调整计划、选择真人负责人、明确确认分配，再从各自独立对话完成接受、委托、开始、人工介入、提交、验收、返工及目标交付。组织工作台继续提供辅助总览。
 
-歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。本次请求仅授权生成计划；全部施工阶段保持 `pending`。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
+歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。初始请求仅授权生成计划。2026-10-02 用户先要求“请自动完成 phase1-2”，随后要求“请自动完成 phase3-4”；当前自动授权包含首尾的 Phase 3–4。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
 
 目标可行：个人规划、组织 WorkGraph、分配、设备许可和交付消费者已经存在。难点是尚未有任务时的组织规划模型授权、独立组织对话的完整生命周期、子树修改及分配后对话的幂等恢复。仅启用个人增强模式或把工作台表单搬到聊天旁边不能完成本期。
 
@@ -66,10 +66,10 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 协议与消费者 | 固化路由、设置、组织规划准入和对话归属 | pending | — | 先定状态/权限，不创建空包 |
-| Phase 2 | 个人默认自动识别 | 用户策略、目标/澄清关联及兼容迁移 | pending | — | 依赖 Phase 1 |
-| Phase 3 | 组织规划权威 | 模型许可、可见成员与固定传输 | pending | — | 依赖 Phase 1–2 |
-| Phase 4 | 组织对话宿主 | 项目目标对话、隔离模型与持久恢复 | pending | — | 依赖 Phase 3 |
+| Phase 1 | 协议与消费者 | 固化路由、设置、组织规划准入和对话归属 | completed | docs/conversation-planning.md | 先定状态/权限，不创建空包 |
+| Phase 2 | 个人默认自动识别 | 用户策略、目标/澄清关联及兼容迁移 | completed | 本人默认设置、稳定目标路由、方法 v2 与设置消费者 | 112 项聚焦回归通过；真实模型与可见待验 |
+| Phase 3 | 组织规划权威 | 模型许可、可见成员与固定传输 | completed | 规划 grant/permit、SQLite v13、固定 HTTPS/native、项目候选 | 当前资格/计费/迁移/未知回执通过 |
+| Phase 4 | 组织对话宿主 | 项目目标对话、隔离模型与持久恢复 | completed | 独立 organization-conversation、私有 IPC、JSONL、隔离标准 Agent | Node/Electron 无窗口 smoke 通过；真实模型/可见待验 |
 | Phase 5 | 结构化计划写入 | 根草案、准确修改与获准子树细分 | pending | — | 依赖 Phase 4 |
 | Phase 6 | 对话内计划管理 | 普通发送、树/版本、修改、查询与负责人 | pending | — | 依赖 Phase 2、5 |
 | Phase 7 | 分配及员工对话 | 逐项/批量确认、授权及独立对话恢复 | pending | — | 依赖 Phase 6 |
@@ -85,16 +85,16 @@
 
 验收清单：
 
-- [ ] 固化设置优先级、旧显式 off 的迁移、测试 override、模型/工具配置引用及停止位置；自动识别不等于自动执行。
-- [ ] 固化目标与消息身份、路由状态及澄清/修改/查询流程、幂等键与冲突处理。
-- [ ] 列出规划许可、共享草案、子树 edit、候选成员、分配及员工对话绑定的作者与读取权限。
-- [ ] 固化无任务规划限额及逐请求在线资格；拒绝从个人 Agent 或执行 Run 借权。
-- [ ] 固化子树修改对 revision、grant、批准/租约/验收的影响；明确重新批准消费者和限额继承。
-- [ ] 按实际 slot/ConversationNode/私有 IPC/服务/API 接口列出端到端消费位置及失效/销毁规则。
+- [x] 固化设置优先级、旧显式 off 的迁移、测试 override、模型/工具配置引用及停止位置；自动识别不等于自动执行。
+- [x] 固化目标与消息身份、路由状态及澄清/修改/查询流程、幂等键与冲突处理。
+- [x] 列出规划许可、共享草案、子树 edit、候选成员、分配及员工对话绑定的作者与读取权限。
+- [x] 固化无任务规划限额及逐请求在线资格；拒绝从个人 Agent 或执行 Run 借权。
+- [x] 固化子树修改对 revision、grant、批准/租约/验收的影响；明确重新批准消费者和限额继承。
+- [x] 按实际 slot/ConversationNode/私有 IPC/服务/API 接口列出端到端消费位置及失效/销毁规则。
 
 助理验证：沿源码逐项核对，不运行模型或页面；检查文档引用和状态覆盖。用户检查：审阅默认设置、子树变更影响及确认粒度。依赖：无；重大产品原则变化必须明确处理后再进入实现。
 
-实际完成：未开始；执行后在此记录文件、验证、跳过项、偏离及下一阶段。
+实际完成（2026-10-02）：新增 `docs/conversation-planning.md`，沿 personal-workflow、Skill、Session Controller、Slot/Conversation、WorkGraph 权限及 Desktop 私有 IPC 源码核对设置解析、稳定输入、规划资格、子树失效和真实消费者。组织新增命令/包明确标为后续，不创建空包。工作区起始为干净状态，未覆盖计划基线中所述的历史修改。未运行模型或页面；没有改变真人确认、私人隔离或既有授权原则。仓库引用的 `.agents/skills/dsh-prose-standard/SKILL.md` 已不存在，搜索未找到；采用根 AGENTS 的直接文字规范核对。下一步 Phase 2。
 
 ## Phase 2：个人策略与正常模式自动识别
 
@@ -104,15 +104,28 @@
 
 验收清单：
 
-- [ ] 未选择时默认自动识别；旧 off/显式 off/显式 on 均按 Phase 1 映射，无设置或日志数据丢失。
-- [ ] `simple`、`clarify`、`infeasible`、`complex` 可持久关联当前目标；澄清答复和查询不建另一根树。
-- [ ] 测试默认关闭；打开可拆简单新目标，关闭恢复本人策略；已绑定执行步骤不递归拆分。
-- [ ] 设置变化、Bot 禁用 Skill/工具或 Session 归属变化在提案落盘处拒绝旧资格；已批准执行不受测试开关授予额外范围。
-- [ ] 方法文本、有效设置、评估与计划快照可从 Session 重建；简单目标没有计划副作用。
+- [x] 未选择时默认自动识别；旧 off/显式 off/显式 on 均按 Phase 1 映射，无设置或日志数据丢失。
+- [x] `simple`、`clarify`、`infeasible`、`complex` 可持久关联当前目标；澄清答复和查询不建另一根树。
+- [x] 测试默认关闭；打开可拆简单新目标，关闭恢复本人策略；已绑定执行步骤不递归拆分。
+- [x] 设置变化、Bot 禁用 Skill/工具或 Session 归属变化在提案落盘处拒绝旧资格；已批准执行不受测试开关授予额外范围。
+- [x] 方法文本、有效设置、评估与计划快照可从 Session 重建；简单目标没有计划副作用。
 
 助理验证：聚焦模式/提案/迁移/重开及重复消息测试，受影响类型与局部 lint；模型仅确定性替身，不把分类用例称为真实识别准确率。用户检查：正常发送复杂/简单目标、显式关闭、切换偏好和测试开关。依赖：Phase 1。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：`personal-workflow` 新增本人设置域、显式策略解析、品牌化 GoalId、当前 MessageId 评估回执及目标/计划关联；mode 投影升级到 stateVersion 2，以日志中的明确选择区分历史初值。澄清复用目标，修改保留根与版本，查询不能提案；相同消息重试恢复，不按文本去重。提案重新核对设置、输入、Bot Skill/工具及归属，先保存领域回执再写 Session 快照。`skill-dev-workflow` 托管方法 v2 记录有效设置、模型引用和当前目标，保留 upstream/NOTICE；绑定执行不再拆分，Bot 禁用规划时普通对话仍可使用。`api/session-controller` 新增本人设置 Remote，`ui-personal-workflow` 在既有设置入口提供自动识别与粒度，并显示测试 override。已同步四个包 README、个人工作流、Session 格式说明、持久化生成目录及项目引用；没有新增 Session tag、组织包或 SQLite 迁移。
+
+实际验证：
+
+- `pnpm exec vitest run packages/skill/skill-dev-workflow/tests packages/workspace/personal-workflow/tests packages/client/ui-personal-workflow/tests apps/desktop-host/tests/personal-workflow.spec.ts packages/storage/storage-domain/tests/invariant.spec.ts packages/core/agent-codex/tests/bridge.spec.ts apps/desktop-host/tests/personal-codex.spec.ts`：20 个文件、112 项通过。新自动规划用例从真实 AgentLoop/工具发送进入；JSON/JSONL、设置重开、重复消息、澄清/查询/修改、权限变化与普通 Bot 对话保持真实，仅模型及原生 peer 的不确定性使用替身。
+- `pnpm exec tsc -b packages/api/session-controller/tsconfig.host.json packages/skill/skill-dev-workflow packages/client/ui-personal-workflow --pretty false` 和 `pnpm exec tsx scripts/run-oxlint.ts <实际修改的源码及测试文件>` 通过。
+- 定向构建通过：`pnpm exec tsdown --filter @deepseek-ai/dsh-api-session-controller --env.DSH_BUILD_FACE=host`；`pnpm exec tsdown --filter @deepseek-ai/dsh-personal-workflow --filter @deepseek-ai/dsh-skill-dev-workflow --env.DSH_BUILD_FACE host`；`pnpm exec tsdown --filter @deepseek-ai/dsh-client-ui-personal-workflow --env.DSH_BUILD_FACE=client`；`pnpm exec tsdown --filter @deepseek-ai/dsh-client-ui-personal-workflow/client --env.DSH_BUILD_FACE client`。另以仓库 WorkspaceTypertGenerator 为 session-controller 生成 Host/Remote 产物，核对新增偏好 codecs。
+- `node packages/workspace/personal-workflow/tests/built-smoke.mjs` 通过：普通 Node 真实 Loader、Remote 设置编解码、偏好与 JSONL 重开、执行中断恢复及托管方法资源。
+- `pnpm run gen-persistence-catalog` 与 `pnpm exec tsx scripts/gen-persistence-catalog.ts --check` 通过，生成目录与 schema 一致；known-event-types 没有内容变化。
+- `verify-client-ui-i18n`、`verify-client-packages`、`verify-client-route-resolution`、`verify-tsconfig-paths`、`verify-cordis-config`、`verify-application-entrypoints`、`verify-scoped-events` 通过。变更文档引用及 `git diff --check` 通过。
+
+既有门禁问题：`verify-client-domain-graph` 在未修改的 ui-conversation、ui-sidebar-browser、ui-sidebar-documentpreview、ui-workspace 报 62 项；`verify-package-dependencies` 在未修改的 `packages/client/file-upload/src/index.ts:2` 报一项分类问题；`verify-export-jsdoc` 在未修改的 `packages/host/organization-connection/src/login-session.ts:20,31` 报两项方法说明缺失。全仓 Markdown 引用检查仍有既有断链和缺失 skill；本轮修正触及 README 的文档路径，变更文档引用单独通过。未扩大范围修复或修改门禁例外。
+
+未执行真实模型识别评估、完整 Desktop 发行构建、页面/浏览器、用户可见或三机验收；确定性分类测试不代表真实识别准确率。工程验收完成，保留上述待验；下一阶段为 Phase 3，本轮授权范围已结束。
 
 ## Phase 3：组织规划资格与当前可见负责人
 
@@ -122,15 +135,19 @@
 
 验收清单：
 
-- [ ] 当前项目 read 成员能获仅规划资格，无 write 成员仍不能写共享树；撤权、停用、策略变化、到期和服务 epoch 更换拒绝新增请求。
-- [ ] 模型策略与本机目的地相交，限额原子核算；每次实际调用和重试独立准入，重复操作不重复计数，未确认调用不直接认定可免费重试。
-- [ ] 对 renderer 不开放任意 HTTP/模型代理；个人凭据不进入权威记录，规划许可不能运行工具副作用或变成委托。
-- [ ] 成员候选只含当前获准读取的必要身份/职责字段；推荐不泄露账号秘密、不可见任务或整份管理员成员表。
-- [ ] 固定查询/命令/事件/回执同样经过当前权限；迁移失败回滚，冷重开和备份恢复校验新增关系。
+- [x] 当前项目 read 成员能获仅规划资格，无 write 成员仍不能写共享树；撤权、停用、策略变化、到期和服务 epoch 更换拒绝新增请求。
+- [x] 模型策略与本机目的地相交，限额原子核算；每次实际调用和重试独立准入，重复操作不重复计数，未确认调用不直接认定可免费重试。
+- [x] 对 renderer 不开放任意 HTTP/模型代理；个人凭据不进入权威记录，规划许可不能运行工具副作用或变成委托。
+- [x] 成员候选只含当前获准读取的必要身份/职责字段；推荐不泄露账号秘密、不可见任务或整份管理员成员表。
+- [x] 固定查询/命令/事件/回执同样经过当前权限；迁移失败回滚，冷重开和备份恢复校验新增关系。
 
 助理验证：真实 SQLite 和 HTTPS/native 测试，限额并发、同键异内容、发送前撤权及策略变更；相关 Host 类型、lint、事件/配置门禁。用户检查：设置入口及权限限制说明后续在 Phase 6 一并检查。依赖：Phase 1–2。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：`organization/src/planning-schema.ts`、`planning.ts` 提供仅项目 read 的有限资格、原子请求/字节预留、一次性消费与最小项目成员分页；命令/回执不含凭据、文本、assignment/lease/Run。SQLite 从 v12 单调升至 v13，启动/备份恢复校验 grant/permit/event/receipt 归属与累积计数，v12 迁移失败回滚。显式续期保留首次限额及累计用量，旧 qualificationRevision 的未消费许可拒绝。候选只返回 membershipId/username；首版没有可授权职责字段，因此不扩张成员资料。
+
+`organization-api` 固定三个规划 POST，`organization-connection` 暴露两种 Renderer 只读查询和私有 generation-bound planningCommand；未知写入复用 durable pending journal，只核对回执。`organization-conversation/model.ts` 交叉核验在线策略和本机显式 credential destination；DeepSeekAdapter 的 beforeRequest 新增最终 serialized payload，在 credential/preparation 后为每次实际 HTTP 和 provider retry 按 UTF-8 字节独立计费、flush 意图及回执、消费许可、再复核后发送。没有 API fallback 或共享写权。
+
+工程验证：规划 SQLite 11 项、原生规划未知回执 1 项通过；取消/撤权/策略/epoch/身份及 provider retry 在 Phase 4 组合中通过。既有权威、WorkGraph、分配、API/Codex/人工执行、产物/验收/集成、HTTPS/native 回归共 141 项均已通过，其中首次 5 项失败来自旧 schema 夹具未删除新表及旧备份版本断言，修正夹具后重跑 authority/connection 34 项通过，不改迁移失败语义。DeepSeek adapter/egress 和 native WorkGraph 另 37 项通过。实际命令在 Phase 4 收尾区统一列出。
 
 ## Phase 4：组织项目目标对话与隔离规划宿主
 
@@ -140,16 +157,37 @@
 
 验收清单：
 
-- [ ] 本人项目对话有稳定 Session 与组织身份关联；原子预留、JSONL 写入和重开对得上，半完成记录可以恢复且不建立副本。
-- [ ] 组织对话用独立 Agent/Session 域，个人发送/查询/fork/上传/恢复全部拒绝；原只读 context 不变。
-- [ ] 用户输入、准确授权上下文、有效设置、方法版本及澄清均记录；只把明确允许的共享资料用于组织模型。
-- [ ] 私有 IPC 关联 nonce/request/generation/顶层窗口；迟到响应拒绝，销毁等待 Agent/请求/落盘收敛。
-- [ ] 最终 HTTP 发送前检查一次性规划许可；默认工具集仅规划与澄清，无文件/执行/审批绕过。
-- [ ] 断线、休眠、身份切换停止新增调用，重连不自动续跑；有独立持久关系才增加 invariant，并在真实 Loader 门禁执行。
+- [x] 本人项目对话有稳定 Session 与组织身份关联；原子预留、JSONL 写入和重开对得上，半完成记录可以恢复且不建立副本。
+- [x] 组织对话用独立 Agent/Session 域，个人发送/查询/fork/上传/恢复全部拒绝；原只读 context 不变。
+- [x] 用户输入、准确授权上下文、有效设置、方法版本及澄清均记录；只把明确允许的共享资料用于组织模型。
+- [x] 私有 IPC 关联 nonce/request/generation/顶层窗口；迟到响应拒绝，销毁等待 Agent/请求/落盘收敛。
+- [x] 最终 HTTP 发送前检查一次性规划许可；默认工具集仅规划与澄清，无文件/执行/审批绕过。
+- [x] 断线、休眠、身份切换停止新增调用，重连不自动续跑；有独立持久关系才增加 invariant，并在真实 Loader 门禁执行。
 
 助理验证：真实 Loader/私有 IPC/HTTPS/JSONL 与模型替身组合、准入/取消竞争、重开及 HMR dispose；检查独立模型可见日志。用户检查：后续从组织项目打开、重开和切换对话。依赖：Phase 3；共享草案写入留 Phase 5，不能用此阶段宣布已自动建树。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-02）：新增 `packages/workspace/organization-conversation`，用独立 version-1 domain 原子预留本人 server/account/organization/project/conversation → Session，独立 organization-conversation JSONL 在半写失败后恢复同一绑定。open/read 不运行模型，settings 按账号隔离、比较 revision 并幂等恢复；send 先保存 operation/input/goal，发出前保存实际方法/设置/准确授权并与 Session 事件核对。重复已接收消息不重发，澄清引用原 goal；sending 冷恢复为 unknown，stopped/unknown 均需新显式输入，不自动续跑。
+
+标准 Session/Agent/loop/LLM/Tools/Retry 在隔离域挂载，仅 workflow_assess 与 planning_authorization，关闭评估移除前者。没有文件、shell、执行、审批或分配服务。四个必需事件及当前 reader/生成 schema 同步，Session envelope 版本不变。个人 Session/Agent、查询、JSONL、上传和 fork 的中央准入拒绝新 namespace；原只读 context 保持不变。独立 `./invariant` 经真实 Loader 与 built child 执行，核对 owner、实际 input/settings/authority、评估来源、重复与孤儿记录。
+
+Desktop/Host private IPC、preload typed conversation 接口及发布闭包已接线，nonce/request/authorizationId 多槽对应并核验 generation、top frame、Host/window 寿命。撤权、取消、身份切换、休眠、迟到授权和 dispose 均有拒绝/排空证据；重连只读取。Config 拥有模型目的地/credential 引用、步数、复核/时长和报告上限，`desktop.patch.yml` 显式部署。诊断仅记录 ID、generation、操作与终态，不含模型文本或秘密。临时诊断已移除。
+
+最新真实 Loader/HTTPS/native/JSONL 组合 11 项通过，只替换模型 fetch；两项 built smoke 在普通 Node 和 Electron Node mode 通过，使用真实私有子进程、标准 Agent/HTTPS/JSONL、冷重开与重复发送，未创建窗口。API 项目规划可独立使用；Codex 原生项目规划尚无专用能力，明确拒绝 API 代替。共享草案写入留 Phase 5，普通组织聊天控件留 Phase 6，不宣称已自动建树或 UI 通过。
+
+本轮实际检查命令（聚焦范围去重共 201 项；失败后的修复回归已说明）：
+
+- `pnpm exec vitest run packages/workspace/organization/tests/planning.spec.ts packages/workspace/organization-conversation/tests/conversation.spec.ts`；随后新增负例的最终命令为同两文件加 `packages/workspace/organization/tests/authority.spec.ts packages/host/organization-connection/tests/connection.spec.ts`（55 项通过）。
+- `pnpm exec vitest run packages/workspace/organization/tests/authority.spec.ts packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/execution.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/execution-codex.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/acceptance.spec.ts packages/workspace/organization/tests/integration.spec.ts packages/workspace/organization/tests/workgraph.spec.ts packages/host/organization-connection/tests/connection.spec.ts packages/host/organization-connection/tests/assignment.spec.ts packages/api/organization-api/tests/https.spec.ts`（141 项，初次 136 通过/5 夹具失败，修复后上述相关 34 项通过）。
+- `pnpm exec vitest run packages/workspace/organization-conversation/tests/conversation.spec.ts packages/host/organization-connection/tests/planning.spec.ts`（12 项通过）；实际授权快照与本机 intent 的最终核对改动后单独再跑前者（11 项通过）。
+- `pnpm exec vitest run packages/llm/llm-deepseek/tests/adapter.spec.ts packages/llm/llm-deepseek/tests/egress.spec.ts packages/host/organization-connection/tests/workgraph.spec.ts`（37 项通过）。
+- `pnpm exec tsc -b apps/desktop apps/desktop-host --pretty false`；`pnpm exec tsdown --filter @deepseek-ai/dsh-session --filter @deepseek-ai/dsh-session-persistence-jsonl --filter @deepseek-ai/dsh-organization --filter @deepseek-ai/dsh-organization-api --filter @deepseek-ai/dsh-organization-connection --filter @deepseek-ai/dsh-organization-conversation --filter @deepseek-ai/dsh-llm-deepseek --filter @deepseek-ai/dsh-llm-retry --filter @deepseek-ai/dsh-desktop --filter @deepseek-ai/dsh-desktop-host --env.DSH_BUILD_FACE=host`（通过；是定向 Host 构建，不是完整 Desktop 发行验收）。
+- `node apps/desktop-host/tests/organization-conversation-built-smoke.mjs` 及同命令 `--electron`（通过）。
+- `pnpm exec tsx scripts/run-oxlint.ts <本轮变更源码与受影响迁移测试>`（两组局部范围通过，新增 package 全量覆盖）；`pnpm run gen-persistence-catalog`、`pnpm exec tsx scripts/gen-persistence-catalog.ts --check`、`pnpm run verify-tsconfig-paths`、`verify-cordis-config`、`verify-application-entrypoints`、`verify-package-meta`、`verify-scoped-events`（通过）。
+- `pnpm install --lockfile-only --ignore-scripts` 更新新增 retry/workspace 闭包；变更 Markdown 新增/修改本地链接核对和 `git diff --check` 通过。
+
+既有全仓门禁本次复核仍失败：`verify-package-dependencies` 为未修改 file-upload 一项导入分类；`verify-export-jsdoc` 为未修改 login-session 两处描述；`verify-package-invariants` 为 ui-personal、agent-codex、session-format-catalog、session-format-current、session-format 五处 README 缺省略理由；`verify-no-unknown-casts` 为未修改 model-selection-projection、commands-create-fork.host、session-models.host、agent/inbox 共五处。新增代码无 unknown assertions，未修改例外表掩盖失败。全仓历史文档断链保留；本轮新增/修改链接已单独核对。
+
+未运行真实模型、页面/Playwright/浏览器自动化/GitNexus、完整发行构建、用户可见、Windows 或三机验收；不把模型替身或静态接线当作产品通过。Phase 3–4 工程验收完成，自动范围到达 Phase 4 后停止，下一阶段为 Phase 5，需用户另行授权。
 
 ## Phase 5：根草案、准确修改与员工子树细分
 
@@ -298,8 +336,9 @@ execution mode: manual
 automatic start phase: none
 automatic stop phase: none
 conversation relay: off
-plan review: pending
-execution authorization: none
+plan review: accepted for Phase 1–4
+execution authorization: 用户于 2026-10-02 要求“请自动完成 phase3-4”；仅 Phase 3–4，relay 关闭
+execution result: 2026-10-02 Phase 3–4 工程验收完成，到达 Phase 4 授权终点，恢复 manual 并停止
 ```
 
 1. 本计划是 Phase 7C 唯一施工入口。首次评审后，用户明确“执行 Phase 1”才开始实现；选择 skill 或本次“给出计划”不授权实现。
@@ -314,4 +353,4 @@ execution authorization: none
 10. Relay 默认关闭，不创建新聊天或 worktree；开启需用户对本计划另行明确授权，并先读取 `/Users/git_local/dev-workflow-skill/references/conversation-relay.md`，按其规定补齐所有权、批次和交接字段；worktree relay 另读 `worktree-return.md`。开启前不能凭历史对话自动转移执行。
 11. 不创建专用 executor skill；现有入口 skill 与本文足够。以后确需复杂多会话接力，再评估执行包装，阶段事实仍只在本文。
 
-评审后推荐从 **Phase 1** 开始。本次规划没有启动任何实施阶段。
+Phase 1–4 已完成；后续从 **Phase 5** 开始，须由用户另行授权。

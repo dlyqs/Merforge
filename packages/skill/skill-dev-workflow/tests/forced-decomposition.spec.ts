@@ -21,6 +21,7 @@ it('forces decomposition with conversation mode off, refuses simple/single-task 
     ['systemPrompt', SystemPrompt], ['agents', Agents], ['tools', Tools], ['skills', Skills], ['llm', Llm], ['method', Method],
   ])
   try {
+    await service.setPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 0 })
     expect(service.testingPreferences()).toEqual({ forceDecomposition: false, revision: 0 })
     await service.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
     await expect(service.setTestingPreferences({ forceDecomposition: false, expectedRevision: 0 })).rejects.toThrow('revision-conflict')

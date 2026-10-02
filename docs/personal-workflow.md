@@ -22,7 +22,7 @@ CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口
 
 ## Remote、模型与 Session
 
-`sessionController` 提供 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`、`workflowMode` 和 `workflowSetMode`。保存/批准为用户动作；提案服务入口 `propose(session, modeRevision, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。标准 preset 的 `skill-dev-workflow` 提供模式适配和 `workflow_assess` / `workflow_propose`；模式默认关闭，此时 API 隐藏工作流工具且不注入方法。Codex 的三个任务声明在原 thread 创建时广告，关闭时由 executor 拒绝调用，方法同样不注入。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
+`sessionController` 提供 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`、`workflowMode`、`workflowSetMode`、`workflowPreferences` 和 `workflowSetPreferences`。保存/批准为用户动作；提案服务入口 `propose(session, modeRevision, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。标准 preset 的 `skill-dev-workflow` 提供模式适配和 `workflow_assess` / `workflow_propose`；未明确选择的对话默认继承本人自动识别设置，初值为开启；显式关闭时 API 隐藏工作流工具且不注入方法。Codex 的三个任务声明在原 thread 创建时广告，关闭时由 executor 拒绝调用，方法同样不注入。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
 
 `workflowSnapshot` 和模型提案把准确版本/批准状态/完整定义记入 `personal-workflow/snapshot`，包括 taskId、operationId 和 Session 的稳定引用。提交顺序：先提交领域记录，再追加 Session 快照，再 flush Session，全部成功才返回。Session 写失败时领域提交不回滚，调用方收到失败；用原 operationId 重试会复用领域回执，补写/flush 快照。快照以 sessionId + operationId 判重，事件内容必须相同；模型可见文本来自已 flush 的快照，未来工具结果由现有工具流水线记录，不能临时读取最新版本替代历史快照。审核本身无须跨存储写入；下次读取记录当时实际批准状态。Session 引用是阅读/规划关联，不授予执行所有权。
 
@@ -30,7 +30,7 @@ CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口
 
 ## 模式、视图与候选
 
-增强模式属于当前对话、由用户显式选择，默认关闭；Project/Bot 都能进入，没有 Bot 也可使用。关闭为普通 Agent；开启时简单目标仍普通执行。复杂或不确定目标先澄清和评估，再提交未审核方案。Skill 禁用时明确失败，不绕过 Bot 权限。
+本人自动规划设置默认开启，当前对话的显式 mode 事件优先；没有 mode 事件才继承本人设置。历史默认 off/revision 0 不代表关闭，历史确有 off 事件则保留。Project/Bot 都能进入，没有 Bot 也可使用。关闭为普通 Agent；开启时简单目标仍普通执行；Bot 禁用规划 Skill 时普通对话继续，但规划操作拒绝。复杂或不确定目标先澄清和评估，再提交未审核方案。Skill 禁用时明确失败，不绕过 Bot 权限。
 
 已实现的 Phase 3 树视图展示拆分层级，依赖视图展示前置与并列分支，详情展示范围、阶段、验收、产物、版本、审核和关联会话。两视图读取同一版本；修改后必须再次审核。输入框沿用现有 `conversation.input.left` 扩展位承载任务选择弹窗，其中下拉列表只列就绪候选。任务列表刷新不领取、不启动，不创建对话；关联历史对话从详情进入。
 
@@ -62,7 +62,7 @@ Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、
 
 ## 内置方法与模式实现
 
-`packages/skill/skill-dev-workflow/assets/source.json` 固定上游 dlyqs/dev-workflow-skill 提交 `4f51803b4578139dd9de2dc690c1d2638c54decd` 和 SHA-256；`NOTICE.md` 记录作者在本任务中的身份确认及内置授权，不声明上游已有公开许可证。运行时只加载包内托管方法 v1，不依赖作者机器路径；上游源码作为来源记录保留，未引入自动接力引用资源。
+`packages/skill/skill-dev-workflow/assets/source.json` 固定上游 dlyqs/dev-workflow-skill 提交 `4f51803b4578139dd9de2dc690c1d2638c54decd` 和 SHA-256；`NOTICE.md` 记录作者在本任务中的身份确认及内置授权，不声明上游已有公开许可证。运行时只加载包内托管方法 v2，不依赖作者机器路径；上游源码作为来源记录保留，未引入自动接力引用资源。
 
 输入框中的显式模式开关保存 `personal-workflow/mode`，含单调版本及幂等操作 ID。读取以真实持久日志为准，flush 失败不能启用提案；模式选择的同步投影只用于工具可见性。Bot 禁用 Skill、缺少包内 Skill、模式过期或关闭时明确拒绝。对话的每次用户输入在 pre-step 加入准确方法及模式信息，由普通 `user/message` 日志保存；工具后续步骤不重复注入。关闭后的下一次用户输入记录取代旧方法的关闭说明。
 
@@ -111,3 +111,11 @@ TaskRun 可显式保存 `backend: codex`，领取从当前 Agent 后端固定；
 开关由 `workflowTestingPreferences` / `workflowSetTestingPreferences` 用户 Remote 读写，存入独立 `personal_workflow_testing` domain 的 global，字段为 `forceDecomposition` 和单调 `revision`，初始 false/0。写入失败不显示成功，版本冲突须刷新；重启保留选择。模型不能修改该开关。原对话模式不变，关闭临时开关后恢复原模式；覆盖和撤销指令通过现有 `personal-workflow-method` 消息进入日志，历史模型输入可重建。计划审核、执行领取、Bot 许可与预算没有被此开关授权。
 
 相关验证包含设置注册、共享管理入口、失败写入反馈、Gateway 版本冲突、强制拆分与关闭恢复、已绑定任务执行和持久重开。此临时选项服务于个人流程测试，不代表真实模型总能产出合格计划；Desktop 可见验收仍由用户执行。
+
+## 自动识别、目标身份与本人设置
+
+[对话规划协议](conversation-planning.md)拥有设置优先级和后续组织路径。个人 `preferences()` / `setPreferences()` 用独立 `personal_workflow_preferences` domain v1 保存 enabled、granularity 和 CAS revision。现有 plan、testing 域与 Session mode 日志不重写；按 profile 存储根隔离，同安装重开恢复。`resolve(session)` 明确计算模式、本人/测试版本和当前 Bot/Project 权限引用。粒度影响模型建议；执行方式、停止位置与预算仍由现有真人 claim 表单提供，自动识别不授权执行。
+
+`assess` 将模型路由与已接收 MessageId、服务生成的 GoalId 及有效 policy 持久关联。同一 MessageId 的相同评估请求返回原结果，冲突请求拒绝；正文相同的新消息可以是不同目标。`clarification` 必须引用本对话待澄清 GoalId，`modify` 引用已有计划目标，`query` 只读且不能提案。旧 assessment 没有 context 时仍可读取，但不能授权新提案。第一次模型提案把 goalId 存在 PlanRevision 中；重试 Session 快照失败可从领域回执恢复，不能给同一目标建另一根。用户编辑保留目标关联，创建新的未批准版本。
+
+方法 v2 的普通 user/message 来源带准确 policy，正文带模型配置、归属和可重建目标摘要。提案在唯一提交队列内复核模式、本人设置、测试版本、输入身份、Bot Skill/工具及归属；改变设置或权限后旧评估失效。已经绑定执行任务的输入先进入既有 execution 路径，不递归拆分；测试开关不改变既有 Run 范围。分类仍由模型决定，确定性组合测试只证明路由、持久效果和拒绝路径。

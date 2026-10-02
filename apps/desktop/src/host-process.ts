@@ -1,3 +1,4 @@
+import { conversationRequestSchema, conversationNativeMessageSchema, type ConversationRequest, type ConversationBridge, type ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 /** Electron Node-mode child lifecycle for the shared Web application. */
 import { executionReportRequestSchema, executionReportSchema, executionResultSchema, type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionCommand, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 
@@ -113,6 +114,11 @@ export class DesktopHostProcess {
     resolve: (result: ContextResult) => void
     reject: (error: Error) => void
   }>()
+  private readonly conversationQueries = new Map<string, {
+    authorize: ConversationBridge
+    resolve: (result: ConversationResult) => void
+    reject: (error: Error) => void
+  }>()
   private readonly executionQueries = new Map<string, {
     authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority | ExecutionReadAuthority>
     resolve: (result: ExecutionResult | ExecutionReport) => void
@@ -193,6 +199,26 @@ export class DesktopHostProcess {
             query.resolve({ view: response.result,
               ...response.verificationUrl === undefined ? {} : { verificationUrl: response.verificationUrl } })
           }
+        }
+        return
+      }
+      const conversation = conversationNativeMessageSchema.safeParse(message)
+      if (conversation.success) {
+        const response = conversation.data, query = this.conversationQueries.get(response.requestId)
+        if (!query || response.nonce !== this.contextNonce) return
+        if (response.type === 'organization-conversation-result') {
+          if (response.result && !response.error) query.resolve(response.result)
+          else query.reject(new Error(response.error ?? 'organization-conversation-unavailable'))
+        } else {
+          void query.authorize(response.command).then((authority) => {
+            if (this.conversationQueries.get(response.requestId) === query && child.connected)
+              child.send({ type: 'organization-conversation-authorized', requestId: response.requestId, nonce: response.nonce,
+                authorizationId: response.authorizationId, authority })
+          }, () => {
+            if (this.conversationQueries.get(response.requestId) === query && child.connected)
+              child.send({ type: 'organization-conversation-authorized', requestId: response.requestId, nonce: response.nonce,
+                authorizationId: response.authorizationId, error: 'denied' })
+          }).catch(() => { query.reject(new Error('organization-conversation-unavailable')) })
         }
         return
       }
@@ -290,6 +316,41 @@ export class DesktopHostProcess {
         })
       })
     } finally { this.setupQueries.delete(requestId) }
+  }
+
+  /**
+   * Dispatch a fixed private planning operation and await its drained result after cancellation.
+   * @param input - Project selector and optional explicit message.
+   * @param authorize - Native online planning read/command callback.
+   * @param timeoutMs - Interval deadline, also enforced by the child.
+   * @param signal - Native identity and top-frame lifetime.
+   * @returns Private bounded transcript after Host settlement.
+   */
+  async organizationConversation(input: ConversationRequest, authorize: ConversationBridge, timeoutMs: number,
+    signal: AbortSignal): Promise<ConversationResult> {
+    signal.throwIfAborted()
+    const request = conversationRequestSchema.parse(input), child = this.child, requestId = randomUUID()
+    if (!child?.connected || this.stopping || this.failureReported) throw new Error('organization-conversation-unavailable')
+    const abort = () => {
+      if (!child.connected) { this.conversationQueries.get(requestId)?.reject(new Error('organization-conversation-cancelled')); return }
+      child.send({ type: 'organization-conversation-cancel', requestId, nonce: this.contextNonce }, (error) => {
+        if (error) this.conversationQueries.get(requestId)?.reject(error)
+      })
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await new Promise<ConversationResult>((resolve, reject) => {
+        this.conversationQueries.set(requestId, { authorize, resolve, reject })
+        timer = setTimeout(abort, timeoutMs)
+        child.send({ type: 'organization-conversation-operation', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => { if (error) reject(error) })
+      })
+    } finally {
+      clearTimeout(timer); signal.removeEventListener('abort', abort); this.conversationQueries.delete(requestId)
+      // The child may disconnect while its owned interval drains.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition
+      if (child.connected) child.send({ type: 'organization-conversation-cancel', requestId, nonce: this.contextNonce }, () => {})
+    }
   }
 
   /**
@@ -452,6 +513,8 @@ export class DesktopHostProcess {
         }
       }
     }
+    for (const query of this.conversationQueries.values()) query.reject(error)
+    this.conversationQueries.clear()
     for (const query of this.contextQueries.values()) query.reject(error)
     this.contextQueries.clear()
     for (const query of this.executionQueries.values()) query.reject(error)

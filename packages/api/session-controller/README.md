@@ -141,3 +141,7 @@ Desktop Session creation and resume accept only `standard` when an Agent composi
 ## Native model availability updates
 
 Native groups use the shared `codexSetup` discovery owner. A failure carries a fixed `setupReason`, separately from API Provider errors; a failed native catalog does not remove successful API groups or change the deployment default. The safe `api-session/model-catalog-changed` revision invalidates personal, Bot and organization selectors. Consumers clear retired availability and reject late responses while retaining explicit model choices. Device grants and native account identity never enter this Remote catalog.
+
+## Personal planning defaults
+
+`workflowPreferences` and `workflowSetPreferences` expose profile-owned automatic recognition and suggested granularity through the generated Session Remote. They compare the exact settings revision and do not create plans, activate Agents or grant execution. `workflowMode` returns the last explicit Session choice, otherwise the profile default, initially enabled. Human Session overrides and existing task execution controls remain separate. See [conversation planning](../../../docs/conversation-planning.md).
