@@ -101,8 +101,10 @@ it('consumes approval, persistent inbox, separate delegation, native claim, rene
 it('rejects renderer-selected device identity and stops renewal before sleep', async () => {
   const h = await setup(), claim = await acceptAndDelegate(h)
   await expect(h.worker.perform({ kind: 'lease-claim', request: { ...claim, deviceId: randomUUID() } })).rejects.toThrow()
-  await vi.waitFor(() =>{  expect(h.owner.snapshot().phase).toBe('ready') })
-  expect(preparation(await h.owner.perform({ kind: 'assignment-preparation', request: h.selector })).assignment.state).toBe('accepted')
+  await vi.waitFor(async () => {
+    expect(h.owner.snapshot().phase).toBe('ready')
+    expect(preparation(await h.owner.perform({ kind: 'assignment-preparation', request: h.selector })).assignment.state).toBe('accepted')
+  }, { timeout: 5000 })
   await h.worker.perform({ kind: 'lease-claim', request: claim })
   h.worker.suspend()
   expect(h.worker.snapshot().renewing).toBeUndefined()

@@ -76,11 +76,36 @@ try {
   assert.deepEqual((await invoke(second, send)).result, restored.result)
   const qualification = await connection.perform({ kind: 'planning-read', request: { organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId } })
   assert.equal(qualification.planning.grant.usedRequests, 1)
-  const logs = (await readdir(join(root, 'conversations'), { recursive: true })).filter(p => p.endsWith('.jsonl'))
-  assert.equal(logs.length, 1)
-  assert(!(await readFile(join(root, 'conversations', logs[0]), 'utf8')).includes('local-only-smoke-key'))
+  const taskId = randomUUID(), planId = randomUUID(), phaseId = randomUUID()
+  const taskQuery = { organizationId: request.organizationId, projectId: request.projectId, planId }
+  await app.authority.savePlan(login.token, { ...taskQuery, operationId: randomUUID(), expectedRevision: 0,
+    definition: { taskId, phases: [{ id: phaseId, title: 'Smoke' }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
+      goal: 'Assigned smoke task', scope: 'Current task only', acceptance: ['Review report'], artifacts: [],
+      required: true, dependsOn: [], suggestedMembershipId: null }] } })
+  await connection.perform({ kind: 'reconnect' })
+  const batch = await connection.perform({ kind: 'assignment-batch', request: { ...taskQuery, planRevision: 1, confirmed: true,
+    commands: [{ ...taskQuery, kind: 'approve-assignment', operationId: randomUUID(), taskId,
+      planRevision: 1, assigneeId: owner.membershipId }] } })
+  assert.equal(batch.assignmentBatch.items[0].state, 'confirmed')
+  const assignmentId = batch.assignmentBatch.items[0].receipt.assignmentId
+  const taskRequest = { ...request, operationId: randomUUID(), conversationId: assignmentId, assignment: { planId, assignmentId } }
+  const taskConversation = await invoke(second, taskRequest)
+  assert.notEqual(taskConversation.result.sessionId, opened.result.sessionId)
+  assert.deepEqual(taskConversation.result.entries, [])
+  assert.equal(taskConversation.result.assignment.state, 'pending')
+  assert.equal(taskConversation.result.goals[0].proposal.definition.taskId, taskId)
+  const preparation = await connection.perform({ kind: 'assignment-preparation', request: { ...taskQuery, assignmentId } })
+  assert.deepEqual(preparation.assignment.result.value.delegations, [])
+  assert.equal(preparation.assignment.result.value.lease, null)
   await second.close()
-  console.log(`organization conversation built smoke: ${process.argv.includes('--electron') ? 'Electron Node' : 'Node'} private IPC/HTTPS/Agent/JSONL/reopen/duplicate passed`)
+  const third = await child()
+  assert.equal((await invoke(third, taskRequest)).result.sessionId, taskConversation.result.sessionId)
+  await assert.rejects(invoke(third, { ...send, conversationId: assignmentId, assignment: { planId, assignmentId } }))
+  await third.close()
+  const logs = (await readdir(join(root, 'conversations'), { recursive: true })).filter(p => p.endsWith('.jsonl'))
+  assert.equal(logs.length, 2)
+  assert(!(await readFile(join(root, 'conversations', logs[0]), 'utf8')).includes('local-only-smoke-key'))
+  console.log(`organization conversation built smoke: ${process.argv.includes('--electron') ? 'Electron Node' : 'Node'} private IPC/HTTPS/Agent/JSONL/reopen/duplicate/assignment passed`)
 } finally {
   for (const close of [...children]) await close()
   await connection.close(); await app.close(); await rm(root, { recursive: true, force: true })

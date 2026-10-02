@@ -6,7 +6,7 @@
 
 把个人与组织的自然对话接到已有持久计划、任务分配和执行交付服务：普通问答和简单目标保持普通对话；复杂新目标在正常设置下自动评估、必要澄清并保存可审阅任务树；用户在同一对话内调整计划、选择真人负责人、明确确认分配，再从各自独立对话完成接受、委托、开始、人工介入、提交、验收、返工及目标交付。组织工作台继续提供辅助总览。
 
-歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。初始请求仅授权生成计划。2026-10-02 用户先要求“请自动完成 phase1-2”，随后要求“请自动完成 phase3-4”；随后用户要求“请自动完成 phase5-6”；当前自动授权包含首尾的 Phase 5–6。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
+歧义检查：路线图 v0.5 已明确下一轮先做产品 Phase 7C，且关闭强制拆分测试模式是主验收条件。无需在 Phase 7B、7C 和 8 之间再次选择。初始请求仅授权生成计划。2026-10-02 用户先要求“请自动完成 phase1-2”，随后要求“请自动完成 phase3-4”；随后用户要求“请自动完成 phase5-6”；随后用户要求“请自动完成 phase7-8”；2026-10-03 用户进一步要求“请自动完成剩余 phase”，当前自动授权覆盖剩余 Phase 9–10。以下拟定语义供评审，Phase 1 固化接口和状态；若实施发现必须改变真人确认、私人隔离或既有授权原则，记录具体差异并停在该决策处。
 
 目标可行：个人规划、组织 WorkGraph、分配、设备许可和交付消费者已经存在。难点是尚未有任务时的组织规划模型授权、独立组织对话的完整生命周期、子树修改及分配后对话的幂等恢复。仅启用个人增强模式或把工作台表单搬到聊天旁边不能完成本期。
 
@@ -72,10 +72,10 @@
 | Phase 4 | 组织对话宿主 | 项目目标对话、隔离模型与持久恢复 | completed | 独立 organization-conversation、私有 IPC、JSONL、隔离标准 Agent | Node/Electron 无窗口 smoke 通过；真实模型/可见待验 |
 | Phase 5 | 结构化计划写入 | 根草案、准确修改与获准子树细分 | completed | SQLite v14、真实提案工具、根/子树权威保存与原批准责任 | 迁移、回执恢复、冷重开与范围负例通过 |
 | Phase 6 | 对话内计划管理 | 普通发送、树/版本、修改、查询与负责人 | completed | 个人内联计划节点、组织对话主入口与负责人建议 | 聚焦测试/构建/无窗口 smoke 通过；可见待验 |
-| Phase 7 | 分配及员工对话 | 逐项/批量确认、授权及独立对话恢复 | pending | — | 依赖 Phase 6 |
-| Phase 8 | 对话内执行交付 | 接受到提交、验收/返工/集成完整确认 | pending | — | 依赖 Phase 7 |
-| Phase 9 | 组合及故障验证 | 正常模式双人 CSV 和路由/权限负例 | pending | — | 依赖 Phase 8 |
-| Phase 10 | 发行与验收交接 | 构建、无窗口 smoke、真实模型/三机剧本 | pending | — | 依赖 Phase 9；不自动进入产品 Phase 8 |
+| Phase 7 | 分配及员工对话 | 逐项/批量确认、授权及独立对话恢复 | completed | 原生逐项确认账本、持久通知关联、员工独立 Session 与侧栏入口 | 部分成功、未知回执、落盘恢复和权限负例通过 |
+| Phase 8 | 对话内执行交付 | 接受到提交、验收/返工/集成完整确认 | completed | 对话固定动作、原分配 Run 关联、私有报告与查询路由 | 聚焦回归/类型/构建及 Node/Electron 无窗口 smoke 通过 |
+| Phase 9 | 组合及故障验证 | 正常模式双人 CSV 和路由/权限负例 | completed | 正常发送到 CSV 交付组合、路由及权限故障证据 | 模型替身；可见与真实识别另列 |
+| Phase 10 | 发行与验收交接 | 构建、无窗口 smoke、真实模型/三机剧本 | completed | Desktop 构建、Node/Electron 私有进程 smoke、tarball 资源与验收交接 | 真实模型无密钥跳过；可见/Windows/三机待用户 |
 
 ## Phase 1：协议、状态与实际消费者
 
@@ -256,16 +256,20 @@ Phase 5–6 实际验证记录：
 
 验收清单：
 
-- [ ] 准确版本、真人负责人、目标/验收、资料范围和执行授权状态可逐项审阅；批量确认逐项显示终态、冲突与 unknown。
-- [ ] 分配前核验编辑/分配权和员工 read；缺 read 时另行确认 grant，有权补齐后重新审核，不能由模型代确认。
-- [ ] 正式通知与 assignment 持久关联；员工在线打开或同步时幂等创建独立任务对话，离线待建立状态可恢复。
-- [ ] 双击、超时、重开、另一窗口打开均不重复批准/通知/对话；本机失败不会回滚或重发已提交的组织业务。
-- [ ] 对话注明原目标任务和下发人，任务选择只返回获准资料；领导原文、员工完整执行日志不自动分享。
-- [ ] 对话建立不接受、不委托、不领取、不运行；撤销/改派/新版本不把旧 Session 变成新负责人资格。
+- [x] 准确版本、真人负责人、目标/验收、资料范围和执行授权状态可逐项审阅；批量确认逐项显示终态、冲突与 unknown。
+- [x] 分配前核验编辑/分配权和员工 read；缺 read 时另行确认 grant，有权补齐后重新审核，不能由模型代确认。
+- [x] 正式通知与 assignment 持久关联；员工在线打开或同步时幂等创建独立任务对话，离线待建立状态可恢复。
+- [x] 双击、超时、重开、另一窗口打开均不重复批准/通知/对话；本机失败不会回滚或重发已提交的组织业务。
+- [x] 对话注明原目标任务和下发人，任务选择只返回获准资料；领导原文、员工完整执行日志不自动分享。
+- [x] 对话建立不接受、不委托、不领取、不运行；撤销/改派/新版本不把旧 Session 变成新负责人资格。
 
 助理验证：真实权威/native/IPC/JSONL 多客户端测试，员工离线、批准提交后本机写失败、部分批量成功、撤权及重复建立；独立查询数量及通知收件人。用户检查：在对话确认两个子任务、员工从通知/侧栏打开独立对话，检查隐私及部分失败提示。依赖：Phase 6。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：organization-connection 新增固定 assignment-batch / assignment-batch-read 和 `.assignments` 本机逐项确认账本，按 server/account/organization/project/plan/revision 隔离。每项发送前保存 operationId；成功项恢复原回执，冲突/拒绝独立呈现，unknown 只查询原回执并停止后续项，尚未发送项需再次明确确认。继续使用既有单项 review、grant、approve 事务及原生 `.pending` 核对，不增加批量原子承诺。Config 增加 maxAssignmentBatchItems，部署可调。
+
+organization-conversation 的 request/owner 增加可选准确 assignment selector，conversationId 固定为 assignmentId；native 每次复核 preparation、本人 assignee 和当前任务 read。现有原子 assignment/request/notification 就是离线待建立标识，员工从 Inbox 或侧栏在线打开时预留并恢复独立 JSONL，无需增加共享 Session 表或复制领导聊天。绑定拒绝缺失/替换 assignment，固定目标拒绝 new_goal 和越任务 selector；撤销、改派或新版本不转换旧资格。只在待建立/ready 时增加标识诊断日志，无聊天正文或本机目录。
+
+真实 Loader/HTTPS/native/IPC/JSONL 新增用例覆盖部分批量成功、缺员工 read 后独立补权、冷重开、丢失批准回执、双击并发、员工离线后打开、本机 ready 写失败、领导私聊隔离、本人独立日志、撤销/撤权、无分配权和旧版本。具体命令合并记录在 Phase 8 下。工程检查已满足；Desktop 可见验收仍待用户。随后在同一授权内进入 Phase 8。
 
 ## Phase 8：从对话完成执行、提交、验收和返工
 
@@ -275,16 +279,33 @@ Phase 5–6 实际验证记录：
 
 验收清单：
 
-- [ ] 员工能在对话明确接受/拒绝、选择本机配置、有限委托、领取、开始/停止/显式恢复；模型建议不能直接操作。
-- [ ] 规划不继承执行许可，执行不重新创建根树；细分后重新资格流程、依赖阻塞和当前版本均在同一对话可处理。
-- [ ] HumanRequest 的答复与继续执行分开；失联或撤权拒绝新增动作，unknown 核对与显式恢复沿用旧消费者。
-- [ ] 员工明确上传/提交；原下发人明确验收或驳回；返工显示新 revision 及重新批准，运行完成不自动提交。
-- [ ] 对话内查看必要已验收输入、选择目标、实际核验和最终确认；父级交付条件不变，不自动应用/覆盖文件。
-- [ ] 完整私有日志独立读取且仍受当前资格约束；共享详情/搜索/通知没有聊天或本机目录泄露。
+- [x] 员工能在对话明确接受/拒绝、选择本机配置、有限委托、领取、开始/停止/显式恢复；模型建议不能直接操作。
+- [x] 规划不继承执行许可，执行不重新创建根树；细分后重新资格流程、依赖阻塞和当前版本均在同一对话可处理。
+- [x] HumanRequest 的答复与继续执行分开；失联或撤权拒绝新增动作，unknown 核对与显式恢复沿用旧消费者。
+- [x] 员工明确上传/提交；原下发人明确验收或驳回；返工显示新 revision 及重新批准，运行完成不自动提交。
+- [x] 对话内查看必要已验收输入、选择目标、实际核验和最终确认；父级交付条件不变，不自动应用/覆盖文件。
+- [x] 完整私有日志独立读取且仍受当前资格约束；共享详情/搜索/通知没有聊天或本机目录泄露。
 
 助理验证：业务动作适配、权限投影与类型/i18n/局部 lint；复跑受影响执行/交付聚焦回归，不为复用重复整套历史测试。用户检查：全程对话内接受到验收/返工/集成，检查每次确认含义及停止/恢复。依赖：Phase 7。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：ui-organization 增加 ConversationTask，把 AssignmentPanel、ExecutionPanel、IntegrationPanel 及其内嵌的 ExecutionHumanRequest、DeliveryPanel、AcceptanceReview 接到同一对话。员工接受/拒绝、设备和有限委托、领取、API/Codex 配置、开始/停止、人工答复、显式恢复、上传/提交继续调用既有固定消费者；原下发人审核、返工、目标核验和最终确认保持原事务。ExecutionPanel 可固定原 assignmentId，旧对话不自动改读后来改派的 Run。侧栏/main 通过框架 store 共享身份限定的导航标识，业务数据仍从 native 读取。
+
+ProjectConversation 增加只读 query 路由，任务对话隐藏新根入口并固定 assignment goal。Native planning-read 与私有 conversation selector 分开，避免将 assignment 字段传给严格项目读取器。相同身份刷新保留在途组件、隐藏旧 generation 内容，身份切换和撤权继续拒绝迟到正文。没有增加模型可调用的业务动作、执行许可继承、自动提交或文件应用。相关 README、architecture、session-format-status、规划协议及 persistence catalog/schema 已同步；SQLite 仍 v14，Session envelope 与 organization_conversation 域仍为原版本。
+
+Phase 7–8 实际验证记录（本轮运行，重叠用例不重复加总）：
+
+- `pnpm exec vitest run packages/workspace/organization-conversation/tests/conversation.spec.ts packages/client/ui-organization/tests/conversation.client.spec.tsx --testTimeout=20000`：2 文件、20 项通过。
+- `pnpm exec vitest run packages/client/ui-organization/tests packages/workspace/organization/tests/assignment.spec.ts packages/workspace/organization/tests/execution-human.spec.ts packages/workspace/organization/tests/delivery.spec.ts packages/workspace/organization/tests/acceptance.spec.ts packages/workspace/organization/tests/integration.spec.ts --testTimeout=20000`：12 文件、89 项通过，覆盖受影响的执行人工请求、提交、验收、返工和集成事务。
+- `pnpm exec vitest run packages/workspace/organization-conversation/tests packages/client/ui-organization/tests/conversation.client.spec.tsx packages/client/ui-organization/tests/assignment.client.spec.tsx packages/client/ui-organization/tests/composition.client.spec.ts --testTimeout=20000`：5 文件、38 项通过，真实 Loader 到 native/IPC/JSONL 和 Client 插件注册/销毁均包含在内。
+- `pnpm exec vitest run packages/workspace/organization-conversation/tests/assignment.spec.ts packages/client/ui-organization/tests/assignment.client.spec.tsx packages/host/organization-connection/tests/assignment.spec.ts --testTimeout=20000`：3 文件、35 项通过，包含改派后按原 assignment 读取 Run、部分批量、冷恢复及现有设备/执行固定通道。
+- 增加严格项目读取器的绑定任务 UI 用例后，`pnpm exec vitest run packages/client/ui-organization/tests/conversation.client.spec.tsx --testTimeout=20000`：6 项通过。中间的新增 assignment 聚焦运行也均通过；未将其与上述重叠结果相加。
+- `pnpm exec tsc -b packages/client/ui-organization/tsconfig.json apps/desktop/tsconfig.json apps/desktop-host/tsconfig.json --pretty false` 通过。ui-organization 包目录执行 `pnpm exec tsdown --env.DSH_BUILD_FACE=client`，browser client.js 和 Node loader 均构建成功。
+- `pnpm exec tsdown --filter @deepseek-ai/dsh-session --filter @deepseek-ai/dsh-organization-conversation --filter @deepseek-ai/dsh-organization-connection --filter @deepseek-ai/dsh-desktop --filter @deepseek-ai/dsh-desktop-host --env.DSH_BUILD_FACE=host` 通过。扩展既有 `node apps/desktop-host/tests/organization-conversation-built-smoke.mjs` 和 `--electron` 均通过：实际子进程/HTTPS/私有 IPC、Agent/JSONL、批量分配、独立任务绑定及冷重开，未创建窗口。
+- 变更 TS/TSX/MJS 的 `pnpm exec tsx scripts/run-oxlint.ts <实际修改文件>` 局部 lint、`verify-client-ui-i18n`、`verify-client-packages`、`verify-client-route-resolution`、`verify-tsconfig-paths`、`verify-scoped-events`、`verify-application-entrypoints`、`gen-persistence-catalog` 及 `--check`、变更文档引用与 `git diff --check` 通过。初次局部 lint 的格式及测试类型问题均已修正，未改变例外表。
+
+既有全仓门禁问题按实际保留：verify-client-domain-graph 仍为未修改域的 62 项；verify-package-dependencies 为未修改 file-upload 的一项导入分类；verify-export-jsdoc 为未修改 login-session 的两处说明缺失。本轮未以这些命令声称全仓通过，也未扩范围修改历史问题。
+
+真实模型、Desktop 可见、完整发行与三机产品验收未运行；模型 HTTP 为确定性替身，普通 Node/Electron smoke 无窗口。用户可检查对话中两个子任务的逐项/批量确认、员工侧栏打开、接受到验收/返工/集成和每次停止/恢复的含义。Phase 7–8 工程完成，达到授权 Phase 8 终点，恢复 manual、自动边界 none、relay 关闭；未进入 Phase 9–10，未提交或推送。
 
 ## Phase 9：正常模式双人 CSV 与故障负例
 
@@ -294,16 +315,20 @@ Phase 5–6 实际验证记录：
 
 验收清单：
 
-- [ ] 关闭 forced 模式从复杂目标发送开始，评估、草案、真人调整/分配、员工对话、执行/介入、提交、驳回返工及必要子任务汇合可贯通。
-- [ ] 简单目标不建树；模糊目标答复补当前目标；不同设置与权限改变建议/路由；查询和已绑定步骤不建新树。
-- [ ] 开关开启可拆简单新目标，关闭恢复；设置/身份切换不串用，不影响另一成员或既有执行范围。
-- [ ] 重复消息、同键异内容、版本冲突、半批分配、失去回执、对话落盘崩溃、重开均无重复业务记录。
-- [ ] 无编辑/分配权、缺员工 read、隐藏兄弟、撤权/停用、断线/休眠、模型准入竞争和旧版本操作均有实际拒绝证据。
-- [ ] 最终独立读取成果字节/哈希和权威交付记录，核对未授权文件不变；不能只断言模型回复含“完成”。
+- [x] 关闭 forced 模式从复杂目标发送开始，评估、草案、真人调整/分配、员工对话、执行/介入、提交、驳回返工及必要子任务汇合可贯通。
+- [x] 简单目标不建树；模糊目标答复补当前目标；不同设置与权限改变建议/路由；查询和已绑定步骤不建新树。
+- [x] 开关开启可拆简单新目标，关闭恢复；设置/身份切换不串用，不影响另一成员或既有执行范围。
+- [x] 重复消息、同键异内容、版本冲突、半批分配、失去回执、对话落盘崩溃、重开均无重复业务记录。
+- [x] 无编辑/分配权、缺员工 read、隐藏兄弟、撤权/停用、断线/休眠、模型准入竞争和旧版本操作均有实际拒绝证据。
+- [x] 最终独立读取成果字节/哈希和权威交付记录，核对未授权文件不变；不能只断言模型回复含“完成”。
 
 助理验证：聚焦组合与新增错误路径，独立重开存储和文件核验；记录模型替身与未执行真实模型。用户检查：用本阶段相同样例在 Desktop 从自然对话复现；可见待验不等于组合测试失败。依赖：Phase 8；主路径必须从发送消费者进入，不能直接 savePlan 预种树后称为自动建树通过。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：新增 Desktop conversation-planning.spec.ts 和 source/published 共用夹具。通过原生发送进入独立 Agent 的评估/提案工具，在正常默认设置下保存两个必要 CSV 子任务；真人建议修改产生 revision 2，过期修改拒绝，冷重开保持原 Session/目标；原生批量确认后员工打开独立任务对话，下发人读取被拒绝。随后复用原执行夹具贯通人工等待、显式继续、重开、提交、驳回 revision 3、重新批准及两个成果验收与目标确认。独立文件 SHA-256、CSV 字节、未选中文件、只读 SQLite、JSONL 和服务冷重开共同核验，组织数据库没有领导聊天哨兵。
+
+新增组织路由/偏好回归覆盖简单目标、模糊目标补充、查询、相同文本新消息和账号切换；已有个人 forced 开关、子树隐藏兄弟、模型准入竞争/停用、半批分配、丢回执及落盘故障聚焦回归本轮运行。初次组合测试误取批次历史第一项及未打开新账号绑定，均修正测试消费者；已有 assignment 读取在并行刷新中一次 superseded；后续将该只读观察放入 vi.waitFor 等待实际状态，不重发任何业务写入、不改变断言或权限逻辑，最终与新组合并行运行通过。
+
+实际命令：首轮 8 文件组合 65 项通过、2 项失败；修正后 3 文件 35 项通过、新路由 1 项失败，修正新账号打开方式后该路由通过；最后 `pnpm exec vitest run apps/desktop-host/tests/conversation-planning.spec.ts apps/desktop-host/tests/organization-execution.spec.ts packages/workspace/organization-conversation/tests/conversation.spec.ts --testTimeout=20000` 为 3 文件 26 项通过。其余首轮通过文件及重跑 assignment 的命令见 Phase 10 汇总；计数重叠，不累计成独立用例总数。模型 HTTP/执行模型与测试保险库是替身，其余服务、文件和存储真实。进入 Phase 10。
 
 ## Phase 10：发行验证、模型语料与 Phase 8 交接
 
@@ -313,16 +338,33 @@ Phase 5–6 实际验证记录：
 
 验收清单：
 
-- [ ] 新包/方法资源/Client 模块都在 Desktop 闭包，Host 与 Client face 显式配置；不会出现额外应用入口。
-- [ ] 本期发行构建及普通 Node/Electron Node mode 无窗口 smoke 验证私有进程路径、绑定重开、权限拒绝和方法资源；若用户明确保留给自己，交付准确命令并标待验，不能写通过。
-- [ ] 真实模型语料覆盖普通问答、简单、复杂、多轮澄清、修改及绑定续聊；遵循现有密钥/用户授权，记录真实调用、失败、跳过或待用户，不安装或索取新凭据。
-- [ ] 三机剧本从关闭 forced 模式的自然 CSV 目标开始；创建、分配和日常管理无需工作台，加入不同偏好/无分配权和重开负例。
-- [ ] 交接区分确定性路由测试、真实识别效果、发行 smoke、可见/双平台/三机产品结果；保留 Phase 2–7A 的历史待验。
-- [ ] Phase 7C 工程状态按本期证据更新；产品 Phase 8 仍是后续单独授权的验收目标。
+- [x] 新包/方法资源/Client 模块都在 Desktop 闭包，Host 与 Client face 显式配置；不会出现额外应用入口。
+- [x] 本期发行构建及普通 Node/Electron Node mode 无窗口 smoke 验证私有进程路径、绑定重开、权限拒绝和方法资源；若用户明确保留给自己，交付准确命令并标待验，不能写通过。
+- [x] 真实模型语料覆盖普通问答、简单、复杂、多轮澄清、修改及绑定续聊；遵循现有密钥/用户授权，记录真实调用、失败、跳过或待用户，不安装或索取新凭据。
+- [x] 三机剧本从关闭 forced 模式的自然 CSV 目标开始；创建、分配和日常管理无需工作台，加入不同偏好/无分配权和重开负例。
+- [x] 交接区分确定性路由测试、真实识别效果、发行 smoke、可见/双平台/三机产品结果；保留 Phase 2–7A 的历史待验。
+- [x] Phase 7C 工程状态按本期证据更新；产品 Phase 8 仍是后续单独授权的验收目标。
 
 助理验证：按下文检查策略完成新增发行路径和静态门禁；本阶段不运行产品 UI。用户检查：Desktop 可见、真实模型/双平台和 A/B/C 三机，结果填入验收记录；未完成项明确保留。依赖：Phase 9；存在发布闭包缺失或新权限绕过不得 completed。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：新增 conversation-planning-built-smoke.mjs、built kit/私有 Host child，以及 conversation-planning-packed-smoke.mjs。普通 Node 与 Electron Node mode 分别使用发行私有组织服务、规划 Host IPC 和执行 Host IPC，从正常新目标发送走到真实 CSV 最终交付；员工绑定查询保持单一任务和 pending 分配。四个实际 pnpm tarball 检查 Desktop Host 生产依赖闭包、运行时/类型导出、个人方法 assets/SKILL.md 和两个 Client bundle。未创建新应用入口，没有修改 Session/SQLite 格式或生成目录，也没有产品运行时代码改动。
+
+新增 apps/desktop/tests/conversation-planning.e2e.ts，沿现有 credentials provider 和 e2e 密钥策略提供普通问答、简单、模糊、多轮澄清、复杂、修改、查询及绑定续聊语料。本轮无 DEEPSEEK_API_KEY，1 项明确跳过，未调用真实模型。新增 docs/conversation-planning-acceptance.md，提供同一 CSV 目标的三机对话步骤、独立哈希核验、偏好/权限/恢复负例和记录格式；同步路线图、overview、规划协议和 organization-conversation README。保留历史待验和 Codex 项目规划限制，不进入产品 Phase 8。
+
+本轮实际验证（不将重叠计数相加）：
+
+- `pnpm exec vitest run apps/desktop-host/tests/conversation-planning.spec.ts packages/workspace/organization-conversation/tests packages/host/organization-connection/tests/planning.spec.ts packages/host/organization-connection/tests/assignment.spec.ts packages/workspace/organization/tests/planning.spec.ts packages/workspace/organization/tests/planning-draft.spec.ts packages/skill/skill-dev-workflow/tests/automatic-planning.spec.ts --testTimeout=20000`：首轮 8 文件 65 项通过、2 项失败，具体原因和后续修正见 Phase 9。
+- `pnpm exec vitest run apps/desktop-host/tests/conversation-planning.spec.ts packages/workspace/organization-conversation/tests/conversation.spec.ts packages/host/organization-connection/tests/assignment.spec.ts --testTimeout=20000`：新 CSV 组合及 assignment 文件通过；新增账号切换路由用例随后以 `pnpm exec vitest run packages/workspace/organization-conversation/tests/conversation.spec.ts -t 'keeps simple' --testTimeout=20000` 修正验证通过。
+- 修正 SSE 刷新期间的只读测试观察后，`pnpm exec vitest run packages/host/organization-connection/tests/assignment.spec.ts apps/desktop-host/tests/conversation-planning.spec.ts --testTimeout=20000` 为 2 文件 19 项通过；该测试文件局部 lint 通过。
+- Phase 9 最后一轮 3 文件 26 项通过。追加员工绑定查询断言后，`pnpm exec vitest run apps/desktop-host/tests/conversation-planning.spec.ts --testTimeout=20000` 再次 1 项通过。
+- `pnpm run build` 通过，包含 Desktop Host/Client 发行构建；只有既有 chunk 大小提示。`pnpm exec tsc -b apps/desktop-host/tsconfig.json apps/desktop/tsconfig.host.json packages/client/ui-organization/tsconfig.json packages/client/ui-personal-workflow/tsconfig.json --pretty false` 通过。
+- `node apps/desktop-host/tests/conversation-planning-built-smoke.mjs`、同命令 `--electron` 均通过；追加绑定查询后两个运行时均再次通过。`node apps/desktop-host/tests/conversation-planning-packed-smoke.mjs` 通过；初次夹具的 Client 包名及仓库 source wildcard 检查已修正，未删减发行运行时/类型资源要求。
+- `pnpm exec vitest run --config vitest.e2e.config.ts apps/desktop/tests/conversation-planning.e2e.ts --retry=0`：1 项无密钥跳过，不计为真实模型通过。
+- 新增与本轮修改的 TS/MJS/declaration 文件执行 `pnpm exec tsx scripts/run-oxlint.ts <本轮文件>` 通过；`pnpm run verify-application-entrypoints`、`pnpm run verify-cordis-config`、`pnpm run verify-tsconfig-paths`、`pnpm run verify-client-packages`、`pnpm run verify-client-ui-i18n` 通过。变更文档新增引用、文件结尾和 `git diff --check` 通过；无 staged 文件，未自动暂存。
+
+本轮没有重跑全仓 domain graph、package dependencies 或 export JSDoc 门禁，不追认 Phase 7–8 记录的历史失败为通过。仓库引用的 dsh-prose-standard 文件及同名本地 Skill 不存在；README 按当前 AGENTS.md 的直接文档规则更新，未声称运行该缺失 Skill。
+
+Phase 1–10 工程完成，恢复 manual、自动边界 none、relay 关闭。真实模型识别、Desktop 可见、Windows 和三机产品结果仍待用户；没有启动页面、使用浏览器自动化/GitNexus、自动提交、推送、发布或开新聊天。
 
 ## 关键链路日志要求
 
@@ -357,9 +399,9 @@ execution mode: manual
 automatic start phase: none
 automatic stop phase: none
 conversation relay: off
-plan review: accepted for Phase 1–6
-execution authorization: 用户要求“请自动完成 phase5-6”；仅 Phase 5–6，relay 关闭
-execution result: 2026-10-03 Phase 5–6 工程完成，达到 Phase 6 授权终点，恢复 manual 并停止
+plan review: accepted for Phase 1–10
+execution authorization: 用户要求“请自动完成剩余 phase”；覆盖剩余 Phase 9–10，relay 关闭
+execution result: 2026-10-03 Phase 1–10 工程完成，剩余 Phase 9–10 已完成，恢复 manual；产品验收待用户
 ```
 
 1. 本计划是 Phase 7C 唯一施工入口。首次评审后，用户明确“执行 Phase 1”才开始实现；选择 skill 或本次“给出计划”不授权实现。
@@ -374,4 +416,4 @@ execution result: 2026-10-03 Phase 5–6 工程完成，达到 Phase 6 授权终
 10. Relay 默认关闭，不创建新聊天或 worktree；开启需用户对本计划另行明确授权，并先读取 `/Users/git_local/dev-workflow-skill/references/conversation-relay.md`，按其规定补齐所有权、批次和交接字段；worktree relay 另读 `worktree-return.md`。开启前不能凭历史对话自动转移执行。
 11. 不创建专用 executor skill；现有入口 skill 与本文足够。以后确需复杂多会话接力，再评估执行包装，阶段事实仍只在本文。
 
-Phase 1–6 已完成；后续从 **Phase 7** 开始，须由用户另行授权。
+Phase 1–10 工程已完成；真实模型、可见、Windows 及产品 Phase 8 三机验收仍单独待验。

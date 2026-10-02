@@ -10,6 +10,7 @@ const account = z.uuid().transform(v => brandString<AccountId>(v))
 const role = z.enum(['admin', 'member'])
 /** Deployment bounds for requests and reconnection; no offline writes are queued. */
 export const connectionConfig = z.object({
+  maxAssignmentBatchItems: z.number().int().positive().max(1000).default(100),
   trustPath: z.string().refine(isAbsolute).optional(),
   timeoutMs: z.number().int().min(100).max(120000).default(15000),
   maxResponseBytes: z.number().int().min(1024).max(10485760).default(1048576),
@@ -42,7 +43,7 @@ revision: version,
 cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.enum(['planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
+  z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
   z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('device-register'), name: z.string().trim().min(1).max(120) }).strict(),
   z.object({ kind: z.literal('device-revoke'), expectedVersion: z.number().int().positive() }).strict(),

@@ -12,7 +12,9 @@
 
 Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。相关聚焦回归、Client/Host 类型、局部 lint、i18n/组合/入口门禁、Desktop build、个人/Codex 产物 smoke 及组织普通 Node/Electron Node mode 私有 IPC smoke 通过；命令与既有全局门禁问题见实施计划。真实登录/模型、Windows、可见与三机验收仍待用户。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力、限制与个人验收步骤。
 
-[对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，是 Phase 8 的必备前置。内部 Phase 1–6 工程完成，本轮达到用户授权 Phase 6 终点，恢复 manual、自动边界 none、relay 关闭，Phase 7–10 待实施。[规划协议](conversation-planning.md)拥有设置、目标路由、组织准入及消费者。个人未选择对话默认自动识别，明确关闭继续有效；本人偏好与测试 override 分开保存，稳定目标和消息身份支持澄清、修改、查询及重试恢复。组织 SQLite v14 保存有限模型资格、逐次 HTTP/重试计费、目标/计划关联和子树原批准责任；共享根草案及获准子树修改复用唯一 WorkGraph writer，不自动批准或运行。组织普通对话主入口支持树/版本/业务详情及可见成员建议，个人对话使用已有快照的内联计划节点和准确版本编辑。独立 organization-conversation 保留私有 Session/JSONL，保存意图先落盘，未知回执只核对；自己的保存失效原 generation 后只读恢复，历史任务失权拒绝旧正文重放。API 模型目的地与本机显式凭据策略相交，Codex 原生项目规划仍无 API fallback。聚焦测试、定向 Host/Client 构建及普通 Node/Electron 无窗口 smoke 通过；全仓门禁失败、真实模型与可见待验均单列于施工计划。明确分配、员工独立对话自动建立及对话执行交付留 Phase 7–8；不代表产品 Phase 7C 或三机验收通过，也不进入产品 Phase 8。
+[对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，内部 Phase 1–10 工程完成。本轮按用户“请自动完成剩余 phase”完成 Phase 9–10，恢复 manual、自动边界 none、relay 关闭。[规划协议](conversation-planning.md)拥有个人默认识别、按用户偏好、目标/澄清关联、组织有限模型许可、结构化共享草案及获准子树修改。对话内负责人建议、逐项/批量明确分配、员工独立任务 Session 和接受到执行、介入、提交、验收/返工及最终确认已接入；业务仍归 SQLite v14，完整私有日志单独鉴权。
+
+新增正常模式 CSV 组合从真实发送进入评估/提案，经过真人修改、分配、员工绑定查询、人工等待与显式恢复、驳回新版本、两个必要成果汇合和独立字节/哈希核验；没有通过工作台预种任务树。Desktop 完整构建、相关类型、局部 lint、入口/配置/Client 门禁、四个 npm tarball 的闭包/资源检查及普通 Node/Electron Node mode 私有进程 smoke 通过。[验收交接](conversation-planning-acceptance.md)提供真实模型语料和 A/B/C 三机自然对话剧本。真实模型测试无密钥自跳过；Desktop 可见、Windows、三机和历史产品验收仍待用户。工程完成不代表产品 Phase 8 通过，未启动页面、提交、推送或发布。新组织项目规划仍仅支持内建 API；Codex 规划需专用能力，不做 API fallback。
 
 ### 已完成的内建执行与交付基础
 
@@ -52,7 +54,7 @@ Cordis 插件组合 Agent 运行时。Desktop 是 Electron 外壳，启动私有
 | `packages/host/organization-connection` | Electron 原生组织连接、证书信任、身份/组织隔离、固定任务动作、事件与回执核对。 |
 | `packages/client/ui-organization` | 组织设置、账号/邀请、成员/项目/任务授权、共享任务工作台与本人只读上下文。 |
 | `packages/workspace/organization` | 独立 SQLite 账号/组织/成员/邀请/登录权威、WorkGraph 定义/版本/授权投影，事务回执、审计、限流和恢复；通过 Desktop 私有组织组合启动。 |
-| `packages/workspace/organization-conversation` | 本人项目目标/澄清、独立 Agent/Session/JSONL、有限规划模型准入与私有 IPC；共享任务写入和普通控件后续接入。 |
+| `packages/workspace/organization-conversation` | 本人项目目标/澄清、独立 Agent/Session/JSONL、有限规划模型准入、共享草案/子树写入、员工分配绑定和私有 IPC。 |
 | `packages/workspace/organization-context` | 本机预执行 Session 的隔离、原子预留、准确任务快照、在线权限复核与持久恢复。 |
 | `packages/workspace/organization-execution` | 本机 Run/Session 预留、独立 JSONL、逐动作许可、模型地址策略及有界执行；Desktop 显式开始/停止、持久人工请求、本人动作核对与显式继续。 |
 | `packages/workspace/personal-workflow` | 持久 Task、独立父子树/依赖图、原子计划版本与审核、幂等回执、Session 快照、Markdown 导出、任务领取、执行预算、证据和同机接力恢复。 |

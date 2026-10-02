@@ -1,3 +1,4 @@
+import { AssignmentBatches } from './assignment-batch.ts'
 import { planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 import { integrationReadSchema, integrationCommandSchema, integrationViewSchema } from '@deepseek-ai/dsh-organization/delivery'
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
@@ -53,6 +54,7 @@ export class OrganizationConnection {
   private closed = false
   private readonly operations = new Set<Promise<unknown>>()
   private renewingMutation = false
+  private readonly assignmentBatches: AssignmentBatches
   private journalError = false
   private readonly config: z.output<typeof connectionConfig>
   private readonly listeners = new Set<() => void>()
@@ -62,6 +64,8 @@ export class OrganizationConnection {
    */
   constructor(config: Config = {}, private readonly device?: { directory: string; vault: OrganizationDeviceVault }) {
     this.config = connectionConfig.parse(config)
+    this.assignmentBatches = new AssignmentBatches(this.config.trustPath ? `${this.config.trustPath}.assignments` : undefined,
+      (path, data) =>{  this.save(path, data) }, this.config.maxAssignmentBatchItems)
     this.loginSession = this.config.trustPath && device ? new OrganizationLoginSession(`${this.config.trustPath}.login`, device.vault) : undefined
     if (this.config.trustPath) {
       try {
@@ -352,6 +356,40 @@ export class OrganizationConnection {
     const generation = this.generation
     try {
       switch (action.kind) {
+        case 'assignment-batch':
+        case 'assignment-batch-read': {
+          const owner = this.state.principal, organizationId = this.currentOrganization()
+          if (!owner) throw new Error('forbidden')
+          const current = () => {
+            if (this.currentOrganization() !== organizationId || this.state.mode !== 'organization'
+              || this.state.principal?.serverId !== owner.serverId || this.state.principal.accountId !== owner.accountId)
+              throw new Error('superseded')
+          }
+          const query = approvalReviewSchema.pick({ organizationId: true, projectId: true, planId: true, planRevision: true })
+            .strip().parse(action.request)
+          if (query.organizationId !== organizationId) throw new Error('forbidden')
+          // Recheck plan visibility before disclosing the local human approval journal.
+          await this.request('/workgraph/tasks', { organizationId, projectId: query.projectId, planId: query.planId }); current()
+          const assignmentBatch = await this.assignmentBatches.perform(action.request, owner, action.kind === 'assignment-batch', current,
+            command => this.mutate(command, undefined, 'assignment'),
+            async (command) => {
+              const found = receiptSchema.nullable().parse(await this.request(`/receipts/${command.operationId}`))
+              if (found) {
+                const value = preparationSchema.parse(await this.request('/assignment/preparation', {
+                  organizationId, projectId: command.projectId, planId: command.planId, assignmentId: found.assignmentId,
+                })).assignment
+                if (value.taskId !== command.taskId || value.assigneeId !== command.assigneeId
+                  || value.planRevision !== command.planRevision)
+                  throw new Error('operation-conflict')
+              }
+              return found
+            })
+          for (const item of assignmentBatch.items) {
+            await this.request('/workgraph/tasks', { organizationId, projectId: item.command.projectId,
+              planId: item.command.planId, taskId: item.command.taskId }); current()
+          }
+          return { generation: this.generation, assignmentBatch }
+        }
         case 'probe': {
           this.trust = undefined; this.offer = undefined; this.serverId = undefined
           const input = action.origin.trim()

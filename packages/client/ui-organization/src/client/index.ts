@@ -1,5 +1,6 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import { createConversationStore } from './conversation-store.ts'
 import { OrganizationConversation, OrganizationConversationIcon } from './Conversation.tsx'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
@@ -64,10 +65,11 @@ export function apply(ctx: Context): void {
     void desktop.snapshot().then((snapshot) => { if (alive && !observed) state.set(snapshot) }).catch(() => {})
     return () => { alive = false; unsubscribe() }
   }, 'organization.native-state')
+  const conversationStore = createConversationStore()
   const t = ctx.locale.bind('organization')
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'organization-conversation',
     order: -90, label: () => t('conversationTitle') }, OrganizationConversationIcon))
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-conversation',
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-conversation', store: conversationStore,
     locale: 'organization', inject: bind }, OrganizationConversation))
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section',
     id: 'organization',
@@ -77,7 +79,7 @@ export function apply(ctx: Context): void {
     inject: bind }, OrganizationSettings))
   ctx.slots.inject('sidebar.account', () => ctx.slots.register({ name: 'sidebar.account',
     locale: 'organization', inject: bind }, AccountMenu))
-  ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal',
+  ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal', store: conversationStore,
     priority: -10,
     locale: 'organization',
     inject: bind }, OrganizationSidebar))

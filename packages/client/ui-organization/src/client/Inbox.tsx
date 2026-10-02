@@ -7,6 +7,8 @@ import type { OperationId } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
 import { DeliveryPanel } from './DeliveryPanel.tsx'
 import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
+import { ProjectConversation } from './Conversation.tsx'
+import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
@@ -17,6 +19,7 @@ export function Inbox(props: OrganizationProps) {
   const [page, setPage] = useState<{ generation: number; value: OrganizationInboxPage }>()
   const [filter, setFilter] = useState<'pending' | 'processed' | 'all'>('pending')
   const [search, setSearch] = useState(''), [notice, setNotice] = useState('')
+  const [conversation, setConversation] = useState<{ assignment: OrganizationInboxItem['assignment']; project: OrganizationProjectView; generation: number }>()
   const [selected, setSelected] = useState<OrganizationInboxItem>()
   const [detail, setDetail] = useState<{ generation: number; task: OrganizationTaskView }>()
   const [context, setContext] = useState<Awaited<ReturnType<OrganizationProps['context']>>>()
@@ -41,6 +44,13 @@ export function Inbox(props: OrganizationProps) {
     if (alive.current && sequence === selection.current && result.workgraph?.result.kind === 'tasks' && result.workgraph.result.value.items[0]) {
       setDetail({ generation: result.workgraph.generation, task: result.workgraph.result.value.items[0] })
     }
+  }
+  const openConversation = async (item: OrganizationInboxItem) => {
+    const a = item.assignment, sequence = ++selection.current
+    const result = await props.connection({ kind: 'planning-read', request: { organizationId: a.organizationId,
+      projectId: a.projectId, conversationId: a.id } })
+    if (alive.current && sequence === selection.current && result.planning && result.generation !== undefined)
+      setConversation({ assignment: a, project: result.planning.project, generation: result.generation })
   }
   const openContext = async () => {
     if (!selected) return
@@ -73,6 +83,7 @@ export function Inbox(props: OrganizationProps) {
       {!current.items.length && <p>{t('empty')}</p>}
       <ul className={css.taskList}>{current.items.map(item => <li key={item.request.id}>
         <Button onClick={() => { void open(item).catch(report) }}>{t('taskId')}: {item.assignment.taskId} · {t(`assignment-${item.assignment.state}`)}</Button>
+        {item.assignment.assigneeId === c.organizations.find(o => o.id === c.organizationId)?.membershipId && <Button onClick={() => { void openConversation(item).catch(report) }}>{t('conversationOpenTask')}</Button>}
         {item.request.kind === 'accept-delivery' && <DeliveryPanel {...props} assignment={item.assignment} />}
         {item.request.kind !== 'accept-assignment' && item.request.kind !== 'accept-delivery' && <ExecutionHumanRequest key={`${c.generation}:${item.request.id}`} {...props} request={item.request} assignment={item.assignment} refresh={load} />}
         {item.notificationId && item.readAt === null && <Button disabled={!!c.pendingOperation} onClick={() => {
@@ -86,6 +97,9 @@ export function Inbox(props: OrganizationProps) {
         <Button disabled={current.offset + current.items.length >= current.total} onClick={() => { void load(current.offset + current.items.length).catch(report) }}>{t('next')}</Button>
       </div>
     </>}
+    {conversation && ready && conversation.assignment.organizationId === c.organizationId && <ProjectConversation
+      key={`${c.principal?.serverId}:${c.principal?.accountId}:${conversation.assignment.id}`} {...props} project={conversation.project}
+      assignment={{ planId: conversation.assignment.planId, assignmentId: conversation.assignment.id }} />}
     {task && <section className={css.card}><h4>{task.goal}</h4><p>{task.scope}</p><p>{t('taskVersion', { revision: task.revision })}</p>
       <h4>{t('taskAcceptance')}</h4><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
       <Button disabled={!!c.pendingOperation} onClick={() => { void openContext().catch(report) }}>{t('myContext')}</Button></section>}

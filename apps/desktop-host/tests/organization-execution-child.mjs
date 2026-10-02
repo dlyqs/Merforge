@@ -3,8 +3,8 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-export async function executionChild(executable, root, native = false) {
-  const child = spawn(executable, ['--expose-internals', fileURLToPath(new URL('./organization-execution-host.mjs', import.meta.url)), root, native ? 'codex' : 'api'], {
+export async function executionChild(executable, root, native = false, entry = './organization-execution-host.mjs') {
+  const child = spawn(executable, ['--expose-internals', fileURLToPath(new URL(entry, import.meta.url)), root, native ? 'codex' : 'api'], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   })
   const pending = new Map(), nonce = randomUUID()
@@ -55,6 +55,7 @@ export async function executionChild(executable, root, native = false) {
     })
   }
   return {
+    organizationConversation: (...args) => call('organization-conversation', 'operation', ...args),
     openOrganizationContext: (...args) => call('organization-context', 'open', ...args),
     openOrganizationExecution: (...args) => call('organization-execution', 'open', ...args),
     readOrganizationExecution: (...args) => call('organization-execution', 'report', ...args),

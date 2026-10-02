@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Checkbox, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import type { OrganizationTaskView, OrganizationExecutionView } from '@deepseek-ai/dsh-organization'
+import type { OrganizationTaskView, OrganizationExecutionView, OrganizationAssignmentId } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionResult, OrganizationDesktopBridge } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
@@ -32,7 +32,8 @@ function executionError(error: unknown): OrganizationKey {
 /** @param props - Current authorized task and native callbacks. @returns Explicit execution form and Run state. */
 export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTaskView
   projectId: OrganizationProjectId
-  current: boolean }) {
+  current: boolean
+  assignmentId?: OrganizationAssignmentId }) {
   const { t, task } = props, c = props.useOrganization(s => s.connection)
   const [preparation, setPreparation] = useState<Preparation>()
   const [views, setViews] = useState<{ generation: number; items: OrganizationExecutionView[]; total: number; offset: number }>()
@@ -64,7 +65,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     const history = await props.connection({ kind: 'assignment-tasks', request: { organizationId: c.organizationId,
       projectId: props.projectId, planId: task.planId, taskId: task.id } })
     if (!alive.current || seq !== sequence.current || history.assignment?.result.kind !== 'tasks') return
-    const assignment = history.assignment.result.value.items.find(a => a.planRevision === task.revision)
+    const assignment = props.assignmentId ? { id: props.assignmentId, organizationId: c.organizationId }
+      : history.assignment.result.value.items.find(a => a.planRevision === task.revision)
     if (!assignment) { setPreparation(undefined); setViews(undefined); return }
     const selector = { organizationId: assignment.organizationId, projectId: props.projectId,
       planId: task.planId, assignmentId: assignment.id }

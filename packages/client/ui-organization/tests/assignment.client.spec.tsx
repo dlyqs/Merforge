@@ -12,6 +12,9 @@ import type { OrganizationProps } from '../src/client/contract.ts'
 import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
 import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
 import { executionViewSchema, executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
+import { ConversationTask } from '../src/client/ConversationTask.tsx'
+import { AssignmentBatch } from '../src/client/AssignmentBatch.tsx'
+import { assignmentBatchRequestSchema } from '../../../host/organization-connection/src/assignment-batch.ts'
 import { Inbox } from '../src/client/Inbox.tsx'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
@@ -261,4 +264,68 @@ it('selects native Codex without endpoint or file-tool controls and retains the 
     backend: { kind: 'codex', model: 'native-model', effort: 'medium' }, capabilities: ['codex-turn'],
   })
   expect(vi.mocked(h.props.execution).mock.calls[0]![0].inputs.endpoint).toBeUndefined()
+})
+
+it('uses the same explicit acceptance and execution controls inside a conversation without starting work on open', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks') return { workgraph: { generation: 1, requestId: brandString(randomUUID()),
+      principal: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()) },
+      organizationId: h.prep.assignment.organizationId,
+      result: { kind: 'tasks', value: { items: [h.task], total: 1, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
+    return base(action)
+  })
+  render(<ConversationTask {...h.props} projectId={h.projectId} planId={h.task.planId}
+    taskId={h.task.id} assignmentId={h.prep.assignment.id} />)
+  const accept = await screen.findByRole('button', { name: zh.acceptAssignment })
+  expect(screen.getByText(zh.executionTitle)).toBeTruthy()
+  expect(screen.getByText(zh.integrationTitle)).toBeTruthy()
+  expect(h.connection.mock.calls.every(([a]) => !['assignment-participant', 'execution-command', 'lease-claim', 'assignment-delegate'].includes(a.kind))).toBe(true)
+  fireEvent.click(accept)
+  await screen.findByRole('button', { name: zh.registerDevice })
+  expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-participant')).toHaveLength(1)
+  expect(h.props.execution).not.toHaveBeenCalled()
+})
+it('reviews exact leaf assignments before batch confirmation and presents partial results separately', async () => {
+  const h = fixture(false), base = h.connection.getMockImplementation()!
+  const second = { ...h.task, id: brandString<import('@deepseek-ai/dsh-organization').OrganizationTaskId>(randomUUID()), goal: 'Second report' }
+  const definition = { taskId: h.task.id, phases: [{ id: h.task.phaseId, title: 'Reports' }], tasks: [h.task, second] }
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'assignment-batch') {
+      const request = assignmentBatchRequestSchema.parse(action.request)
+      return { generation: 1, assignmentBatch: { organizationId: h.prep.assignment.organizationId,
+        projectId: h.projectId, planId: h.task.planId, planRevision: h.task.revision,
+        owner: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()) },
+        items: request.commands.map((command, index) => ({ command, state: index === 0 ? 'confirmed' : 'conflict' })) } }
+    }
+    return base(action)
+  })
+  render(<AssignmentBatch {...h.props} projectId={h.projectId} proposal={{ status: 'shared', planId: h.task.planId, revision: h.task.revision, definition }} />)
+  fireEvent.click(screen.getByLabelText(h.task.goal)); fireEvent.click(screen.getByLabelText(second.goal))
+  expect(screen.getByRole('button', { name: zh.conversationBatchConfirm }).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: zh.reviewApprovalAccess }))
+  const confirmation = screen.getByLabelText(zh.confirmApproval.replace('{revision}', String(h.task.revision)))
+  await waitFor(() =>{  expect(confirmation.disabled).toBe(false) })
+  fireEvent.click(confirmation); fireEvent.click(screen.getByRole('button', { name: zh.conversationBatchConfirm }))
+  await screen.findByText(zh['conversationBatch-confirmed']); await screen.findByText(zh['conversationBatch-conflict'])
+  expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-batch')).toHaveLength(1)
+  expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-review')).toHaveLength(2)
+})
+
+it('keeps task conversation Run reads on the original assignment after a later reassignment', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const newer = { ...h.prep.assignment, id: brandString<import('@deepseek-ai/dsh-organization').OrganizationAssignmentId>(randomUUID()) }
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'assignment-tasks') return { assignment: { generation: 1,
+      result: { kind: 'tasks', value: { items: [newer], total: 2, offset: 0, revision: 3, cursor: brandString('new') } } } }
+    if (action.kind === 'execution-list') return { generation: 1, executions: { items: [], total: 0, offset: 0 } }
+    return base(action)
+  })
+  render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current assignmentId={h.prep.assignment.id} />)
+  await waitFor(() => {
+    expect(h.connection.mock.calls.some(([a]) => a.kind === 'execution-list')).toBe(true)
+  })
+  for (const [action] of h.connection.mock.calls) if (action.kind === 'assignment-preparation' || action.kind === 'execution-list')
+    expect(action.request).toMatchObject({ assignmentId: h.prep.assignment.id })
+  expect(h.props.execution).not.toHaveBeenCalled()
 })

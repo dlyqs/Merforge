@@ -156,7 +156,8 @@ export async function executionScenario(kit, createHost = root => localExecution
       id, parentTaskId: id === parent ? null : parent, phaseId, goal: id === parent ? 'Deliver CSV and contract' : 'Prepare selected CSV evidence',
       scope: 'Selected files only', acceptance: ['Independent byte comparison'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
     })) }
-    await active(owner, { kind: 'workgraph-save', request: { ...query, expectedRevision: 0, operationId: randomUUID(), definition } })
+    const initialRevision = kit.planningHooks ? await kit.planningHooks.createPlan({ root, owner, member, query, definition, employee }) : 1
+    if (!kit.planningHooks) await active(owner, { kind: 'workgraph-save', request: { ...query, expectedRevision: 0, operationId: randomUUID(), definition } })
     const grant = (await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: employee.membershipId,
       actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })).receipt
     await active(member, { kind: 'device-register', name: 'CSV employee device' })
@@ -166,7 +167,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     if (kit.native) { inputs.backend = nativeBackend; inputs.capabilities = ['codex-turn']; inputs.execution.maxSteps = 30 }
     let configDigest = kit.executionInputsDigest(inputs)
     async function prepare(taskId, planRevision, budget = 30) {
-      const approved = await active(owner, { kind: 'assignment-command', request: { ...query, taskId, planRevision,
+      const approved = kit.planningHooks ? await kit.planningHooks.approve({ owner, member, query, taskId, planRevision, employee }) : await active(owner, { kind: 'assignment-command', request: { ...query, taskId, planRevision,
         kind: 'approve-assignment', assigneeId: employee.membershipId, operationId: randomUUID() } })
       const selector = { ...query, assignmentId: approved.receipt.assignmentId }
       await until(() => member.snapshot().inbox?.items.some(i => i.assignment.id === selector.assignmentId && i.request.kind === 'accept-assignment'))
@@ -205,7 +206,7 @@ export async function executionScenario(kit, createHost = root => localExecution
         submissionId: file.submissionId, artifacts: [{ artifactId: file.artifactId, sha256: file.sha256 }], confirmed: true,
         ...(reject ? { reason: 'Missing quoted rows', requirements: 'Include Alice and Bob with CSV escaping.' } : {}) } })
     }
-    const first = await prepare(left, 1, fault === 'budget' ? 1 : 30)
+    const first = await prepare(left, initialRevision, fault === 'budget' ? 1 : 30)
     if (kit.liveRoute) {
       await execute(first, [])
       assert.equal(await readFile(join(work, 'result.csv'), 'utf8'), csv)
@@ -264,7 +265,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     await execute(first, [tool('request_human', { prompt: 'Confirm columns name,note?', recipient: 'employee' })])
     const waiting = await runView(first)
     assert.equal(waiting.run.state, 'waiting-human')
-    const answer = { ...first.selector, runId: first.request.runId, planRevision: 1, kind: 'answer-execution-question',
+    const answer = { ...first.selector, runId: first.request.runId, planRevision: initialRevision, kind: 'answer-execution-question',
       requestId: waiting.humanRequests[0].id, answer: 'Use name,note and preserve CSV quotes.', operationId: randomUUID() }
     await active(member, { kind: 'assignment-participant', request: answer })
     assert.equal((await runView(first)).run.state, 'waiting-human')
@@ -276,10 +277,10 @@ export async function executionScenario(kit, createHost = root => localExecution
     const rejectedFile = await submit(first, 'result.csv')
     await review(rejectedFile, true)
     await assert.rejects(execute(first, ['Must not run']))
-    const second = await prepare(left, 2)
+    const second = await prepare(left, initialRevision + 1)
     await execute(second, [tool('write_file', { path: 'result.csv', content: csv }), tool('read_file', { path: 'result.csv' }), 'Revised CSV ready'])
     const leftFile = await submit(second, 'result.csv'); await review(leftFile)
-    const integrationQuery = { ...query, taskId: parent, planRevision: 2 }
+    const integrationQuery = { ...query, taskId: parent, planRevision: initialRevision + 1 }
     assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.inputsReady, false)
     await active(member, { kind: 'lease-release', request: second.selector })
     let secondGrant
@@ -305,7 +306,7 @@ export async function executionScenario(kit, createHost = root => localExecution
       inputs.messages = ['SECOND_PRIVATE_EXECUTION_SENTINEL: prepare independent contract']
       configDigest = kit.executionInputsDigest(inputs)
     }
-    const third = await prepare(right, 2)
+    const third = await prepare(right, initialRevision + 1)
     await execute(third, [tool('write_file', { path: 'contract.json', content: '{"columns":["name","note"],"encoding":"UTF-8"}\n' }), 'Contract ready'])
     const rightFile = await submit(third, 'contract.json'); await review(rightFile)
     if (kit.twoMembers) {
@@ -330,6 +331,7 @@ export async function executionScenario(kit, createHost = root => localExecution
       integrationId: observed.receipt.integration.integrationId, confirmed: true } }, async () => { throw new Error('unexpected picker') }, () => {})
     assert.equal(confirm.receipt.integration.delivered, true)
     assert.equal(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'result.csv')]).toString(), csv)
+    for (const file of [leftFile, rightFile]) assert.equal(sha(await readFile(join(target, file.path))), file.sha256)
     for (const directory of [...workRoots, target]) assert.equal(await readFile(join(directory, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
     const shared = JSON.stringify(await active(owner, { kind: 'delivery-read', request: third.selector }))
     assert.equal(shared.includes('PRIVATE_EXECUTION_SENTINEL'), false)
@@ -369,9 +371,10 @@ export async function executionScenario(kit, createHost = root => localExecution
       const actions = db.prepare('SELECT id FROM execution_actions').all()
       assert.deepEqual(new Set(actions.map(action => action.id)), loggedActions)
       assert.equal(db.prepare('SELECT count(*) AS n FROM integration_confirmations').get().n, 1)
-      assert.equal(db.prepare('SELECT count(*) AS n FROM plan_revisions WHERE planId=?').get(query.planId).n, 2)
+      assert.equal(db.prepare('SELECT count(*) AS n FROM plan_revisions WHERE planId=?').get(query.planId).n, initialRevision + 1)
     } finally { db.close() }
     const sharedDatabase = await readFile(join(server, 'organization.sqlite'))
+    assert.equal(sharedDatabase.includes(Buffer.from('PRIVATE_ISSUER_CHAT')), false)
     assert.equal(sharedDatabase.includes(Buffer.from('PRIVATE_EXECUTION_SENTINEL')), false)
     assert.equal(sharedDatabase.includes(Buffer.from('PRIVATE_UNSELECTED_SENTINEL')), false)
     assert.equal(sharedDatabase.includes(Buffer.from('SECOND_PRIVATE_EXECUTION_SENTINEL')), false)
@@ -380,7 +383,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     await app.authority.readIntegration(login.token, integrationQuery, view => assert.equal(view.delivered, true))
     await app.authority.downloadArtifact(login.token, { ...third.selector, artifactId: rightFile.artifactId }, value => assert.equal(value.bytes, rightFile.bytes.toString('base64')))
   } finally {
-    const results = await Promise.allSettled(hosts.map(h => h.close()))
+    const results = await Promise.allSettled([...hosts.map(h => h.close()), ...(kit.planningHooks ? [kit.planningHooks.close()] : [])])
     const nativeResults = await Promise.allSettled(clients.map(c => c.close()))
     try { await app?.close() } finally { await rm(root, { recursive: true, force: true }) }
     for (const result of [...results, ...nativeResults]) if (result.status === 'rejected') throw result.reason

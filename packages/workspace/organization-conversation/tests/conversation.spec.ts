@@ -271,3 +271,44 @@ it('hides previously authorized task text after task revocation and refuses hist
     route: 'new_goal', text: 'Continue with the prior task context' }))).rejects.toThrow()
   expect(fetch).toHaveBeenCalledTimes(calls)
 }, 20000)
+
+it('keeps simple, clarification and query sends on their goals and isolates preferences after account switches', async () => {
+  const h = await setup()
+  await h.perform()
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(reply('simple')).mockImplementation(async () => reply())
+  const send = { ...h.request, kind: 'send', operationId: randomUUID(), route: 'new_goal', selection, text: 'Explain CSV quoting' }
+  const simple = await h.perform(conversationRequestSchema.parse(send))
+  expect(simple.result.goals[0]).toMatchObject({ classification: 'simple' })
+  expect(simple.result.goals[0]?.proposal).toBeUndefined()
+  fetch.mockResolvedValueOnce(reply('clarify')).mockResolvedValueOnce(reply(undefined, 'Which columns?'))
+  const vague = await h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID(), text: 'Prepare a report' }))
+  const goalId = vague.result.goals.at(-1)!.id
+  expect(vague.result.goals.at(-1)?.classification).toBe('clarify')
+  fetch.mockResolvedValueOnce(reply('simple')).mockResolvedValueOnce(reply())
+  const clarified = await h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID(), route: 'clarification', goalId,
+    text: 'Only explain the two column names; no deliverables needed' }))
+  expect(clarified.result.goals).toHaveLength(2)
+  expect(clarified.result.goals.at(-1)?.id).toBe(goalId)
+  const queried = await h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID(), route: 'query', goalId, text: 'What is the status?' }))
+  expect(queried.result.goals).toEqual(clarified.result.goals)
+  const settings = { ...h.request, kind: 'settings', operationId: randomUUID(), expectedRevision: 0, settings: { enabled: false, granularity: 'fine' } }
+  await h.perform(conversationRequestSchema.parse(settings))
+  await h.connection.perform({ kind: 'login', username: 'owner', password })
+  await h.connection.perform({ kind: 'select', organizationId: h.request.organizationId })
+  const other = await h.perform()
+  expect(other.result.settings).toEqual({ enabled: true, granularity: 'balanced', revision: 0 })
+  expect(other.result.entries).toEqual([])
+  await h.connection.perform({ kind: 'login', username: 'reader', password })
+  await h.connection.perform({ kind: 'select', organizationId: h.request.organizationId })
+  const back = await h.perform({ ...h.request, kind: 'read' })
+  expect(back.result.settings).toEqual({ enabled: false, granularity: 'fine', revision: 1 })
+  expect(back.result.sessionId).toBe(simple.result.sessionId)
+  await h.perform(conversationRequestSchema.parse({ ...settings, operationId: randomUUID(), expectedRevision: 1,
+    settings: { enabled: true, granularity: 'balanced' } }))
+  const resumed = await h.perform(conversationRequestSchema.parse({ ...send, operationId: randomUUID() }))
+  expect(resumed.result.goals).toHaveLength(3)
+  expect(fetch.mock.lastCall?.[1]?.body).toContain('workflow_assess')
+  const authority = await h.connection.perform({ kind: 'planning-read', request: { organizationId: h.request.organizationId,
+    projectId: h.request.projectId, conversationId: h.request.conversationId } })
+  expect(authority.planning?.plans).toEqual([])
+}, 20000)

@@ -1,6 +1,7 @@
 /** Private project conversation operations and correlated native authorization messages. */
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+import { assignmentReadSchema, assignmentSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { planningReadSchema, planningViewSchema, planningCommandSchema, planningOpenSchema,
   planningMutationReceiptSchema, planningPlanReadSchema, planningPlanViewSchema, planningDraftSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
@@ -11,12 +12,16 @@ export const conversationSettingsSchema = z.object({ enabled: z.boolean(), granu
 /** Native identity binds every project read and model admission to its initiating generation. */
 export const conversationAuthoritySchema = z.object({ serverId: uuid<Branded<'OrganizationServerId'>>(),
   accountId: uuid<Branded<'OrganizationAccountId'>>(), generation: z.number().int().nonnegative(),
-  view: planningViewSchema, candidates: planningCandidatesPageSchema.optional(), plan: planningPlanViewSchema.optional(),
+  view: planningViewSchema, assignment: assignmentSchema.optional(),
+  candidates: planningCandidatesPageSchema.optional(), plan: planningPlanViewSchema.optional(),
   receipt: planningMutationReceiptSchema.optional() }).strict()
-/** Immutable private owner; no personal Project, preset, path, Run or task identity is accepted. */
+/** Exact assignment selector; the native owner derives the task and original participants online. */
+export const conversationAssignmentSchema = assignmentReadSchema.pick({ planId: true, assignmentId: true })
+/** Immutable private owner; no personal Project, preset, path or Run identity is accepted. */
 export const conversationOwnerSchema = conversationAuthoritySchema.pick({ serverId: true, accountId: true })
-  .extend(planningReadSchema.shape).strict()
-const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.operationId })
+  .extend(planningReadSchema.shape).extend({ assignment: conversationAssignmentSchema.optional() }).strict()
+const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
+  assignment: conversationAssignmentSchema.optional() })
 /** Durable goal identity, distinct from the associated WorkGraph task identity. */
 export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoalId'>>()
 /** Fixed selectors; opening/reading never wakes a model. */
@@ -31,13 +36,17 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
     route: z.enum(['new_goal', 'clarification', 'modify', 'query']), goalId: conversationGoalSchema.optional(),
     target: planningPlanReadSchema.pick({ planId: true, taskId: true }).optional() }).strict(),
 ]).superRefine((request, ctx) => {
+  if (request.assignment && String(request.conversationId) !== String(request.assignment.assignmentId))
+    ctx.addIssue({ code: 'custom', message: 'Task conversation identity must equal its original assignment' })
+  if (request.assignment && request.kind === 'send' && request.route === 'new_goal')
+    ctx.addIssue({ code: 'custom', message: 'Task conversations continue their assigned goal' })
   if (request.kind === 'send' && (request.route !== 'new_goal') !== (request.goalId !== undefined))
     ctx.addIssue({ code: 'custom', message: 'Continuation must reference its original goal' })
 })
 /** Bounded private transcript and currently authorized plan or private proposal details. */
 export const conversationResultSchema = z.object({
   sessionId: z.string().regex(/^organization-conversation:[0-9a-f-]{36}$/).transform(SessionId),
-  owner: conversationOwnerSchema, settings: conversationSettingsSchema,
+  owner: conversationOwnerSchema, assignment: assignmentSchema.optional(), settings: conversationSettingsSchema,
   entries: z.array(z.object({ role: z.enum(['user', 'assistant', 'tool']), text: z.string() }).strict()), truncated: z.boolean(),
   goals: z.array(z.object({ id: conversationGoalSchema, proposal: z.object({ status: z.enum(['shared', 'private', 'conflict', 'unknown', 'unavailable']),
     definition: planningPlanViewSchema.shape.version.shape.definition.optional(),

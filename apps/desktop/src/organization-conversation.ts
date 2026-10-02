@@ -42,6 +42,22 @@ export async function organizationConversation(connection: OrganizationConnectio
     const principal = current()
     if (command && (command.organizationId !== request.organizationId || command.projectId !== request.projectId
       || command.conversationId !== request.conversationId)) throw new Error('forbidden')
+    let assignment
+    if (request.assignment) {
+      const prepared = await connection.perform({ kind: 'assignment-preparation', request: { organizationId: request.organizationId,
+        projectId: request.projectId, ...request.assignment } })
+      current()
+      if (prepared.assignment?.result.kind !== 'preparation') throw new Error('forbidden')
+      assignment = prepared.assignment.result.value.assignment
+      const member = connection.snapshot().organizations.find(o => o.id === request.organizationId)?.membershipId
+      if (assignment.assigneeId !== member) throw new Error('forbidden')
+      if (request.kind === 'send' && (assignment.state !== 'pending' && assignment.state !== 'accepted'
+        || request.target && (request.target.planId !== assignment.planId || request.target.taskId !== assignment.taskId)))
+        throw new Error('version-conflict')
+      if (command && (command.kind === 'read-planning-plan' && (command.planId !== assignment.planId || command.taskId !== assignment.taskId)
+        || command.kind === 'save-planning-draft' && (command.planId !== assignment.planId || command.definition.taskId !== assignment.taskId)))
+        throw new Error('forbidden')
+    }
     if (command?.kind === 'save-planning-draft') draft.sent = true
     const plan = command?.kind === 'read-planning-plan' ? (await connection.perform({ kind: 'planning-plan', request: command })).planningPlan : undefined
     const candidates = command?.kind === 'read-planning-members' ? (await connection.perform({ kind: 'planning-candidates', request: { organizationId: command.organizationId, projectId: command.projectId, search: command.search, offset: command.offset } })).candidates : undefined
@@ -52,6 +68,7 @@ export async function organizationConversation(connection: OrganizationConnectio
     if (response.generation !== initial.generation || !response.planning) throw new Error('superseded')
     return conversationAuthoritySchema.parse({ serverId: principal.serverId, accountId: principal.accountId,
       generation: initial.generation, view: response.planning,
+      ...(assignment ? { assignment } : {}),
       ...(receipt ? { receipt } : {}), ...(plan ? { plan } : {}), ...(candidates ? { candidates } : {}) })
   }
   const unsubscribe = connection.subscribe(() => { if (connection.snapshot().generation !== initial.generation) cancel.abort() })
@@ -76,6 +93,6 @@ export async function organizationConversation(connection: OrganizationConnectio
       const off = connection.subscribe(check), timer = setTimeout(() => { done(new Error('superseded')) }, connection.timeoutMs)
       lifetime.addEventListener('abort', abort, { once: true }); check()
     })
-    return await organizationConversation(connection, host, { kind: 'read', ...selector, operationId: request.operationId }, assertCurrent, lifetime)
+    return await organizationConversation(connection, host, { kind: 'read', ...selector, ...(request.assignment ? { assignment: request.assignment } : {}), operationId: request.operationId }, assertCurrent, lifetime)
   } finally { unsubscribe(); cancel.abort() }
 }

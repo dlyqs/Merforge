@@ -2,9 +2,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationRequest, ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import type { OrganizationAssignmentId, OrganizationTaskId } from '@deepseek-ai/dsh-organization'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
 import type { OrganizationKey } from './locales.ts'
+import { AssignmentBatch } from './AssignmentBatch.tsx'
+import { ConversationTask } from './ConversationTask.tsx'
 import css from './Organization.module.css'
 
 type Query = Pick<ConversationRequest, 'organizationId' | 'projectId' | 'conversationId'>
@@ -17,6 +20,8 @@ export function ConversationPlan(props: OrganizationProps & {
   query: Query
   generation: number
   busy: boolean
+  assignmentId?: OrganizationAssignmentId
+  assignmentTaskId?: OrganizationTaskId
   suggest(taskId: Task['id'], membershipId: Task['suggestedMembershipId']): void }) {
   const alive = useRef(false), reviewEpoch = useRef(0)
   useEffect(() => { alive.current = true; return () => { alive.current = false; reviewEpoch.current++ } }, [])
@@ -100,6 +105,9 @@ export function ConversationPlan(props: OrganizationProps & {
         }, () => { if (alive.current && epoch === reviewEpoch.current) setNotice(t('conversationDetailsRestricted')) })
       }}>{t('reviewApprovalAccess')}</Button>}
     </article>}
+    {proposal.status === 'shared' && !props.assignmentId && <AssignmentBatch key={`${proposal.planId}:${proposal.revision}`} {...props} proposal={proposal} projectId={props.query.projectId} />}
+    {task && proposal.status === 'shared' && (!props.assignmentId || props.assignmentTaskId === task.id) && <ConversationTask key={task.id} {...props} projectId={props.query.projectId}
+      planId={proposal.planId} taskId={task.id} />}
     {notice && <p role="status">{notice}</p>}
   </section>
 }

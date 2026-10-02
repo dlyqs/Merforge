@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
-import { planningViewSchema } from '@deepseek-ai/dsh-organization/planning'
+import { conversationRequestSchema, conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import { planningReadSchema, planningViewSchema } from '@deepseek-ai/dsh-organization/planning'
 import type { OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from '../src/client/contract.ts'
 import { ProjectConversation } from '../src/client/Conversation.tsx'
@@ -85,5 +85,41 @@ it('keeps the explicitly selected earlier goal after its modification completes'
   expect(screen.getByLabelText(zh.conversationGoal).value).toBe(h.result.goals[0]!.id)
   expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({
     route: 'modify', goalId: h.result.goals[0]!.id,
+  })
+})
+
+it('sends an explicit progress query on the existing goal without proposing a new root', async () => {
+  const h = fixture(), id = randomUUID() as typeof h.result.goals[number]['id']
+  h.result.goals.push({ id, classification: 'complex' })
+  render(<ProjectConversation {...h.props} project={h.project} />)
+  await screen.findByText('Private report')
+  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
+  fireEvent.change(screen.getByLabelText(zh.conversationMessageIntent), { target: { value: 'query' } })
+  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'What remains?' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
+  await waitFor(() =>{  expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({ route: 'query', goalId: id }) })
+})
+
+it('opens a bound task through the strict planning reader and continues its assignment goal', async () => {
+  const h = fixture(), assignmentId = randomUUID()
+  const request = conversationRequestSchema.parse({ organizationId: h.result.owner.organizationId, projectId: h.result.owner.projectId,
+    kind: 'open', operationId: randomUUID(), conversationId: assignmentId,
+    assignment: { planId: randomUUID(), assignmentId } })
+  const base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'planning-read') planningReadSchema.parse(action.request)
+    return base(action)
+  })
+  h.result.goals.push({ id: assignmentId as typeof h.result.goals[number]['id'], classification: 'unassessed' })
+  render(<ProjectConversation {...h.props} project={h.project} assignment={request.assignment} />)
+  await screen.findByText('Private report')
+  expect(screen.queryByRole('button', { name: zh.conversationNewGoal })).toBeNull()
+  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
+  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'Discuss my assignment' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
+  await waitFor(() => {
+    expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({
+      route: 'modify', goalId: assignmentId, assignment: request.assignment,
+    })
   })
 })

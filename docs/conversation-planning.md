@@ -60,7 +60,7 @@
 | Agent/Tools/Skill 既有注册 | 标准 preset；托管方法走普通 user/message；proposal tool result 保存准确快照 | Skill 或工具禁用、Session 归属变化拒绝旧评估；注册及监听随 fiber 撤销 |
 | organization 权威与 organization-api 固定 HTTPS | organization-connection generation/回执/SSE；apps/desktop/src/organization-context.ts 和 organization-execution.ts | Electron 持 token 和设备材料，所属 top frame、nonce/request/generation 复核；断线/休眠/身份切换取消并排空 |
 | organization-context 现有两事件只读 writer | apps/desktop-host/src/organization-context.ts、ui-organization 固定 context 消费者 | 保持只读格式，不伪造 task、不作为规划 Agent 入口 |
-| organization-conversation（Phase 4） | 独立本机 Session/Agent 注册域、私有固定 IPC、项目目标、澄清、修改、查询及成员建议；员工对话自动建立后续接入 | 保留独立 namespace；个人发送/搜索/上传/fork/恢复拒绝其 ID；冷重开先在线复核 |
+| organization-conversation（Phase 4） | 独立本机 Session/Agent 注册域、私有固定 IPC、项目目标、澄清、修改、查询及成员建议；员工从 Inbox 在线打开时幂等建立任务对话 | 保留独立 namespace；个人发送/搜索/上传/fork/恢复拒绝其 ID；冷重开先在线复核 |
 | ConversationNodeDefinition + keyed renderer（Phase 6） | uiConversation.events → conversation.chat.node；ui-organization 提取纯展示/动作消费者 | 按稳定业务 ID 与准确 revision 从既有 Session 事件重建，不开启第二条历史流；fiber 清理贡献 |
 | assignment/execution 固定真人动作（Phase 7–8 对话消费） | 现有 AssignmentPanel/Inbox/ExecutionPanel/DeliveryPanel/AcceptanceReview/IntegrationPanel 与新确认卡 | generation、准确版本和当前权限复核；用户确认后才执行，接受和建对话不自动启动 |
 
@@ -80,3 +80,17 @@
 发送挂载隔离标准 loop、text-only DeepSeekAdapter 和 workflow_assess/workflow_propose/planning_authorization/planning_members；关闭自动识别时移除评估及提案工具。当前输入的 complex 评估允许保存未批准共享草案，无 edit 者只保存本人私有建议。Host 通过 nonce/request/authorizationId 对应在线授权，Electron 核验 generation、所属 top-frame、Host 和窗口寿命；销毁、身份切换、离线、休眠与权限复核失败取消并排空。组织主面板支持普通发送、稳定目标选择、设置、树/版本、负责人建议和权威业务详情；个人对话从已有快照增量构造 personal-plan 节点。可见验收由用户检查。
 
 SQLite 当前 v14，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
+
+## 对话分配与执行消费者
+
+组织主入口同时提供项目对话和持久 Inbox。共享树的叶子可逐项审核并确认，或选中多项、审核各自当前权限后批量明确确认。缺负责人 read 仍由现有授权控件单独确认，批准不自动补 grant。原生 `assignment-batch` 按当前 server/account/organization 与 plan/revision 保存逐项 operationId、终态和回执；每项发送前先落盘。成功项不重发，冲突/拒绝逐项呈现，未知项只查回执并停止后续发送，未发送项保留未确认。重开通过 `assignment-batch-read` 恢复结果，不自动续发。
+
+原有 assignment、accept-assignment request 和 notification 的原子关联就是员工离线期间的待建立标识，不新增共享聊天表或第二份通知。员工从组织对话入口或 Inbox 点击打开时，以 assignmentId 作为稳定 conversationId，并携带只含 planId/assignmentId 的 selector。Electron 每次授权都重读 preparation，验证当前成员是该原分配的 assignee；Host 先保留本人绑定再写 JSONL，失败后恢复同一 Session。双方账号、目标对话、员工对话与 Run 转录相互独立。界面显示原下发人、原任务与分配版本；打开不接受、不委托、不领取、不运行。
+
+任务对话固定同一 goal 和任务范围，拒绝 new_goal、其他目标及其他任务 selector。规划依旧消耗独立有限许可；模型工具不能调用业务确认。撤销、拒绝或失效分配拒绝新发送，保留有当前 read 时的历史查看；新版本或改派通过新的通知和 assignment 对话取得新资格，旧 Session 不转换身份。对话的当前子树、私有建议及历史正文继续按当前权限裁剪。
+
+`ConversationTask` 从权威读取所选任务后复用 AssignmentPanel、ExecutionPanel 和 IntegrationPanel；Run 内复用 ExecutionHumanRequest、DeliveryPanel、AcceptanceReview。员工明确接受/拒绝、配置 API 或 Codex、有限委托/领取、开始/停止/恢复、答复、上传/提交；原下发人明确验收/驳回、目标核验和最终确认。任务对话把 ExecutionPanel 固定到原 assignment，完整私有日志仍走单独的员工授权读取。答复不继续、完成不提交、验收不自动集成，文件不自动应用。只读进度输入使用 query 路由，不授予建树/修改资格。
+
+## 验证与产品交接
+
+正常模式发送到 CSV 交付、规划故障回归和发行验证入口见[验收交接](conversation-planning-acceptance.md)。确定性模型仅验证其结果沿真实工具和权威服务产生的效果；自然识别质量由独立真实模型语料及用户三机验收判断。Desktop 可见和 Windows 结果单独记录，不由无窗口 smoke 推导。

@@ -12,7 +12,7 @@ import { runConversation } from './runtime.ts'
 import { conversationDomain, conversationStateSchema, conversationInputSchema, conversationBindingSchema,
   conversationAssessmentSchema, conversationOperationSchema, conversationProposalSchema, type conversationIntentSchema } from './state.ts'
 import { conversationRequestSchema, conversationAuthoritySchema, conversationOwnerSchema, conversationResultSchema,
-  type ConversationBridge, type ConversationRequest, type ConversationResult } from './protocol.ts'
+  conversationGoalSchema, type ConversationBridge, type ConversationRequest, type ConversationResult } from './protocol.ts'
 export * from './protocol.ts'
 export { conversationAdapter, conversationModelSchema } from './model.ts'
 /** Validated deployment bounds; personal settings never resolve these values. */
@@ -77,7 +77,8 @@ export default class OrganizationConversation extends Service {
     if (this.closing) return Promise.reject(new Error('organization-conversation: unavailable'))
     if (request.kind === 'stop') return authorize().then((authority) => {
       const key = ownerKey(conversationOwnerSchema.parse({ serverId: authority.serverId, accountId: authority.accountId,
-        organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId }))
+        organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
+        ...(request.assignment ? { assignment: request.assignment } : {}) }))
       if (this.activeOwner?.key === key) this.activeOwner.cancel.abort()
       return this.perform({ ...request, kind: 'read' }, authorize, signal)
     })
@@ -102,7 +103,8 @@ export default class OrganizationConversation extends Service {
     if (!state) throw new Error('organization-conversation: unavailable')
     const first = conversationAuthoritySchema.parse(await authorize()); check()
     const owner = conversationOwnerSchema.parse({ serverId: first.serverId, accountId: first.accountId,
-      organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId })
+      organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
+      ...(request.assignment ? { assignment: request.assignment } : {}) })
     const bridge: ConversationBridge = async (command) => {
       check()
       if (command && (command.organizationId !== owner.organizationId || command.projectId !== owner.projectId
@@ -119,9 +121,14 @@ export default class OrganizationConversation extends Service {
         || authority.receipt.organizationId !== command.organizationId || authority.receipt.projectId !== command.projectId
         || authority.receipt.planning.conversationId !== command.conversationId))
         throw new Error('organization-conversation: receipt-mismatch')
+      if (owner.assignment && (!authority.assignment || authority.assignment.id !== owner.assignment.assignmentId
+        || authority.assignment.planId !== owner.assignment.planId || authority.assignment.organizationId !== owner.organizationId
+        || authority.assignment.projectId !== owner.projectId)) throw new Error('organization-conversation: assignment-mismatch')
       return authority
     }
     await bridge()
+    if (owner.assignment && request.kind === 'send' && request.goalId !== conversationGoalSchema.parse(owner.assignment.assignmentId))
+      throw new Error('organization-conversation: goal-required')
     this.activeOwner = { key: ownerKey(owner), cancel }
     const digest = createHash('sha256').update(JSON.stringify(request)).digest('hex')
     const sameOperation = (record: { owner: Binding['owner']; operationId: string }) => record.operationId === request.operationId
@@ -132,17 +139,24 @@ export default class OrganizationConversation extends Service {
         || ownerKey(acceptedInput.owner) !== ownerKey(owner)))) throw new Error('organization-conversation: operation-conflict')
     const controls = () => control ? state.get().controls : [...state.get().controls,
       { owner, operationId: request.operationId, digest }]
-    let binding = state.get().bindings.find(b => ownerKey(b.owner) === ownerKey(owner))
+    let binding = state.get().bindings.find(b => b.owner.serverId === owner.serverId && b.owner.accountId === owner.accountId
+      && b.owner.organizationId === owner.organizationId && b.owner.projectId === owner.projectId
+      && b.owner.conversationId === owner.conversationId)
+    if (binding && ownerKey(binding.owner) !== ownerKey(owner)) throw new Error('organization-conversation: owner-mismatch')
     if (!binding) {
       if (request.kind !== 'open') throw new Error('organization-conversation: open-required')
       binding = { owner, sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }
       await state.set({ ...state.get(), bindings: [...state.get().bindings, binding], controls: controls() })
     }
+    if (!binding.ready) this.ctx.logger.info('organization component=conversation bindingId=%s assignmentId=%s operationId=%s result=pending',
+      binding.sessionId, owner.assignment?.assignmentId ?? '', request.operationId)
     await this.materialize(binding); check()
     if (!binding.ready) {
       binding = { ...binding, ready: true }
       const ready = binding
       await state.set({ ...state.get(), bindings: state.get().bindings.map(b => b.sessionId === ready.sessionId ? ready : b) })
+      this.ctx.logger.info('organization component=conversation bindingId=%s assignmentId=%s result=ready',
+        binding.sessionId, owner.assignment?.assignmentId ?? '')
     }
     if (request.kind === 'open' && !state.get().controls.some(sameOperation))
       await state.set({ ...state.get(), controls: controls() })
@@ -201,6 +215,7 @@ export default class OrganizationConversation extends Service {
       if (intent && (intent.digest !== digest || ownerKey(intent.owner) !== ownerKey(owner))) throw new Error('organization-conversation: operation-conflict')
       if (!intent) {
         const events = await this.events(binding), goals = this.goals(events)
+        if (owner.assignment) goals.push({ id: conversationGoalSchema.parse(owner.assignment.assignmentId), classification: 'unassessed' })
         if (request.route === 'clarification' && !goals.some(g => g.id === request.goalId && g.classification === 'clarify'))
           throw new Error('organization-conversation: clarification-required')
         if (request.route !== 'new_goal' && !goals.some(g => g.id === request.goalId)) throw new Error('organization-conversation: goal-required')
@@ -234,7 +249,7 @@ export default class OrganizationConversation extends Service {
             || authority.view.grant.selection.endpoint !== request.selection.endpoint) throw new Error('organization-conversation: planning-permission-required')
           const link = authority.view.plans.find(p => p.goalId === intent.input.goalId)
           const previousInput = (await this.events(binding)).filter(e => e.type === 'organization/planning-input').findLast(e => e.data.goalId === intent.input.goalId)
-          const target = request.target ?? (link ? { planId: link.planId, taskId: link.taskId } : previousInput?.data.request.kind === 'send' ? previousInput.data.request.target : undefined)
+          const target = authority.assignment ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId } : request.target ?? (link ? { planId: link.planId, taskId: link.taskId } : previousInput?.data.request.kind === 'send' ? previousInput.data.request.target : undefined)
           if (target) authority = await bridge({ organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId, ...target, kind: 'read-planning-plan' })
           const input = { ...intent.input, authority }
           await state.set({ ...state.get(), intents: state.get().intents.map(i => i.operationId === selected.operationId
@@ -353,8 +368,15 @@ export default class OrganizationConversation extends Service {
       return conversationResultSchema.parse(result)
     }
     const authority = await bridge()
+    if (authority.assignment) {
+      result.assignment = authority.assignment
+      const id = conversationGoalSchema.parse(authority.assignment.id)
+      if (!result.goals.some(g => g.id === id)) result.goals.push({ id, classification: 'unassessed' })
+    }
     for (const goal of result.goals) {
-      const proposal = goal.proposal, link = authority.view.plans.find(p => p.goalId === goal.id)
+      const proposal = goal.proposal, link = authority.assignment
+        ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }
+        : authority.view.plans.find(p => p.goalId === goal.id)
         ?? (proposal?.status === 'shared' && proposal.definition ? { planId: proposal.planId, taskId: proposal.definition.taskId } : undefined)
       if (!link) continue
       try {
@@ -398,7 +420,8 @@ export default class OrganizationConversation extends Service {
         || createHash('sha256').update(JSON.stringify(input.request)).digest('hex') !== intent.digest
         || ownerKey({ serverId: input.authority.serverId, accountId: input.authority.accountId,
           organizationId: input.request.organizationId, projectId: input.request.projectId,
-          conversationId: input.request.conversationId }) !== ownerKey(intent.owner))
+          conversationId: input.request.conversationId,
+          ...(input.request.assignment ? { assignment: input.request.assignment } : {}) }) !== ownerKey(intent.owner))
         throw new Error('organization-conversation: input-intent-mismatch')
       operations.add(key)
     }
