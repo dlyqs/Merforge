@@ -1,6 +1,8 @@
 /** Electron Node-mode child lifecycle for the shared Web application. */
 import { executionReportRequestSchema, executionReportSchema, executionResultSchema, type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionCommand, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 
+import { codexSetupNativeMessageSchema } from '@deepseek-ai/dsh-agent-codex/setup-protocol'
+import type { CodexSetupOwnerId, CodexSetupOperation, CodexSetupView, CodexSetupSnapshot } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import { randomUUID } from 'node:crypto'
 import { contextNativeMessageSchema, contextRequestSchema, type ContextRequest, type ContextAuthority, type ContextResult } from '@deepseek-ai/dsh-organization-context/protocol'
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -116,6 +118,12 @@ export class DesktopHostProcess {
     resolve: (result: ExecutionResult | ExecutionReport) => void
     reject: (error: Error) => void
   }>()
+  private readonly setupListeners = new Set<(snapshot: CodexSetupSnapshot) => void>()
+  private readonly setupQueries = new Map<string, {
+    resolve: (value: { view: CodexSetupView; verificationUrl?: string }) => void
+    reject: (error: Error) => void
+  }>()
+  private setupSnapshot: CodexSetupSnapshot | undefined
   private nextControlId = 1
   private readonly taskQueries = new Map<number, { resolve: (active: boolean) => void; reject: (error: Error) => void }>()
 
@@ -165,6 +173,29 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
+      const setup = codexSetupNativeMessageSchema.safeParse(message)
+      if (setup.success) {
+        const response = setup.data
+        if (response.nonce !== this.contextNonce || this.stopping || this.failureReported) return
+        if (response.type === 'codex-setup-changed') {
+          if (this.setupSnapshot && response.snapshot.revision <= this.setupSnapshot.revision) return
+          this.setupSnapshot = response.snapshot
+          for (const listener of this.setupListeners) {
+            try { listener(response.snapshot) } catch (error) { void error /* Observers do not own the Host channel. */ }
+          }
+        } else {
+          const query = this.setupQueries.get(response.requestId)
+          if (response.error || !response.result) query?.reject(new Error(`codex-setup: ${response.error ?? 'protocol'}`))
+          else if (this.setupSnapshot && this.setupSnapshot.revision > response.result.snapshot.revision) {
+            query?.resolve({ view: { snapshot: this.setupSnapshot } })
+          } else if (query) {
+            this.setupSnapshot = response.result.snapshot
+            query.resolve({ view: response.result,
+              ...response.verificationUrl === undefined ? {} : { verificationUrl: response.verificationUrl } })
+          }
+        }
+        return
+      }
       const context = contextNativeMessageSchema.safeParse(message)
       if (context.success) {
         const response = context.data
@@ -231,6 +262,34 @@ export class DesktopHostProcess {
       })
     })
     return this.readyPromise
+  }
+
+  /** Subscribe to safe native setup changes for this Host lifetime.
+   * @param listener - fixed safe state observer.
+   * @returns subscription disposer.
+   */
+  subscribeCodexSetup(listener: (snapshot: CodexSetupSnapshot) => void): () => void {
+    this.setupListeners.add(listener)
+    return () => { this.setupListeners.delete(listener) }
+  }
+  /** Dispatch fixed setup control on this startup-nonce-bound parent channel.
+   * @param owner - Electron-owned window/document lifetime.
+   * @param operation - fixed setup operation or native-only retirement.
+   * @returns cropped view and an optional Host-only validated URL.
+   */
+  async codexSetup(owner: CodexSetupOwnerId, operation: CodexSetupOperation | { kind: 'destroyOwner' }):
+  Promise<{ view: CodexSetupView; verificationUrl?: string }> {
+    const child = this.child
+    if (!child?.connected || this.stopping || this.failureReported) throw new Error('codex-setup: closed')
+    const requestId = randomUUID()
+    try {
+      return await new Promise((resolve, reject) => {
+        this.setupQueries.set(requestId, { resolve, reject })
+        child.send({ type: 'codex-setup', version: 1, requestId, nonce: this.contextNonce, owner, operation }, (error) => {
+          if (error !== null) reject(new Error('codex-setup: closed'))
+        })
+      })
+    } finally { this.setupQueries.delete(requestId) }
   }
 
   /**
@@ -380,6 +439,19 @@ export class DesktopHostProcess {
 
   private fail(error: Error): void {
     this.readyReject(error)
+    for (const query of this.setupQueries.values()) query.reject(new Error('codex-setup: closed'))
+    this.setupQueries.clear()
+    if (this.setupSnapshot) {
+      this.setupSnapshot = { ...this.setupSnapshot, revision: this.setupSnapshot.revision + 1,
+        runtime: { version: '0.153.4', status: 'error', category: 'closed' },
+        account: { status: 'unknown' }, catalog: { status: 'unknown', models: [] },
+        login: { status: 'failed', category: 'closed' } }
+      for (const listener of this.setupListeners) {
+        try { listener(this.setupSnapshot) } catch (listenerError) {
+          void listenerError /* Host loss invalidates every short-lived view. */
+        }
+      }
+    }
     for (const query of this.contextQueries.values()) query.reject(error)
     this.contextQueries.clear()
     for (const query of this.executionQueries.values()) query.reject(error)

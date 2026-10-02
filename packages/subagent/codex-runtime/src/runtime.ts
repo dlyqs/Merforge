@@ -1,12 +1,14 @@
 /** Persistent personal-native Codex connection with one current turn and owned teardown. */
+import { acquireCodexActivity } from './activity.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Readable, Writable } from 'node:stream'
 import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import { JsonRpcLineTransport } from './jsonrpc.ts'
 import { codexAppServerArgv, disposeCodexProcess } from './process.ts'
-import { parseAccount, parseModels, parseThread, protocolObject, protocolString } from './protocol.ts'
+import { parseAccount, parseDeviceCode, parseLoginCompleted, parseModels, parseThread, protocolObject, protocolString } from './protocol.ts'
 import type {
-  CodexAccount, CodexCapabilities, CodexFailureCategory, CodexItemId, CodexModel, CodexRuntimeDiagnostic,
+  CodexAccount, CodexAccountNotification, CodexDeviceCode, CodexLoginId, CodexCapabilities,
+  CodexFailureCategory, CodexItemId, CodexModel, CodexRuntimeDiagnostic,
   CodexRequestId, CodexServerRequest, CodexRuntimeSpec, CodexSendReceipt, CodexSendRequest, CodexThread,
   CodexThreadId, CodexThreadSelection, CodexTurnEvent, CodexTurnId, CodexTurnTerminal,
 } from './types.ts'
@@ -57,6 +59,7 @@ export class CodexRuntime {
   private readonly child: SubprocessHandle
   private readonly transport: JsonRpcLineTransport
   private readonly lifetime = new AbortController()
+  private readonly accountListeners = new Set<(event: CodexAccountNotification) => void>()
   private ready = false
   private selection: CodexThreadSelection | undefined
   private thread: CodexThread | undefined
@@ -67,7 +70,8 @@ export class CodexRuntime {
   private readonly callbacks = new Set<Promise<unknown>>()
   private disposal: Promise<void> | undefined
 
-  constructor(private readonly spec: CodexRuntimeSpec, child: SubprocessHandle, input: Readable, output: Writable) {
+  constructor(private readonly spec: CodexRuntimeSpec, child: SubprocessHandle, input: Readable, output: Writable,
+    private readonly releaseActivity?: () => void) {
     this.capabilities = Object.freeze({ version: '0.153.4', persistentText: spec.experimentalApi,
       controlledTools: false, organizationExecution: false, completeModelLog: false, perModelRequestPermit: false,
       steering: false, fork: false, attachments: false })
@@ -117,6 +121,45 @@ export class CodexRuntime {
     this.assertOpen()
     this.ready = true
     this.report({ stage: 'ready' })
+  }
+
+  /**
+   * Observe cropped account changes within this process lifetime.
+   * @param listener - synchronous observer; exceptions are contained.
+   * @returns subscription disposer.
+   */
+  onAccount(listener: (event: CodexAccountNotification) => void): () => void {
+    this.assertReady()
+    this.accountListeners.add(listener)
+    return () => { this.accountListeners.delete(listener) }
+  }
+  /** Read safe native authentication without reading models.
+   * @returns cropped account state.
+   */
+  async readAccount(): Promise<CodexAccount> {
+    this.assertReady()
+    try { return parseAccount(await this.rpc('account/read', { refreshToken: false })) }
+    catch (error) { throw error instanceof CodexRuntimeError ? error : new CodexRuntimeError('protocol') }
+  }
+  /** Begin one explicit device-code grant on a setup connection.
+   * @returns ephemeral native grant; response loss must never be retried automatically.
+   */
+  async startDeviceCode(): Promise<CodexDeviceCode> {
+    this.assertReady()
+    if (this.spec.purpose !== 'setup') throw new CodexRuntimeError('protocol')
+    try { return parseDeviceCode(await this.rpc('account/login/start', { type: 'chatgptDeviceCode' })) }
+    catch (error) { void error; throw new CodexRuntimeError('unknown-start') }
+  }
+  /** Cancel the current native grant without logging out an existing account.
+   * @param loginId - identity returned on this managed connection.
+   * @returns upstream confirmation, separately from process cleanup.
+   */
+  async cancelDeviceCode(loginId: CodexLoginId): Promise<'canceled' | 'notFound'> {
+    this.assertReady()
+    if (this.spec.purpose !== 'setup') throw new CodexRuntimeError('protocol')
+    const response = protocolObject(await this.rpc('account/login/cancel', { loginId }))
+    if (response.status !== 'canceled' && response.status !== 'notFound') throw new CodexRuntimeError('protocol')
+    return response.status
   }
 
   /**
@@ -271,6 +314,7 @@ export class CodexRuntime {
     this.lifetime.abort(reason)
     this.ready = false
     this.invalidateCatalog()
+    this.accountListeners.clear()
     this.transport.close()
     const active = this.active
     this.active = undefined
@@ -292,6 +336,7 @@ export class CodexRuntime {
       try {
         await disposeCodexProcess(this, this.child)
         await Promise.allSettled([...this.callbacks])
+        this.releaseActivity?.()
         this.report({ stage: 'cleanup' })
       } catch (error) {
         this.report({ stage: 'cleanup', category: 'cleanup' })
@@ -358,6 +403,7 @@ export class CodexRuntime {
   }
   private async prepareThread(selection: CodexThreadSelection, id: CodexThreadId | undefined): Promise<CodexThread> {
     this.assertReady()
+    if (this.spec.purpose === 'setup') throw new CodexRuntimeError('protocol')
     if (selection.mode !== 'native') throw new Error('codex-runtime: unsupported execution mode')
     if (!this.spec.experimentalApi) throw new Error('codex-runtime: persistent threads require experimental negotiation')
     if (this.preparingThread || this.thread !== undefined) throw new CodexRuntimeError('protocol')
@@ -447,6 +493,14 @@ export class CodexRuntime {
   }
   private notification(method: string, params: Record<string, unknown>): void {
     if (method === 'account/updated' || method === 'account/rateLimits/updated' || method === 'config/updated') this.invalidateCatalog()
+    if (method === 'account/updated' || method === 'account/login/completed') {
+      try {
+        const event: CodexAccountNotification = method === 'account/updated' ? { type: 'updated' } : parseLoginCompleted(params)
+        for (const listener of this.accountListeners) {
+          try { listener(event) } catch (error) { void error /* Observers cannot interrupt protocol dispatch. */ }
+        }
+      } catch (error) { void error; this.fail(new CodexRuntimeError('protocol')) }
+    }
     const active = this.active
     if (active === undefined || !active.sent || params.threadId !== this.thread?.id) return
     if (!['turn/completed', 'item/completed', 'item/agentMessage/delta'].includes(method)) return
@@ -512,12 +566,16 @@ export class CodexRuntime {
 export async function openCodexRuntime(spec: CodexRuntimeSpec, signal?: AbortSignal): Promise<CodexRuntime> {
   validateCodexRuntimeSpec(spec)
   if (signal?.aborted) throw new CodexRuntimeError('closed')
+  let argv: string[]
+  try { argv = codexAppServerArgv() } catch (error) { void error; throw new CodexRuntimeError('payload') }
+  const releaseActivity = spec.purpose === 'setup' ? undefined : acquireCodexActivity('execution')
   let child: SubprocessHandle
   try {
-    child = spec.spawn({ argv: codexAppServerArgv(), cwd: spec.cwd, env: spec.env,
+    child = spec.spawn({ argv, cwd: spec.cwd, env: spec.env,
       stdio: { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' }, graceMs: spec.limits.disposeGraceMs })
   } catch (error) {
     void error
+    releaseActivity?.()
     throw new CodexRuntimeError('startup')
   }
   if (child.stdin === undefined || child.stdout === undefined) {
@@ -526,9 +584,10 @@ export async function openCodexRuntime(spec: CodexRuntimeSpec, signal?: AbortSig
       throw new AggregateError([new CodexRuntimeError('startup'), new CodexRuntimeError('cleanup')],
         'codex-runtime: startup and cleanup failed')
     }
+    releaseActivity?.()
     throw new CodexRuntimeError('startup')
   }
-  const runtime = new CodexRuntime(spec, child, child.stdout, child.stdin)
+  const runtime = new CodexRuntime(spec, child, child.stdout, child.stdin, releaseActivity)
   try {
     await runtime.initialize(signal)
     return runtime

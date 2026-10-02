@@ -56,6 +56,7 @@ export class ModelDirectoryResolver extends Service {
       this.catalog.resetGeneration()
       for (const directory of this.live.directories.values) directory.resetConnected()
     })
+    ctx.remote.$on('api-session/model-catalog-changed', () => { this.catalog.refresh(true) })
     ctx.remote.$on('llm/adapters-updated', () => { this.catalog.refresh() })
     ctx.remote.$on('settings/document-updated', () => { this.catalog.refresh() })
     ctx.remote.$on('credentials/reference-updated', () => { this.catalog.refresh() })

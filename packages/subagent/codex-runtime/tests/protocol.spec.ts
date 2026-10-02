@@ -21,6 +21,7 @@ interface Evidence {
 const evidence = JSON.parse(readFileSync(new URL('./fixtures/protocol-0.153.4.json', import.meta.url), 'utf8')) as {
   version: string
   schemas: Record<string, Evidence>
+  setupStableSchemas: Record<string, Schema>
   stableFields: Record<string, Record<string, boolean>>
   conversationObservations: {
     threadItemTypes: string[]
@@ -70,6 +71,13 @@ describe('Codex 0.153.4 protocol evidence', () => {
       }
       const stable = join(root, 'stable')
       execFileSync(process.execPath, [bin, 'app-server', 'generate-json-schema', '--out', stable], { env, stdio: 'pipe' })
+      for (const [file, expected] of Object.entries(evidence.setupStableSchemas)) {
+        const schema = JSON.parse(readFileSync(join(stable, file), 'utf8')) as Schema
+        const definitions = schema.definitions === undefined ? {} : {
+          definitions: Object.fromEntries(Object.entries(schema.definitions).map(([key, value]) => [key, strip(value)])),
+        }
+        expect({ ...strip(schema) as object, ...definitions }, file).toEqual(expected)
+      }
       for (const [file, fields] of Object.entries(evidence.stableFields)) {
         const schema = JSON.parse(readFileSync(join(stable, file), 'utf8')) as Schema
         for (const [field, present] of Object.entries(fields)) {

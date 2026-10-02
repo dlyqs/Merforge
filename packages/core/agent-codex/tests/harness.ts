@@ -144,7 +144,10 @@ function native() {
     set onSend(value: typeof onSend) { onSend = value } }
 }
 
-export async function boot(root: string, peer: ReturnType<typeof native>, personal = false, workflow = false, humanTimeoutMs = 300000) {
+export async function boot(
+  root: string, peer: ReturnType<typeof native>, personal = false, workflow = false,
+  humanTimeoutMs = 300000, loginTimeoutMs = 300000,
+) {
   const configPath = join(root, 'cordis.yml')
   const modules = new Map<string, unknown>([
     ['llm', Llm], ['sessions', Sessions], ['projections', Projections], ['agents', Agents], ['tools', Tools], ['prompt', SystemPrompt],
@@ -157,7 +160,7 @@ export async function boot(root: string, peer: ReturnType<typeof native>, person
     ...personal ? ['- name: storage', '- name: storage-json', `  config: { root: ${JSON.stringify(join(root, 'data'))} }`,
       '- name: domain', '  config: { backend: json }', '- name: workspaces', '- name: query', '- name: personal'] : [],
     ...workflow ? ['- name: workflow', '- name: skills', '- name: method', '- name: questions', '- name: approval'] : [],
-    '- name: subprocess', '- name: codex', `  config: { startupTimeoutMs: 1000, rpcTimeoutMs: 1000, turnTimeoutMs: 2000, humanTimeoutMs: ${humanTimeoutMs}, interruptTimeoutMs: 200, disposeGraceMs: 10 }`, '',
+    '- name: subprocess', '- name: codex', `  config: { startupTimeoutMs: 1000, rpcTimeoutMs: 1000, turnTimeoutMs: 2000, humanTimeoutMs: ${humanTimeoutMs}, loginTimeoutMs: ${loginTimeoutMs}, interruptTimeoutMs: 200, disposeGraceMs: 10 }`, '',
   ].join('\n'))
   const ctx = new Context()
   ctx.baseUrl = pathToFileURL(root).href + '/'
@@ -174,11 +177,11 @@ export async function boot(root: string, peer: ReturnType<typeof native>, person
   cleanup.push(async () => { await ctx.fiber.dispose() })
   return ctx
 }
-export async function fixture(personal = false, workflow = false, humanTimeoutMs = 300000) {
+export async function fixture(personal = false, workflow = false, humanTimeoutMs = 300000, loginTimeoutMs = 300000) {
   const root = await mkdtemp(join(tmpdir(), 'merforge-codex-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
   const peer = native()
-  const ctx = await boot(root, peer, personal, workflow, humanTimeoutMs)
+  const ctx = await boot(root, peer, personal, workflow, humanTimeoutMs, loginTimeoutMs)
   return { ctx, root, peer }
 }
 export async function readStored(ctx: Context, id: ReturnType<typeof SessionId>) {

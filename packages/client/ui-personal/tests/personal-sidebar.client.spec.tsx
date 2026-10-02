@@ -56,6 +56,7 @@ function mount(sessionList: SessionListState = list, section?: PersonalSidebarPr
     wide: true, expandSidebar: vi.fn(), ...(section === undefined ? {} : { section }),
     useSessions: hook(sessionList), useSessionStatus: hook(statuses), useWorkspaces: hook(workspaces),
     useSessionRetainInfo: () => undefined, useResource, usePanelInfo,
+    useModelCatalogRevision: selector => selector(0),
     useRecords: hook({ phase: 'ready' as const, projects: [project(projectA, 'Alpha'), project(projectB, 'Beta')], bots: [bot] }),
     refresh: vi.fn(async () => {}), createProject, updateProject: vi.fn(async () => {}),
     pickDirectory,

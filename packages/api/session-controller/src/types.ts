@@ -157,6 +157,8 @@ export interface ModelCatalogFailure {
   readonly id: string
   readonly name: string
   readonly message: string
+  /** Fixed setup action cause for native failures; API Provider semantics stay separate. */
+  readonly setupReason?: import('@deepseek-ai/dsh-agent-codex/setup-types').CodexSetupCategory
 }
 
 /** Host-generation model catalog and the default used by unconfigured Sessions. */
@@ -673,3 +675,14 @@ export type SessionProjectionValue = JsonValue
 
 /** Application metadata returned by the serving desktop for one file. */
 export type SessionWorkspacePathApplication = NativeFileApplication
+
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** Native availability invalidates all model consumers.
+     * @mode emit
+     * @param revision - latest committed setup generation.
+     */
+    'api-session/model-catalog-changed'(revision: number): void
+  }
+}

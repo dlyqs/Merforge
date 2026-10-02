@@ -90,7 +90,7 @@ function fixture(approved: boolean, admin = false) {
   })
   const props: OrganizationProps = { connection, context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
     available: true, server: vi.fn(), secret: vi.fn(),
-    t: makeTranslate(zh), useOrganization: selector => selector(state) }
+    t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state) }
   return { props, task, projectId, connection, prep,
     offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }
 }

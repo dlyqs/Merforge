@@ -37,6 +37,9 @@
     },
     {
       "path": "../../packages/workspace/organization-execution"
+    },
+    {
+      "path": "../../packages/core/agent-codex"
     }
   ]
 }

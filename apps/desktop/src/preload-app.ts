@@ -1,5 +1,6 @@
 /** Origin-scoped boot, native directory selection, host paths of picked files, and update presentation with native confirmation actions. */
 
+import type { CodexSetupSnapshot, CodexSetupView } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import type { OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
@@ -11,8 +12,20 @@ import { createDesktopBrowserBridge } from './preload-browser.ts'
 
 function createProductApi(): DshDesktopProductApi {
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     browser: createDesktopBrowserBridge(),
+    codexSetup: {
+      snapshot: () => ipcRenderer.invoke(DESKTOP_IPC.codexSetup, { kind: 'snapshot' }) as Promise<CodexSetupView>,
+      detect: () => ipcRenderer.invoke(DESKTOP_IPC.codexSetup, { kind: 'detect' }) as Promise<CodexSetupView>,
+      start: () => ipcRenderer.invoke(DESKTOP_IPC.codexSetup, { kind: 'start' }) as Promise<CodexSetupView>,
+      cancel: attemptId => ipcRenderer.invoke(DESKTOP_IPC.codexSetup, { kind: 'cancel', attemptId }) as Promise<CodexSetupView>,
+      openVerification: attemptId => ipcRenderer.invoke(DESKTOP_IPC.codexSetup, { kind: 'openVerification', attemptId }) as Promise<void>,
+      subscribe(listener) {
+        const handle = (_event: Electron.IpcRendererEvent, snapshot: CodexSetupSnapshot): void => { listener(snapshot) }
+        ipcRenderer.on(DESKTOP_IPC.codexSetupChanged, handle)
+        return () => { ipcRenderer.off(DESKTOP_IPC.codexSetupChanged, handle) }
+      },
+    },
     organization: {
       executionReport: request => ipcRenderer.invoke(DESKTOP_IPC.organizationExecutionReport, request),
       execution: request => ipcRenderer.invoke(DESKTOP_IPC.organizationExecution, request),
@@ -61,7 +74,7 @@ markDocumentPlatform()
 syncWindowFullscreen()
 syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.
-contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' ? createProductApi() : { protocolVersion: 1 })
+contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' ? createProductApi() : { protocolVersion: 2 })
 
 if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   contextBridge.exposeInMainWorld('__DSH_LOCALE__', {

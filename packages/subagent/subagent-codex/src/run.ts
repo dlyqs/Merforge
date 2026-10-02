@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { codexAppServerArgv, disposeCodexProcess } from '@deepseek-ai/dsh-codex-runtime'
+import { acquireCodexActivity, codexAppServerArgv, disposeCodexProcess } from '@deepseek-ai/dsh-codex-runtime'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -192,6 +192,7 @@ export async function startCodexRun(
     throw new Error('subagent-codex: request was aborted before app-server startup')
   }
 
+  const releaseActivity = acquireCodexActivity('execution')
   let child: SubprocessHandle
   try {
     child = spec.spawn({
@@ -202,6 +203,7 @@ export async function startCodexRun(
       env: spec.env,
     })
   } catch (error: unknown) {
+    releaseActivity()
     throw new CodexRunFailure({
       stage: 'initialize',
       category: 'unknown',
@@ -227,6 +229,7 @@ export async function startCodexRun(
   const disposeProcess = async (): Promise<void> => {
     try {
       await disposeCodexChild(wire, child)
+      releaseActivity()
       // Drain data already queued by process close before detaching listeners.
       await new Promise<void>((resolve) => { setImmediate(resolve) })
     } finally {

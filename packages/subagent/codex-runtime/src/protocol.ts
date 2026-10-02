@@ -1,6 +1,6 @@
 /** Narrow the external JSON protocol and redact account information. */
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { CodexAccount, CodexEffort, CodexModel, CodexThread, CodexThreadId } from './types.ts'
+import type { CodexAccount, CodexAccountNotification, CodexDeviceCode, CodexLoginId, CodexEffort, CodexModel, CodexThread, CodexThreadId } from './types.ts'
 import { CODEX_RUNTIME_VERSION } from './process.ts'
 
 /**
@@ -92,4 +92,41 @@ export function parseThread(value: unknown): CodexThread {
   })
   return { id: brandString<CodexThreadId>(protocolString(thread.id)), cwd: protocolString(thread.cwd), model: protocolString(thread.model),
     ephemeral: false, runtimeVersion: CODEX_RUNTIME_VERSION, turns }
+}
+
+/**
+ * Require the pinned official device verification endpoint.
+ * @param value - native response URL.
+ * @returns validated URL, retained only on Host.
+ */
+export function deviceVerificationUrl(value: unknown): string {
+  const text = protocolString(value)
+  const url = new URL(text)
+  if (url.href !== 'https://auth.openai.com/codex/device'
+    || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
+    throw new Error('codex-runtime: invalid verification endpoint')
+  }
+  return url.href
+}
+/**
+ * Parse only the device-code response, excluding all other authentication methods.
+ * @param value - account/login/start response.
+ * @returns ephemeral grant owned by this connection.
+ */
+export function parseDeviceCode(value: unknown): CodexDeviceCode {
+  const response = protocolObject(value)
+  if (response.type !== 'chatgptDeviceCode') throw new Error('codex-runtime: unexpected login method')
+  return { loginId: brandString<CodexLoginId>(protocolString(response.loginId)), userCode: protocolString(response.userCode),
+    verificationUrl: deviceVerificationUrl(response.verificationUrl) }
+}
+/**
+ * Crop a completed notification, preserving absent correlation without raw error text.
+ * @param value - native notification parameters.
+ * @returns safe completion observation.
+ */
+export function parseLoginCompleted(value: unknown): CodexAccountNotification {
+  const response = protocolObject(value)
+  if (typeof response.success !== 'boolean') throw new Error('codex-runtime: invalid login completion')
+  return { type: 'completed', success: response.success,
+    loginId: response.loginId == null ? null : brandString<CodexLoginId>(protocolString(response.loginId)) }
 }

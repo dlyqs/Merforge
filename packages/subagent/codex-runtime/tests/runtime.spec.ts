@@ -3,7 +3,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SubprocessHandle, SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 import {
-  JsonRpcLineTransport, openCodexRuntime, type CodexRuntime, type CodexRuntimeSpec,
+  acquireCodexActivity, JsonRpcLineTransport, openCodexRuntime, type CodexRuntime, type CodexRuntimeSpec,
   type CodexRuntimeLimits, type CodexThreadId, type CodexInputId, type CodexTurnEvent,
 } from '../src/index.ts'
 
@@ -436,4 +436,16 @@ it('revokes timed-out callbacks and awaits their cancellation before returning f
   expect(await callback).toBe('rejected')
   expect(cancelled).toBe(true)
   expect(h.terminated).toBe(true)
+})
+
+it('reserves every execution connection before spawn and refuses it while login owns admission', async () => {
+  const h = harness(), spawn = vi.fn(h.spec.spawn), release = acquireCodexActivity('login')
+  try {
+    await expect(openCodexRuntime({ ...h.spec, spawn })).rejects.toThrow('busy')
+    expect(spawn).not.toHaveBeenCalled()
+  } finally { release() }
+  const runtime = await ready(h)
+  expect(() => acquireCodexActivity('login')).toThrow('busy')
+  await runtime.dispose()
+  acquireCodexActivity('login')()
 })

@@ -63,7 +63,7 @@ async function boot() {
 }
 
 describe('ui-sidebar-browser apply', () => {
-  it.each([0, 1])('binds and rebinds session controllers under desktop protocol %s', async (protocolVersion) => {
+  it.each([0, 2])('binds and rebinds session controllers under desktop protocol %s', async (protocolVersion) => {
     const acquire = vi.fn(async () => ({ lease: 'test-lease' as DesktopBrowserLeaseId, partition: 'test-partition' }))
     const bridge: DesktopBrowserBridge = {
       acquire,
@@ -72,7 +72,7 @@ describe('ui-sidebar-browser apply', () => {
     }
     vi.stubGlobal('dshDesktop', { protocolVersion, browser: bridge })
     const h = await boot()
-    expect(h.tabs.get(BROWSER_KIND)?.keepMounted).toBe(protocolVersion === 1)
+    expect(h.tabs.get(BROWSER_KIND)?.keepMounted).toBe(protocolVersion === 2)
     const injectFace = h.registered.find(entry => entry.name === 'sidebar.right.pane.tab')!.inject as
       (sessionId: string, actions: Parameters<BrowserInjected['rebind']>[0]) => BrowserInjected
     const firstStore = createBrowserStore().create(`apply-first-${protocolVersion}`)
@@ -89,7 +89,7 @@ describe('ui-sidebar-browser apply', () => {
         initial: undefined, initialUrl: 'https://example.test/', openTab: vi.fn() })
       expect(replacementStore.getSnapshot().byTab[tabId]).toBeDefined()
       expect(firstStore.getSnapshot().byTab[tabId]).toBeUndefined()
-      if (protocolVersion === 1) await vi.waitFor(() => { expect(acquire).toHaveBeenCalledWith('session:session') })
+      if (protocolVersion === 2) await vi.waitFor(() => { expect(acquire).toHaveBeenCalledWith('session:session') })
       else expect(host.querySelector('iframe')).not.toBeNull()
       h.openTabs.set([{ sessionId: 'other', tabId }, { sessionId: 'session', tabId: 'other-tab' as TabId }])
       signal.abort()

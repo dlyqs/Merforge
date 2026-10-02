@@ -205,7 +205,7 @@
           },
           "limit": {
             "format": "uint32",
-            "minimum": 0.0,
+            "minimum": 0,
             "type": [
               "integer",
               "null"
@@ -1103,7 +1103,7 @@
           "autoResolutionMs": {
             "default": null,
             "format": "uint64",
-            "minimum": 0.0,
+            "minimum": 0,
             "type": [
               "integer",
               "null"
@@ -1438,7 +1438,7 @@
             },
             "globScanMaxDepth": {
               "format": "uint",
-              "minimum": 1.0,
+              "minimum": 1,
               "type": [
                 "integer",
                 "null"
@@ -2200,6 +2200,547 @@
         "authMode",
         "planType"
       ]
+    }
+  },
+  "setupStableSchemas": {
+    "v2/LoginAccountParams.json": {
+      "definitions": {
+        "LoginAppBrand": {
+          "enum": [
+            "codex",
+            "chatgpt"
+          ],
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "apiKey": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "apiKey"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiKey",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "appBrand": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LoginAppBrand"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "codexStreamlinedLogin": {
+              "type": "boolean"
+            },
+            "type": {
+              "enum": [
+                "chatgpt"
+              ],
+              "type": "string"
+            },
+            "useHostedLoginSuccessPage": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "chatgptDeviceCode"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "accessToken": {
+              "type": "string"
+            },
+            "chatgptAccountId": {
+              "type": "string"
+            },
+            "chatgptPlanType": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "enum": [
+                "chatgptAuthTokens"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "accessToken",
+            "chatgptAccountId",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "apiKey": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "amazonBedrock"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiKey",
+            "region",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "accessKeyId": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "secretAccessKey": {
+              "type": "string"
+            },
+            "sessionToken": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "enum": [
+                "amazonBedrockAccessKeys"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "accessKeyId",
+            "region",
+            "secretAccessKey",
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "v2/LoginAccountResponse.json": {
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "apiKey"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "authUrl": {
+              "type": "string"
+            },
+            "loginId": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "chatgpt"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "authUrl",
+            "loginId",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "loginId": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "chatgptDeviceCode"
+              ],
+              "type": "string"
+            },
+            "userCode": {
+              "type": "string"
+            },
+            "verificationUrl": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "loginId",
+            "type",
+            "userCode",
+            "verificationUrl"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "chatgptAuthTokens"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "amazonBedrock"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "v2/CancelLoginAccountParams.json": {
+      "properties": {
+        "loginId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "loginId"
+      ],
+      "type": "object"
+    },
+    "v2/CancelLoginAccountResponse.json": {
+      "definitions": {
+        "CancelLoginAccountStatus": {
+          "enum": [
+            "canceled",
+            "notFound"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/CancelLoginAccountStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "v2/AccountLoginCompletedNotification.json": {
+      "definitions": {
+        "DesktopOnboardingEntrypoint": {
+          "enum": [
+            "life_sciences"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loginId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "onboardingEntrypoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DesktopOnboardingEntrypoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "success": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success"
+      ],
+      "type": "object"
+    },
+    "v2/AccountUpdatedNotification.json": {
+      "definitions": {
+        "AuthMode": {
+          "oneOf": [
+            {
+              "enum": [
+                "apikey"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "chatgpt"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "chatgptAuthTokens"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "headers"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "agentIdentity"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "personalAccessToken"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "bedrockApiKey"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "bedrockAccessKeys"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "PlanType": {
+          "enum": [
+            "free",
+            "go",
+            "plus",
+            "pro",
+            "prolite",
+            "team",
+            "self_serve_business_prolite",
+            "self_serve_business_usage_based",
+            "business",
+            "ent26",
+            "enterprise_cbp_automation",
+            "enterprise_cbp_usage_based",
+            "enterprise",
+            "edu",
+            "edu_plus",
+            "edu_pro",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "authMode": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AuthMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planType": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlanType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "v2/GetAccountParams.json": {
+      "properties": {
+        "refreshToken": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "v2/GetAccountResponse.json": {
+      "definitions": {
+        "Account": {
+          "oneOf": [
+            {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "apiKey"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "planType": {
+                  "$ref": "#/definitions/PlanType"
+                },
+                "type": {
+                  "enum": [
+                    "chatgpt"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "planType",
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "amazonBedrock"
+                  ],
+                  "type": "string"
+                },
+                "usesCodexManagedCredentials": {
+                  "default": false,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "PlanType": {
+          "enum": [
+            "free",
+            "go",
+            "plus",
+            "pro",
+            "prolite",
+            "team",
+            "self_serve_business_prolite",
+            "self_serve_business_usage_based",
+            "business",
+            "ent26",
+            "enterprise_cbp_automation",
+            "enterprise_cbp_usage_based",
+            "enterprise",
+            "edu",
+            "edu_plus",
+            "edu_pro",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "account": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Account"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requiresOpenaiAuth": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "requiresOpenaiAuth"
+      ],
+      "type": "object"
     }
   }
 }

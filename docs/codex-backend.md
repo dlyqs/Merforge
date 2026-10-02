@@ -29,7 +29,7 @@
 组织应用仍复核是否允许向指定设备派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
 
 
-不向 Renderer 或业务消费者开放通用 RPC（Host 底层 transport 仅供协议实现共用）、CustomArgs、PATH fallback、任意二进制路径、原生登录修改或自动安装。one-shot 保留现有权限模式、ephemeral 单 turn、最终回答选择和安全诊断；共享传输与进程 owner，不扩大其恢复或工具能力。
+不向 Renderer 或业务消费者开放通用 RPC（Host 底层 transport 仅供协议实现共用）、CustomArgs、PATH fallback、任意二进制路径、除本人在 Desktop 主动开始/取消设备码登录之外的原生认证修改或自动安装。one-shot 保留现有权限模式、ephemeral 单 turn、最终回答选择和安全诊断；共享传输与进程 owner，不扩大其恢复或工具能力。
 
 ## 当前能力与后续接入
 
@@ -104,3 +104,19 @@ SQLite v12 只扩展显式原生调度记录，不转换 v11 API Run；固定签
 7B 消费显式 personal workflow 和已有组织任务，通过输入派发、结果接收与应用任务管理工具连接现有服务。批准、接受、委托、开始、提交和验收仍由现有真人动作拥有。7C 后续调用相同 backend create/resume/send/cancel/read + capability 接口，不在 loop 内复制组织业务。7B 基础执行桥不依赖 7C 自动识别；完整组织目标对话仍需两者完成。
 
 7B Phase 7–8 已有任务接口接受显式 `inputs.backend`，其 kind/runtime/model/effort/turn/time 与组织 Run 必须一致；Codex 路径不接受 endpoint，也不解析 API 凭据。7C 后续应复用该选择与固定真人动作，不创建新的组织运行或批准权威。7C 当前仍未实现，7B 已有任务消费不表示无任务目标规划或组织自然目标对话已完成。
+
+## Desktop 设备码接入协议
+
+设置计划 Phase 1 固化 stable `LoginAccountParams/Response`、`CancelLoginAccountParams/Response`、`AccountLoginCompletedNotification`、`AccountUpdatedNotification`、`GetAccountParams/Response` 全字段、枚举和 required，见同一协议 fixture 的 `setupStableSchemas`。设备码请求只有 `{type: chatgptDeviceCode}`；响应必需 loginId/userCode/verificationUrl。取消状态为 `canceled/notFound`，后者不证明远端取消。完成通知仅 success 必需，loginId 可缺省或空；error 始终裁剪。account/updated 只作为失效信号，不传播 planType。
+
+官方 [0.153.4 device_code_auth.rs](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/login/src/device_code_auth.rs) 将 issuer 拼接 `/codex/device`；[server.rs](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/login/src/server.rs) 的默认 issuer 是 `https://auth.openai.com`。应用只允许无用户名/密码、无 query/hash 的 `https://auth.openai.com/codex/device`。自定义 issuer 明确拒绝，不接受 Renderer 地址。schema 没有过期秒数，Client 不合成倒计时。真实账号策略、验证网站可达性、原生持久化及 macOS/Windows 行为留给用户验收。
+
+`codex-runtime` 提供固定安全账号读取、设备码开始/取消和裁剪通知；`agent-codex` 的 `codexSetup` Service 拥有可用性、单尝试、超时和 managed child。配置 `loginTimeoutMs`、`setupCacheMs` 与现有 RPC/进程限额由 cordis.yml 控制。安全 snapshot 包含 revision、runtime version/unknown/ready/error、account unknown/known/error、catalog unknown/ready/empty/error 及 models、login idle/starting/waiting/verifying/succeeded/failed/cancelled/timeout 和固定 category/cleanup/cancellation。过程状态不写 Session。
+
+一个 Host 同时只有一个登录写入许可。共用 runtime 的执行准入在个人 Agent、组织独立 Run 的 open 之前获得，one-shot 在子进程 spawn 之前获得，持续至 child 和回调排空；setup 开始在任何 await 前与这些活动互斥。只读目录探测不占执行许可。外部 Codex 不在应用锁内，开始前仍重读 account；已有认证或 requiresOpenaiAuth=false 时仅检测，不发送 login/start。
+
+尝试关联使用 Host 品牌化 attempt ID、窗口 owner 和独立 managed app-server。有 loginId 的通知必须等 start 响应并准确匹配，响应前通知有界缓冲；旧 ID 忽略。无 ID 的完成通知不宣告成功，只重读 account/model；账号仍缺失则保持 waiting/unconfirmed。成功必须重读 account 并独立读取 model。取消和完成共用终结许可；取消确认与进程 cleanup 分别报告。start 响应未知不重放。超时、窗口销毁、Host 断连和插件卸载退休视图并 await owned range；关闭卡片不取消。
+
+Desktop 固定操作为 snapshot/detect/start/cancel/openVerification/subscribe；destroyOwner 仅 Electron 到私有 Host。公共 snapshot 不含验证码/URL/原生 loginId，owner 的短时 view 单独返回品牌化 attempt ID 和 userCode，URL 保留 Host，仅固定 openVerification 回传已校验链接给 Electron。所有窗口共享安全状态，取消/打开必须匹配 owner 与 attempt。私有 Node IPC 使用 startup nonce/request ID；Electron 校验所属顶层窗口和 origin，并捕获 Host 与窗口代次，返回前重核对。Host 断连使短时视图失效，新 Host 不恢复设备码或重放 start。
+
+setup revision 更新失效共享 catalog；个人、Bot 和组织选择使用同一目录更新。目录失败固定原因包括 payload/startup/protocol/login-required/models-empty/catalog/busy/timeout/eof/rpc/unknown-start/cleanup/closed，与 API Provider 局部失败并列。旧请求不能发布新 revision 的模型或自动改默认选择。设备码、URL、身份、auth 路径和 raw 错误不进入通用 Remote、日志和持久层。

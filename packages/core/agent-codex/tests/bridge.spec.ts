@@ -202,7 +202,7 @@ it('rejects missing native login and mismatched providers without invoking an AP
   const remote = createSessionTestRemote(ctx, { cwd: root, defaultModelSelection: () => ({ provider: 'missing-api', model: 'no-key' }) })
   expect(await remote.modelCatalog()).toMatchObject({ ok: true, value: { groups: [], failures: [{ id: 'codex' }] } })
   expect(await remote.create({ selection: { backend: 'codex', provider: 'other', model: 'native-test' } })).toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
-  expect(JSON.stringify(await remote.modelCatalog())).toContain('login required')
+  expect(JSON.stringify(await remote.modelCatalog())).toContain('login-required')
   expect(peer.calls.some(call => call.method === 'turn/start')).toBe(false)
   expect(peer.children.every(child => child.exited)).toBe(true)
 })
@@ -214,7 +214,7 @@ it('reports empty native model discovery as unavailable and reloads it after acc
   const unavailable = await remote.modelCatalog()
   if (!unavailable.ok) throw unavailable.error
   expect(unavailable.value).toMatchObject({ groups: [], routableProviders: [], failures: [{ id: 'codex' }] })
-  expect(unavailable.value.failures[0]?.message).toContain('no available models')
+  expect(unavailable.value.failures[0]?.message).toContain('models-empty')
   expect(await remote.create({ selection: { backend: 'codex', provider: 'codex', model: 'native-test' } })).toMatchObject({ ok: false })
   expect(peer.calls.some(call => call.method === 'thread/start')).toBe(false)
   peer.modelsAvailable = true

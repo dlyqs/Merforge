@@ -149,6 +149,16 @@ export class ModelDirectory {
     const catalog = this.catalog.store.getSnapshot()
     const projected = modelSelectionProjection(this.projected.getSnapshot())
     if (catalog.status !== 'ready' || catalog.value === null || projected === undefined) {
+      if (catalog.value === null && this.resolved) {
+        this.store.update((state) => {
+          state.current = projected?.next ?? state.current
+          state.routable = null
+          state.groups = []
+          state.failures = []
+          state.error = catalog.error
+        })
+        return
+      }
       if (this.resolved) {
         if (catalog.status === 'error') {
           this.store.update((state) => {

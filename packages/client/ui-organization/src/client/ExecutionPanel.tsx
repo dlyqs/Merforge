@@ -40,6 +40,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   const offset = pages.at(-1) ?? 0
   const [backend, setBackend] = useState<'harness-api' | 'codex'>('harness-api')
   const [effort, setEffort] = useState<NonNullable<Inputs['backend']>['effort']>()
+  const modelCatalogRevision = props.useModelCatalogRevision(value => value)
+  const modelSequence = useRef(0)
   const [catalog, setCatalog] = useState<ModelCatalog>()
   const [model, setModel] = useState(''), [endpoint, setEndpoint] = useState(''), [directory, setDirectory] = useState('')
   const [actions, setActions] = useState(''), [steps, setSteps] = useState(''), [minutes, setMinutes] = useState('')
@@ -87,6 +89,19 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     return () => { current = false; sequence.current++ }
   }, [ready, c.generation, task.revision, offset])
   const mine = views?.generation === c.generation && preparation?.assignment.assigneeId === memberId
+  const loadModels = async () => {
+    const seq = ++modelSequence.current
+    const value = await props.loadModels?.()
+    if (alive.current && seq === modelSequence.current) setCatalog(value)
+  }
+  useEffect(() => {
+    ++modelSequence.current
+    setCatalog(undefined)
+    if (backend === 'codex') void loadModels().catch((error: unknown) => {
+      if (alive.current) setNotice(t(executionError(error)))
+    })
+    return () => { ++modelSequence.current }
+  }, [modelCatalogRevision, backend])
   const start = async () => {
     if (!preparation || !confirmed) return
     setBusy(true); setNotice('')
@@ -178,8 +193,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
           setBackend(event.target.value === 'codex' ? 'codex' : 'harness-api'); setModel(''); setEffort(undefined); setConfirmed(false); setCatalog(undefined)
         }}><option value="harness-api">{t('executionApi')}</option><option value="codex">{t('executionCodex')}</option></select></label>
         {backend === 'codex' ? <>
-          <Button disabled={busy} onClick={() => { void props.loadModels?.().then((value) => {
-            if (isAlive()) { setCatalog(value); setConfirmed(false) } })
+          <Button disabled={busy} onClick={() => { void loadModels().then(() => { if (isAlive()) setConfirmed(false) })
             .catch((error: unknown) => { if (isAlive()) setNotice(t(executionError(error))) }) }}>{t('executionRefreshModels')}</Button>
           <label>{t('executionModel')}<select required value={model} disabled={busy} onChange={(event) => {
             const m = catalog?.groups.filter(g => g.backend === 'codex').flatMap(g => g.models).find(m => m.id === event.target.value)

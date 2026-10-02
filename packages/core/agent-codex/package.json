@@ -22,6 +22,14 @@
     "./types": {
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
+    },
+    "./setup-types": {
+      "types": "./lib/types/setup-types.d.ts",
+      "default": "./lib/types/setup-types.js"
+    },
+    "./setup-protocol": {
+      "types": "./lib/types/setup-protocol.d.ts",
+      "default": "./lib/types/setup-protocol.js"
     }
   },
   "files": [

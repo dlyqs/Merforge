@@ -50,7 +50,7 @@ export interface PersonalActions {
 
 /** Injected records and mutation interface. */
 export interface PersonalInjected extends PersonalActions {
-  hooks: { records: ObservableSnapshot<PersonalRecordsState> }
+  hooks: { records: ObservableSnapshot<PersonalRecordsState>; modelCatalogRevision: ObservableSnapshot<number> }
 }
 
 /** Component props for the sidebar's personal seat. */

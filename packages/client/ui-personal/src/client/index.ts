@@ -30,6 +30,8 @@ function valueOf<T>(result: RemoteResult<T>): T {
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context): void {
+  const modelCatalogRevision = createSnapshotStore(0)
+  ctx.remote.$on('api-session/model-catalog-changed', (revision) => { modelCatalogRevision.set(revision) })
   const records = createSnapshotStore<PersonalRecordsState>({ phase: 'loading', projects: [], bots: [] })
   const refresh: PersonalActions['refresh'] = async () => {
     try {
@@ -43,9 +45,14 @@ export function apply(ctx: Context): void {
     await operation()
     await refresh()
   }
+  const loadModels: NonNullable<PersonalActions['loadModels']> = async () => {
+    const revision = modelCatalogRevision.getSnapshot()
+    const value = valueOf(await ctx.remote.session.modelCatalog())
+    return revision === modelCatalogRevision.getSnapshot() ? value : loadModels()
+  }
   const actions: PersonalActions = {
     refresh,
-    loadModels: async () => valueOf(await ctx.remote.session.modelCatalog()),
+    loadModels,
     createProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalCreateProject(input)) }),
     updateProject: input => mutate(async () => { valueOf(await ctx.remote.session.personalUpdateProject(input)) }),
     pickDirectory: () => ctx.uiWorkspace.pickDirectory(),
@@ -84,7 +91,7 @@ export function apply(ctx: Context): void {
   ctx.slots.registerFactory({
     name: 'personal.manager', scope: 'root', locale: 'personal',
     children: { 'personal.manager.workflow': { kind: 'single', scope: 'root' } },
-    inject: (): PersonalInjected => ({ ...actions, hooks: { records } }),
+    inject: (): PersonalInjected => ({ ...actions, hooks: { records, modelCatalogRevision } }),
   }, PersonalSidebar)
   ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal' }, PersonalSidebarEntry))
   const t = ctx.locale.bind('personal')

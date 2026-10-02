@@ -4,6 +4,8 @@
 
 ## 下一阶段计划入口
 
+[Codex 设置与首次使用实施计划](codex-setup-plan.md)本轮授权 Phase 1–3：固定版本设备码协议证据、Host setup service、共享执行准入和 Desktop 固定通道已实现。个人、Bot 和组织模型目录收到同一安全失效事件，保留显式模型选择并拒绝迟到旧结果。设置卡片、首次引导和失败直达入口仍为 Phase 4–5，尚未实现；不会要求全局 CLI、自动安装或改变默认后端，也不推进 7C。真实登录、窗口操作及平台持久化留用户验收，未代登录或启动页面。已达 Phase 3 终点，执行模式恢复 `manual`、自动边界 `none`、relay 关闭；工程检查和仓库基线问题见计划各阶段记录。
+
 [Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–10 工程完成。用户最新要求“继续完成 phase9-10”，已达到 Phase 10 终点，恢复 `manual`、自动边界 `none`、relay 关闭。Phase 9–10 补齐个人五回合任务链、双员工独立 CSV/契约交付、跨组织/账号转录拒绝和重复旧终态回归；Desktop build、真实 npm tarball exports、普通 Node/Electron Node mode 的 Codex/API 私有 IPC smoke 通过。[Codex 验收交接](codex-backend-acceptance.md)提供平台、真实模型、三机与可见检查；全仓类型/依赖/JSDoc/unknown cast 的既有失败详见实施计划，未绕过门禁。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
 
 个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织新增独立 opt-in Codex 调度策略、设备/任务/租约资格、累计 turn/时长与停止原因，SQLite 当前为 v12，v11 API Run 不转换。组织原生执行已接入独立 Run/Session/thread 与私有 JSONL，派发准确任务和显式输入，停止等待所属进程及日志排空，未知发送不重放。人工请求进入持久 Inbox，答复后需明确继续；完整相同的命令决定只消费一次，缺完整提案的文件审批不能复用。工作台已有任务支持 Codex 后端、原生模型/effort 选择、运行/恢复/请求及现有提交、验收、返工和交付动作，不要求 API endpoint/key。
@@ -82,6 +84,12 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 ### Client 展示与发行
 
 `packages/bundle/web-app/cordis.patch.yml` 挂载 Host controller、Client module 和 UI 插件；内部 Web 前端是 Desktop 的一部分。Desktop 主进程还管理浏览器 guest、目录选择、更新等原生功能。移除可选 UI 功能时，应一并检查 Host、IPC、manifest、打包资源、测试及文档；只禁用组合条目不会自动缩小安装包。
+
+### Codex 模型发现与设置入口
+
+`apps/desktop-host/desktop.patch.yml` 挂载 `agent-codex`。`codexSetup` service 统一 runtime、account、catalog 和 login 的独立观察，driver catalog 复用其发现；`api/session-controller/src/catalog.ts` 合并原生分组与固定 `setupReason` 局部失败，`api-session/model-catalog-changed` 同步个人、Bot 和组织选择。共用 `codex-runtime` 的执行许可及 one-shot 的 spawn 前许可持续至 managed child 清理完成，与登录写入互斥。认证和原生工具仍由官方 runtime 管理，应用不读写认证文件、不使用全局 PATH。
+
+`apps/desktop-host/src/codex-setup.ts` 拥有私有 parent IPC，`apps/desktop/src/codex-setup-ipc.ts` 校验所属顶层窗口、origin、请求、Host 和窗口代次；preload product API v2 暴露 snapshot/detect/start/cancel/openVerification/subscribe。品牌化 attempt ID 与验证码仅给 owner，URL 保留 Host，并限于官方 HTTPS endpoint 的用户主动打开动作；窗口销毁取消并清理，Host 重启不恢复旧码或重放开始。模型设置尚无 Codex 卡片，首次引导尚未补齐；Phase 4–5 将消费既有 typed setup 接口。设置导航仍由 `ui-settings-general` shell 拥有。
 
 ## 维护说明
 

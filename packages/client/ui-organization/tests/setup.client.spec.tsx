@@ -17,7 +17,7 @@ it('deduplicates native and operation failures, clears on editing and expires fe
     server: { phase: 'disabled', settings: { host: '0.0.0.0', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const props: OrganizationProps = { available: true, t: makeTranslate(zh),
-    useOrganization: selector => selector(state),
+    useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state),
     context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(), server: vi.fn(), secret: vi.fn(),
     connection: vi.fn(async () => { state.connection.error = 'connection-refused'; throw new Error('connection-refused') }),
   }
@@ -41,7 +41,8 @@ it('offers connection before registration and requires matching passwords with i
     server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const connection = vi.fn<OrganizationProps['connection']>().mockResolvedValue({})
-  render(<OrganizationDialog available t={makeTranslate(zh)} useOrganization={selector => selector(state)}
+  render(<OrganizationDialog available t={makeTranslate(zh)}
+    useModelCatalogRevision={selector => selector(0)} useOrganization={selector => selector(state)}
     connection={connection} context={vi.fn()} server={vi.fn()} secret={vi.fn()} initialSection="connection" onClose={vi.fn()} />)
   expect(screen.getByLabelText(zh.origin)).toBeDefined()
   fireEvent.click(screen.getByRole('button', { name: zh.register }))

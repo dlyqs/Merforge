@@ -1,5 +1,6 @@
 /** Shared projection of the live LLM registry into the browser model catalog. */
 
+import type {} from '@deepseek-ai/dsh-agent-codex'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   ModelCatalog,
@@ -64,7 +65,10 @@ export async function buildModelCatalog(
         models: discovered.models.map(model => ({ id: model.id, name: model.name,
           reasoning: { efforts: model.efforts.map(id => ({ id, name: id })), defaultEffort: model.defaultEffort } })) } }
     } catch (error: unknown) {
-      return { kind: 'failure' as const, failure: { id: provider.kind, name: 'Codex', message: error instanceof Error ? error.message : 'codex-runtime: unavailable' } }
+      const snapshot = ctx.get('codexSetup')?.snapshot()
+      const setupReason = snapshot?.runtime.category ?? (snapshot?.account.status === 'error' ? snapshot.account.category : undefined) ?? snapshot?.catalog.category ?? 'catalog'
+      void error
+      return { kind: 'failure' as const, failure: { id: provider.kind, name: 'Codex', message: `codex-setup: ${setupReason}`, setupReason } }
     }
   }))
   return {

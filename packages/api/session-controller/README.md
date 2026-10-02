@@ -137,3 +137,7 @@ None.
 **Runtime invariant:** No companion is published. Every page and frame is checked against the addressed durable Session.
 
 Desktop Session creation and resume accept only `standard` when an Agent composition is configured. Omitted mode IDs resolve to `standard` regardless of a stored registry default; removed mode IDs fail before a new Session is published.
+
+## Native model availability updates
+
+Native groups use the shared `codexSetup` discovery owner. A failure carries a fixed `setupReason`, separately from API Provider errors; a failed native catalog does not remove successful API groups or change the deployment default. The safe `api-session/model-catalog-changed` revision invalidates personal, Bot and organization selectors. Consumers clear retired availability and reject late responses while retaining explicit model choices. Device grants and native account identity never enter this Remote catalog.

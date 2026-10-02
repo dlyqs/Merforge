@@ -41,6 +41,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     refresh, loadModels, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
     createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
+  const modelCatalogRevision = props.useModelCatalogRevision(value => value)
   const records = useRecords(value => value)
   const sessions = useSessions(value => value)
   const statuses = useSessionStatus(value => value)
@@ -87,12 +88,13 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     if (draft?.kind !== 'bot' || loadModels === undefined) return
     let current = true
     setModelError(null)
+    setModels(null)
     void loadModels().then(
       (value) => { if (current) setModels(value) },
       (reason: unknown) => { if (current) setModelError(String(reason)) },
     )
     return () => { current = false }
-  }, [draft?.kind, loadModels, modelRefresh])
+  }, [draft?.kind, loadModels, modelRefresh, modelCatalogRevision])
 
   const unassigned = useMemo(() => unassignedIds(sessions), [sessions])
   const affiliation: AffiliationProjection | undefined = selectedSession === null

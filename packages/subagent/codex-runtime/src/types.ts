@@ -41,7 +41,7 @@ export interface CodexCapabilities {
   readonly attachments: false
 }
 /** Safe process/protocol diagnostic categories. */
-export type CodexFailureCategory = 'startup' | 'protocol' | 'frame-limit' | 'eof' | 'process' | 'rpc' | 'timeout' | 'closed' | 'unknown-send' | 'unknown-thread' | 'cleanup'
+export type CodexFailureCategory = 'payload' | 'unknown-start' | 'startup' | 'protocol' | 'frame-limit' | 'eof' | 'process' | 'rpc' | 'timeout' | 'closed' | 'unknown-send' | 'unknown-thread' | 'cleanup'
 /** Deployment-owned limits; all waits and retained protocol queues are bounded. */
 export interface CodexRuntimeLimits {
   readonly startupTimeoutMs: number
@@ -68,6 +68,8 @@ export interface CodexRuntimeSpec {
   readonly cwd: string
   readonly env: Record<string, string>
   readonly limits: CodexRuntimeLimits
+  /** Read-only setup connections do not reserve execution; login has its own admission. */
+  readonly purpose?: 'setup'
   readonly experimentalApi: boolean
   /** Application tools advertised at thread creation; native tools remain Codex-owned. */
   readonly dynamicTools?: readonly CodexDynamicTool[]
@@ -160,3 +162,16 @@ export interface CodexServerRequest {
   readonly turnId: CodexTurnId
   readonly params: Readonly<Record<string, unknown>>
 }
+
+/** Native login identity retained only by its managed connection. */
+export type CodexLoginId = Branded<'CodexLoginId'>
+/** Short-lived device grant; never log or persist these fields. */
+export interface CodexDeviceCode {
+  readonly loginId: CodexLoginId
+  readonly userCode: string
+  readonly verificationUrl: string
+}
+/** Cropped account lifecycle observations, without identity, plan or raw errors. */
+export type CodexAccountNotification =
+  | { readonly type: 'updated' }
+  | { readonly type: 'completed'; readonly loginId: CodexLoginId | null; readonly success: boolean }

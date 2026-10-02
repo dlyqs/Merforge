@@ -46,7 +46,9 @@
     "@deepseek-ai/dsh-organization-api": "workspace:*",
     "zod": "^4.4.3",
     "@deepseek-ai/dsh-organization-context": "workspace:*",
-    "@deepseek-ai/dsh-organization-execution": "workspace:*"
+    "@deepseek-ai/dsh-organization-execution": "workspace:*",
+    "@deepseek-ai/dsh-agent-codex": "workspace:*",
+    "@deepseek-ai/dsh-brand": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-app-boot": "workspace:*",

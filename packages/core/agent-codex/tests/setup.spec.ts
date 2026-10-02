@@ -1,0 +1,109 @@
+/** Real setup lifecycle with an external fixture peer, without account access. */
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { expect, it, vi } from 'vitest'
+import { acquireCodexActivity } from '@deepseek-ai/dsh-codex-runtime'
+import { setup, owner, other } from './setup-harness.ts'
+it('shares repeated starts, crops other windows, ignores old/uncorrelated notices, verifies account and models and drains its child', async () => {
+  const h = await setup()
+  const start = h.service.start(owner)
+  const duplicate = h.service.start(owner)
+  const view = await start
+  expect(await duplicate).toEqual(view)
+  expect(view.device?.userCode).toBe('FIXTURE-PRIVATE-CODE')
+  expect(h.service.view(other).device).toBeUndefined()
+  const id = view.device!.attemptId
+  await expect(h.service.cancel(other, id)).rejects.toThrow('closed')
+  expect(() => acquireCodexActivity('execution')).toThrow('busy')
+  await h.command({ kind: 'old' })
+  await vi.waitFor(async () =>{  expect(await readFile(join(h.root, 'fixture-command.json'), 'utf8').catch(() => '')).toBe('') })
+  expect(h.service.snapshot().login.status).toBe('waiting')
+  await h.command({ kind: 'idless' })
+  await vi.waitFor(() =>{  expect(h.service.snapshot().revision).toBeGreaterThan(view.snapshot.revision) })
+  expect(h.service.snapshot().login.status).not.toBe('succeeded')
+  await h.command({ kind: 'complete', auth: true })
+  await vi.waitFor(() =>{  expect(h.service.snapshot()).toMatchObject({ login: { status: 'succeeded', cleanup: 'done' }, catalog: { status: 'ready' }, account: { status: 'known', value: { kind: 'chatgpt' } } }) })
+  expect(h.service.view(owner).device).toBeUndefined()
+  const safe = JSON.stringify(h.service.snapshot())
+  expect(safe).not.toContain('FIXTURE-PRIVATE-CODE')
+  for (const secret of ['fixture-private-email', 'fixture-private-token', 'fixture-private-error', 'fixture-private-home', 'auth.openai.com']) expect(safe).not.toContain(secret)
+  expect((await h.calls()).filter(method => method === 'account/login/start')).toHaveLength(1)
+  expect((await h.calls()).some(method => /thread|turn/.test(method))).toBe(false)
+  for (const child of h.children) expect(await child.waitForExit()).toBe(true)
+  acquireCodexActivity('execution')()
+})
+it.each([{ authenticated: true }, { noAuth: true }, { early: true }, { early: true, empty: true }, { early: true, catalogFailure: true }])('keeps authentication separate from model availability %j', async (mode) => {
+  const h = await setup(mode)
+  await h.service.start(owner)
+  await vi.waitFor(() =>{  expect(h.service.snapshot().login.status).toBe('succeeded') })
+  expect(h.service.snapshot().catalog.status).toBe(mode.empty ? 'empty' : mode.catalogFailure ? 'error' : 'ready')
+  expect((await h.calls()).filter(method => method === 'account/login/start')).toHaveLength(mode.early ? 1 : 0)
+})
+it.each([{ notFound: true }, { cancelFailure: true }, {}])('reports cancellation confirmation and cleanup independently %j', async (mode) => {
+  const h = await setup(mode)
+  const view = await h.service.start(owner)
+  const cancelled = await h.service.cancel(owner, view.device!.attemptId)
+  expect(cancelled.snapshot.login).toMatchObject({ status: 'cancelled', cancellation: mode.notFound ? 'notFound' : mode.cancelFailure ? 'unconfirmed' : 'canceled', cleanup: 'done' })
+  await expect(h.service.cancel(owner, view.device!.attemptId)).rejects.toThrow('closed')
+  expect(cancelled.device).toBeUndefined()
+  acquireCodexActivity('login')()
+})
+it.each([{ unknown: true }, { badUrl: true }])('retires unknown start without replay %j', async (mode) => {
+  const h = await setup(mode)
+  const result = await h.service.start(owner)
+  expect(result.snapshot.login).toMatchObject({ status: 'failed', category: 'unknown-start', cleanup: 'done' })
+  expect(result.device).toBeUndefined()
+  expect((await h.calls()).filter(method => method === 'account/login/start')).toHaveLength(1)
+})
+it('serializes probes, blocks login during any shared execution and retires an owner on disposal', async () => {
+  const h = await setup()
+  const probe = h.service.detect()
+  expect(h.service.detect()).toBe(probe)
+  await probe
+  const release = acquireCodexActivity('execution')
+  await expect(h.service.start(owner)).rejects.toThrow('busy')
+  release()
+  await h.service.start(owner)
+  await h.service.destroyOwner(owner)
+  expect(h.service.snapshot().login).toMatchObject({ status: 'cancelled', cleanup: 'done' })
+  await h.service.start(owner)
+  await h.ctx.fiber.dispose()
+  expect(h.service.view(owner).device).toBeUndefined()
+  for (const child of h.children) expect(await child.waitForExit()).toBe(true)
+})
+it('classifies EOF without treating process exit as a completed login', async () => {
+  const h = await setup()
+  await h.service.start(owner)
+  await h.command({ kind: 'eof' })
+  await vi.waitFor(() =>{  expect(h.service.snapshot().login.status).toBe('failed') })
+  expect(h.service.snapshot().login.cleanup).toBe('done')
+})
+
+it('expires the configured login lifetime and drains before releasing admission', async () => {
+  const h = await setup({}, 400)
+  await h.service.start(owner)
+  await vi.waitFor(() =>{  expect(h.service.snapshot().login).toMatchObject({ status: 'timeout', category: 'timeout', cleanup: 'done' }) })
+  expect(h.service.view(owner).device).toBeUndefined()
+  acquireCodexActivity('execution')()
+})
+it('gives cancellation ownership over a racing completion and permits a fresh attempt', async () => {
+  const h = await setup()
+  const view = await h.service.start(owner)
+  await h.command({ kind: 'complete', auth: true })
+  const cancelled = await h.service.cancel(owner, view.device!.attemptId)
+  expect(cancelled.snapshot.login.status).toBe('cancelled')
+  const fresh = await h.service.start(owner)
+  expect(fresh.device?.attemptId).not.toBe(view.device!.attemptId)
+  if (fresh.device) await h.service.cancel(owner, fresh.device.attemptId)
+})
+
+it('removes driver contributions and drains the login child when the Loader provider unloads', async () => {
+  const h = await setup()
+  await h.service.start(owner)
+  const entry = [...h.ctx.loader.entries()].find(entry => entry.options.name === 'codex')!
+  await entry.fiber!.dispose()
+  expect(h.ctx.agents.listDrivers().some(driver => driver.kind === 'codex')).toBe(false)
+  expect(h.ctx.get('codexSetup')).toBeUndefined()
+  for (const child of h.children) expect(await child.waitForExit()).toBe(true)
+  acquireCodexActivity('login')()
+})

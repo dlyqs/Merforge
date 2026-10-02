@@ -76,9 +76,11 @@ export class ModelCatalogDirectory {
     this.store.set({ value, status: 'idle', error: null })
   }
 
-  /** Invalidate and reload the catalog after a Host-side model input changes. */
-  refresh(): void {
-    this.invalidate()
+  /** Invalidate and reload the catalog after a Host-side model input changes.
+   * @param clear - hide availability from the retired native generation.
+   */
+  refresh(clear = false): void {
+    this.invalidate(clear)
     void this.load().catch(() => { /* the selector exposes the shared error */ })
   }
 

@@ -43,6 +43,7 @@ export { REGION_BEGIN, REGION_END }
  * errors, so the partition can never silently drift from the service API.
  */
 export const SERVICE_PAGE: Record<string, string> = {
+  codexSetup: 'core.md',
   organizationContext: 'session.md',
   organizationExecution: 'session.md',
   speechToText: 'voice-input.md',
@@ -206,6 +207,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'agent': 'core.md',
   'agent-loop': 'core.md',
   'agent-preset': 'core.md',
+  'codex-setup': 'core.md',
   'api-session': 'session.md',
   'approval': 'approval.md',
   'commands': 'commands.md',

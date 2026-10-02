@@ -1,4 +1,6 @@
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
+import { installCodexSetupControl } from './codex-setup.ts'
+export { installCodexSetupControl } from './codex-setup.ts'
 import { installOrganizationExecutionControl } from './organization-execution.ts'
 
 import { delimiter, join } from 'node:path'
@@ -75,6 +77,11 @@ async function main(): Promise<void> {
     on: (event, listener) => process.on(event, listener),
     off: (event, listener) => process.off(event, listener),
     send: (message) => { if (!process.connected || !process.send) throw new Error('organization-execution: disconnected'); process.send(message) },
+  })
+  installCodexSetupControl(ctx, {
+    on: (event, listener) => process.on(event, listener),
+    off: (event, listener) => process.off(event, listener),
+    send: (message) => { if (!process.connected || !process.send) throw new Error('closed'); process.send(message) },
   })
   control.updateTasks = installDesktopUpdateTaskControl(ctx)
   const url = ctx.connection.authenticatedUrl(`http://127.0.0.1:${String(ctx.webServer.port)}`)

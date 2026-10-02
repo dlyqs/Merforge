@@ -53,6 +53,7 @@
     { "path": "../../typert/registry" },
     { "path": "../../workspace/workspace" },
     { "path": "../../workspace/personal-project" },
-    { "path": "../../workspace/personal-workflow" }
+    { "path": "../../workspace/personal-workflow" },
+    { "path": "../../core/agent-codex" }
   ]
 }

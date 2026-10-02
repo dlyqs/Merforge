@@ -93,3 +93,19 @@ describe('ModelCatalogDirectory', () => {
     })
   })
 })
+
+it('hides retired native models immediately and ignores the old response after an availability change', async () => {
+  const first = Promise.withResolvers<unknown>(), second = Promise.withResolvers<unknown>()
+  const models = vi.fn().mockResolvedValueOnce({ ok: true, value: catalog('known') })
+    .mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+  const subject = directory(models)
+  await subject.load()
+  subject.refresh()
+  subject.refresh(true)
+  expect(subject.store.getSnapshot()).toMatchObject({ value: null, status: 'loading' })
+  second.resolve({ ok: true, value: catalog('current') })
+  await vi.waitFor(() =>{  expect(subject.store.getSnapshot().value).toEqual(catalog('current')) })
+  first.resolve({ ok: true, value: catalog('retired') })
+  await first.promise
+  expect(subject.store.getSnapshot().value).toEqual(catalog('current'))
+})

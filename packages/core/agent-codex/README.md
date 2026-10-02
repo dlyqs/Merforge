@@ -13,6 +13,14 @@ Create with `agentOptions.backend = { kind: 'codex', model, effort, runtimeVersi
 
 `followup()` queues text; `cancel()` requests interruption; `whenIdle()` awaits the owned process cleanup. A native connection is opened lazily for each turn and disposed afterward. The persistent native thread is resumed on the next turn. Steering, attachments, native fork, application slash commands and application compaction are unavailable. Before dispatch, the real `agent/pre-step` waterfall adds selected-task or enabled-method messages to the durable input. General `inject()` remains unsupported. Codex owns native tools and context; Harness tool restrictions do not govern those tools. Provider unload cancels and drains model discovery, active conversations and callback writes before closing the Session turn.
 
+## Native setup
+
+`ctx.codexSetup` owns safe availability independently of runtime, account, models and login. Driver discovery shares its bounded cache; explicit `detect()` reopens a read-only managed runtime. `start(owner)` reserves authentication admission before any await and rereads the native account. Existing authentication or a configuration that requires no OpenAI authentication skips login/start. Otherwise one dedicated stable-protocol app-server owns a device grant until verification, cancellation, timeout or disposal. This flow creates no Agent, Session, thread, turn or model request.
+
+Desktop uses the fixed `./setup-protocol` and browser-safe `./setup-types` interfaces. Shared snapshots exclude native identity, login ID, device code and verification URL. Only the owning window receives a short-lived code and branded attempt ID; Electron opens the current Host-validated official endpoint. Completed notices require account rereading; absent login IDs trigger detection rather than an assumed success. Model errors and empty catalogs remain independent of authentication. Repeated starts share one attempt. Cancellation confirmation and managed cleanup are reported separately. Unconfirmed cleanup keeps native admission closed until Host restart.
+
+`loginTimeoutMs` and `setupCacheMs` are validated Config fields (defaults 300000 and 60000 milliseconds). The process-local admission in `codex-runtime` covers personal, organization and one-shot execution through child/callback cleanup. External Codex processes remain outside this admission. `codex-setup/changed` publishes only a revision and invalidates Client model availability; it never selects a model or writes application credentials. Fixed diagnostics omit identity, code, URL, home and raw errors.
+
 ## Durable observations and recovery
 
 `agent/backend` fixes the selection. `codex/thread-preparing` precedes native thread creation; `codex/thread-bound` records the returned identity. `codex/send-intent` stores exact turn/start parameters and input identity, and flush completes before the protocol write. `codex/send-receipt` records acceptance; `codex/item` records observed native items; `codex/turn-result` records the native terminal or unknown dispatch. Usage stays `unknown`. Required `codex/request` and `codex/request-result` events retain native callbacks and locally observed answers, rejections or cancellation. An answer event does not establish a remote receipt.
@@ -29,7 +37,7 @@ The fixed callbacks are `item/tool/call`, `item/tool/requestUserInput`, `item/co
 
 ## Configuration
 
-Config owns startup/RPC/turn/human/interrupt/disposal timeouts, frame/event/turn limits and model cache/pagination limits. The fixed command and protocol version come from `dsh-codex-runtime`. All process launches use `ctx.subprocess`; the Renderer receives catalog and Session projections, not arbitrary process or protocol access.
+Config owns startup/RPC/turn/human/interrupt/disposal timeouts, frame/event/turn limits, model cache/pagination limits, login lifetime and setup cache limits. The fixed command and protocol version come from `dsh-codex-runtime`. All process launches use `ctx.subprocess`; the Renderer receives catalog and Session projections, not arbitrary process or protocol access.
 
 ## Model Experience
 

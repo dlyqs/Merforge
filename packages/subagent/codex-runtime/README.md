@@ -14,6 +14,12 @@ Call `openCodexRuntime`, `catalog`, `startThread` or `resumeThread`, `send`, the
 
 The shared transport supports UTF-8 split frames, correlated bidirectional RPC, abort removal, strict optional parsing, bounded incoming/outgoing frames, EOF and asynchronous write failures. After close it refuses requests and suppresses late handler responses. The legacy one-shot consumer retains tolerant malformed-line handling and its existing safe diagnostics.
 
+## Device authentication and execution admission
+
+`purpose: 'setup'` creates a read-only/setup connection and refuses thread creation. It exposes only `readAccount`, `startDeviceCode`, `cancelDeviceCode` and cropped `onAccount` observations. The consumer must reserve `acquireCodexActivity('login')` before authentication preparation and release only after child cleanup. Ordinary `openCodexRuntime` automatically reserves execution through process and callback quiescence; the one-shot consumer reserves the same activity before spawning. Authentication and application-owned native execution cannot overlap within a Host. Failed cleanup retains admission. External native processes are outside this process-local owner.
+
+Only `chatgptDeviceCode` can be started. Device code, login ID and URL are ephemeral Host values. The pinned official endpoint is validated before publishing a grant. Completed notifications retain nullable login ID and success, while native error text is discarded; consumers correlate and reread account rather than assuming readiness. Cancel returns `canceled` or `notFound`, independently of cleanup. Unknown start results are never replayed automatically. The owning protocol page records offline schema and official source evidence; real account persistence and platform behavior require user acceptance.
+
 ## Model Experience
 
 ### Persistent native thread

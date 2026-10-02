@@ -35,6 +35,7 @@ import { DesktopOrganizationManager } from './organization-manager.ts'
 import type { ConnectionAction, OrganizationServerAction } from '@deepseek-ai/dsh-organization-connection/types'
 import { DesktopOrganizationProcess } from './organization-process.ts'
 import { DesktopBackendController } from './backend-controller.ts'
+import { createCodexSetupHandler } from './codex-setup-ipc.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -345,6 +346,9 @@ async function main(): Promise<void> {
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
   let injections: readonly unknown[] = []
   let localeBackend: Awaited<ReturnType<typeof connectDesktopLocale>> | undefined
+  ipcMain.handle(DESKTOP_IPC.codexSetup, createCodexSetupHandler({
+    window: () => mainWindow, host: () => backend.host, openExternal: url => shell.openExternal(url),
+  }))
   const assertProductSender = (event: IpcMainInvokeEvent): void =>{  assertOrganizationSender(event, mainWindow) }
   const organization = new DesktopOrganizationProcess(resources.node, resources.dsh, 30000)
   const organizationManager = new DesktopOrganizationManager(organization, desktopHome, async (kind) => {
@@ -459,6 +463,8 @@ async function main(): Promise<void> {
           updateStopFailure = error
         }
       },
+      codexSetup: host.codexSetup.bind(host),
+      subscribeCodexSetup: host.subscribeCodexSetup.bind(host),
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
       openOrganizationExecution: (request: ExecutionRequest, authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority>,
         timeoutMs: number, signal: AbortSignal) => host.openOrganizationExecution(request, authorize, timeoutMs, signal),

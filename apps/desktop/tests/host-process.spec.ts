@@ -1,3 +1,5 @@
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { CodexSetupOwnerId } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import { randomUUID } from 'node:crypto'
 import { contextRequestSchema, contextAuthoritySchema } from '@deepseek-ai/dsh-organization-context/protocol'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
@@ -230,4 +232,46 @@ process.on('message', message => {
   const waiting = host.openOrganizationContext(request, async () => { cancel.abort(); return authority }, 2000, cancel.signal)
   await expect(waiting).rejects.toThrow('cancelled')
   await host.stop()
+})
+
+it('binds setup replies to the Host nonce and invalidates safe state after disconnect', async () => {
+  const safe = { revision: 1, runtime: { version: '0.153.4', status: 'ready' }, account: { status: 'unknown' },
+    catalog: { status: 'unknown', models: [] }, login: { status: 'waiting' } }
+  const project = projectWithHost(HTTP_HOST.replace("  if (message.type !== 'shutdown') return", `
+  if (message.type === 'codex-setup') {
+    const snapshot = ${JSON.stringify(safe)}
+    const device = { attemptId: '11111111-1111-4111-8111-111111111111', userCode: 'current-code' }
+    if (message.operation.kind === 'snapshot') {
+      process.send({ type: 'codex-setup-result', version: 1, nonce: message.nonce, requestId: message.requestId,
+        result: { snapshot: { ...snapshot, revision: 3, login: { status: 'succeeded' } } } })
+      return
+    }
+    process.send({ type: 'codex-setup-result', version: 1, nonce: '22222222-2222-4222-8222-222222222222', requestId: message.requestId,
+      result: { snapshot, device: { ...device, userCode: 'stale-code' } } })
+    const updated = message.operation.kind === 'detect' ? { ...snapshot, revision: 2, login: { status: 'failed', category: 'closed' } } : snapshot
+    process.send({ type: 'codex-setup-changed', version: 1, nonce: message.nonce, snapshot: updated })
+    process.send({ type: 'codex-setup-result', version: 1, nonce: message.nonce, requestId: message.requestId, result: { snapshot, device } })
+    return
+  }
+  if (message.type !== 'shutdown') return`))
+  const host = hostProcess(project)
+  const ready = await host.start(), changed = vi.fn()
+  const dispose = host.subscribeCodexSetup(changed)
+  const result = await host.codexSetup(brandString<CodexSetupOwnerId>(randomUUID()), { kind: 'start' })
+  expect(result.view.device?.userCode).toBe('current-code')
+  expect(changed.mock.calls[0]?.[0]).toEqual(safe)
+  const stale = await host.codexSetup(brandString<CodexSetupOwnerId>(randomUUID()), { kind: 'detect' })
+  expect(stale.view.device).toBeUndefined()
+  expect(stale.view.snapshot.revision).toBe(2)
+  const latest = await host.codexSetup(brandString<CodexSetupOwnerId>(randomUUID()), { kind: 'snapshot' })
+  expect(latest.view.snapshot.revision).toBe(3)
+  const late = await host.codexSetup(brandString<CodexSetupOwnerId>(randomUUID()), { kind: 'detect' })
+  expect(late.view.device).toBeUndefined()
+  expect(late.view.snapshot.revision).toBe(3)
+  await fetch(new URL('/fatal', ready.url))
+  await vi.waitFor(() => {
+    expect(changed.mock.calls.at(-1)?.[0]).toMatchObject({ login: { status: 'failed', category: 'closed' }, catalog: { status: 'unknown' } })
+  })
+  await expect(host.codexSetup(brandString<CodexSetupOwnerId>(randomUUID()), { kind: 'start' })).rejects.toThrow('closed')
+  dispose()
 })

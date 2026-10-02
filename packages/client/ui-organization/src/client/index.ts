@@ -22,6 +22,8 @@ export const inject = ['slots', 'locale', 'remote', 'remote.session']
  */
 export function apply(ctx: Context): void {
   const desktop = (globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }).dshDesktop?.organization
+  const modelCatalogRevision = createSnapshotStore(0)
+  ctx.remote.$on('api-session/model-catalog-changed', (revision) => { modelCatalogRevision.set(revision) })
   const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0, generation: 0,
     phase: 'disconnected',
     mode: 'personal',
@@ -33,19 +35,21 @@ export function apply(ctx: Context): void {
       names: ['localhost', '127.0.0.1'],
       restoreOnLaunch: false } } })
   const unavailable = (): never => { throw new Error('desktop-required') }
+  const loadModels: NonNullable<OrganizationInjected['loadModels']> = async () => {
+    const revision = modelCatalogRevision.getSnapshot()
+    const result = await ctx.remote.session.modelCatalog()
+    if (!result.ok) throw new Error(result.error.message)
+    return revision === modelCatalogRevision.getSnapshot() ? result.value : loadModels()
+  }
   const bind = (): OrganizationInjected => ({ available: !!desktop,
-    loadModels: async () => {
-      const result = await ctx.remote.session.modelCatalog()
-      if (!result.ok) throw new Error(result.error.message)
-      return result.value
-    },
+    loadModels,
     connection: action => desktop ? desktop.connection(action) : unavailable(),
     server: action => desktop ? desktop.server(action) : unavailable(),
     secret: () => desktop ? desktop.secret() : unavailable(),
     context: request => desktop ? desktop.context(request) : unavailable(),
     executionReport: request => desktop ? desktop.executionReport(request) : unavailable(),
     execution: request => desktop ? desktop.execution(request) : unavailable(),
-    hooks: { organization: state } })
+    hooks: { organization: state, modelCatalogRevision } })
   ctx.effect(() => ctx.locale.register('organization', { zh, en }), 'organization.locale')
   ctx.effect(() => {
     if (!desktop) return () => {}
