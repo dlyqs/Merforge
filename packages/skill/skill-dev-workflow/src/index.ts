@@ -47,6 +47,8 @@ export function apply(ctx: Context): void {
   ctx.on('agent/created', ({ agent }) => {
     agent.ctx.inject(['tools'], (scoped) => {
       scoped.tools.filterVisible((tool) => {
+        // Native declarations remain stable across mode/task changes; executors recheck permission.
+        if (agent.options.backend?.kind === 'codex' && ['workflow_assess', 'workflow_propose', 'workflow_complete'].includes(tool)) return true
         if (ctx.personalWorkflow.execution.forSession(agent.session.id) !== null
           && ctx.personalWorkflow.execution.limits.blockedTools.includes(tool)) return false
         if (tool === 'workflow_complete') return ctx.personalWorkflow.execution.forSession(agent.session.id)?.sessionId === agent.session.id
@@ -142,8 +144,26 @@ export function apply(ctx: Context): void {
 }
 
 function installExecution(ctx: Context): void {
+  const deadlines = new Map<import('@deepseek-ai/dsh-session').SessionId, ReturnType<typeof setTimeout>>()
+  const clear = (id: import('@deepseek-ai/dsh-session').SessionId) => { clearTimeout(deadlines.get(id)); deadlines.delete(id) }
+  ctx.on('agent/pre-step', async ({ agent, signal }, next) => {
+    const decision = await next()
+    if (agent.options.backend?.kind === 'codex') {
+      clear(agent.id)
+      const run = ctx.personalWorkflow.execution.forSession(agent.id)
+      if (run !== null && run.status === 'running') {
+        signal.throwIfAborted()
+        deadlines.set(agent.id, setTimeout(() => {
+          agent.cancel({ kind: 'user' })
+        }, Math.max(1, run.startedAt + run.authorization.maxDurationMs - Date.now())))
+      }
+    }
+    return decision
+  })
+  ctx.effect(() => () => { for (const id of deadlines.keys()) clear(id) }, 'workflow.native-deadlines')
   ctx.on('agent/status', ({ agent, status }) => {
     if (status !== 'idle') return
+    clear(agent.id)
     void ctx.personalWorkflow.execution.interrupt(agent.session).catch(() => {
       ctx.logger.warn(`personal-workflow sessionId=${agent.session.id} decisionCode=idle-reconciliation result=failed`)
     })
@@ -176,6 +196,7 @@ function installExecution(ctx: Context): void {
     } finally { await ctx.personalWorkflow.execution.settleAction(runId, exec.callId, succeeded) }
   })
   ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
+    clear(agent.id)
     if (await ctx.personalWorkflow.execution.endTurn(agent.session)) {
       signal.throwIfAborted()
       agent.steer(createUserMessage({ source: { kind: 'personal-workflow-continue' }, content: [{ type: 'text', text: 'Continue only the selected task within its remaining authorization. Verify acceptance and record evidence with workflow_complete; do not select or start another task.' }] }))

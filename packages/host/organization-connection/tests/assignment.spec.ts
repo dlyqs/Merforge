@@ -23,10 +23,10 @@ afterEach(async () => { vi.restoreAllMocks(); for (const close of cleanup.splice
 const password = 'correct horse battery staple'
 const vault = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test-vault',
   encryptString: (text: string) => Buffer.from(text), decryptString: (bytes: Buffer) => bytes.toString() }
-async function setup() {
+async function setup(native = false) {
   const root = await mkdtemp(join(tmpdir(), 'native-assignment-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
-  const app = await bootOrganization({ api: { directory: join(root, 'server'), host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 }, authority: { leaseTtlMs: 2000 } })
+  const app = await bootOrganization({ api: { directory: join(root, 'server'), host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 }, authority: { leaseTtlMs: 2000, ...native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: 'native-test', efforts: ['medium'], maxTurns: 2, maxDurationMs: 10000 }] } : {} } })
   cleanup.push(app.close)
   const init = await app.authority.initialize({ operationId: randomUUID(), username: 'owner', password,
     organizationName: 'Team', recoveryToken: randomBytes(32).toString('base64url') })
@@ -238,7 +238,8 @@ it('uses fixed signed execution actions over HTTPS and preserves preparation-onl
     delegationId: delegation.delegationId, capabilities: ['model'], budget: 1, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
   const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
     serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
-  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run', operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
+  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run',
+    operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
   const runId = created.receipt!.execution!.runId!
   const read = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
   expect(read.execution?.run.state).toBe('prepared'); expect(read.execution?.delegation.used).toBe(0)
@@ -266,7 +267,8 @@ async function executionChannelFixture() {
     delegationId: delegation.delegationId, capabilities: ['model'], budget: 2, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
   const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
     serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
-  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run', operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
+  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run',
+    operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
   const runId = created.receipt!.execution!.runId!
   const channel = h.worker.executionChannel({ ...h.selector, runId })
   const run = (await channel.read()).run
@@ -526,4 +528,37 @@ it('rejects through fixed HTTPS actions, notifies the employee and prevents old 
   await vi.waitFor(() => { expect(h.worker.snapshot().inbox?.items.some(i => i.assignment.id === approved.receipt!.assignmentId
     && i.request.kind === 'accept-assignment' && i.request.state === 'pending')).toBe(true) })
   expect((await h.owner.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId } })).artifact?.bytes).toBe(bytes.toString('base64'))
+}, 20000)
+
+it('carries native backend grants and scheduling permits through signed HTTPS while retiring the Run channel on identity change', async () => {
+  const h = await setup(true), delegation = await acceptAndDelegate(h)
+  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
+  const lease = claimed.receipt!.lease!
+  const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4', model: 'native-test', effort: 'medium',
+    maxTurns: 2, maxDurationMs: 10000 }
+  const base = { ...h.selector, planRevision: 1 }
+  const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
+    delegationId: delegation.delegationId, backend, capabilities: ['codex-turn'], budget: 2, expiresAt: Date.now() + 20000, configDigest: 'a'.repeat(64) } })
+  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
+    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, backend, kind: 'create-run',
+    operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
+  const runId = created.receipt!.execution!.runId!
+  const channel = h.worker.executionChannel({ ...h.selector, runId })
+  const view = await channel.read()
+  expect(view.run.backend).toEqual(backend)
+  expect(view.codexPolicy).toHaveLength(1)
+  const command = (fields: object) => executionCommandSchema.parse({ ...owner, deviceId: lease.deviceId,
+    runId, operationId: randomUUID(), ...fields })
+  await channel.command(command({ kind: 'transition-run', state: 'running' }))
+  const actionId = randomUUID()
+  await channel.command(command({ kind: 'reserve-action', actionId, capability: 'codex-turn', requestDigest: 'b'.repeat(64) }))
+  await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'settle-action', actionId,
+    outcome: 'succeeded', evidenceDigest: 'c'.repeat(64), operationId: randomUUID() } })).rejects.toThrow('forbidden')
+  await channel.command(command({ kind: 'settle-action', actionId, outcome: 'unknown', evidenceDigest: 'c'.repeat(64) }))
+  await channel.command(command({ kind: 'transition-run', state: 'paused', stopReason: 'employee-stop' }))
+  expect((await channel.read()).run.stopReason).toBe('employee-stop')
+  await h.worker.perform({ kind: 'personal' })
+  expect(channel.signal.aborted).toBe(true)
+  await expect(channel.read()).rejects.toThrow()
 }, 20000)

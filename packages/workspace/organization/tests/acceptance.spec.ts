@@ -155,7 +155,7 @@ it('migrates v9 without manufacturing acceptances and rolls back failed schema u
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(9)
   h.db.exec('DROP TABLE organization_acceptances')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
   expect(upgraded.prepare('SELECT count(*) AS n FROM organization_acceptances').get()?.n).toBe(0)
   expect(upgraded.prepare('SELECT count(*) AS n FROM organization_submissions').get()?.n).toBe(1)
   upgraded.close()

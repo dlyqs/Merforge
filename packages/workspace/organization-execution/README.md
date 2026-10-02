@@ -10,6 +10,12 @@ The atomic `organization_execution` domain reserves server/account/Run and opera
 
 Cold start verifies reserved/ready/executing/stopped bindings, operation references, orphan logs and the ordering and Run ownership of durable action evidence. An interrupted or stopped binding refuses another execution unless the employee explicitly requests reconciliation and continuation. The `./invariant` companion compares the binding domain and separate JSONL store; Loader tests execute it and exercise persisted corruption. The service never treats a local record or receipt as current execution permission.
 
+## Backend scheduling metadata
+
+SQLite authority reads may contain an explicit Codex backend and native policy. Fixed HTTPS/native/private IPC transport carries those validated fields without credentials or native home paths. Shared metadata is excluded when deriving signed command selectors. API Run preparation and execution retain their existing model permits.
+
+`executeConfigured` rejects a Codex Run with `native-executor-not-mounted` before selecting an API model or starting a loop. The organization Codex dispatch/transcript consumer belongs to Codex Phase 7; native scheduling qualification alone does not execute work or enable organization UI selection.
+
 ## Internal execution consumer
 
 `executionLimits` is an optional validated Config field containing `maxActions`, `maxSteps`, `maxDurationMs`, `maxBytes` and `recheckMs`. Omission disables `execute`. Desktop supplies finite ceilings and explicit local text model routes. Execution also requires explicit local `inputs.execution` directory and action/step/duration limits, covered by the original configuration digest. Old prepared inputs cannot gain execution permission. The application resolves the adapter from `models`; each entry fixes the model, exact HTTPS /v1 endpoint, credential reference, output/context limits and idle timeout. The organization authority supplies its independent `executionModels` allowlist on every read. The employee selection must match both. Renderer has no callback or adapter parameter.

@@ -1,7 +1,7 @@
 import { integrationReceiptSchema } from './integration-schema.ts'
 /** Strict JSON and durable-row parsers for the organization authority. */
 import { deliveryReceiptSchema } from './delivery-schema.ts'
-import { executionReceiptSchema, executionModelSchema } from './execution-schema.ts'
+import { executionReceiptSchema, executionModelSchema, executionCodexPolicySchema } from './execution-schema.ts'
 import { z } from 'zod'
 import { assignmentIdSchema, delegationIdSchema, deviceIdSchema } from './assignment-schema.ts'
 import { leaseSchema } from './device-schema.ts'
@@ -42,6 +42,7 @@ export const configSchema = z.object({
   workgraphMaxDepth: z.number().int().min(1).max(10000).default(100),
   workgraphMaxBytes: z.number().int().min(256).max(104857600).default(1048576),
   delegationMaxDurationMs: z.number().int().min(1000).max(604800000).default(3600000),
+  executionCodex: z.array(executionCodexPolicySchema).max(100).default([]),
   executionModels: z.array(executionModelSchema).max(100).default([
     { model: 'deepseek-flash', endpoint: 'https://api.deepseek.com/anthropic/v1' },
     { model: 'deepseek-v4-pro', endpoint: 'https://api.deepseek.com/anthropic/v1' },

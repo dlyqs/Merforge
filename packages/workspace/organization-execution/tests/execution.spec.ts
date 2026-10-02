@@ -28,6 +28,24 @@ it('waits for an outstanding report authorization on disposal and never delivers
   expect(closed).toBe(true)
 })
 
+it('rejects a native Run before resolving API credentials or mounting an API executor', async () => {
+  const h = await boot(), f = fixture()
+  const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4',
+    model: 'native-test', effort: 'medium', maxTurns: 2, maxDurationMs: 10000 } as const
+  const authority: ExecutionAuthority = { ...f.authority, execution: { ...f.authority.execution,
+    run: { ...f.authority.execution.run, backend, startedAt: null, stopReason: null },
+    delegation: { ...f.authority.execution.delegation, backend, capabilities: ['codex-turn'] } } }
+  const request = { ...f.request, inputs: { ...f.request.inputs, execution: {
+    directory: h.root, maxActions: 2, maxSteps: 2, maxDurationMs: 10000 } } }
+  const bridge = vi.fn(async () => authority)
+  const fetch = vi.spyOn(globalThis, 'fetch')
+  await expect(h.service.executeConfigured(request, bridge, signal())).rejects.toThrow('native-executor-not-mounted')
+  expect(bridge).toHaveBeenCalledOnce()
+  expect(fetch).not.toHaveBeenCalled()
+  expect(h.ctx.agents.list()).toEqual([])
+  expect(await h.ctx.sessionPersistence.list()).toEqual([])
+})
+
 it('loads the isolated composition and reopens exactly the same durable Run log without Agent activation', async () => {
   const { request, authority } = fixture(), first = await boot()
   const one = await first.service.open(request, async () => authority, signal())
@@ -219,7 +237,7 @@ it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/privat
     const backup = backupOrganization(remote.config.api.directory, join(remote.root, 'backup'), 100)
     if (!start) {
       const legacy = new DatabaseSync(join(backup, 'organization.sqlite'))
-      legacy.exec('DROP TABLE execution_human_requests; PRAGMA user_version=7')
+      legacy.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; PRAGMA user_version=7')
       legacy.close()
       const hashes = { 'organization.sqlite': createHash('sha256').update(await readFile(join(backup, 'organization.sqlite'))).digest('hex'),
         'tls-identity.json': createHash('sha256').update(await readFile(join(backup, 'tls-identity.json'))).digest('hex') }

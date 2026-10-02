@@ -23,7 +23,7 @@ describe('offline app-server over the real subprocess owner', () => {
         experimentalApi: true,
         limits: { startupTimeoutMs: 5000, rpcTimeoutMs: 1000, turnTimeoutMs: 1000, interruptTimeoutMs: 100,
           disposeGraceMs: 10, maxFrameBytes: 65536, maxEarlyEvents: 10, maxTurnBytes: 65536,
-          modelCacheMs: 100, modelPageSize: 10, maxModelPages: 2 },
+          humanTimeoutMs: 1000, modelCacheMs: 100, modelPageSize: 10, maxModelPages: 2 },
         spawn: (spec) => {
           const child = ctx.subprocess.spawn({ ...spec, argv: [process.execPath, fixture] })
           children.push(child)

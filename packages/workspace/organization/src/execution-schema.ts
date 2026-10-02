@@ -13,11 +13,24 @@ const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 /** Non-secret, immutable configuration or request digest. */
 export const executionDigestSchema = z.string().regex(/^[a-f0-9]{64}$/)
 /** Independently granted actual-call capabilities. */
-export const executionCapabilitySchema = z.enum(['model', 'fs-read', 'fs-write', 'shell'])
+export const executionCapabilitySchema = z.enum(['model', 'fs-read', 'fs-write', 'shell', 'codex-turn'])
+/** Employee-device native scheduling selection; contains no account, home or endpoint. */
+export const executionCodexBackendSchema = z.object({ kind: z.literal('codex'), dispatch: z.literal('device-native'),
+  runtimeVersion: z.literal('0.153.4'), model: z.string().min(1).max(200),
+  effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']),
+  maxTurns: integer.positive(), maxDurationMs: integer.positive().max(2147483647),
+}).strict()
+/** Deployment-approved native models and scheduling ceilings; independent of HTTP model routes. */
+export const executionCodexPolicySchema = executionCodexBackendSchema.omit({ kind: true, dispatch: true, effort: true }).extend({
+  efforts: z.array(executionCodexBackendSchema.shape.effort).min(1).max(8),
+}).strict()
+/** Recorded reason for stopping native scheduling; never a model/tool budget observation. */
+export const executionStopReasonSchema = z.enum(['employee-stop', 'duration-limit', 'turn-limit', 'authority-lost', 'native-terminal'])
 const base = assignmentReadSchema.extend({ operationId: id<OperationId>(), deviceId: deviceIdSchema, planRevision: planRevisionSchema })
 /** Employee explicitly grants execution against one preparation delegation; never inferred by migration. */
 export const grantExecutionSchema = base.extend({ kind: z.literal('grant-execution'), delegationId: delegationIdSchema,
   capabilities: z.array(executionCapabilitySchema).min(1).max(4).transform(v => [...new Set(v)].sort()),
+  backend: executionCodexBackendSchema.optional(),
   budget: integer.positive(), expiresAt: integer.positive(), configDigest: executionDigestSchema,
 }).strict()
 /** Withdraw execution independently of its preparation delegation. */
@@ -25,7 +38,7 @@ export const revokeExecutionSchema = base.extend({ kind: z.literal('revoke-execu
 const owner = base.extend({ executionDelegationId: id<OrganizationExecutionDelegationId>(), serverEpoch: serverEpochSchema,
   fencingEpoch: fencingEpochSchema })
 /** Reserve a Run identity before local Session creation. */
-export const createRunSchema = owner.extend({ kind: z.literal('create-run'), configDigest: executionDigestSchema }).strict()
+export const createRunSchema = owner.extend({ kind: z.literal('create-run'), configDigest: executionDigestSchema, backend: executionCodexBackendSchema.optional() }).strict()
 /** One exact Run selector; excludes client-selected local Session identities. */
 export const executionReadSchema = assignmentReadSchema.extend({ runId: id<OrganizationRunId>() }).strict()
 const runCommand = owner.extend({ runId: id<OrganizationRunId>() })
@@ -38,7 +51,7 @@ export const settleActionSchema = runCommand.extend({ kind: z.literal('settle-ac
   outcome: z.enum(['succeeded', 'failed', 'not-issued', 'unknown']), evidenceDigest: executionDigestSchema }).strict()
 /** Terminal Run facts are independent of submission and acceptance. */
 export const transitionRunSchema = runCommand.extend({ kind: z.literal('transition-run'),
-  state: z.enum(['running', 'paused', 'succeeded', 'failed', 'cancelled']) }).strict()
+  state: z.enum(['running', 'paused', 'succeeded', 'failed', 'cancelled']), stopReason: executionStopReasonSchema.optional() }).strict()
 /** Persist a designated question or approval and stop this Run before further actions. */
 export const requestExecutionHumanSchema = runCommand.extend({ kind: z.literal('request-execution-human'),
   requestId: executionHumanSchema.shape.id, handlerId: executionHumanSchema.shape.handlerId,
@@ -63,6 +76,7 @@ export const executionDelegationSchema = grantExecutionSchema.omit({ kind: true,
 /** Shared Run summary; contains neither local directory nor conversation. */
 export const executionRunSchema = createRunSchema.omit({ kind: true, operationId: true }).extend({
   id: id<OrganizationRunId>(), state: z.enum(['prepared', 'running', 'paused', 'waiting-human', 'succeeded', 'failed', 'cancelled']),
+  startedAt: integer.positive().nullable().optional(), stopReason: executionStopReasonSchema.nullable().optional(),
   createdRevision: integer.positive(), version: integer.positive(),
 }).strict()
 /** Charged action identity and retained result evidence. */
@@ -86,6 +100,7 @@ export const executionModelSchema = z.object({ model: z.string().min(1).max(200)
 export const executionViewSchema = z.object({ run: executionRunSchema, delegation: executionDelegationSchema,
   assigneeId: executionHumanSchema.shape.handlerId, approvedBy: executionHumanSchema.shape.handlerId,
   humanRequests: z.array(executionHumanSchema), actions: z.array(executionActionSchema), serverTime: integer, eligible: z.boolean(),
+  codexPolicy: z.array(executionCodexPolicySchema).max(100).default([]),
   modelPolicy: z.array(executionModelSchema).max(100) }).strict()
 
 /** Bounded current-authority Run history for one assignment. */

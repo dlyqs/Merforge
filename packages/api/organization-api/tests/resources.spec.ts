@@ -1,5 +1,8 @@
 /** Authorization matrix and replay races through the shipped HTTPS/SQLite composition. */
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
+import { IncomingMessage, ServerResponse } from 'node:http'
+import { Socket } from 'node:net'
+import { OrganizationStreams } from '../src/events.ts'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -262,4 +265,43 @@ it('exposes versioned grant metadata only to managers without leaking project co
   }, { projectId: project.projectId, membershipId: h.owner.membershipId, actions: [], version: revoked.revision }]))
   expect((await h.call('GET', path, undefined, h.aliceLogin.token)).status).toBe(403)
   expect((await h.page(h.ownerLogin.token)).items).toEqual([])
+}, 15000)
+
+it('waits for a pending stream write without advancing its cursor and rechecks permission before delivery', async () => {
+  const h = await setup()
+  const project = await h.create()
+  const grant = await h.grant(project, ['read', 'write'])
+  const snapshot = await h.page()
+  const response = new ServerResponse(new IncomingMessage(new Socket()))
+  const frames: string[] = []
+  let buffered = 0, sent = false
+  const length = vi.spyOn(response, 'writableLength', 'get').mockImplementation(() => buffered)
+  const headers = vi.spyOn(response, 'headersSent', 'get').mockImplementation(() => sent)
+  const write = vi.spyOn(response, 'write').mockImplementation((chunk) => { frames.push(String(chunk)); sent = true; return true })
+  const end = vi.spyOn(response, 'end').mockReturnValue(response)
+  const read = vi.spyOn(h.app.authority, 'readProjectEvents')
+  const streams = new OrganizationStreams(h.app.ctx, {
+    maxSubscriptions: 1, eventPollMs: 20, streamMaxAgeMs: 5000, maxResponseBytes: 1048576,
+  })
+  try {
+    await streams.open(h.aliceLogin.token, h.organizationId, snapshot.cursor, response)
+    expect(frames).toHaveLength(1)
+    buffered = 13
+    const first = await h.rename(project, 'Buffered change')
+    const observed = read.mock.calls.length
+    await vi.waitFor(() => { expect(read.mock.calls.length).toBeGreaterThan(observed) })
+    expect(response.destroyed).toBe(false)
+    expect(frames).toHaveLength(1)
+    expect(read.mock.calls.at(-1)?.[1].cursor).toBe(snapshot.cursor)
+    buffered = 0
+    await vi.waitFor(() => { expect(frames.some(frame => frame.includes(`"revision":${(first.body as Receipt).revision}`))).toBe(true) })
+    buffered = 13
+    await h.grant(project, [], grant.revision)
+    await vi.waitFor(() => { expect(response.destroyed).toBe(true) })
+    expect(end).not.toHaveBeenCalled()
+    expect(frames.filter(frame => frame.startsWith('data: '))).toHaveLength(2)
+  } finally {
+    await streams.close()
+    for (const spy of [length, headers, write, end, read]) spy.mockRestore()
+  }
 }, 15000)

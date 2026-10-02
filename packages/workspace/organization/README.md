@@ -40,7 +40,7 @@ Defaults serve a small LAN deployment, and validated Config fields allow adjustm
 
 ## Persistence and replay
 
-`ORGANIZATION_SCHEMA_VERSION = 6` and a dedicated SQLite application ID identify this database. Known v1-v5 databases upgrade transactionally, preserving approvals and null acceptance deadlines while adding participant, device and lease records; unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
+`ORGANIZATION_SCHEMA_VERSION = 12` and a dedicated SQLite application ID identify this database. Known v1–v11 databases upgrade transactionally. v12 admits explicit Codex scheduling metadata in execution records; v11 API Run JSON is unchanged and no native grant is inferred. Unknown versions, foreign databases, unstamped nonempty files and malformed durable rows are refused. New directories/files use owner-only POSIX modes; existing filesystem permissions remain the owner's responsibility. The directory must be local and not writable by other principals. Windows confidentiality relies on the user's directory ACL.
 
 WAL, `synchronous=FULL`, foreign keys and synchronous `BEGIN IMMEDIATE` transactions ensure business records, their monotonically sequenced audit event and receipt commit together. Cross-connection writes recheck permission, entity version and invitation state under the write lock. No asynchronous work runs inside a SQL transaction. SQL faults and commit failures roll back, and process termination leaves uncommitted changes invisible after reopening.
 
@@ -68,7 +68,7 @@ Structural changes invalidate all old task grants except the current editor's ex
 
 `grantTask` manages explicit node/subtree read and root-subtree edit with optimistic grant versions. Management responses from `readTaskGrants` never include task text. `readTasks` intersects current and historical covered task IDs, filters hidden parents, phases and dependencies, then searches and paginates. A hidden prerequisite is represented by one boolean, without identity or count. Project-wide lists may be empty. Inaccessible plan/task detail selections return forbidden. `readWorkgraphEvents` compares authorized projections and omits edits confined to hidden tasks. Account/member/project/task-grant or structural epoch changes invalidate cursors; delivery reauthenticates inside the serialized authority operation. Current member/account state determines suggestion assignability.
 
-Offline backups write schema 11; restore also accepts validated schema 2–10 backups, checks the actual stamp and upgrades staging before swapping directories. Login revocation and recovery rotation still apply; pending/accepted assignments, devices, delegations and leases are permanently invalidated during restore; prior human answers remain historical facts.
+Offline backups write schema 12; restore also accepts validated schema 2–11 backups, checks the actual stamp and upgrades staging before swapping directories. Login revocation and recovery rotation still apply; pending/accepted assignments, devices, delegations and leases are permanently invalidated during restore; prior human answers remain historical facts.
 
 ## Assignment approval
 
@@ -94,7 +94,7 @@ This package contributes no model requests, tools, prompt text or Session events
 
 ## Known Limitations and Deferred Work
 
-HTTPS/native assignment actions, Electron vault wiring, reconnect/renewal coordination and assignment UI are implemented. The [assignment acceptance and handoff](../../../docs/organization-assignment-acceptance.md) separates built-process evidence from pending three-machine and OS vault checks. Preparation queries do not authorize execution; Phase 7A must add action-level admission. No approval activates an Agent or creates an employee Session.
+HTTPS/native assignment actions, Electron vault wiring, reconnect/renewal coordination and assignment UI are implemented. The [assignment acceptance and handoff](../../../docs/organization-assignment-acceptance.md) separates built-process evidence from pending three-machine and OS vault checks. Preparation queries do not authorize execution; separate execution grants and action admission are implemented. No approval activates an Agent or creates an employee Session.
 
 GUI and native connection ownership live in `ui-organization`, `organization-connection` and Desktop. `./maintenance` owns the offline directory lock, checked backups and staged restore, which revokes old logins/invitations and rotates recovery. `receipt` checks current authority before resolving an uncertain account operation. HTTPS ingress and private Electron lifecycle live in `organization-api` and Desktop; this domain package never starts a listener. The API must bound queued requests before calling this service. This service owns no file-import or personal-data migration path. Disk access by a principal who can replace the database is outside its confidentiality guarantees.
 
@@ -109,6 +109,16 @@ Each new action charges one unit atomically across all Runs of its execution del
 Startup and offline backup/restore validate independent references, receipt snapshots, epochs and action counts. Restore retires execution authority alongside devices and leases. The [execution protocol](../../../../docs/organization-execution.md) defines later submissions, acceptance and integration; Run terminal states do not imply any of them.
 
 `executionModels` configures the outbound text-model allowlist delivered with current-authority Run reads. Defaults allow `deepseek-flash` and `deepseek-v4-pro` only at `https://api.deepseek.com/anthropic/v1`; an empty list disables model dispatch. Local credential destinations and the explicit employee model selection must also match. `/execution/list` pages exact-assignment Run history under current task authorization, without returning local configuration or conversation text.
+
+## Codex scheduling authority
+
+`executionCodex` is a separate native allowlist, defaulting to an empty array. Each entry fixes runtimeVersion `0.153.4`, model, supported efforts, maxTurns and maxDurationMs. Explicit grants and Runs carry `backend: { kind: codex, dispatch: device-native, runtimeVersion, model, effort, maxTurns, maxDurationMs }`; strict parsers reject account/token/home/endpoint fields. API grants omit backend and keep their model-route semantics.
+
+Native grants admit only `codex-turn`, with budget no larger than maxTurns. Start, reserve and explicit resume recheck exact task/version, readable accepted prerequisites, acceptance, preparation and execution delegations, registered device and dual-epoch lease, plus current native policy. Reserved or unknown native dispatch blocks another dispatch. A reservation consumes one unit, including not-issued or unknown outcomes, and only the original device may report historical results.
+
+The first running transition fixes startedAt. Pauses and human waits consume the same cumulative duration. Reads and authority operations persist duration-limit or authority-lost pauses and revoke pending native human answers. Exhausting turn/budget records turn-limit while the last reserved turn may still settle and reach a terminal state. Employee stops and native terminals record separate reasons. These limits govern application scheduling, not Codex’s internal requests or tools.
+
+Fixed signed HTTPS/native/IPC schemas carry this metadata through existing generation, nonce, signature and window checks. The native executor and organization selection UI belong to Codex Phase 7–8; `organization-execution.executeConfigured` currently refuses native Runs before mounting an API executor.
 
 ## Execution human requests
 

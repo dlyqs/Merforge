@@ -32,6 +32,8 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'codex/diagnostic',
   'codex/item',
   'codex/recovery',
+  'codex/request',
+  'codex/request-result',
   'codex/send-intent',
   'codex/send-receipt',
   'codex/thread-bound',

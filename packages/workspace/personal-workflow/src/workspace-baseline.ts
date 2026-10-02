@@ -15,9 +15,7 @@ const exec = promisify(execFile)
  * @returns Canonical directory, Git baseline and content fingerprints.
  */
 export async function observeWorkspace(cwd: string, paths: readonly string[], maxBytes: number): Promise<WorkspaceBaseline> {
-  if (!isAbsolute(cwd)) throw new Error('personal-workflow: execution directory must be absolute')
-  const root = await realpath(cwd)
-  if (!(await stat(root)).isDirectory()) throw new Error('personal-workflow: execution directory is not a directory')
+  const root = await executionDirectory(cwd)
   const files: ArtifactFingerprint[] = []
   let bytes = 0
   const visiting = new Set<string>()
@@ -83,6 +81,21 @@ export async function observeWorkspace(cwd: string, paths: readonly string[], ma
   if (gitHead === null && files.length === 0) throw new Error('personal-workflow: non-Git tasks require declared artifact paths')
   return { cwd: root, gitHead, gitDirty, gitFiles, files }
 }
+/** Resolve only the native task directory; Codex owns artifact and Git verification.
+ * @param cwd - Existing explicit execution directory.
+ * @returns Canonical directory with no application artifact observations.
+ */
+export async function observeNativeDirectory(cwd: string): Promise<WorkspaceBaseline> {
+  return { cwd: await executionDirectory(cwd), gitHead: null, gitDirty: null, gitFiles: [], files: [] }
+}
+
+async function executionDirectory(cwd: string): Promise<string> {
+  if (!isAbsolute(cwd)) throw new Error('personal-workflow: execution directory must be absolute')
+  const root = await realpath(cwd)
+  if (!(await stat(root)).isDirectory()) throw new Error('personal-workflow: execution directory is not a directory')
+  return root
+}
+
 function hash(value: string | Uint8Array): string { return createHash('sha256').update(value).digest('hex') }
 
 /** Compare only this task's observed paths; unrelated sibling outputs do not invalidate it.

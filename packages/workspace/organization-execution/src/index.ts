@@ -116,7 +116,8 @@ export default class OrganizationExecution extends Service {
       if (!state || this.closing) throw new Error('organization-execution: unavailable')
       const saved = state.get(), binding = saved.bindings.find(item => item.sessionId === prepared.sessionId)
       if (!binding || (!request.resume && binding.state !== 'ready') || (request.resume && !['stopped', 'executing'].includes(binding.state))) throw new Error('organization-execution: explicit-reconciliation-required')
-      const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = prepared.run
+      const { id, state: _state, version: _version, createdRevision: _created,
+        configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = prepared.run
       const transition = (status: 'running' | 'paused' | 'succeeded') => online(executionCommandSchema.parse({
         ...selector, runId: id, kind: 'transition-run', state: status, operationId: randomUUID(),
       }))
@@ -177,7 +178,8 @@ export default class OrganizationExecution extends Service {
     if (!binding.inputs.execution) throw new Error('organization-execution: explicit-local-authorization-required')
     const observed = await inspectDirectory(binding.inputs.execution.directory, maxBytes)
     if (observed.digest !== baseline) throw new Error('organization-execution: baseline-changed')
-    const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = binding.run
+    const { id, state: _state, version: _version, createdRevision: _created,
+      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = binding.run
     let authority = await online()
     if (authority.execution.run.state === 'running') authority = await online(executionCommandSchema.parse({ ...selector, runId: id,
       kind: 'transition-run', state: 'paused', operationId: randomUUID() }))
@@ -212,8 +214,9 @@ export default class OrganizationExecution extends Service {
       pending = response.then(() => {}, () => {})
       return response
     }
-    const adapter = executionAdapter(this.ctx, request, this.config.models ?? [], online, signal)
     const authority = await online()
+    if (authority.execution.run.backend !== undefined) throw new Error('organization-execution: native-executor-not-mounted')
+    const adapter = executionAdapter(this.ctx, request, this.config.models ?? [], online, signal)
     if (!authority.execution.modelPolicy.some(p => p.model === request.inputs.model && p.endpoint === request.inputs.endpoint)) {
       throw new Error('organization-execution: organization-model-policy-denied')
     }

@@ -54,7 +54,8 @@ export class OrganizationStreams {
           : this.ctx.organization.readProjectEvents.bind(this.ctx.organization)
       const task = read(token, { organizationId, cursor }, (batch) => {
         if (ended || response.destroyed) return
-        if (response.writableLength > 0) { close(); return }
+        // Retry after the pending write drains; retain the cursor and recheck authority.
+        if (response.writableLength > 0) return
         const frame = !response.headersSent || batch.cursor !== cursor ? `data: ${JSON.stringify(batch)}\n\n` : ': ping\n\n'
         if (Buffer.byteLength(frame) > this.limits.maxResponseBytes) { close(); return }
         if (!response.headersSent) response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' })

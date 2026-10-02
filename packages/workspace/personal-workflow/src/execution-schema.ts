@@ -22,11 +22,11 @@ export const baselineSchema = z.object({
   files: z.array(z.object({ path: text, sha256: text.nullable() }).strict()),
 }).strict()
 const evidence = z.object({
-  summary: text, acceptance: z.array(text).min(1), callIds: z.array(text).min(1), files: baselineSchema.shape.files, time: positive,
-}).strict()
+  reportedBy: z.literal('codex').optional(), summary: text, acceptance: z.array(text).min(1), callIds: z.array(text), files: baselineSchema.shape.files, time: positive,
+}).strict().refine(value => value.reportedBy === 'codex' ? value.callIds.length === 0 && value.files.length === 0 : value.callIds.length > 0)
 /** Complete execution record parser. */
 export const runSchema: z.ZodType<TaskRun> = z.object({
-  id: runId, taskId, planId: taskId, planRevision: positive, sessionId, sessions: z.array(sessionId).min(1), ownerEpoch: positive,
+  backend: z.literal('codex').optional(), id: runId, taskId, planId: taskId, planRevision: positive, sessionId, sessions: z.array(sessionId).min(1), ownerEpoch: positive,
   status: z.enum(['running', 'paused', 'needs_reconciliation', 'completed', 'cancelled']), reason: text.nullable(),
   authorization: authorizationSchema, startedAt: positive, turnsUsed: z.number().int().nonnegative(), baseline: baselineSchema,
   permissionFingerprint: text,

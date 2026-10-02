@@ -10,15 +10,15 @@ The user selects enhancement mode in the conversation composer. `personalWorkflo
 
 `workflow_assess` records simple, clarify, infeasible, or complex decisions. Simple goals use ordinary assistance without creating plans. Ambiguous goals require questions, and infeasible goals require conditions or alternatives. Only the complex decision permits `workflow_propose`; it checks persisted mode, exact mode revision, Bot Skill permission, conversation affiliation, and graph validity during the serialized plan commit. Proposals are unapproved; the planning tools cannot approve or execute tasks. Disabling the mode adds a logged instruction superseding earlier method text on the next request.
 
-Tool cards use the existing generic assessment/read and proposal/edit presentations; results retain structured records as JSON text. `workflow_complete` records task evidence only after successful logged tool results and host-observed files. Execution hooks persist action admission before dispatch, apply a final permission guard, and record settlement after dispatch.
+Tool cards use the existing generic assessment/read and proposal/edit presentations; results retain structured records as JSON text. `workflow_complete` verifies API task evidence against successful logged tool results and host-observed files. Codex completion records `reportedBy: codex`, its summary and acceptance reports with empty file/call evidence; execution quality belongs to Codex. Execution hooks persist action admission before dispatch, apply a final permission guard, and record settlement after dispatch.
 
 ## Model Experience
 
-Off mode contributes no catalog entry or method text and hides the planning schemas. Enabled mode adds the managed method and assessment/proposal schemas. Goal classification remains a model decision; deterministic tests validate its allowed routes and persisted effects, not arbitrary natural-language classification accuracy.
+Off mode contributes no catalog entry or method text. API mode hides planning schemas. Codex advertises the three task declarations when the thread starts, so later explicit mode changes work in that same thread; the executors still reject disabled mode, denied Bot permission or invalid task ownership. Enabled mode adds the managed method and assessment/proposal schemas. Goal classification remains a model decision; deterministic tests validate its allowed routes and persisted effects, not arbitrary natural-language classification accuracy.
 
 #### KV Cache effect
 
-Mode transitions and enabled method injections append logged context. Turning the mode off removes its tool schemas and may start a new model request series under the existing loop rules.
+Mode transitions and enabled method injections append logged context. Turning the API mode off removes its tool schemas and may start a new model request series under the existing loop rules.
 
 ## Runtime invariants
 
@@ -26,7 +26,7 @@ No invariant companion is published: mode, assessment and proposal authority are
 
 ## Known Limitations and Deferred Work
 
-Selected-task execution adds logged `personal-workflow-execution` context. Automatic continuation uses `personal-workflow-continue` and only the selected task’s remaining limits; it never claims another task. User Remote operations own handoff. The managed method does not import upstream automatic conversation relay or Markdown state writes. This package's resources are resolved relative to its installed module, not a developer machine. Method updates require explicit source and authorization review followed by routing, permission, Loader and built-resource checks.
+Selected-task execution adds logged `personal-workflow-execution` context. Automatic continuation uses `personal-workflow-continue` and only the selected task’s remaining limits; it never claims another task. User Remote operations own API handoff. Codex task turns pause for explicit resume/send instead of automatic continuation, and native task handoff is refused. The native duration timer uses the original cumulative authorization deadline and is cleared on stop, idle or plugin teardown. The managed method does not import upstream automatic conversation relay or Markdown state writes. This package's resources are resolved relative to its installed module, not a developer machine. Method updates require explicit source and authorization review followed by routing, permission, Loader and built-resource checks.
 
 ## Integration acceptance
 

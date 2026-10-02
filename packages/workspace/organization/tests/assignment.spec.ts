@@ -164,7 +164,7 @@ it('migrates v3 atomically and rolls back DDL/version when the old database is i
   expect(h.db.prepare("SELECT name FROM sqlite_master WHERE name='task_assignments'").get()).toBeUndefined()
   h.db.exec('UPDATE plan_tasks SET active=1')
   const migrated = await openHarness(h.root); cleanup.push(migrated.close)
-  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
   await migrated.service.assignmentCommand(h.owner.token, h.approve)
 })
 
@@ -291,7 +291,7 @@ it('upgrades a v4 approval with its null deadline and original receipt intact', 
   await reopened.service.readInbox(h.other.token, { organizationId: h.query.organizationId }, (page) => {
     expect(page.items[0]?.request).toMatchObject({ state: 'pending', expiresAt: null, answeredRevision: null })
   })
-  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
 })
 
 it('delivers only authorized inbox invalidations and requires a snapshot after revoke', async () => {

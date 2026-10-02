@@ -14,6 +14,7 @@ import {
   openCodexRuntime, CodexRuntimeError, type CodexRuntime, type CodexRuntimeSpec,
   type CodexInputId, type CodexTurnId, type CodexItemId, type CodexEffort, type CodexTurnTerminal,
 } from '@deepseek-ai/dsh-codex-runtime'
+import { workflowTools, answerNativeRequest } from './requests.ts'
 import type { CodexBridgeProjection } from './types.ts'
 
 const effortSchema = z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
@@ -201,14 +202,14 @@ export class CodexAgent implements ScopedAgentDriver {
     const turn = ++this.lastTurn
     this.session.append('turn/start', { turn })
     this.session.append('step/start', { turn, step: 1 })
-    const messages = this.inbox.claim('next-turn', turn)
+    let messages = this.inbox.claim('next-turn', turn)
     const firstMessage = messages[0]
     if (firstMessage === undefined) {
       this.session.append('step/end', { turn, step: 1 })
       this.session.append('turn/end', { turn, reason: { kind: 'completed' } })
       return true
     }
-    for (const message of messages) this.session.append('user/message', message, { surfaceOp: 'append' })
+
     const inputId = brandString<CodexInputId>(firstMessage.id)
     let runtime: CodexRuntime | undefined
     let stopping: Promise<void> | undefined
@@ -227,9 +228,24 @@ export class CodexAgent implements ScopedAgentDriver {
     try {
       signal.throwIfAborted()
       const selection = this.selection
+      const decision = await this.dispatch.waterfall('agent/pre-step', { messages, turn, step: 1, signal },
+        () => Promise.resolve({ kind: 'enter' as const, messages }))
+      if (decision.kind === 'reject' || decision.messages.length === 0) return false
+      messages = decision.messages
+      signal.throwIfAborted()
+      const dynamicTools = workflowTools(this.ctx, this)
+      const binding = this.state()
+      if (binding.threadId !== null
+        && messages.some(message => ['personal-workflow-method', 'personal-workflow-execution'].includes(message.source.kind))
+        && dynamicTools.some(tool => !binding.dynamicTools?.includes(tool.name))) {
+        throw new Error('Codex task declarations changed; create a new conversation for task enhancement or execution')
+      }
+      for (const message of messages) this.session.append('user/message', message, { surfaceOp: 'append' })
       const effort: CodexEffort = effortSchema.parse(selection.effort)
       const cwd = this.cwd
-      runtime = await openCodexRuntime(this.spec(cwd), signal)
+      runtime = await openCodexRuntime({ ...this.spec(cwd), dynamicTools,
+        onRequest: (request, lifetime) => answerNativeRequest(this.ctx, this, turn, request, AbortSignal.any([signal, lifetime])),
+      }, signal)
       if (signal.aborted) onAbort()
       signal.throwIfAborted()
       try { await this.reconcile(runtime) }
@@ -253,7 +269,8 @@ export class CodexAgent implements ScopedAgentDriver {
         await this.flush()
         signal.throwIfAborted()
         const thread = await runtime.startThread({ mode: 'native', model: selection.model, effort })
-        this.session.append('codex/thread-bound', { threadId: thread.id, cwd, runtimeVersion: selection.runtimeVersion })
+        this.session.append('codex/thread-bound', { threadId: thread.id, cwd, runtimeVersion: selection.runtimeVersion,
+          dynamicTools: dynamicTools.map(tool => tool.name) })
         await this.flush()
       } else {
         try {
@@ -300,6 +317,7 @@ export class CodexAgent implements ScopedAgentDriver {
       this.session.append('codex/turn-result', result)
       this.settleText(result, attempt)
       await this.flush()
+      await this.dispatch.serial('agent/turn-stopping', { turn, signal })
       reason = terminal.status === 'completed' ? { kind: 'completed' }
         : terminal.status === 'interrupted' ? { kind: 'aborted', reason: operation.cancelCause ?? { kind: 'legacy' } }
           : { kind: 'error', error: { code: 'UNKNOWN', message: 'Codex reported a failed turn' } }
@@ -322,18 +340,12 @@ export class CodexAgent implements ScopedAgentDriver {
       if (!attempt.ended) attempt.abandon()
     } finally {
       signal.removeEventListener('abort', onAbort)
-      try {
-        this.session.append('step/end', { turn, step: 1 })
-        this.session.append('turn/end', { turn, reason })
-        await this.flush()
-      } finally {
-        // Process ownership ends even if an append or durability barrier fails.
-        const cleanup = await Promise.allSettled([stopping, runtime?.dispose()])
-        if (cleanup.some(outcome => outcome.status === 'rejected')) {
-          this.session.append('codex/diagnostic', { category: 'cleanup' })
-          await this.flush()
-        }
-      }
+      // Close callback answer eligibility and drain its writes before closing the Session turn.
+      const cleanup = await Promise.allSettled([stopping, runtime?.dispose()])
+      if (cleanup.some(outcome => outcome.status === 'rejected')) this.session.append('codex/diagnostic', { category: 'cleanup' })
+      this.session.append('step/end', { turn, step: 1 })
+      this.session.append('turn/end', { turn, reason })
+      await this.flush()
     }
     return reason.kind === 'completed'
   }

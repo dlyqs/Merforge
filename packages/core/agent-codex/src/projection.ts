@@ -12,26 +12,29 @@ const turn = z.number().int().positive()
 const resultStatus = z.enum(['completed', 'interrupted', 'failed', 'unknown'])
 const schema: z.ZodType<CodexBridgeProjection> = z.object({ selection: selectionSchema.nullable(),
   threadId: id.transform(value => brandString<CodexThreadId>(value)).nullable(),
+  dynamicTools: z.array(id).nullable(),
   inputId: id.transform(value => brandString<CodexInputId>(value)).nullable(),
   turnId: id.transform(value => brandString<CodexTurnId>(value)).nullable(),
   status: z.enum(['unbound', 'ready', 'preparing', 'sending', 'running', 'completed', 'interrupted', 'failed', 'unknown']) })
 const eventSchemas = {
   'agent/backend': selectionSchema,
   'codex/thread-preparing': z.object({ cwd: id, selection: selectionSchema }),
-  'codex/thread-bound': z.object({ threadId: id, cwd: id, runtimeVersion: z.literal('0.153.4') }),
+  'codex/thread-bound': z.object({ threadId: id, cwd: id, runtimeVersion: z.literal('0.153.4'), dynamicTools: z.array(id).optional() }),
   'codex/recovery': z.object({ threadId: id, status: z.enum(['verified', 'unknown']) }),
   'codex/send-intent': z.object({ turn, inputId: id, threadId: id, params: z.json() }),
   'codex/send-receipt': z.object({ turn, inputId: id, threadId: id, turnId: id }),
   'codex/item': z.object({ turn, threadId: id, turnId: id, itemId: id, item: z.json() }),
   'codex/turn-result': z.object({ turn, inputId: id, threadId: id.nullable(), turnId: id.nullable(), status: resultStatus,
     finalText: z.string().nullable(), items: z.array(z.json()), usage: z.literal('unknown'), recovered: z.boolean() }),
+  'codex/request': z.object({ turn, requestId: id, threadId: id, turnId: id, method: id, params: z.json() }),
+  'codex/request-result': z.object({ turn, requestId: id, threadId: id, turnId: id, status: z.enum(['answered', 'cancelled', 'rejected']), response: z.json() }),
   'codex/diagnostic': z.object({ category: id }),
 }
 
 /** Fold the native association and current dispatch state for Host and Client. */
 export const codexBridgeProjection = {
   key: 'codexBridge',
-  init: (): CodexBridgeProjection => ({ selection: null, threadId: null, status: 'unbound', inputId: null, turnId: null }),
+  init: (): CodexBridgeProjection => ({ selection: null, threadId: null, dynamicTools: null, status: 'unbound', inputId: null, turnId: null }),
   stateSchema: schema,
   apply(state, event) {
     // Event data arrives from durable files as well as live appends.
@@ -45,7 +48,7 @@ export const codexBridgeProjection = {
         return { ...state, status: 'preparing' }
       case 'codex/thread-bound':
         if (state.status !== 'preparing' || state.threadId !== null) throw new Error('duplicate native thread association')
-        return { ...state, threadId: event.data.threadId, status: 'ready' }
+        return { ...state, threadId: event.data.threadId, dynamicTools: event.data.dynamicTools ?? null, status: 'ready' }
       case 'codex/recovery':
         if (state.threadId !== event.data.threadId) throw new Error('recovery uses another native thread')
         return { ...state, status: event.data.status === 'unknown' ? 'unknown' : 'ready' }
@@ -63,5 +66,5 @@ export const codexBridgeProjection = {
     }
   },
   wire: { viewSchema: schema, view: state => state },
-  stateVersion: 1,
+  stateVersion: 2,
 } satisfies ProjectionDefinition<'codexBridge', CodexBridgeProjection>

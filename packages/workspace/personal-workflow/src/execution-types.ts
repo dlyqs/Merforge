@@ -18,7 +18,7 @@ export interface ExecutionAuthorization {
 }
 /** Host-observed file fingerprint; null means the declared path is absent. */
 export interface ArtifactFingerprint { readonly path: string; readonly sha256: string | null }
-/** Workspace observation used for explicit reconciliation, never for rollback. */
+/** API workspace observation or native canonical directory, used for explicit reconciliation, never for rollback. */
 export interface WorkspaceBaseline {
   readonly cwd: string
   readonly gitHead: string | null
@@ -32,8 +32,10 @@ export interface ExecutionAction {
   readonly name: string
   readonly status: 'pending' | 'succeeded' | 'failed' | 'unknown' | 'reconciled'
 }
-/** Completion supported by settled tools and independently read files. */
+/** API completion evidence or explicitly identified Codex completion report. */
 export interface ExecutionEvidence {
+  /** Native reports are recorded without independent file/tool verification. */
+  readonly reportedBy?: 'codex' | undefined
   readonly summary: string
   readonly acceptance: readonly string[]
   readonly callIds: readonly string[]
@@ -62,6 +64,8 @@ export interface TaskHandoff {
 }
 /** One attempt with a single current owner and retained conversation history. */
 export interface TaskRun {
+  /** Absent on historical API runs; fixed at explicit task selection. */
+  readonly backend?: 'codex' | undefined
   readonly id: RunId
   readonly taskId: TaskId
   readonly planId: TaskId
@@ -106,7 +110,7 @@ export interface ControlTaskRequest {
 export interface ResumeTaskRequest extends ControlTaskRequest { readonly reconciliation: string }
 /** Human-requested transfer with decisions and remaining work. */
 export interface HandoffTaskRequest extends ControlTaskRequest { readonly context: string }
-/** Model completion proposal checked against actual action and file records. */
+/** Completion report checked against API evidence or recorded as Codex-reported acceptance. */
 export interface CompleteTaskRequest {
   readonly summary: string
   readonly acceptance: readonly string[]

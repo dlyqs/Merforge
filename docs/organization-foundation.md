@@ -126,6 +126,6 @@ Phase 2 使用真实 SQLite 临时目录、重开、写入故障、并发初始�
 
 GUI 服务配置保存在 `organization-server-settings.json`，组织库固定在独立 `organization-server` 子目录。默认关闭，`restoreOnLaunch` 默认 false；设置保存和启动失败不影响个人 Host。服务机应将实际局域网 IP/DNS 加入证书 names。运行时持有目录旁的 `organization-server.owner.sqlite` EXCLUSIVE 锁，重复 writer 或维护者拒绝；进程强杀后由 OS 释放锁，不依赖删除 stale PID 文件。
 
-停服备份只写新目录，包含 `organization.sqlite`、`tls-identity.json`、严格版本/hash manifest。恢复先在 staging 校验文件类型、格式、hash、完整性、外键、持久记录与 TLS 密钥配对，再撤销登录与邀请、轮换恢复凭证并追加 `restore` 审计。完成后原目录保留为 `.previous-<uuid>`，最终替换失败尝试原位回滚。备份包含组织密码摘要及证书私钥，须按敏感文件保存。没有个人文件、个人 API key 或聊天迁移；不支持在线热备份、云同步或自动升级。证书轮换只能停服后通过本机显式操作触发，各客户端需重新比对指纹。
+当前组织 schema 为 v12；停服备份写 v12，恢复接受经校验的 v2–v11 并在 staging 升级。v11 API 执行 JSON 保持原字节；v12 的显式 Codex 策略和调度元数据见[执行协议](organization-execution.md)。停服备份只写新目录，包含 `organization.sqlite`、`tls-identity.json`、严格版本/hash manifest。恢复先在 staging 校验文件类型、格式、hash、完整性、外键、持久记录与 TLS 密钥配对，再撤销登录与邀请、轮换恢复凭证并追加 `restore` 审计。完成后原目录保留为 `.previous-<uuid>`，最终替换失败尝试原位回滚。备份包含组织密码摘要及证书私钥，须按敏感文件保存。没有个人文件、个人 API key 或聊天迁移；不支持在线热备份、云同步或自动升级。证书轮换只能停服后通过本机显式操作触发，各客户端需重新比对指纹。
 
 [验收剧本](organization-foundation-acceptance.md)分别记录自动化工程证据和用户侧三机待验项。产品下一阶段应继续在组织领域/受限 API/连接动作/组织 UI 接入共享项目与 WorkGraph，不把个人 Agent loop 改成多租户执行器。

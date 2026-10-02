@@ -16,7 +16,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 11
+export const ORGANIZATION_SCHEMA_VERSION = 12
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -90,7 +90,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
-        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9 || stamp === 10) && app === applicationId) {
+        stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9 || stamp === 10 || stamp === 11) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -102,7 +102,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 8) db.exec(executionHumanDdl)
         if (stamp < 9) db.exec(deliveryDdl)
         if (stamp < 10) db.exec(acceptanceDdl)
-        db.exec(integrationDdl)
+        if (stamp < 11) db.exec(integrationDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')

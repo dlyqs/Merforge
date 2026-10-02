@@ -15,6 +15,7 @@ declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap { codex: NativeObservation }
 }
 function observation(event: Parameters<ConversationNodeDefinition['match']>[0]): NativeObservation {
+  if (event.type === 'codex/request' || event.type === 'codex/request-result') return { seq: event.seq, kind: 'item', status: null, text: JSON.stringify(event.data, null, 2) }
   if (event.type === 'codex/item') return { seq: event.seq, kind: 'item', status: null, text: JSON.stringify(event.data.item, null, 2) }
   if (event.type === 'codex/recovery') return { seq: event.seq, kind: 'result', status: 'unknown', text: '' }
   if (event.type === 'codex/turn-result') return { seq: event.seq, kind: 'result', status: event.data.status, text: event.data.recovered ? event.data.finalText ?? '' : '' }
@@ -25,6 +26,7 @@ export const codexObservationDefinition: ConversationNodeDefinition<NativeObserv
   kind: 'codex-observation', target: 'chat',
   match(event) {
     if (event.type === 'codex/recovery' && event.data.status === 'unknown') return { id: `recovery/${event.seq}`, role: 'start' }
+    if (event.type === 'codex/request' || event.type === 'codex/request-result') return { id: `request/${event.seq}`, role: 'start' }
     if (event.type === 'codex/item') return { id: `${event.data.threadId}/${event.data.turnId}/${event.data.itemId}`, role: 'start' }
     if (event.type === 'codex/turn-result') return { id: String(event.data.inputId), role: 'start' }
     return null

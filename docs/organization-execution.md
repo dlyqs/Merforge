@@ -133,3 +133,15 @@ Desktop 的 `OrganizationIntegration` 是本机核验服务。`integration-read`
 回执仅共享随机目标引用、commit/tree、相对路径/长度/哈希、客户端观察时间和 verified/rejected 结果（服务端以审计 revision 排序，不要求两台机器的时钟一致）；绝对目录映射只在原生进程内存中。最终确认重读同一已授权目录；内容或基线变化会追加 rejected 观察，使旧 verified 不能交付。核验过程中身份代次或权限变化拒绝迟到结果。重启后目录许可映射丢失，必须重新选择和核验；不自动重放应用。不同操作者的目标观察不能直接授予下发人在另一台设备上的目录许可，下发人需在自己明确选择的实际目标上重新核验。核验与确认都是读取时点的观察，不锁住外部编辑器，也不承诺确认后文件永不变化。
 
 任务详情提供依赖阻塞、必要成果与哈希、核验结果、目标目录选择和最终确认。内容按原生代次隐藏，集成事件按当前任务及输入可见权投影为无正文失效通知。它们不改变模型提示词、token、KV cache 或 Session JSONL 格式；没有自动向模型注入前置文件，员工仍通过现有授权产物下载和显式本机输入准备资料。可见 Desktop、Windows 及三机产品验收仍由用户执行。
+
+## Codex 原生调度资格（7B Phase 6）
+
+当前组织 SQLite schema 为 v12。v11 升级只推进 schema stamp，历史 API Run JSON 保持原字节；不推断或授予 Codex 权限。停服备份写 v12，恢复接受校验通过的 v2–v11 备份并在 staging 升级，原设备、租约和执行授权按既有流程退休。
+
+组织 Config 的 `executionCodex` 默认空数组，独立于 `executionModels`。条目固定 `runtimeVersion: 0.153.4`、model、efforts、maxTurns 和 maxDurationMs。员工明确授予执行时附带 `backend: { kind: codex, dispatch: device-native, runtimeVersion, model, effort, maxTurns, maxDurationMs }`，Run 必须与委托完全一致。只允许 `codex-turn` capability，budget 不超过 maxTurns；API Run 继续省略 backend，不能领取 codex-turn。严格 parser 拒绝账号、token、home 和 endpoint 等额外字段。
+
+启动、保留新 turn 和显式继续重新检查准确任务版本、当前 read 与可读已验收依赖、接受、准备/执行委托、设备及双 epoch 租约、当前允许模型/effort 和限额。已有 reserved/unknown 阻止下一次派发。每次应用 turn 保留消耗一个不可退还单位；Codex 内部模型请求、重试和原生工具不计为应用可观测预算。
+
+首次 running 保存 startedAt，暂停和人工等待不重置累计时长。时长到期持久暂停并记录 duration-limit；设备/授权丢失记录 authority-lost，同时取消未答复的原生请求。turn 或委托 budget 用尽记录 turn-limit，已保留的最后一个 turn 仍可结算并写终态。员工停止和原生终态使用 employee-stop/native-terminal 等独立原因。旧设备仅可对既有动作提交历史结果，不能据此恢复调度。
+
+传输复用固定签名 HTTPS/native 命令、当前身份 generation、Host nonce 和顶层窗口核验。Renderer 不获得通用 Codex JSON-RPC 或组织代理。组织 Codex 实际执行桥属于 7B Phase 7，选择及运行 UI 属于 Phase 8；当前 `executeConfigured` 对 native Run 明确报 `native-executor-not-mounted`，不会转用 API 模型。工程资格测试不能代表员工真实 Codex 执行或三机验收通过。

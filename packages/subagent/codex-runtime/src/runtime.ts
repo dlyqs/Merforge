@@ -7,7 +7,7 @@ import { codexAppServerArgv, disposeCodexProcess } from './process.ts'
 import { parseAccount, parseModels, parseThread, protocolObject, protocolString } from './protocol.ts'
 import type {
   CodexAccount, CodexCapabilities, CodexFailureCategory, CodexItemId, CodexModel, CodexRuntimeDiagnostic,
-  CodexRuntimeSpec, CodexSendReceipt, CodexSendRequest, CodexThread,
+  CodexRequestId, CodexServerRequest, CodexRuntimeSpec, CodexSendReceipt, CodexSendRequest, CodexThread,
   CodexThreadId, CodexThreadSelection, CodexTurnEvent, CodexTurnId, CodexTurnTerminal,
 } from './types.ts'
 
@@ -26,6 +26,9 @@ interface ActiveTurn {
   readonly early: Array<{ method: string; params: Record<string, unknown> }>
   readonly items: Map<CodexItemId, Readonly<Record<string, unknown>>>
   readonly onEvent?: (event: CodexTurnEvent) => void
+  readonly callbacks: AbortController
+  readonly requestIds: Set<string>
+  readonly callIds: Set<string>
   sent: boolean
   itemBytes: number
   timer?: ReturnType<typeof setTimeout>
@@ -61,6 +64,7 @@ export class CodexRuntime {
   private active: ActiveTurn | undefined
   private cache: { expiresAt: number; account: CodexAccount; models: readonly CodexModel[] } | undefined
   private catalogRevision = 0
+  private readonly callbacks = new Set<Promise<unknown>>()
   private disposal: Promise<void> | undefined
 
   constructor(private readonly spec: CodexRuntimeSpec, child: SubprocessHandle, input: Readable, output: Writable) {
@@ -76,8 +80,14 @@ export class CodexRuntime {
     this.transport.onFailure((error) => {
       this.fail(new CodexRuntimeError(error.message.includes('frame-limit') ? 'frame-limit' : error.message.includes('input closed') ? 'eof' : 'protocol'))
     })
-    // The runtime refuses every server request until a separately verified human/tool bridge exists.
-    this.transport.onRequest(() => Promise.reject(new Error('unsupported server request')))
+    this.transport.onRequest((method, params, id) => {
+      const task = this.serverRequest(method, params, id)
+      this.callbacks.add(task)
+      void task.finally(() => { this.callbacks.delete(task) }).catch((error: unknown) => {
+        void error /* The transport sends a redacted rejection. */
+      })
+      return task
+    })
     this.transport.onNotification((method, params) => { this.notification(method, params) })
     this.child.stderr?.on('data', this.drainStderr)
     this.child.stderr?.on('error', this.ignoreStderrError)
@@ -202,7 +212,8 @@ export class CodexRuntime {
     if (thread === undefined || selection === undefined || this.active !== undefined) throw new CodexRuntimeError('protocol')
     if (request.texts.length === 0 || request.texts.every(text => text.trim().length === 0)) throw new CodexRuntimeError('protocol')
     const active: ActiveTurn = { started: Promise.withResolvers<CodexTurnId>(), terminal: Promise.withResolvers<CodexTurnTerminal>(),
-      early: [], items: new Map(), sent: false, itemBytes: 0, ...onEvent === undefined ? {} : { onEvent } }
+      early: [], items: new Map(), callbacks: new AbortController(), requestIds: new Set(), callIds: new Set(),
+      sent: false, itemBytes: 0, ...onEvent === undefined ? {} : { onEvent } }
     void active.started.promise.catch((error: unknown) => { void error })
     void active.terminal.promise.catch((error: unknown) => { void error })
     this.active = active
@@ -237,6 +248,7 @@ export class CodexRuntime {
    */
   async stop(): Promise<void> {
     const active = this.active
+    active?.callbacks.abort()
     try {
       if (active !== undefined && active.sent && this.thread !== undefined && !this.lifetime.signal.aborted) {
         const id = await this.bounded(active.started.promise, this.spec.limits.interruptTimeoutMs)
@@ -264,6 +276,7 @@ export class CodexRuntime {
     this.active = undefined
     if (active !== undefined) {
       clearTimeout(active.timer)
+      active.callbacks.abort()
       active.started.reject(new CodexRuntimeError('closed'))
       active.terminal.reject(new CodexRuntimeError(active.sent ? 'unknown-send' : 'closed'))
       active.early.length = 0
@@ -278,6 +291,7 @@ export class CodexRuntime {
     return this.disposal ??= (async () => {
       try {
         await disposeCodexProcess(this, this.child)
+        await Promise.allSettled([...this.callbacks])
         this.report({ stage: 'cleanup' })
       } catch (error) {
         this.report({ stage: 'cleanup', category: 'cleanup' })
@@ -289,6 +303,42 @@ export class CodexRuntime {
     })()
   }
 
+  private async serverRequest(method: string, params: Record<string, unknown>, id: string | number): Promise<unknown> {
+    const active = this.active
+    const handler = this.spec.onRequest
+    const thread = this.thread
+    const methods: readonly CodexServerRequest['method'][] = ['item/tool/call', 'item/tool/requestUserInput',
+      'item/commandExecution/requestApproval', 'item/fileChange/requestApproval']
+    const selected = methods.find(value => value === method)
+    if (active === undefined || !active.sent || handler === undefined || selected === undefined
+      || thread === undefined || params.threadId !== thread.id) throw new CodexRuntimeError('protocol')
+    const key = `${typeof id}:${id}`
+    if (active.requestIds.has(key) || active.requestIds.size >= this.spec.limits.maxEarlyEvents) throw new CodexRuntimeError('protocol')
+    active.requestIds.add(key)
+    if (selected === 'item/tool/call') {
+      const callId = protocolString(params.callId)
+      if (active.callIds.has(callId)) throw new CodexRuntimeError('protocol')
+      active.callIds.add(callId)
+    }
+    // The server may ask before the turn/start response reaches this stream.
+    const turnId = await this.bounded(active.started.promise, this.spec.limits.rpcTimeoutMs, active.callbacks.signal)
+    if (active !== this.active || params.turnId !== turnId) throw new CodexRuntimeError('protocol')
+    const timeout = AbortSignal.timeout(this.spec.limits.humanTimeoutMs)
+    const signal = AbortSignal.any([active.callbacks.signal, this.lifetime.signal, timeout])
+    const request: CodexServerRequest = { requestId: brandString<CodexRequestId>(key), method: selected,
+      threadId: thread.id, turnId, params }
+    // Consumers own cancellation and must drain before their process owner settles.
+    try {
+      const result = await handler(request, signal)
+      signal.throwIfAborted()
+      if (active !== this.active) throw new CodexRuntimeError('protocol')
+      return result
+    } catch (error) {
+      if (timeout.aborted) this.fail(new CodexRuntimeError('timeout'))
+      void error
+      throw new CodexRuntimeError('protocol')
+    }
+  }
   private report(diagnostic: CodexRuntimeDiagnostic): void {
     try { this.spec.onDiagnostic?.(diagnostic) } catch (error) {
       // Diagnostic sinks cannot change protocol or lifecycle outcomes.
@@ -322,8 +372,9 @@ export class CodexRuntime {
         const read = await this.readThread(id)
         if (read.model !== selection.model || read.turns.some(turn => turn.status === 'inProgress')) throw new CodexRuntimeError('protocol')
       }
-      const params = { cwd: this.spec.cwd, model: selection.model, approvalPolicy: 'never',
-        ...id === undefined ? { ephemeral: false, historyMode: 'legacy', allowProviderModelFallback: false } : { threadId: id } }
+      const params = { cwd: this.spec.cwd, model: selection.model, approvalPolicy: this.spec.onRequest === undefined ? 'never' : 'on-request',
+        ...id === undefined ? { ephemeral: false, historyMode: 'legacy', allowProviderModelFallback: false,
+          ...this.spec.dynamicTools === undefined ? {} : { dynamicTools: this.spec.dynamicTools } } : { threadId: id } }
       dispatched = true
       const thread = parseThread(await this.rpc(id === undefined ? 'thread/start' : 'thread/resume', params))
       if (thread.cwd !== this.spec.cwd || thread.model !== selection.model || (id !== undefined && thread.id !== id)) throw new CodexRuntimeError('protocol')
@@ -428,6 +479,7 @@ export class CodexRuntime {
         const terminal: CodexTurnTerminal = { turnId: active.id as CodexTurnId, status, items,
           finalText: final === undefined ? null : final.text as string, usage: 'unknown' }
         if (Buffer.byteLength(JSON.stringify(terminal)) > this.spec.limits.maxTurnBytes) throw new CodexRuntimeError('frame-limit')
+        active.callbacks.abort()
         this.active = undefined
         active.terminal.resolve(terminal)
         this.report({ stage: 'terminal', status })

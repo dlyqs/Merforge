@@ -40,7 +40,8 @@ export const storedPlanSchema: z.ZodType<StoredPlan> = z.object({
       ctx.addIssue({ code: 'custom', message: 'duplicate admitted action' })
     }
     if (run.status === 'completed' && (!run.evidence.length || run.evidence.some(evidence =>
-      evidence.acceptance.length !== task?.acceptance.length || evidence.files.some(file => file.sha256 === null)
+      (run.backend === 'codex') !== (evidence.reportedBy === 'codex')
+      || evidence.acceptance.length !== task?.acceptance.length || evidence.files.some(file => file.sha256 === null)
       || evidence.callIds.some(id => !run.actions.some(action => action.callId === id && action.status === 'succeeded'))))) {
       ctx.addIssue({ code: 'custom', message: 'completed execution lacks verified evidence' })
     }

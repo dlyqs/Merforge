@@ -2750,6 +2750,25 @@ describe('built-in conversation node Definitions', () => {
 })
 
 
+it('retains native questions and revoked answers when replaying or prepending conversation history', () => {
+  const entries = [
+    at(0, 'turn/start', { turn: 1 }),
+    at(1, 'codex/request', { turn: 1, requestId: 'number:1', threadId: 'thread', turnId: 'turn', method: 'item/tool/requestUserInput',
+      params: { questions: [{ id: 'q', question: 'Proceed?' }] } }),
+    at(2, 'codex/request-result', { turn: 1, requestId: 'number:1', threadId: 'thread', turnId: 'turn', status: 'cancelled', response: null }),
+    at(3, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+  ]
+  const complete = assembler(entries)
+  const partial = assembler(entries.slice(2), true)
+  partial.prepend(entries.slice(0, 2), false); partial.flush()
+  const native = (value: ConversationNodeAssembler) => snapshot(value).nodes.values().filter(candidate => candidate.kind === 'codex')
+    .sort((left, right) => left.anchorSeq - right.anchorSeq).map(candidate => candidate.data)
+  expect(native(partial)).toEqual(native(complete))
+  expect(native(complete)).toHaveLength(2)
+  expect(native(complete)[0]?.text).toContain('Proceed?')
+  expect(native(complete)[1]?.text).toContain('cancelled')
+})
+
 it('replays native tools, recovered output and unknown recovery consistently across full and partial history', () => {
   const entries = [
     at(0, 'turn/start', { turn: 1 }),

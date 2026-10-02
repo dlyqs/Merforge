@@ -82,7 +82,7 @@ it('upgrades v7 atomically and validates the new request table on reopen', async
   await h.close()
   h.db.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; PRAGMA user_version=7')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
   expect(upgraded.prepare('SELECT count(*) AS n FROM execution_human_requests').get()?.n).toBe(0)
   upgraded.close()
 }, 15000)

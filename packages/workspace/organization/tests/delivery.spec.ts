@@ -113,7 +113,7 @@ it('validates Git baselines and byte hashes, and migrates the delivery tables fr
   expect(empty.db.prepare("SELECT name FROM sqlite_master WHERE name='organization_artifacts'").get()).toBeUndefined()
   empty.db.exec('DROP TABLE organization_submissions')
   const upgraded = openOrganizationDatabase(empty.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
   upgraded.close()
 }, 15000)
 

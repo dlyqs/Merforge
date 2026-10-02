@@ -941,7 +941,7 @@ export class OrganizationService extends Service {
 
   private expireQualifications(db: DatabaseSync): void {
     const now = Date.now()
-    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_human_requests WHERE json_extract(data,'$.state')='pending' AND json_extract(data,'$.expiresAt')<=? LIMIT 1").get(now, now, now, now, now)
+    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_human_requests WHERE json_extract(data,'$.state')='pending' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_runs WHERE json_extract(data,'$.backend.kind')='codex' AND json_extract(data,'$.state') IN ('prepared','running','paused','waiting-human') AND json_extract(data,'$.stopReason') IS NOT 'duration-limit' AND json_extract(data,'$.startedAt') + json_extract(data,'$.backend.maxDurationMs')<=? LIMIT 1").get(now, now, now, now, now, now)
     if (!expired) return
     const revision = transaction(db, () => {
       const revision = this.event(db, 'qualification-expired', null, null)
@@ -1016,7 +1016,7 @@ export class OrganizationService extends Service {
     return this.enqueue('execution-read', (db) => {
       const query = parse(executionReadSchema, input)
       const value = transaction(db, () => this.boundedWorkgraph(readExecution(db,
-        this.principal(db, token, query.organizationId), query, this.serverEpoch, this.config.executionModels)))
+        this.principal(db, token, query.organizationId), query, this.serverEpoch, this.config.executionModels, this.config.executionCodex)))
       deliver(value)
     })
   }

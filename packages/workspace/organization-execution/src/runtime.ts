@@ -114,7 +114,8 @@ export async function runExecution(binding: ExecutionResult, authority: Executio
       const view = (await bridge()).execution
       const handlerId = request.questions[0]?.id === 'issuer' ? view.approvedBy : view.assigneeId
       if (!handlerId) throw new Error('organization-execution: handler-required')
-      const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = binding.run
+      const { id, state: _state, version: _version, createdRevision: _created,
+        configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = binding.run
       await bridge(executionCommandSchema.parse({ ...selector, runId: id, operationId: randomUUID(),
         kind: 'request-execution-human', requestId: randomUUID(), handlerId, requestKind: 'work-question',
         prompt: request.questions.map(q => q.question).join('\n'), actionId: null, requestDigest: null, expiresAt: view.delegation.expiresAt }))

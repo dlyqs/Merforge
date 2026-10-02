@@ -10,7 +10,7 @@
 
 CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口约定”（约定阶段），B“实现导出”和 C“准备独立测试数据”（开发阶段，各依赖 A），D“集成验收”（集成阶段，依赖 B、C）。A 完成后 B/C 同时就绪；两者完成才释放 D。根等待必要子任务和自身验收证据，不能因子任务全部 idle 而完成。可选子任务不阻碍父完成，但显式依赖可选任务仍须完成。
 
-纯投影接受持久 Run/Evidence 的执行观察值，计算阻塞原因、并列候选和子任务完成数。模型不能直接写任务状态。产物是声明，不是证据。完成必须由具体 Run 的验证结果、可重查产物位置及验证摘要支持；父任务还需自身验收。
+纯投影接受持久 Run/Evidence 的执行观察值，计算阻塞原因、并列候选和子任务完成数。模型不能直接写任务状态。产物是声明，不是证据。API 完成必须由具体 Run 的验证结果、可重查产物位置及验证摘要支持；Codex 完成保留原生报告和每项验收摘要，应用不独立保证结果正确；父任务还需自身验收。
 
 ## 持久化、版本与审核
 
@@ -22,7 +22,7 @@ CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口
 
 ## Remote、模型与 Session
 
-`sessionController` 提供 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`、`workflowMode` 和 `workflowSetMode`。保存/批准为用户动作；提案服务入口 `propose(session, modeRevision, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。标准 preset 的 `skill-dev-workflow` 提供模式适配和 `workflow_assess` / `workflow_propose`；模式默认关闭，此时隐藏工作流工具且不注入方法。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
+`sessionController` 提供 `workflowList`、`workflowRead`、`workflowSave`、`workflowApprove`、`workflowExport`、`workflowSnapshot`、`workflowMode` 和 `workflowSetMode`。保存/批准为用户动作；提案服务入口 `propose(session, modeRevision, request)` 供 Phase 4 的托管工具消费，只能保存未审核版本。标准 preset 的 `skill-dev-workflow` 提供模式适配和 `workflow_assess` / `workflow_propose`；模式默认关闭，此时 API 隐藏工作流工具且不注入方法。Codex 的三个任务声明在原 thread 创建时广告，关闭时由 executor 拒绝调用，方法同样不注入。Client 读取具体版本，导出从同一对象渲染，Markdown 无回写入口。
 
 `workflowSnapshot` 和模型提案把准确版本/批准状态/完整定义记入 `personal-workflow/snapshot`，包括 taskId、operationId 和 Session 的稳定引用。提交顺序：先提交领域记录，再追加 Session 快照，再 flush Session，全部成功才返回。Session 写失败时领域提交不回滚，调用方收到失败；用原 operationId 重试会复用领域回执，补写/flush 快照。快照以 sessionId + operationId 判重，事件内容必须相同；模型可见文本来自已 flush 的快照，未来工具结果由现有工具流水线记录，不能临时读取最新版本替代历史快照。审核本身无须跨存储写入；下次读取记录当时实际批准状态。Session 引用是阅读/规划关联，不授予执行所有权。
 
@@ -78,13 +78,23 @@ Remote 增加 `workflowCandidates`、`workflowLimits`、`workflowRun`、`workflo
 
 Config 的 `maxActions`（默认 100）、`maxTurns`（20）、`maxDurationMs`（3600000）、`maxEvidenceBytes`（16777216）是部署上限，用户可以在绑定时收窄。时长从首次领取起累计，暂停和接力不重置。`maxTurns` 计用户输入或同任务自动续步的推进次数；工具返回后的普通模型续步不重复计数。`blockedTools` 默认包含标准 `subagent`、`subagent_fork`、`subagent_codex`、`subagent_claude_code` 和 `send_message` 委派工具；部署重命名委派工具时应同步此列表。已有工具审批、Bot allow list 与沙箱仍独立执行。
 
-工具调用在派发前保存 pending，派发返回后保存 succeeded/failed。取消只禁止新动作；迟到结果仍归原 Run。完成必须引用该 Run 成功动作的真实 Session tool/result，先 flush 日志，再读取声明产物并保存 SHA-256、验收摘要及时间。实际文件与成功检查是必要证据，验收摘要仍由执行模型填写，程序不宣称可自动判定任意自然语言验收语义。
+工具调用在派发前保存 pending，派发返回后保存 succeeded/failed。取消只禁止新动作；迟到结果仍归原 Run。API 完成必须引用该 Run 成功动作的真实 Session tool/result，先 flush 日志，再读取声明产物并保存 SHA-256、验收摘要及时间。实际文件与成功检查是必要证据，验收摘要仍由执行模型填写，程序不宣称可自动判定任意自然语言验收语义。
 
 接力先持久化目标 SessionId、准确计划、决定/待办、证据、前置成果、基线及剩余授权，再由已有 Session 创建接口按固定 ID 创建或采用目标对话。准备期间源暂停、目标也被保留为不可执行；创建成功但提交失败时重试复用目标。必须先等待工具和已登记的 Session 活动收敛，才允许移交；转移增加 epoch，旧对话后续请求被拒绝。接收者不自动唤醒，避免崩溃后重复执行。已经到预算终点的任务不能再创建接收者。
 
 恢复保存 cwd、Git HEAD、脏文件内容指纹以及本任务/前置产物 SHA-256；非 Git 目录必须声明产物路径。读取拒绝逃逸工作目录的符号链接、循环目录和超限文件。已运行兄弟任务的已声明产物变化可以归因，不自动暂停本任务；自身关联文件、HEAD 或无法归因的脏文件变化要求人工核对。恢复不覆盖文件、不重放动作。模型失败或取消后，对话 idle 而 Task 未正常结算时也进入待核对；idle 永远不表示任务完成。重启将 running 改为 needs_reconciliation，将 pending 改为 unknown；用户核对后 unknown 变为 reconciled 并保留备注，它不能作为成功检查证据，完成需要新的真实成功检查。
 
 运行时没有第二份所有权缓存，候选、guard 和详情都从同一计划聚合派生。日志仅记录领取、停止、完成、移交、恢复等关键状态变化，不为每次成功工具调用输出排障日志。
+
+## Codex 个人任务消费者
+
+TaskRun 可显式保存 `backend: codex`，领取从当前 Agent 后端固定；历史 API Run 省略该字段并保持原逻辑。继续和动作准入拒绝后端变化。真实 `agent/pre-step` 管线将准确任务、方法、验收与选定资料追加到持久消息，原生 driver 一次发送给当前 thread；不使用内部 API 模型规划或监督。
+
+`workflow_assess/propose/complete` 经同一工具 registry、mode/Bot/归属/任务 guard；批准和领取仍为用户动作。Codex completed Evidence 使用 `reportedBy: codex` 和 summary/acceptance 报告，files/callIds 必须为空。它不要求 Harness 原生工具日志或独立成果核验；前置/必要子任务及每项验收报告的数量规则保留。API 的文件哈希与真实成功 tool/result 检查不变。
+
+原生 turn 后任务未完成则 paused，用户明确 resume 并发送才能继续。首次领取的 maxDurationMs 和累计 maxTurns 不重置，时长到期取消所属 Agent；应用 maxActions 只约束任务管理调用。原生领取、回合结束和恢复只解析现有目录，复核应用权限，不扫描文件或 Git 内容，也不要求声明产物；目录和权限核对服务于继续资格。原生 task handoff 报 native-task-handoff-unavailable，不准备 API 接收者或复制 thread。
+
+提问和一次审批复用现有 Agent-scoped 服务、窗口和答复通道；请求/答复进入 codex/request 与 codex/request-result。停止、终态、人工等待超时或 provider 卸载撤销旧答复，drain 后再关闭 Session 回合。恢复只核对原 thread，不自动重答或重发。具体协议与用户步骤见[Codex 消费规则](codex-backend.md)。
 
 ## 验证与验收
 

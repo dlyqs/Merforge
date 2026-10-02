@@ -40,3 +40,12 @@ it('rejects receipts without their exact dispatch and repeated accepted receipts
   expect(() => projection.apply(running, event('codex/turn-result', { turn: 1, inputId, threadId,
     turnId: brandString<CodexTurnId>('other'), status: 'completed', finalText: null, items: [], usage: 'unknown', recovered: false }))).toThrow('another thread or turn')
 })
+
+it('keeps advertised task actions and distinguishes older native threads', () => {
+  expect(bound().dynamicTools).toBeNull()
+  let state = projection.apply(projection.init(), event('agent/backend', selection))
+  state = projection.apply(state, event('codex/thread-preparing', { cwd: '/cwd', selection }))
+  state = projection.apply(state, event('codex/thread-bound', { threadId, cwd: '/cwd', runtimeVersion: '0.153.4', dynamicTools: ['workflow_assess'] }))
+  expect(projection.stateSchema.parse(state).dynamicTools).toEqual(['workflow_assess'])
+  expect(projection.wire.view(state).dynamicTools).toEqual(['workflow_assess'])
+})

@@ -9,7 +9,7 @@ import {
 
 const limits: CodexRuntimeLimits = { startupTimeoutMs: 500, rpcTimeoutMs: 500, turnTimeoutMs: 1000,
   interruptTimeoutMs: 20, disposeGraceMs: 10, maxFrameBytes: 65536, maxEarlyEvents: 10, maxTurnBytes: 65536,
-  modelCacheMs: 1000, modelPageSize: 2, maxModelPages: 4 }
+  humanTimeoutMs: 1000, modelCacheMs: 1000, modelPageSize: 2, maxModelPages: 4 }
 const selection = { mode: 'native', model: 'native-test', effort: 'medium' } as const
 const threadId = brandString<CodexThreadId>('thread-1')
 const inputId = brandString<CodexInputId>('input-1')
@@ -200,7 +200,7 @@ describe('persistent Codex runtime', () => {
 
   it('safely rejects unknown server requests while preserving current-turn settlement', async () => {
     const h = harness(); const runtime = await ready(h); await runtime.startThread(selection)
-    await expect(h.peer.request('untrusted-/private-secret', {})).rejects.toThrow('unsupported server request')
+    await expect(h.peer.request('untrusted-/private-secret', {})).rejects.toThrow('request rejected')
     const receipt = await runtime.send({ inputId, texts: ['input'], persistIntent: async () => {} })
     complete(h, receipt.turnId)
     expect(await receipt.terminal).toMatchObject({ status: 'completed' })
@@ -332,4 +332,78 @@ describe('persistent Codex runtime', () => {
     expect(h.calls.some(c => c.method === 'thread/start')).toBe(false)
   })
 
+})
+
+it('accepts only pinned callbacks for the current turn, including callbacks before the turn receipt', async () => {
+  const h = harness()
+  const received: string[] = []
+  const runtime = await openCodexRuntime({ ...h.spec, onRequest: async (request) => {
+    received.push(String(request.params.callId))
+    return { success: true, contentItems: [] }
+  }, dynamicTools: [{ type: 'function', name: 'workflow_assess', description: 'Assess task', inputSchema: {} }] })
+  cleanups.push(() => runtime.dispose())
+  await runtime.startThread(selection)
+  let early: Promise<unknown> | undefined
+  h.handler = async (method) => {
+    expect(method).toBe('turn/start')
+    early = h.peer.request('item/tool/call', { threadId, turnId: 'early-turn', callId: 'early', tool: 'workflow_assess', arguments: {} })
+    return { turn: { id: 'early-turn', status: 'inProgress', items: [] } }
+  }
+  const receipt = await runtime.send({ inputId, texts: ['task'], persistIntent: async () => {} })
+  expect(await early).toEqual({ success: true, contentItems: [] })
+  await expect(h.peer.request('item/tool/call', { threadId, turnId: receipt.turnId, callId: 'early', tool: 'workflow_assess', arguments: {} })).rejects.toThrow('request rejected')
+  await expect(h.peer.request('item/tool/call', { threadId, turnId: 'old-turn', callId: 'old', tool: 'workflow_assess', arguments: {} })).rejects.toThrow('request rejected')
+  await expect(h.peer.request('unsupported/request', { threadId, turnId: receipt.turnId })).rejects.toThrow('request rejected')
+  expect(received).toEqual(['early'])
+  expect(h.calls.find(call => call.method === 'thread/start')?.params).toMatchObject({ approvalPolicy: 'on-request', dynamicTools: [{ name: 'workflow_assess' }] })
+  complete(h, receipt.turnId)
+  await receipt.terminal
+  await expect(h.peer.request('item/tool/call', { threadId, turnId: receipt.turnId, callId: 'late', tool: 'workflow_assess', arguments: {} })).rejects.toThrow('request rejected')
+  expect(received).toEqual(['early'])
+})
+
+it('rejects reused RPC identities while draining an admitted callback exactly once', async () => {
+  const h = harness()
+  const gate = Promise.withResolvers<unknown>()
+  const handle = vi.fn(async () => gate.promise)
+  const runtime = await openCodexRuntime({ ...h.spec, onRequest: handle })
+  cleanups.push(() => runtime.dispose())
+  await runtime.startThread(selection)
+  const receipt = await runtime.send({ inputId, texts: ['task'], persistIntent: async () => {} })
+  const responses: Array<Record<string, unknown>> = []
+  h.output.on('data', (chunk) => {
+    for (const line of String(chunk).trim().split('\n')) {
+      const frame = JSON.parse(line) as Record<string, unknown>
+      if (frame.id === 42) responses.push(frame)
+    }
+  })
+  const request = { jsonrpc: '2.0', id: 42, method: 'item/tool/requestUserInput', params: { threadId, turnId: receipt.turnId } }
+  h.input.write(JSON.stringify(request) + '\n' + JSON.stringify(request) + '\n')
+  await vi.waitFor(() => { expect(responses).toHaveLength(1) })
+  expect(responses[0]?.error).toEqual({ code: -32603, message: 'request rejected' })
+  gate.resolve({ answers: {} })
+  await vi.waitFor(() => { expect(responses).toHaveLength(2) })
+  expect(responses[1]?.result).toEqual({ answers: {} })
+  expect(handle).toHaveBeenCalledOnce()
+  complete(h, receipt.turnId)
+  await receipt.terminal
+})
+
+it('revokes timed-out callbacks and awaits their cancellation before returning from disposal', async () => {
+  const h = harness({ humanTimeoutMs: 30 })
+  let cancelled = false
+  const runtime = await openCodexRuntime({ ...h.spec, onRequest: async (_request, signal) => {
+    await new Promise<void>((resolve) => { signal.addEventListener('abort', () =>{  resolve() }, { once: true }) })
+    cancelled = true
+    throw new Error('private callback detail')
+  } })
+  cleanups.push(() => runtime.dispose())
+  await runtime.startThread(selection)
+  const receipt = await runtime.send({ inputId, texts: ['task'], persistIntent: async () => {} })
+  const callback = h.peer.request('item/tool/requestUserInput', { threadId, turnId: receipt.turnId }).catch(() => 'rejected')
+  await expect(receipt.terminal).rejects.toMatchObject({ category: 'timeout' })
+  await runtime.dispose()
+  expect(await callback).toBe('rejected')
+  expect(cancelled).toBe(true)
+  expect(h.terminated).toBe(true)
 })

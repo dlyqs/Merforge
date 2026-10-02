@@ -4,7 +4,11 @@
 
 ## 下一阶段计划入口
 
-[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–4 工程完成，Phase 5–10 为 `pending`。用户最新要求“继续完成 phase4”，本轮完成该阶段后停止，保持 `manual`、自动边界 `none`、relay 关闭。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久 text thread、多轮发送、流式输出、持久意图/回执/原生结果、停止及冷重开核对，保留唯一 Agent factory 和 Session writer。Desktop 的模型/effort 选择、Bot 默认值与模型刷新均已接入；选择 Codex 无需 Merforge API key，缺登录/模型显示原因与操作提示。更换后端或 Codex model/effort 创建独立关联会话，冷重开和归档保留原 thread 关系，未选模型的 Codex Bot 拒绝保存。Merforge 负责派发、桥接转录和结果接收，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。相关聚焦回归、Client/Host 类型、局部 lint、i18n/组合/入口门禁、Desktop build 和私有 Host 无窗口 built smoke 通过；详细命令见实施计划。真实登录/模型、Windows 和可见验收仍待用户。全局 API/config 目录生成及部分门禁存在此前记录的仓库基线问题，本轮未复跑。个人任务管理桥、人工请求、组织调度/结果回传及发行交接尚未实现。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力、限制与个人验收步骤。
+[Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–6 工程完成，Phase 7–10 为 `pending`。用户最新要求“继续完成 phase5-6”，已在 Phase 6 终点停止，保持 `manual`、自动边界 `none`、relay 关闭。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
+
+个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织新增独立 opt-in Codex 调度策略、设备/任务/租约资格、累计 turn/时长与停止原因，SQLite 当前为 v12，v11 API Run 不转换。组织原生执行消费者尚未挂载，当前明确拒绝 `native-executor-not-mounted`；结果回传和 Desktop 组织消费留给 Phase 7–8。
+
+Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。相关聚焦回归、Client/Host 类型、局部 lint、i18n/组合/入口门禁、Desktop build、个人/Codex 产物 smoke 及组织普通 Node/Electron Node mode 私有 IPC smoke 通过；命令与既有全局门禁问题见实施计划。真实登录/模型、Windows、可见与三机验收仍待用户。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力、限制与个人验收步骤。
 
 [对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，是 Phase 8 的必备前置。内部 Phase 1–10 均为 `pending`，执行模式为 `manual`，等待计划评审。计划先固化用户设置、目标路由和无任务规划模型准入，再接组织隔离对话、权威草案/子树细分、对话内负责人分配、员工独立任务对话及执行交付，最后完成正常模式 CSV 组合验证和验收交接。当前个人规划仍依赖显式增强模式或临时测试 override；组织原始上下文仍只读，完整定义保存要求整树编辑权。默认自动识别、组织规划对话及其日常管理入口尚未实现；下述工程基础完成不代表 Phase 7C 或产品验收通过。Phase 7B 外部执行器不是此计划依赖。
 
@@ -81,7 +85,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v11 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v12 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
 产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，成果可显式上传并由员工正式提交，下发人验收及目标核验/最终交付已接入。
 

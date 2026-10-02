@@ -70,7 +70,8 @@ export class ActionGuard {
     this.check()
   }
   private command(fields: object): Command {
-    const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest, ...selector } = this.binding.run
+    const { id, state: _state, version: _version, createdRevision: _created,
+      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = this.binding.run
     return executionCommandSchema.parse({ ...selector, runId: id, operationId: randomUUID(), ...fields })
   }
   /**

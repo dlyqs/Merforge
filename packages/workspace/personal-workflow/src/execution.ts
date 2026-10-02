@@ -11,7 +11,7 @@ import type {
   HandoffTaskRequest, CompleteTaskRequest, TaskHandoff,
 } from './execution-types.ts'
 import { claimSchema, controlSchema, resumeSchema, handoffSchema, completeSchema } from './execution-schema.ts'
-import { observeWorkspace, sameWorkspace, sameDirectory } from './workspace-baseline.ts'
+import { observeNativeDirectory, observeWorkspace, sameWorkspace, sameDirectory } from './workspace-baseline.ts'
 import { projectPlan } from './projection.ts'
 
 /** Sole execution writer, sharing the plan service's short atomic mutation queue. */
@@ -103,7 +103,9 @@ export class WorkflowExecution {
       if (auth.stopPhaseId !== task.phaseId || auth.maxActions > this.limits.maxActions
         || auth.maxTurns > this.limits.maxTurns || auth.maxDurationMs > this.limits.maxDurationMs) throw new Error('authorization-outside-task-or-configured-limits')
       if (!session.header.cwd || (task.cwd !== null && !sameDirectory(task.cwd, session.header.cwd ?? ''))) throw new Error('explicit-matching-execution-directory-required')
-      const baseline = await observeWorkspace(session.header.cwd, this.paths(snapshot, parsed.taskId), this.limits.maxEvidenceBytes)
+      const native = this.ctx.get('agents')?.get(session.id)?.options.backend?.kind === 'codex'
+      const baseline = native ? await observeNativeDirectory(session.header.cwd)
+        : await observeWorkspace(session.header.cwd, this.paths(snapshot, parsed.taskId), this.limits.maxEvidenceBytes)
       const prerequisites = (plan.runs ?? []).filter(run =>
         run.planRevision === snapshot.revision && task.dependsOn.includes(run.taskId))
       for (const prerequisite of prerequisites) {
@@ -111,6 +113,7 @@ export class WorkflowExecution {
       }
       this.checkPermission(session, snapshot)
       const run: TaskRun = {
+        ...native ? { backend: 'codex' as const } : {},
         id: randomUUID() as RunId, planId: parsed.planId, taskId: parsed.taskId, planRevision: snapshot.revision,
         sessionId: session.id, sessions: [session.id], ownerEpoch: 1, status: 'running', reason: null,
         authorization: auth, startedAt: Date.now(), turnsUsed: 0, baseline,
@@ -134,6 +137,7 @@ export class WorkflowExecution {
     }
     if (toolName !== undefined && this.limits.blockedTools.includes(toolName)) return 'tool-outside-task-authorization'
     if (run.sessionId !== session.id) return 'execution-owner-revoked'
+    if ((run.backend === 'codex') !== (this.ctx.get('agents')?.get(session.id)?.options.backend?.kind === 'codex')) return 'execution-backend-changed'
     if (run.status !== 'running') return `task-${run.status}`
     const snapshot = current(this.requirePlan(run.planId))
     if (snapshot.revision !== run.planRevision || snapshot.approval === null) return 'approval-or-version-changed'
@@ -225,8 +229,8 @@ export class WorkflowExecution {
       if (run === null || run.sessionId !== session.id || run.status !== 'running') return false
       if (run.actions.some(action => action.status === 'pending')) throw new Error('actions-still-in-flight')
       const baseline = await this.observe(run)
-      const canContinue = run.authorization.mode !== 'manual' && run.turnsUsed < run.authorization.maxTurns && run.actions.length < run.authorization.maxActions && this.denial(session) === undefined
-      await this.store({ ...run, baseline, status: canContinue ? 'running' : 'paused', reason: canContinue ? null : run.authorization.mode === 'manual' ? 'manual-turn-ended' : 'authorization-boundary' })
+      const canContinue = run.backend !== 'codex' && run.authorization.mode !== 'manual' && run.turnsUsed < run.authorization.maxTurns && run.actions.length < run.authorization.maxActions && this.denial(session) === undefined
+      await this.store({ ...run, baseline, status: canContinue ? 'running' : 'paused', reason: run.backend === 'codex' ? 'native-turn-ended' : canContinue ? null : run.authorization.mode === 'manual' ? 'manual-turn-ended' : 'authorization-boundary' })
       return canContinue
     })
   }
@@ -302,14 +306,17 @@ export class WorkflowExecution {
     })
   }
 
-  /** Verify an execution's claimed acceptance against settled actions and readable artifacts.
+  /** Record Codex-reported acceptance or verify API execution against settled actions and readable artifacts.
    * @param session - Current execution conversation.
    * @param request - Acceptance results and successful action identities.
-   * @returns Completed attempt with host-observed evidence.
+   * @returns Completed attempt with backend-specific reported or host-observed evidence.
    */
   complete(session: Session, request: CompleteTaskRequest): Promise<TaskRun> {
     return this.enqueue(async () => {
-      const parsed = completeSchema.parse(request)
+      const native = this.forSession(session.id)?.backend === 'codex'
+      const parsed = native
+        ? { ...completeSchema.omit({ callIds: true }).parse({ summary: request.summary, acceptance: request.acceptance }), callIds: [] }
+        : completeSchema.parse(request)
       const denied = this.denial(session)
       if (denied !== undefined) throw new Error(denied)
       const run = this.forSession(session.id)
@@ -322,6 +329,11 @@ export class WorkflowExecution {
       const snapshot = current(this.requirePlan(run.planId))
       const task = taskOf(snapshot, run.taskId)
       if (parsed.acceptance.length !== task.acceptance.length) throw new Error('acceptance-results-required-for-each-criterion')
+      if (native) {
+        if (!await this.ctx.sessions.flush(session)) throw new Error('execution-results-not-durable')
+        return this.store({ ...run, status: 'completed', reason: 'codex-reported-completion',
+          evidence: [...run.evidence, { ...parsed, reportedBy: 'codex', files: [], time: Date.now() }] })
+      }
       const baseline = await this.observe(run)
       if (baseline.files.some(file => file.sha256 === null)) throw new Error('declared-artifact-missing')
       if (!await this.ctx.sessions.flush(session)) throw new Error('execution-results-not-durable')
@@ -345,6 +357,7 @@ export class WorkflowExecution {
     return this.enqueue(async () => {
       const parsed = handoffSchema.parse(request)
       const run = this.find(parsed.runId)
+      if (run.backend === 'codex') throw new Error('native-task-handoff-unavailable')
       const existing = run.handoffs.find(handoff => handoff.operationId === parsed.operationId)
       if (existing !== undefined) {
         if (existing.context !== parsed.context || existing.sourceSessionId !== session.id || existing.ownerEpoch !== parsed.ownerEpoch) throw new Error('operation-id-conflict')
@@ -405,6 +418,7 @@ export class WorkflowExecution {
   private context(run: TaskRun): string {
     const plan = this.requirePlan(run.planId)
     const snapshot = revisionOf(plan, run.planRevision)
+    if (run.backend === 'codex') return `Execute only the explicitly selected task and supplied materials. Codex owns native tools and verification. Application action limits cover task-management calls only, not native tools or model requests. Report completion with workflow_complete, a summary, one result per acceptance criterion and callIds: []. This records your report; approval and task selection remain human actions. Do not claim another task or create conversations.\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
     return `Execute only the selected task. Do not claim another task or create conversations. Completion requires workflow_complete with actual successful action IDs and acceptance results.\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
   }
   private prerequisites(run: TaskRun) {
@@ -422,6 +436,7 @@ export class WorkflowExecution {
     return snapshot.definition.tasks.filter(item => ids.has(item.id)).flatMap(item => item.artifacts)
   }
   private observe(run: TaskRun) {
+    if (run.backend === 'codex') return observeNativeDirectory(run.baseline.cwd)
     const paths = this.paths(revisionOf(this.requirePlan(run.planId), run.planRevision), run.taskId)
     return observeWorkspace(run.baseline.cwd, paths, this.limits.maxEvidenceBytes)
   }

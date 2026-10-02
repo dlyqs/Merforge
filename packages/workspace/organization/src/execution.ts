@@ -63,7 +63,7 @@ function owner(db: DatabaseSync, principal: Principal, d: z.output<typeof execut
  * @returns Stable identities, never a reusable authorization.
  */
 export function changeExecution(db: DatabaseSync, principal: Principal, c: Command, revision: number, epoch: OrganizationServerEpoch,
-  limits: { actionPermitTtlMs: number; delegationMaxBudget: number; delegationMaxDurationMs: number }): OrganizationExecutionReceipt {
+  limits: { actionPermitTtlMs: number; delegationMaxBudget: number; delegationMaxDurationMs: number; executionCodex: OrganizationExecutionView['codexPolicy'] }): OrganizationExecutionReceipt {
   const a = selectedAssignment(db, c)
   authorizeParticipant(db, principal, a)
   ownedDevice(db, principal, c.deviceId, c.kind !== 'settle-action')
@@ -74,6 +74,11 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
       || prep.state !== 'active' || prep.expiresAt <= Date.now()) fail()
     if (c.expiresAt <= Date.now() || c.expiresAt > prep.expiresAt || c.expiresAt - Date.now() > limits.delegationMaxDurationMs
       || c.budget > Math.min(prep.budget, limits.delegationMaxBudget)) throw new OrganizationError('invalid-input')
+    if (c.backend !== undefined) {
+      requireCodexPolicy(c.backend, limits.executionCodex)
+      if (c.capabilities.length !== 1 || c.capabilities[0] !== 'codex-turn' || c.budget > c.backend.maxTurns
+        || c.backend.maxDurationMs > limits.delegationMaxDurationMs) throw new OrganizationError('invalid-input')
+    } else if (c.capabilities.includes('codex-turn')) throw new OrganizationError('invalid-input')
     const { kind: _kind, operationId: _operation, ...fields } = c
     const d = executionDelegationSchema.parse({ ...fields, id: randomUUID(), state: 'active', used: 0, createdRevision: revision, version: revision })
     db.prepare('INSERT INTO execution_delegations VALUES (?,?,?)').run(d.id, a.id, JSON.stringify(d))
@@ -87,10 +92,12 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   }
   if (c.kind === 'create-run') {
     owner(db, principal, d, c, epoch)
+    if (JSON.stringify(c.backend) !== JSON.stringify(d.backend)) throw new OrganizationError('forbidden')
+    if (d.backend !== undefined) requireCodexPolicy(d.backend, limits.executionCodex)
     if (c.configDigest !== d.configDigest) throw new OrganizationError('forbidden')
     if (db.prepare("SELECT 1 FROM execution_runs WHERE assignmentId=? AND json_extract(data,'$.state') IN ('prepared','running','paused','waiting-human')").get(a.id)) fail()
     const { kind: _kind, operationId: _operation, ...fields } = c
-    const run = executionRunSchema.parse({ ...fields, id: randomUUID(), state: 'prepared', createdRevision: revision, version: revision })
+    const run = executionRunSchema.parse({ ...fields, id: randomUUID(), state: 'prepared', ...c.backend === undefined ? {} : { startedAt: null, stopReason: null }, createdRevision: revision, version: revision })
     db.prepare('INSERT INTO execution_runs VALUES (?,?,?,?)').run(run.id, a.id, d.id, JSON.stringify(run))
     return { executionDelegationId: d.id, runId: run.id }
   }
@@ -126,29 +133,38 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   }
   if (c.kind === 'resume-run') {
     owner(db, principal, d, c, epoch)
+    requireNativeDispatch(db, run, limits.executionCodex)
     if (!['paused', 'waiting-human'].includes(run.state) || d.used >= d.budget
       || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id)
       || db.prepare("SELECT 1 FROM execution_human_requests WHERE runId=? AND json_extract(data,'$.state') NOT IN ('answered','approved','denied')").get(run.id)) fail()
-    save(db, 'execution_runs', run.id, { ...run, state: 'running', version: revision })
+    save(db, 'execution_runs', run.id, { ...run, state: 'running', ...run.backend === undefined ? {} : { startedAt: run.startedAt ?? Date.now(), stopReason: null }, version: revision })
     return result
   }
   if (c.kind === 'transition-run') {
     if (terminal(run.state)) fail()
-    if (run.state === 'waiting-human' && c.state === 'paused') return result
+    if (run.backend === undefined && run.state === 'waiting-human' && c.state === 'paused') return result
     // Stopping does not renew ownership; old devices may stop their own historical Run only.
-    if (c.state === 'running') { owner(db, principal, d, c, epoch); if (run.state !== 'prepared') fail() }
+    if (c.state === 'running') { owner(db, principal, d, c, epoch); requireNativeDispatch(db, run, limits.executionCodex); if (run.state !== 'prepared') fail() }
     if (['succeeded', 'failed'].includes(c.state) && (run.state !== 'running'
       || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id))) fail()
-    save(db, 'execution_runs', run.id, { ...run, state: c.state, version: revision })
+    save(db, 'execution_runs', run.id, { ...run, state: c.state, ...run.backend === undefined ? {} : {
+      startedAt: run.startedAt ?? (c.state === 'running' ? Date.now() : null),
+      stopReason: c.state === 'running' ? null : c.stopReason ?? (terminal(c.state) ? 'native-terminal' : 'employee-stop'),
+    }, version: revision })
     return result
   }
   const lease = owner(db, principal, d, c, epoch)
   if (run.state !== 'running' || !d.capabilities.includes(c.capability)) fail()
+  if ((run.backend !== undefined) !== (c.capability === 'codex-turn')) throw new OrganizationError('forbidden')
   const old = db.prepare('SELECT data FROM execution_actions WHERE id=?').get(c.actionId)
   if (old) {
     const action = executionActionSchema.parse(JSON.parse(String(old.data)))
     if (action.runId !== run.id || action.capability !== c.capability || action.requestDigest !== c.requestDigest || action.approvalId !== c.approvalId) throw new OrganizationError('operation-conflict')
     return { ...result, actionId: action.actionId }
+  }
+  if (run.backend !== undefined) {
+    requireNativeDispatch(db, run, limits.executionCodex)
+    if (db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id)) fail()
   }
   if (c.approvalId) {
     const approval = read(db, 'execution_human_requests', c.approvalId, executionHumanSchema)
@@ -163,6 +179,10 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     version: revision })
   db.prepare('INSERT INTO execution_actions VALUES (?,?,?)').run(action.actionId, run.id, JSON.stringify(action))
   save(db, 'execution_delegations', d.id, { ...d, used: d.used + 1, version: revision })
+  if (run.backend !== undefined && (d.used + 1 >= d.budget
+    || Number(db.prepare('SELECT count(*) AS n FROM execution_actions WHERE runId=?').get(run.id)?.n) >= run.backend.maxTurns)) {
+    save(db, 'execution_runs', run.id, { ...run, stopReason: 'turn-limit', version: revision })
+  }
   return { ...result, actionId: action.actionId }
 }
 /**
@@ -172,24 +192,25 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
  * @param query - Exact Run selector.
  * @param epoch - Current service activation.
  * @param modelPolicy - Current deployment-approved outbound model routes.
+ * @param codexPolicy - Current deployment-approved native scheduling limits.
  * @returns Shared metadata only; no full local log.
  */
 export function readExecution(db: DatabaseSync, principal: Principal, query: z.output<typeof executionReadSchema>,
-  epoch: OrganizationServerEpoch, modelPolicy: OrganizationExecutionView['modelPolicy']): OrganizationExecutionView {
+  epoch: OrganizationServerEpoch, modelPolicy: OrganizationExecutionView['modelPolicy'], codexPolicy: OrganizationExecutionView['codexPolicy']): OrganizationExecutionView {
   const a = selectedAssignment(db, query)
   authorizeAssignmentRead(db, principal, a)
   const run = read(db, 'execution_runs', query.runId, executionRunSchema)
   if (run.assignmentId !== a.id) throw new OrganizationError('forbidden')
   const delegation = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
   let eligible = false
-  try { owner(db, principal, delegation, run, epoch); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
+  try { owner(db, principal, delegation, run, epoch); requireNativeDispatch(db, run, codexPolicy); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
   catch (error) { if (!(error instanceof OrganizationError)) throw error }
   const actions = db.prepare('SELECT data FROM execution_actions WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionActionSchema.parse(JSON.parse(String(row.data))))
   const humanRequests = db.prepare('SELECT data FROM execution_human_requests WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionHumanSchema.parse(JSON.parse(String(row.data))))
   return { run, delegation, actions, humanRequests, assigneeId: a.assigneeId, approvedBy: a.approvedBy,
-    serverTime: Date.now(), eligible, modelPolicy }
+    serverTime: Date.now(), eligible, modelPolicy, codexPolicy }
 }
 /**
  * Retire stale execution authority and mark unconfirmed attempts unknown without refunding.
@@ -205,20 +226,17 @@ export function invalidateExecution(db: DatabaseSync, revision: number, restart 
       save(db, 'execution_delegations', d.id, { ...d, state: d.expiresAt <= Date.now() ? 'expired' : 'invalidated', version: revision })
     }
   }
-  for (const row of db.prepare('SELECT data FROM execution_human_requests').all()) {
-    const human = executionHumanSchema.parse(JSON.parse(String(row.data)))
-    const a = selectedAssignment(db, read(db, 'execution_runs', human.runId, executionRunSchema))
-    const run = read(db, 'execution_runs', human.runId, executionRunSchema)
-    if (human.state === 'pending' && (human.expiresAt <= Date.now() || assignmentInvalidation(db, a) || a.state !== 'accepted' || terminal(run.state))) {
-      save(db, 'execution_human_requests', human.id, { ...human, state: human.expiresAt <= Date.now() ? 'expired' : 'cancelled', version: revision })
-    }
-  }
   for (const row of db.prepare('SELECT data FROM execution_runs').all()) {
     const run = executionRunSchema.parse(JSON.parse(String(row.data)))
     const d = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
     const lease = db.prepare('SELECT state,expiresAt FROM assignment_leases WHERE assignmentId=? AND fencingEpoch=?').get(run.assignmentId, run.fencingEpoch)
-    const lost = restart || d.state !== 'active' || lease?.state !== 'held' || Number(lease.expiresAt) <= Date.now()
-    if (lost && ['prepared', 'running'].includes(run.state)) save(db, 'execution_runs', run.id, { ...run, state: 'paused', version: revision })
+    const expired = run.backend !== undefined && run.startedAt != null && Date.now() - run.startedAt >= run.backend.maxDurationMs
+    const lost = restart || expired || d.state !== 'active' || lease?.state !== 'held' || Number(lease.expiresAt) <= Date.now()
+    const stopReason = expired ? 'duration-limit' : 'authority-lost'
+    const shouldPause = run.backend === undefined ? ['prepared', 'running'].includes(run.state)
+      : !terminal(run.state) && (run.state !== 'paused' || run.stopReason !== stopReason)
+    if (lost && shouldPause) save(db, 'execution_runs', run.id, { ...run, state: 'paused',
+      ...run.backend === undefined ? {} : { stopReason }, version: revision })
     for (const item of db.prepare('SELECT data FROM execution_actions WHERE runId=?').all(run.id)) {
       const action = executionActionSchema.parse(JSON.parse(String(item.data)))
       if (action.state === 'reserved' && (lost || terminal(run.state) || run.state === 'paused' || action.expiresAt <= Date.now())) {
@@ -226,4 +244,25 @@ export function invalidateExecution(db: DatabaseSync, revision: number, restart 
       }
     }
   }
+  for (const row of db.prepare('SELECT data FROM execution_human_requests').all()) {
+    const human = executionHumanSchema.parse(JSON.parse(String(row.data)))
+    const a = selectedAssignment(db, read(db, 'execution_runs', human.runId, executionRunSchema))
+    const run = read(db, 'execution_runs', human.runId, executionRunSchema)
+    if (human.state === 'pending' && (human.expiresAt <= Date.now() || assignmentInvalidation(db, a) || a.state !== 'accepted' || terminal(run.state)
+      || run.backend !== undefined && ['authority-lost', 'duration-limit', 'employee-stop'].includes(run.stopReason ?? ''))) {
+      save(db, 'execution_human_requests', human.id, { ...human, state: human.expiresAt <= Date.now() ? 'expired' : 'cancelled', version: revision })
+    }
+  }
+}
+
+function requireCodexPolicy(backend: NonNullable<OrganizationExecutionView['run']['backend']>, policy: OrganizationExecutionView['codexPolicy']): void {
+  if (!policy.some(entry => entry.model === backend.model
+    && entry.efforts.includes(backend.effort) && backend.maxTurns <= entry.maxTurns
+    && backend.maxDurationMs <= entry.maxDurationMs)) throw new OrganizationError('forbidden')
+}
+function requireNativeDispatch(db: DatabaseSync, run: OrganizationExecutionView['run'], policy: OrganizationExecutionView['codexPolicy']): void {
+  if (run.backend === undefined) return
+  requireCodexPolicy(run.backend, policy)
+  const turns = Number(db.prepare('SELECT count(*) AS n FROM execution_actions WHERE runId=?').get(run.id)?.n)
+  if (turns >= run.backend.maxTurns || (run.startedAt != null && Date.now() - run.startedAt >= run.backend.maxDurationMs)) fail()
 }

@@ -8,6 +8,7 @@ export async function executionChild(executable, root) {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   })
   const pending = new Map(), nonce = randomUUID()
+  const authorizations = new Set()
   let closed = false
   const exited = new Promise(resolve => child.once('close', code => {
     closed = true
@@ -24,13 +25,16 @@ export async function executionChild(executable, root) {
       const entry = pending.get(message.requestId)
       if (!entry) return
       if (message.type === `${entry.prefix}-authorize`) {
-        void entry.authorize(entry.prefix === 'organization-context' ? message.revision : message.command).then(authority => {
+        const operation = entry.authorize(entry.prefix === 'organization-context' ? message.revision : message.command).then(authority => {
           if (child.connected && pending.has(message.requestId)) child.send({ type: `${entry.prefix}-authorized`, nonce,
             requestId: message.requestId, authorizationId: message.authorizationId, authority })
         }, () => {
           if (child.connected && pending.has(message.requestId)) child.send({ type: `${entry.prefix}-authorized`, nonce,
             requestId: message.requestId, authorizationId: message.authorizationId, error: 'denied' })
         })
+        authorizations.add(operation)
+        const settled = () => { authorizations.delete(operation) }
+        void operation.then(settled, settled)
       } else if (message.type === `${entry.prefix}-result`) {
         entry.cleanup(); pending.delete(message.requestId)
         if (message.error) entry.reject(new Error(message.error)); else entry.resolve(message.report ?? message.result)
@@ -55,6 +59,8 @@ export async function executionChild(executable, root) {
     openOrganizationExecution: (...args) => call('organization-execution', 'open', ...args),
     readOrganizationExecution: (...args) => call('organization-execution', 'report', ...args),
     async close() {
+      // Parent authorization work can outlive a cancelled Host request.
+      await Promise.allSettled([...authorizations])
       if (child.connected) child.send({ type: 'shutdown' })
       const timer = setTimeout(() => child.kill('SIGKILL'), 10000)
       const code = await exited; clearTimeout(timer)

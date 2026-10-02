@@ -78,7 +78,7 @@ it('migrates v6 preparation without execution grants and rolls failed migration 
   expect(h.db.prepare("SELECT name FROM sqlite_master WHERE name='execution_delegations'").get()).toBeUndefined()
   h.db.exec('DROP TABLE execution_runs')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(11)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(12)
   expect(upgraded.prepare('SELECT count(*) AS n FROM execution_delegations').get()?.n).toBe(0)
   upgraded.close()
 })

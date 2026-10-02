@@ -19,6 +19,7 @@ export const inject = ['agents', 'sessions', 'sessionProjections', 'subprocess']
 export const Config: z<Partial<Config>, Config> = z.object({
   startupTimeoutMs: z.number().step(1).min(1).max(2147483647).default(30000),
   rpcTimeoutMs: z.number().step(1).min(1).max(2147483647).default(30000),
+  humanTimeoutMs: z.number().step(1).min(1).max(2147483647).default(300000),
   turnTimeoutMs: z.number().step(1).min(1).max(2147483647).default(3600000),
   interruptTimeoutMs: z.number().step(1).min(1).max(2147483647).default(10000),
   disposeGraceMs: z.number().step(1).min(1).max(2147483647).default(3000),

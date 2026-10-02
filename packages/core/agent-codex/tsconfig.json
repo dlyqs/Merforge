@@ -8,7 +8,9 @@
     "src"
   ],
   "references": [
-    { "path": "../../util/brand" },
+    {
+      "path": "../../util/brand"
+    },
     {
       "path": "../../../vendor/cordis"
     },
@@ -35,6 +37,15 @@
     },
     {
       "path": "../../subagent/codex-runtime"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../interaction/user-questions"
+    },
+    {
+      "path": "../../interaction/user-approval"
     }
   ]
 }

@@ -5,12 +5,13 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { openHarness, initialize, addMember, operationId } from './harness.ts'
+import type { Config } from '../src/index.ts'
 import type { OrganizationAssignment } from '../src/assignment-types.ts'
 
-export async function assignmentHarness(cleanup: (() => Promise<unknown>)[]) {
+export async function assignmentHarness(cleanup: (() => Promise<unknown>)[], config: Partial<Config> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'organization-assignment-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
-  const h = await openHarness(root)
+  const h = await openHarness(root, config)
   cleanup.push(h.close)
   const owner = await initialize(h.service)
   const other = await addMember(h.service, owner.token, owner.organizationId)
@@ -39,4 +40,3 @@ export async function assignmentHarness(cleanup: (() => Promise<unknown>)[]) {
   }
   return { ...h, root, owner, other, query, save, approve, db, read, projectGrant, ownerGrant, otherGrant, taskGrant }
 }
-

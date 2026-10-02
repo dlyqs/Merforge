@@ -35,6 +35,8 @@ export function validateExecutionDatabase(db: DatabaseSync): void {
       || d.expiresAt > p.expiresAt || d.budget > p.budget || d.used !== used || d.used > d.budget || d.version < d.createdRevision
       || db.prepare("SELECT json_extract(result,'$.executionDelegationId') AS id FROM execution_events WHERE revision=?").get(d.createdRevision)?.id !== d.id
       || event?.kind !== 'grant-execution' || event.actorId !== member?.accountId || event.organizationId !== a.organizationId
+      || d.backend !== undefined && (d.capabilities.length !== 1 || d.capabilities[0] !== 'codex-turn' || d.budget > d.backend.maxTurns)
+      || d.backend === undefined && d.capabilities.includes('codex-turn')
       || d.state === 'active' && p.state !== 'active') fail()
   }
   for (const row of db.prepare('SELECT * FROM execution_runs').all()) {
@@ -42,6 +44,11 @@ export function validateExecutionDatabase(db: DatabaseSync): void {
     const d = executionDelegationSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM execution_delegations WHERE id=?').get(r.executionDelegationId)?.data)))
     const lease = db.prepare('SELECT * FROM assignment_leases WHERE assignmentId=? AND fencingEpoch=?').get(r.assignmentId, r.fencingEpoch)
     if (row.id !== r.id || row.assignmentId !== r.assignmentId || row.delegationId !== d.id || d.assignmentId !== r.assignmentId
+      || JSON.stringify(r.backend) !== JSON.stringify(d.backend)
+      || r.backend === undefined && (r.startedAt !== undefined || r.stopReason !== undefined)
+      || r.backend !== undefined && (r.startedAt === undefined || r.stopReason === undefined
+        || ['running', 'waiting-human', 'succeeded', 'failed'].includes(r.state) && r.startedAt === null
+        || r.state === 'prepared' && (r.startedAt !== null || r.stopReason !== null))
       || r.deviceId !== d.deviceId || r.planRevision !== d.planRevision || r.configDigest !== d.configDigest
       || r.organizationId !== d.organizationId || r.projectId !== d.projectId || r.planId !== d.planId || r.version < r.createdRevision
       || lease?.serverEpoch !== r.serverEpoch || lease.delegationId !== d.delegationId || lease.deviceId !== r.deviceId
@@ -62,6 +69,7 @@ export function validateExecutionDatabase(db: DatabaseSync): void {
     if (row.id !== a.actionId || row.runId !== r.id || a.assignmentId !== r.assignmentId || a.deviceId !== r.deviceId
       || a.executionDelegationId !== r.executionDelegationId || a.planRevision !== r.planRevision || a.serverEpoch !== r.serverEpoch
       || a.fencingEpoch !== r.fencingEpoch || a.organizationId !== r.organizationId || a.projectId !== r.projectId || a.planId !== r.planId
+      || ((r.backend !== undefined) !== (a.capability === 'codex-turn'))
       || !d.capabilities.includes(a.capability) || a.expiresAt > d.expiresAt || a.version < a.createdRevision
       || a.state === 'reserved' && a.evidenceDigest !== null
       || !['reserved','unknown'].includes(a.state) && a.evidenceDigest === null

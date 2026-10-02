@@ -17,7 +17,7 @@ export interface JsonRpcTransportOptions {
   readonly strict: boolean
 }
 
-type RequestHandler = (method: string, params: Record<string, unknown>) => Promise<unknown>
+type RequestHandler = (method: string, params: Record<string, unknown>, id: JsonRpcId) => Promise<unknown>
 type NotificationHandler = (method: string, params: Record<string, unknown>) => void
 
 /** A JSON-RPC error response, preserving the wire `code` and optional `data`. */
@@ -269,10 +269,10 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
       return
     }
     try {
-      const result = await handler(method, params)
+      const result = await handler(method, params, id)
       if (!this.closed) this.write({ jsonrpc: '2.0', id, result })
     } catch (error) {
-      if (!this.closed) this.writeError(id, -32603, error instanceof Error ? error.message : String(error))
+      if (!this.closed) this.writeError(id, -32603, this.options?.strict ? 'request rejected' : error instanceof Error ? error.message : String(error))
     }
   }
 

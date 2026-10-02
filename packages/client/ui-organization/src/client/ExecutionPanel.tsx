@@ -140,7 +140,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     setStopping(true)
     try {
       const { id, state: _state, version: _version, createdRevision: _created,
-        configDigest: _digest, deviceId: _device, ...selector } = view.run
+        configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
+        deviceId: _device, ...selector } = view.run
       await props.connection({ kind: 'execution-command', request: { ...selector, runId: id, operationId: randomUUID(), kind: 'transition-run', state } })
       if (alive.current) await load()
     } catch (error) { if (alive.current) setNotice(t(executionError(error))) }

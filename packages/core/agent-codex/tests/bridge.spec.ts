@@ -1,5 +1,5 @@
 /** Loader + JSONL + native protocol composition; no login, model network or windows. */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, open } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -22,6 +22,12 @@ import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import Workspaces from '@deepseek-ai/dsh-workspace'
 import Query from '@deepseek-ai/dsh-session-query'
 import Personal from '@deepseek-ai/dsh-personal-project'
+import Workflow from '@deepseek-ai/dsh-personal-workflow'
+import Skills from '@deepseek-ai/dsh-skill'
+import Questions from '@deepseek-ai/dsh-user-questions'
+import Approval from '@deepseek-ai/dsh-user-approval'
+import * as Method from '../../../skill/skill-dev-workflow/src/index.ts'
+import { proposal, ids, phase, operation } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-codex-runtime'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
@@ -29,7 +35,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import * as Codex from '../src/index.ts'
 import Commands from '@deepseek-ai/dsh-commands'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset, type SessionEventMap } from '@deepseek-ai/dsh-session'
 import FileUploads from '../../../client/file-upload/src/index.ts'
 import { MockAdapter } from '../../agent-loop/tests/mock-adapter.ts'
 import { createSessionTestRemote } from '../../../api/session-controller/tests/test-remote.ts'
@@ -40,6 +46,9 @@ const cleanup: Array<() => Promise<void>> = []
 afterEach(async () => { for (const release of cleanup.splice(0).reverse()) await release() })
 
 function native() {
+  const failures: unknown[] = []
+  const callbacks = new Set<Promise<void>>()
+  cleanup.push(async () => { await Promise.allSettled([...callbacks]); expect(failures).toEqual([]) })
   const calls: Array<{ method: string; params: Record<string, unknown> }> = []
   const threads = new Map<string, {
     id: string
@@ -60,6 +69,7 @@ function native() {
   let holdCatalog = false
   let threadCount = 0
   let turnCount = 0
+  let onTurn: ((peer: JsonRpcLineTransport, threadId: string, turnId: string) => Promise<void>) | undefined
   let onSend: (() => Promise<void>) | undefined
   const children: Array<{ handle: SubprocessHandle; peer: JsonRpcLineTransport; exited: boolean }> = []
   const spawn = (request: SubprocessSpawnSpec): SubprocessHandle => {
@@ -104,13 +114,18 @@ function native() {
           const thread = threads.get(String(params.threadId))!
           const turn = { id: `turn-${++turnCount}`, status: 'inProgress', items: [] as Array<Record<string, unknown>> }
           thread.turns.push(turn)
-          setImmediate(() => {
-            if (!hold && !child.exited && !loseAcceptance) {
-              peer.notify('item/agentMessage/delta', { threadId: thread.id, turnId: turn.id, itemId: `answer-${turn.id}`, delta: 'live ' })
-              peer.notify('item/completed', { threadId: thread.id, turnId: turn.id, item: { id: `tool-${turn.id}`, type: 'commandExecution', command: 'native fixture', status: 'completed', exitCode: 0, aggregatedOutput: 'native output' } })
-              complete(thread.id, turn)
-            }
-          })
+          const callback = new Promise<void>((resolve) => { setImmediate(() => {
+            void (async () => {
+              await onTurn?.(peer, thread.id, turn.id)
+              if (!hold && !child.exited && !loseAcceptance) {
+                peer.notify('item/agentMessage/delta', { threadId: thread.id, turnId: turn.id, itemId: `answer-${turn.id}`, delta: 'live ' })
+                peer.notify('item/completed', { threadId: thread.id, turnId: turn.id, item: { id: `tool-${turn.id}`, type: 'commandExecution', command: 'native fixture', status: 'completed', exitCode: 0, aggregatedOutput: 'native output' } })
+                complete(thread.id, turn)
+              }
+            })().catch((error: unknown) => { failures.push(error) }).finally(resolve)
+          }) })
+          callbacks.add(callback)
+          void callback.finally(() => { callbacks.delete(callback) })
           if (loseAcceptance) { input.end(); return new Promise<never>(() => {}) }
           return { turn: { id: turn.id, status: 'inProgress', items: [] } }
         }
@@ -133,22 +148,24 @@ function native() {
     set modelsAvailable(value: boolean) { modelsAvailable = value },
     set holdCatalog(value: boolean) { holdCatalog = value },
     set failRead(value: boolean) { failRead = value },
+    set onTurn(value: typeof onTurn) { onTurn = value },
     set onSend(value: typeof onSend) { onSend = value } }
 }
 
-async function boot(root: string, peer: ReturnType<typeof native>, personal = false) {
+async function boot(root: string, peer: ReturnType<typeof native>, personal = false, workflow = false, humanTimeoutMs = 300000) {
   const configPath = join(root, 'cordis.yml')
   const modules = new Map<string, unknown>([
     ['llm', Llm], ['sessions', Sessions], ['projections', Projections], ['agents', Agents], ['tools', Tools], ['prompt', SystemPrompt],
     ['loop', AgentLoop], ['jsonl', Jsonl], ['subprocess', Subprocess], ['codex', Codex],
-    ['storage', Storage], ['storage-json', StorageJson], ['domain', StorageDomain], ['workspaces', Workspaces], ['query', Query], ['personal', Personal],
+    ['storage', Storage], ['storage-json', StorageJson], ['domain', StorageDomain], ['workspaces', Workspaces], ['query', Query], ['personal', Personal], ['workflow', Workflow], ['skills', Skills], ['method', Method], ['questions', Questions], ['approval', Approval],
   ])
   await writeFile(configPath, [
     '- name: llm', '- name: sessions', '- name: projections', '- name: agents', '- name: tools', '- name: prompt',
     '- name: loop', '  config: { agents: [] }', '- name: jsonl', `  config: { root: ${JSON.stringify(join(root, 'sessions'))}, compression: none }`,
     ...personal ? ['- name: storage', '- name: storage-json', `  config: { root: ${JSON.stringify(join(root, 'data'))} }`,
       '- name: domain', '  config: { backend: json }', '- name: workspaces', '- name: query', '- name: personal'] : [],
-    '- name: subprocess', '- name: codex', '  config: { startupTimeoutMs: 1000, rpcTimeoutMs: 1000, turnTimeoutMs: 2000, interruptTimeoutMs: 200, disposeGraceMs: 10 }', '',
+    ...workflow ? ['- name: workflow', '- name: skills', '- name: method', '- name: questions', '- name: approval'] : [],
+    '- name: subprocess', '- name: codex', `  config: { startupTimeoutMs: 1000, rpcTimeoutMs: 1000, turnTimeoutMs: 2000, humanTimeoutMs: ${humanTimeoutMs}, interruptTimeoutMs: 200, disposeGraceMs: 10 }`, '',
   ].join('\n'))
   const ctx = new Context()
   ctx.baseUrl = pathToFileURL(root).href + '/'
@@ -165,11 +182,11 @@ async function boot(root: string, peer: ReturnType<typeof native>, personal = fa
   cleanup.push(async () => { await ctx.fiber.dispose() })
   return ctx
 }
-async function fixture(personal = false) {
+async function fixture(personal = false, workflow = false, humanTimeoutMs = 300000) {
   const root = await mkdtemp(join(tmpdir(), 'merforge-codex-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
   const peer = native()
-  const ctx = await boot(root, peer, personal)
+  const ctx = await boot(root, peer, personal, workflow, humanTimeoutMs)
   return { ctx, root, peer }
 }
 async function readStored(ctx: Context, id: ReturnType<typeof SessionId>) {
@@ -569,4 +586,192 @@ it('keeps a never-dispatched thread unbound on missing login and permits explici
   await handle.agent.whenIdle()
   expect(ctx.sessionProjections.stateOf(handle.agent.session, 'codexBridge')?.status).toBe('completed')
   expect(peer.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+})
+
+it('dispatches selected task materials through real workflow admission and records Codex-reported completion without independent artifacts', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  await ctx.personalWorkflow.save(proposal())
+  await ctx.personalWorkflow.approve({ taskId: ids[0]!, expectedRevision: 1, operationId: operation(2) })
+  const oversized = await open(join(root, 'native-large-result.bin'), 'w')
+  try { await oversized.truncate(ctx.personalWorkflow.execution.limits.maxEvidenceBytes + 1) } finally { await oversized.close() }
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-selected-task'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  await ctx.personalWorkflow.execution.claim(handle.agent.session, {
+    sessionId: handle.agent.id, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 1, operationId: operation(3), authorization: { mode: 'manual', stopPhaseId: phase, maxActions: 2, maxTurns: 2, maxDurationMs: 100000 } })
+  peer.onTurn = async (server, threadId, turnId) => {
+    expect(await server.request('item/tool/call', { threadId, turnId, callId: 'complete', tool: 'workflow_complete',
+      arguments: { summary: 'Native report', acceptance: ['Reported criterion met'], callIds: [] } })).toMatchObject({ success: true })
+    await expect(server.request('item/tool/call', { threadId, turnId, callId: 'shell', tool: 'shell', arguments: {} })).rejects.toThrow('request rejected')
+  }
+  handle.agent.followup(input('Use these explicit task materials'))
+  await handle.agent.whenIdle()
+  const run = ctx.personalWorkflow.execution.forSession(handle.agent.id)!
+  expect(run).toMatchObject({ backend: 'codex', status: 'completed', evidence: [{ reportedBy: 'codex', files: [], callIds: [] }] })
+  const start = peer.calls.find(call => call.method === 'turn/start')!
+  expect(JSON.stringify(start.params.input)).toContain('selected task')
+  expect(JSON.stringify(start.params.input)).toContain('Use these explicit task materials')
+  const stored = await readStored(ctx, handle.agent.id)
+  expect(stored.events.some(event => event.type === 'codex/request')).toBe(true)
+  expect(stored.events.some(event => event.type === 'codex/request-result')).toBe(true)
+})
+
+it('pauses and explicitly resumes native tasks without reading artifacts or requiring Git', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const original = proposal()
+  const request = { ...original, definition: { ...original.definition,
+    tasks: original.definition.tasks.map(task => ({ ...task, artifacts: [] })),
+  } }
+  await ctx.personalWorkflow.save(request)
+  await ctx.personalWorkflow.approve({ taskId: ids[0]!, expectedRevision: 1, operationId: operation(2) })
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-directory-only'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  const claimed = await ctx.personalWorkflow.execution.claim(handle.agent.session, {
+    sessionId: handle.agent.id, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 1, operationId: operation(3), authorization: { mode: 'manual', stopPhaseId: phase, maxActions: 2, maxTurns: 2, maxDurationMs: 100000 } })
+  handle.agent.followup(input('Begin the selected task'))
+  await handle.agent.whenIdle()
+  expect(ctx.personalWorkflow.execution.forSession(handle.agent.id)).toMatchObject({ status: 'paused', turnsUsed: 1, baseline: { files: [] } })
+  await writeFile(join(root, 'changed-by-native.txt'), 'Native artifact')
+  await ctx.personalWorkflow.execution.resume(handle.agent.session, {
+    sessionId: handle.agent.id, runId: claimed.id, ownerEpoch: claimed.ownerEpoch, operationId: operation(4), reconciliation: '' })
+  handle.agent.followup(input('Continue explicitly'))
+  await handle.agent.whenIdle()
+  expect(ctx.personalWorkflow.execution.forSession(handle.agent.id)).toMatchObject({ status: 'paused', turnsUsed: 2, startedAt: claimed.startedAt })
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
+  expect(peer.calls.filter(call => call.method === 'thread/resume')).toHaveLength(1)
+})
+
+it('routes assessments and proposals through the real task pipeline while keeping approval and execution human-owned', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-plan'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  await ctx.personalWorkflow.setMode(handle.agent.session, { sessionId: handle.agent.id, enabled: true,
+    expectedRevision: 0, operationId: operation(5) })
+  peer.onTurn = async (server, threadId, turnId) => {
+    const call = (tool: string, args: object) => server.request('item/tool/call', { threadId, turnId, callId: tool, tool, arguments: args })
+    expect(await call('workflow_assess', { modeRevision: 1, decision: 'complex', explanation: 'A structured goal' })).toMatchObject({ success: true })
+    expect(await call('workflow_propose', { ...proposal(), modeRevision: 1 })).toMatchObject({ success: true })
+  }
+  handle.agent.followup(input('Plan this explicit goal'))
+  await handle.agent.whenIdle()
+  expect(ctx.personalWorkflow.list()).toHaveLength(1)
+  expect(ctx.personalWorkflow.list()[0]?.snapshot.approval).toBeNull()
+  expect(ctx.personalWorkflow.execution.forSession(handle.agent.id)).toBeNull()
+  expect(JSON.stringify(peer.calls.find(call => call.method === 'thread/start')?.params.dynamicTools)).toContain('workflow_propose')
+  expect(peer.calls.filter(call => call.method === 'turn/start')).toHaveLength(1)
+})
+
+it('presents native questions and one-time approvals through current scoped human services and persists their replies', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-human'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  ctx.on('user-questions/request', async (request) => {
+    expect(request.agent).toBe(handle.agent)
+    return { answers: [{ id: 'choice', selected: ['Yes'] }] }
+  })
+  ctx.on('approval/request', async (request) => {
+    expect(request.agent).toBe(handle.agent)
+    return 'allowed-once'
+  })
+  peer.onTurn = async (server, threadId, turnId) => {
+    await expect(server.request('item/tool/requestUserInput', { threadId: 'wrong', turnId, itemId: 'q', isBlocking: true, questions: [] })).rejects.toThrow('request rejected')
+    expect(await server.request('item/tool/requestUserInput', { threadId, turnId, itemId: 'q', isBlocking: true,
+      questions: [{ id: 'choice', header: 'Choice', question: 'Proceed?', options: [{ label: 'Yes', description: 'Proceed once' }] }] })).toEqual({ answers: { choice: { answers: ['Yes'] } } })
+    for (const method of ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval']) {
+      expect(await server.request(method, { threadId, turnId, itemId: method, startedAtMs: Date.now(), reason: 'Native action', command: 'fixture' })).toEqual({ decision: 'accept' })
+    }
+  }
+  handle.agent.followup(input('Ask for a human decision'))
+  await handle.agent.whenIdle()
+  const events = (await readStored(ctx, handle.agent.id)).events
+  expect(events.filter(event => event.type === 'codex/request-result').map(event => event.data.status)).toEqual(['answered', 'answered', 'answered'])
+  expect(events.filter(event => event.type === 'approval/decided')).toHaveLength(2)
+})
+
+it('revokes pending native answers on stop and ignores a late human answer after the turn drains', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-revoked-answer'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  const late = Promise.withResolvers<{ answers: { id: string; selected: string[] }[] }>()
+  let asked = false
+  ctx.on('user-questions/request', async () => { asked = true; return late.promise })
+  peer.onTurn = async (server, threadId, turnId) => {
+    await expect(server.request('item/tool/requestUserInput', { threadId, turnId, itemId: 'q', isBlocking: true,
+      questions: [{ id: 'q', header: 'Q', question: 'Wait?' }] })).rejects.toThrow()
+  }
+  handle.agent.followup(input('Wait for me'))
+  await vi.waitFor(() => { expect(asked).toBe(true) })
+  handle.agent.cancel({ kind: 'user' })
+  await handle.agent.whenIdle()
+  late.resolve({ answers: [{ id: 'q', selected: [] }] })
+  const events = (await readStored(ctx, handle.agent.id)).events
+  expect(events.filter(event => event.type === 'codex/request-result').map(event => event.data.status)).toEqual(['cancelled'])
+  expect(peer.children.every(child => child.exited)).toBe(true)
+})
+
+it('keeps native task declarations available when enhancement is enabled after the original thread starts', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-mode-transition'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  peer.onTurn = async (server, threadId, turnId) => {
+    expect(await server.request('item/tool/call', { threadId, turnId, callId: 'assessment', tool: 'workflow_assess',
+      arguments: { modeRevision: 0, decision: 'complex', explanation: 'Explicit goal' } })).toMatchObject({ success: false })
+  }
+  handle.agent.followup(input('Ordinary conversation'))
+  await handle.agent.whenIdle()
+  await ctx.personalWorkflow.setMode(handle.agent.session, { sessionId: handle.agent.id, enabled: true,
+    expectedRevision: 0, operationId: operation(8) })
+  peer.onTurn = async (server, threadId, turnId) => {
+    expect(await server.request('item/tool/call', { threadId, turnId, callId: 'assessment', tool: 'workflow_assess',
+      arguments: { modeRevision: 1, decision: 'complex', explanation: 'Explicit goal' } })).toMatchObject({ success: true })
+  }
+  handle.agent.followup(input('Plan after enabling enhancement'))
+  await handle.agent.whenIdle()
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
+  expect(peer.calls.filter(call => call.method === 'thread/resume')).toHaveLength(1)
+  expect(JSON.stringify(peer.calls.find(call => call.method === 'thread/start')?.params.dynamicTools)).toContain('workflow_assess')
+})
+
+it('retains ordinary legacy threads and refuses task context when their original declarations are unavailable', async () => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const handle = await ctx.agents.create({ sessionId: SessionId('native-legacy-tools'), agentOptions: { backend: selection }, meta: { cwd: root } })
+  const append = handle.agent.session.append.bind(handle.agent.session)
+  const legacy = vi.spyOn(handle.agent.session, 'append').mockImplementation((type, data, options) => {
+    if (type === 'codex/thread-bound') {
+      const { dynamicTools: _tools, ...binding } = data as SessionEventMap['codex/thread-bound']
+      return append('codex/thread-bound', binding, options)
+    }
+    return append(type, data, options)
+  })
+  handle.agent.followup(input('Existing ordinary thread'))
+  await handle.agent.whenIdle()
+  legacy.mockRestore()
+  handle.agent.followup(input('Continue ordinary conversation'))
+  await handle.agent.whenIdle()
+  await ctx.personalWorkflow.setMode(handle.agent.session, { sessionId: handle.agent.id, enabled: true,
+    expectedRevision: 0, operationId: operation(9) })
+  const errors: string[] = []
+  ctx.on('agent/error', ({ error }) => { errors.push(String(error)) })
+  handle.agent.followup(input('Enable planning'))
+  await handle.agent.whenIdle()
+  expect(errors).toEqual([expect.stringContaining('create a new conversation')])
+  expect(peer.calls.filter(call => call.method === 'turn/start')).toHaveLength(2)
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
+  expect((await readStored(ctx, handle.agent.id)).events.filter(event => event.type === 'assistant/message')).toHaveLength(2)
+})
+
+it.each(['timeout', 'provider-unload'] as const)('drains pending native questions on %s before closing the Session turn', async (reason) => {
+  const { ctx, root, peer } = await fixture(true, true, reason === 'timeout' ? 100 : 300000)
+  const handle = await ctx.agents.create({ sessionId: SessionId(`native-human-${reason}`), agentOptions: { backend: selection }, meta: { cwd: root } })
+  const late = Promise.withResolvers<{ answers: { id: string; selected: string[] }[] }>()
+  let asked = false
+  ctx.on('user-questions/request', async () => { asked = true; return late.promise })
+  peer.onTurn = async (server, threadId, turnId) => {
+    await expect(server.request('item/tool/requestUserInput', { threadId, turnId, itemId: 'q', isBlocking: true,
+      questions: [{ id: 'q', header: 'Q', question: 'Wait?' }] })).rejects.toThrow()
+  }
+  handle.agent.followup(input('Pending human answer'))
+  await vi.waitFor(() => { expect(asked).toBe(true) })
+  if (reason === 'provider-unload') await [...ctx.loader.entries()].find(entry => entry.options.name === 'codex')!.fiber!.dispose()
+  else await handle.agent.whenIdle()
+  late.resolve({ answers: [{ id: 'q', selected: [] }] })
+  const events = (await readStored(ctx, handle.agent.id)).events
+  const result = events.findIndex(event => event.type === 'codex/request-result')
+  expect(result).toBeGreaterThan(0)
+  expect(events[result]).toMatchObject({ data: { status: 'cancelled' } })
+  expect(events.findIndex(event => event.type === 'turn/end')).toBeGreaterThan(result)
+  expect(peer.children.every(child => child.exited)).toBe(true)
 })

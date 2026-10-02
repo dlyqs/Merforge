@@ -2,9 +2,12 @@ import { generateKeyPairSync, sign, randomUUID } from 'node:crypto'
 import { assignmentHarness } from './assignment-harness.ts'
 import { operationId } from './harness.ts'
 import { deviceChallengeText } from '../src/device-schema.ts'
+import type { Config } from '../src/index.ts'
+import type { z } from 'zod'
+import type { executionCodexBackendSchema } from '../src/execution-schema.ts'
 import type { OrganizationDeviceChallenge, OrganizationExecutionView } from '../src/index.ts'
-export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget = 2, configDigest = 'a'.repeat(64), capabilities: ('model' | 'fs-read' | 'fs-write' | 'shell')[] = ['model'], prepare?: (h: Awaited<ReturnType<typeof assignmentHarness>>) => Promise<void>) {
-  const h = await assignmentHarness(cleanup)
+export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget = 2, configDigest = 'a'.repeat(64), capabilities: ('model' | 'fs-read' | 'fs-write' | 'shell' | 'codex-turn')[] = ['model'], prepare?: (h: Awaited<ReturnType<typeof assignmentHarness>>) => Promise<void>, native?: { backend: z.output<typeof executionCodexBackendSchema>; policy: NonNullable<Config['executionCodex']> }) {
+  const h = await assignmentHarness(cleanup, native === undefined ? {} : { executionCodex: native.policy })
   await prepare?.(h)
   const approved = await h.service.assignmentCommand(h.owner.token, h.approve)
   const selector = { ...h.query, assignmentId: approved.assignmentId }
@@ -24,10 +27,10 @@ export async function setupExecution(cleanup: (() => Promise<unknown>)[], budget
   const execute = async (command: object) => h.service.executionCommand(h.other.token, command,
     proof(await h.service.executionChallenge(h.other.token, command)))
   const grant = await execute({ ...base, kind: 'grant-execution', operationId: operationId(), delegationId: prep.delegationId,
-    capabilities, budget, expiresAt: Date.now() + 30000, configDigest })
+    ...native === undefined ? {} : { backend: native.backend }, capabilities, budget, expiresAt: Date.now() + 30000, configDigest })
   const owner = { ...base, executionDelegationId: grant.execution!.executionDelegationId, serverEpoch: lease.serverEpoch,
     fencingEpoch: lease.fencingEpoch }
-  const create = { ...owner, kind: 'create-run', operationId: operationId(), configDigest }
+  const create = { ...owner, kind: 'create-run', operationId: operationId(), configDigest, ...native === undefined ? {} : { backend: native.backend } }
   const created = await execute(create)
   const run = { ...owner, runId: created.execution!.runId }
   const read = async () => {

@@ -10,6 +10,8 @@ export type CodexTurnId = Branded<'CodexTurnId'>
 export type CodexItemId = Branded<'CodexItemId'>
 /** Stable consumer input identity for history reconciliation. */
 export type CodexInputId = Branded<'CodexInputId'>
+/** One server callback identity within a native connection. */
+export type CodexRequestId = Branded<'CodexRequestId'>
 /** Effort values published by the pinned official schema. */
 export type CodexEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 /** Safe account state; contains no native account identity or token. */
@@ -45,6 +47,7 @@ export interface CodexRuntimeLimits {
   readonly startupTimeoutMs: number
   readonly rpcTimeoutMs: number
   readonly turnTimeoutMs: number
+  readonly humanTimeoutMs: number
   readonly interruptTimeoutMs: number
   readonly disposeGraceMs: number
   readonly maxFrameBytes: number
@@ -66,6 +69,15 @@ export interface CodexRuntimeSpec {
   readonly env: Record<string, string>
   readonly limits: CodexRuntimeLimits
   readonly experimentalApi: boolean
+  /** Application tools advertised at thread creation; native tools remain Codex-owned. */
+  readonly dynamicTools?: readonly CodexDynamicTool[]
+  /**
+   * Handle a validated current-turn callback; cancellation revokes its answer.
+   * @param request - exact native request and connection-scoped identity.
+   * @param signal - turn, timeout and process lifetime.
+   * @returns JSON response conforming to the selected callback method.
+   */
+  readonly onRequest?: (request: CodexServerRequest, signal: AbortSignal) => Promise<unknown>
   /**
    * Observe fixed lifecycle facts without raw prompt, stderr or account information.
    * @param diagnostic - safe phase, category and terminal status.
@@ -131,4 +143,20 @@ export interface CodexSendReceipt {
   readonly threadId: CodexThreadId
   readonly turnId: CodexTurnId
   readonly terminal: Promise<CodexTurnTerminal>
+}
+
+/** Application function schema understood by the pinned experimental protocol. */
+export interface CodexDynamicTool {
+  readonly type: 'function'
+  readonly name: string
+  readonly description: string
+  readonly inputSchema: unknown
+}
+/** Validated current-turn callback; payload validation belongs to its consumer. */
+export interface CodexServerRequest {
+  readonly requestId: CodexRequestId
+  readonly method: 'item/tool/call' | 'item/tool/requestUserInput' | 'item/commandExecution/requestApproval' | 'item/fileChange/requestApproval'
+  readonly threadId: CodexThreadId
+  readonly turnId: CodexTurnId
+  readonly params: Readonly<Record<string, unknown>>
 }
