@@ -2,6 +2,8 @@
 
 本协议是[执行计划](organization-execution-plan.md) Phase 1 的实施依据。Phase 1–8 已实现执行、人工请求、本机恢复、持久产物、员工正式提交、原下发人验收/返工及目标核验与父级集成。组织 SQLite 是业务唯一写入者，Desktop 私有 Host 只拥有本机执行日志和协调服务。
 
+已有任务的 Codex 调度与独立原生转录已接入，组合/发行证据及双平台、三机待验步骤见[Codex 验收交接](codex-backend-acceptance.md)。原生 completed、真人提交、原下发人验收与最终目标确认是不同事实。
+
 ## 状态、作者与幂等
 
 所有命令使用当前登录身份，携带 organization/project/plan/assignment、准确整计划 revision 和 account 范围 operationId。同键不同内容拒绝；同键相同内容只返回历史事实，不能用回执恢复动作资格。新执行委托独立保存并引用员工明确选择的准备委托和设备，旧 task-read/draft 不产生执行权限。

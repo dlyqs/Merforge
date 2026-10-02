@@ -113,7 +113,8 @@ export async function executionScenario(kit, createHost = root => localExecution
   const root = await mkdtemp(join(tmpdir(), 'desktop-execution-'))
   const clients = [], hosts = []
   let app
-  const localRoot = join(root, 'employee-host'), work = join(root, 'employee-git'), target = join(root, 'issuer-git')
+  let localRoot = join(root, 'employee-host'), work = join(root, 'employee-git')
+  const target = join(root, 'issuer-git'), localRoots = [localRoot], workRoots = [work]
   const git = (directory, ...args) => execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   async function active(client, action) { await until(() => client.snapshot().phase === 'ready'); return client.perform(action) }
   try {
@@ -138,9 +139,11 @@ export async function executionScenario(kit, createHost = root => localExecution
       }
       return client
     }
-    const owner = await connect('owner', 'owner'), member = await connect(null, 'employee')
+    const owner = await connect('owner', 'owner')
+    let member = await connect(null, 'employee')
     const invite = await active(owner, { kind: 'invite', role: 'member' })
-    const employee = (await member.perform({ kind: 'register', username: 'employee', password, invitationToken: invite.invitationToken })).receipt
+    let employee = (await member.perform({ kind: 'register', username: 'employee', password, invitationToken: invite.invitationToken })).receipt
+    const firstMember = member, firstEmployee = employee
     await member.perform({ kind: 'login', username: 'employee', password })
     await member.perform({ kind: 'select', organizationId: init.organizationId })
     const command = body => active(owner, { kind: 'command', command: { ...body, organizationId: init.organizationId, operationId: randomUUID() } })
@@ -161,7 +164,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     const inputs = { model: kit.liveRoute?.model ?? 'scripted-csv', ...(kit.liveRoute ? { endpoint: kit.liveRoute.endpoint } : {}), capabilities: ['model', 'fs-read', 'fs-write'], materials: ['CSV columns name,note'],
       messages: [kit.liveRoute ? `Write result.csv using write_file with EXACT UTF-8 content ${JSON.stringify(csv)}. Then read it using read_file and finish. Do not touch other files or request human input.` : 'PRIVATE_EXECUTION_SENTINEL: prepare CSV evidence'], execution: { directory: work, maxActions: 30, maxSteps: 15, maxDurationMs: 60000 } }
     if (kit.native) { inputs.backend = nativeBackend; inputs.capabilities = ['codex-turn']; inputs.execution.maxSteps = 30 }
-    const configDigest = kit.executionInputsDigest(inputs)
+    let configDigest = kit.executionInputsDigest(inputs)
     async function prepare(taskId, planRevision, budget = 30) {
       const approved = await active(owner, { kind: 'assignment-command', request: { ...query, taskId, planRevision,
         kind: 'approve-assignment', assigneeId: employee.membershipId, operationId: randomUUID() } })
@@ -279,9 +282,39 @@ export async function executionScenario(kit, createHost = root => localExecution
     const integrationQuery = { ...query, taskId: parent, planRevision: 2 }
     assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.inputsReady, false)
     await active(member, { kind: 'lease-release', request: second.selector })
+    let secondGrant
+    if (kit.twoMembers) {
+      const secondMember = await connect(null, 'second-employee')
+      const invite = await active(owner, { kind: 'invite', role: 'member' })
+      employee = (await secondMember.perform({ kind: 'register', username: 'second-employee', password, invitationToken: invite.invitationToken })).receipt
+      await secondMember.perform({ kind: 'login', username: 'second-employee', password })
+      await secondMember.perform({ kind: 'select', organizationId: init.organizationId })
+      await command({ kind: 'set-grant', projectId: project.projectId, membershipId: employee.membershipId, expectedVersion: 0, actions: ['read'] })
+      secondGrant = (await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: right, scope: 'node', membershipId: employee.membershipId,
+        actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })).receipt
+      await active(secondMember, { kind: 'device-register', name: 'Independent CSV contract device' })
+      await assert.rejects(kit.readOrganizationExecution(secondMember, host, { ...second.selector, runId: second.request.runId }, () => {}, new AbortController().signal))
+      member = secondMember
+      localRoot = join(root, 'second-employee-host'); work = join(root, 'second-employee-git')
+      localRoots.push(localRoot); workRoots.push(work)
+      await mkdir(localRoot); await mkdir(work)
+      git(work, 'init'); git(work, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline')
+      await writeFile(join(work, 'untouched.txt'), 'PRIVATE_UNSELECTED_SENTINEL')
+      host = await createHost(localRoot); hosts.push(host)
+      inputs.execution.directory = work
+      inputs.messages = ['SECOND_PRIVATE_EXECUTION_SENTINEL: prepare independent contract']
+      configDigest = kit.executionInputsDigest(inputs)
+    }
     const third = await prepare(right, 2)
     await execute(third, [tool('write_file', { path: 'contract.json', content: '{"columns":["name","note"],"encoding":"UTF-8"}\n' }), 'Contract ready'])
     const rightFile = await submit(third, 'contract.json'); await review(rightFile)
+    if (kit.twoMembers) {
+      await assert.rejects(kit.readOrganizationExecution(firstMember, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal))
+      const firstPrivate = await kit.readOrganizationExecution(firstMember, hosts[0], { ...second.selector, runId: second.request.runId }, () => {}, new AbortController().signal)
+      assert.equal(JSON.stringify(firstPrivate).includes('SECOND_PRIVATE_EXECUTION_SENTINEL'), false)
+      const secondPrivate = await kit.readOrganizationExecution(member, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal)
+      assert.equal(JSON.stringify(secondPrivate).includes('PRIVATE_EXECUTION_SENTINEL: prepare CSV evidence'), false)
+    }
     const integration = new kit.OrganizationIntegration()
     assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.delivered, false)
     for (const file of [rightFile, leftFile]) {
@@ -297,22 +330,25 @@ export async function executionScenario(kit, createHost = root => localExecution
       integrationId: observed.receipt.integration.integrationId, confirmed: true } }, async () => { throw new Error('unexpected picker') }, () => {})
     assert.equal(confirm.receipt.integration.delivered, true)
     assert.equal(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'result.csv')]).toString(), csv)
-    for (const directory of [work, target]) assert.equal(await readFile(join(directory, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
+    for (const directory of [...workRoots, target]) assert.equal(await readFile(join(directory, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
     const shared = JSON.stringify(await active(owner, { kind: 'delivery-read', request: third.selector }))
     assert.equal(shared.includes('PRIVATE_EXECUTION_SENTINEL'), false)
     assert.equal(shared.includes(work), false)
     await until(() => owner.snapshot().phase === 'ready')
     await assert.rejects(kit.readOrganizationExecution(owner, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal))
-    await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: employee.membershipId,
+    await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: firstEmployee.membershipId,
       actions: [], expectedVersion: grant.revision, operationId: randomUUID() } })
+    if (secondGrant) await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: right, scope: 'node', membershipId: employee.membershipId,
+      actions: [], expectedVersion: secondGrant.revision, operationId: randomUUID() } })
     await member.perform({ kind: 'reconnect' })
     await assert.rejects(active(member, { kind: 'delivery-download', request: { ...third.selector, artifactId: rightFile.artifactId } }))
     await until(() => member.snapshot().phase === 'ready')
     await assert.rejects(kit.readOrganizationExecution(member, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal))
     await host.close(); hosts.splice(hosts.indexOf(host), 1)
-    const paths = (await readdir(join(localRoot, 'execution'), { recursive: true })).filter(p => p.endsWith('.jsonl'))
+    const paths = (await Promise.all(localRoots.map(async directory => (await readdir(join(directory, 'execution'), { recursive: true }))
+      .filter(p => p.endsWith('.jsonl')).map(p => join(directory, 'execution', p))))).flat()
     assert.equal(paths.length, 3)
-    const logs = (await Promise.all(paths.map(p => readFile(join(localRoot, 'execution', p), 'utf8')))).join('')
+    const logs = (await Promise.all(paths.map(p => readFile(p, 'utf8')))).join('')
     assert.ok(logs.includes('organization/execution-action'))
     assert.ok(logs.includes('Use name,note and preserve CSV quotes.'))
     assert.ok(logs.includes('PRIVATE_EXECUTION_SENTINEL'))
@@ -338,6 +374,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     const sharedDatabase = await readFile(join(server, 'organization.sqlite'))
     assert.equal(sharedDatabase.includes(Buffer.from('PRIVATE_EXECUTION_SENTINEL')), false)
     assert.equal(sharedDatabase.includes(Buffer.from('PRIVATE_UNSELECTED_SENTINEL')), false)
+    assert.equal(sharedDatabase.includes(Buffer.from('SECOND_PRIVATE_EXECUTION_SENTINEL')), false)
     app = await kit.bootOrganization(config)
     const login = await app.authority.login({ username: 'owner', password })
     await app.authority.readIntegration(login.token, integrationQuery, view => assert.equal(view.delivered, true))

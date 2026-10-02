@@ -1,6 +1,6 @@
 # Codex 后端协议与消费规则
 
-本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)。Desktop 是唯一应用入口。Phase 1–8 已提供协议核验、共用 runtime、主对话驱动、个人 Desktop 模型/Bot 接入、显式任务管理桥与人工请求，以及组织原生调度、独立转录、执行与已有任务选择。Codex 模式由应用派发输入并接收输出和结果；组织实际 Codex 执行桥与选择 UI 已实现，7C 目标对话仍单独待建。
+本文拥有产品 Phase 7B 的后端接口方向和固定运行时能力证据；执行状态见[实施计划](codex-backend-plan.md)，发行、真实平台与三机步骤见[验收交接](codex-backend-acceptance.md)。Desktop 是唯一应用入口。Phase 1–8 已提供协议核验、共用 runtime、主对话驱动、个人 Desktop 模型/Bot 接入、显式任务管理桥与人工请求，以及组织原生调度、独立转录、执行与已有任务选择；Phase 9–10 补齐个人连续任务链、双员工 CSV/契约交付与发行验证。Codex 模式由应用派发输入并接收输出和结果；7C 目标对话仍单独待建。
 
 ## 固定版本与证据等级
 
@@ -44,7 +44,7 @@
 | steering、fork、图像/附件 | 当前共用 runtime 拒绝 | Host/UI 同步声明不可用 |
 | 组织调度资格 | 显式 policy、codex-turn、SQLite v12 与固定签名传输回归通过 | 准许指定设备启动/继续；独立原生执行与已有任务 UI 已接入 |
 
-当前 runtime 仍只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；这描述现有代码，没有据此宣布未来调度桥已实现。后续组织资格由任务管理消费方拥有，不再以“关闭全部原生工具、重建全部内部模型请求”作为实现目标。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
+当前 runtime 只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；组织运行通过独立消费者以 native 模式调用，组织资格由任务管理消费方拥有。关闭全部原生工具、重建全部内部模型请求不属于应用能力。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
 
 ## 个人 Desktop 验收步骤
 

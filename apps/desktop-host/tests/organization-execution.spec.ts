@@ -11,6 +11,6 @@ it.each(['budget', 'revoked', 'lost-response', 'sleep', 'identity', 'server-rest
   await executionScenario(kit, undefined, fault)
 }, 30000)
 
-it('runs organization Codex through native HTTPS scheduling, human Inbox, cold reopen, employee submission and issuer acceptance', async () => {
-  await executionScenario({ ...kit, native: true })
+it('runs two independent Codex employees through HTTPS scheduling, human Inbox, cold reopen, rework, private transcripts and final integration', async () => {
+  await executionScenario({ ...kit, native: true, twoMembers: true })
 }, 90000)

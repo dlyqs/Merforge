@@ -6,6 +6,8 @@ import type { kit } from './organization-execution-source-kit.ts'
 
 /** Explicit live route replaces the scripted adapter only in the opt-in provider lane. */
 export type ExecutionKit = typeof kit & {
+  native?: boolean
+  twoMembers?: boolean
   Credentials?: typeof LocalCredentialProvider
   liveRoute?: { model: string; endpoint: string; credential: string; maxTokens: number; contextWindow: number; idleTimeoutMs: number }
 }

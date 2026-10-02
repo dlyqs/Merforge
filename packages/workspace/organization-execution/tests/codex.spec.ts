@@ -140,6 +140,24 @@ it('retains an observed native completion when independent process cleanup fails
   await h.service.verifyBindings()
 })
 
+it('refuses foreign organization selectors and foreign account authority when reading a completed native transcript', async () => {
+  const h = await setup(1); await h.script(['PRIVATE_NATIVE_TRANSCRIPT'])
+  await h.service.executeConfigured(h.request, h.bridge, signal())
+  const authority = await h.bridge()
+  const { organizationId, projectId, planId, assignmentId, runId } = h.request
+  const selector = { organizationId, projectId, planId, assignmentId, runId }
+  const readAuthority = async () => ({ serverId: authority.serverId, accountId: authority.accountId,
+    generation: authority.generation, execution: authority.execution })
+  const foreign = executionRequestSchema.parse({ ...h.request, organizationId: randomUUID() })
+  await expect(h.service.report({ ...selector, organizationId: foreign.organizationId }, readAuthority, signal())).rejects.toThrow()
+  const otherAccount = executionAuthoritySchema.parse({ ...authority, accountId: randomUUID() })
+  await expect(h.service.report(selector, async () => ({ ...await readAuthority(), accountId: otherAccount.accountId }), signal()))
+    .rejects.toThrow()
+  expect((await h.report()).entries.some(entry => entry.text.includes('PRIVATE_NATIVE_TRANSCRIPT'))).toBe(true)
+  expect(h.children).toHaveLength(1)
+  await h.service.verifyBindings()
+})
+
 it('refuses native receipt associations that diverge from the durable Run thread', async () => {
   const h = await setup(1); await h.script(['Finished'])
   await h.service.executeConfigured(h.request, h.bridge, signal())

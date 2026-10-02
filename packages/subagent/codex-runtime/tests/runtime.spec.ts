@@ -169,6 +169,36 @@ describe('persistent Codex runtime', () => {
     expect(h.calls.at(-1)?.params).not.toHaveProperty('history')
   })
 
+  it('ignores streamed resume history and duplicate old terminal notifications while the next turn is still running', async () => {
+    const h = harness(), runtime = await ready(h)
+    h.handler = async (method) => {
+      if (method === 'account/read') return { account: null, requiresOpenaiAuth: false }
+      if (method === 'model/list') return { data: [model], nextCursor: null }
+      h.peer.notify('item/agentMessage/delta', { threadId, turnId: 'historic', itemId: 'historic-item', delta: 'private old output' })
+      complete(h, 'historic', 'private old answer')
+      return { thread }
+    }
+    await runtime.resumeThread(threadId, selection)
+    h.handler = undefined
+    const events: CodexTurnEvent[] = []
+    const first = await runtime.send({ inputId, texts: ['first'], persistIntent: async () => {} }, (event) => { events.push(event) })
+    complete(h, first.turnId)
+    expect(await first.terminal).toMatchObject({ status: 'completed', finalText: 'answer' })
+    const second = await runtime.send({ inputId: brandString<CodexInputId>('next-input'), texts: ['next'], persistIntent: async () => {} }, (event) => { events.push(event) })
+    let settled = false
+    void second.terminal.then(() => { settled = true })
+    complete(h, first.turnId, 'duplicate answer')
+    h.peer.notify('turn/completed', { threadId, turn: { id: first.turnId, status: 'interrupted', items: [] } })
+    h.peer.notify('item/agentMessage/delta', { threadId, turnId: 'historic', itemId: 'historic-item', delta: 'late old output' })
+    await new Promise<void>((resolve) => { setImmediate(resolve) })
+    expect(settled).toBe(false)
+    expect(events).toEqual([])
+    complete(h, second.turnId, 'current answer')
+    expect(await second.terminal).toMatchObject({ status: 'completed', finalText: 'current answer' })
+    expect(h.calls.filter(call => call.method === 'turn/start')).toHaveLength(2)
+    expect(h.calls.some(call => call.method === 'thread/start')).toBe(false)
+  })
+
   it('rejects foreign cwd and incomplete native history on resume', async () => {
     for (const invalid of [{ ...thread, cwd: '/foreign' }, { ...thread, historyMode: 'paginated' },
       { ...thread, turns: [{ id: 't', status: 'completed', items: [], itemsView: 'summary' }] },

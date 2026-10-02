@@ -19,10 +19,12 @@ import Tools from '../../../packages/core/tools/lib/index.js'
 import Prompt from '../../../packages/core/system-prompt/lib/index.js'
 import Subprocess from '../../../packages/subprocess/subprocess-local/lib/index.js'
 import Questions from '../../../packages/interaction/user-questions/lib/index.js'
-import { JsonRpcLineTransport } from '../../../packages/subagent/codex-runtime/lib/index.js'
 
-const resolveHost = createRequire(new URL('../package.json', import.meta.url))
+const resolveHost = createRequire(process.env.MERFORGE_CODEX_PACKED_RESOLVER ?? new URL('../package.json', import.meta.url))
+const resolveCodex = createRequire(resolveHost.resolve('@deepseek-ai/dsh-agent-codex/package.json'))
+const { JsonRpcLineTransport, codexAppServerArgv } = await import(pathToFileURL(resolveCodex.resolve('@deepseek-ai/dsh-codex-runtime')).href)
 const Codex = await import(pathToFileURL(resolveHost.resolve('@deepseek-ai/dsh-agent-codex')).href)
+assert.deepEqual(codexAppServerArgv().slice(-2), ['app-server', '--stdio'])
 const root = await mkdtemp(join(tmpdir(), 'codex-built-smoke-'))
 const ctx = new Context()
 const calls = []
