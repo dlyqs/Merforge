@@ -8,7 +8,7 @@ import type {
 } from '../contract/slots.ts'
 import { resolveActiveView } from '../view-selection.ts'
 import { DefaultConversationViews } from './DefaultConversationViews.tsx'
-import css from './ConversationRoot.module.css'
+import { conversationFrameStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Full props composed from the strict session body contract. */
 export type ConversationSessionProps = ConversationSessionSlotProps

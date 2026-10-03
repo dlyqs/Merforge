@@ -4,7 +4,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { Button, Modal, IconPlayOutlineRegular, IconRefreshOutlineRegular, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OperationId, PlanView, TaskRun, ExecutionAuthorization, ClaimTaskRequest, ControlTaskRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { ExecutionProps } from './contract.ts'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Select a ready task, inspect its scope, or explicitly resume/transfer its ownership.
  * @param props - Composer binding and typed execution callbacks.

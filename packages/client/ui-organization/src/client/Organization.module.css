@@ -1,7 +1,4 @@
 .sidebar { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; color: var(--dsw-alias-label-primary); }
-.sidebarSummary { display: flex; flex-direction: column; gap: 16px; padding: 0 12px; }
-.organizationEntry { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 4px; border: 0; border-radius: 10px; color: inherit; background: transparent; cursor: pointer; text-align: start; }
-.organizationEntry:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .entryText { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .entryText strong { font-size: 14px; line-height: 20px; font-weight: 500; }
 .entryText small { color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
@@ -120,16 +117,6 @@
   overflow-wrap: anywhere;
 }
 
-.browser { display: flex; flex-direction: column; gap: 8px; padding-block: 12px; }
-.browser h3, .browser h4 { margin: 4px 0; }
-.browser > button, .botRow > button:first-child { justify-content: flex-start; text-align: start; height: auto; white-space: normal; overflow-wrap: anywhere; }
-.browser small { display: block; color: var(--dsw-alias-label-tertiary); }
-.botRow { display: flex; align-items: center; gap: 4px; }
-.botRow > button:first-child { flex: 1; }
-.conversationPage { width: min(100%, 960px); margin-inline: auto; padding: 24px; overflow-y: auto; height: 100%; }
-.taskTree { list-style: none; margin: 0; padding: 0; }
-.taskTree button { display: block; width: 100%; border: 0; border-left: 1px solid var(--dsw-alias-border-l2); padding: 10px; background: transparent; color: var(--dsw-alias-label-primary); text-align: start; font: inherit; cursor: pointer; }
-.taskTree button:hover, .taskTree button[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
 .chart { overflow: auto; padding: 12px; }
 .chart ul { display: flex; justify-content: center; gap: 16px; list-style: none; margin: 0; padding: 20px 0 0; }
 .chart li { display: flex; flex-direction: column; align-items: center; position: relative; }
@@ -137,3 +124,15 @@
 .chart li > ul { border-top: 1px solid var(--dsw-alias-border-l2); margin-top: 20px; }
 .chartNode { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 130px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); font: inherit; cursor: pointer; }
 .chartNode[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); }
+
+.conversationWelcome { width: min(100% - 48px, 680px); margin: auto; padding-block: 40px; color: var(--dsw-alias-label-primary); }
+.conversationContent { width: min(100% - 48px, var(--dsh-chat-content-width)); margin-inline: auto; padding-block: 24px; gap: 20px; color: var(--dsw-alias-label-primary); font-size: var(--dsh-content-font-size, 14px); line-height: 1.6; }
+.conversationMessage { padding-block: 16px; overflow-wrap: anywhere; }
+.conversationMessage[data-role='user'] { width: fit-content; max-width: 85%; margin-inline-start: auto; padding: 12px 18px; border-radius: 18px; background: var(--dsw-alias-bg-layer-1); }
+.conversationMessage > strong { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.conversationInput { box-sizing: border-box; width: 100%; min-height: 72px; max-height: var(--dsh-composer-text-max-height); resize: vertical; border: 0; padding: 4px 20px; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; line-height: 24px; }
+.conversationInput:focus { outline: none; }
+.conversationModel { display: flex; align-items: center; gap: 8px; padding-inline: 20px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.conversationModel select { max-width: 100%; border: 0; padding: 4px 8px; background: transparent; color: inherit; font: inherit; }
+.conversationSend { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 4px 12px 12px; }
+.conversationSend > span { margin-inline-end: auto; color: var(--dsw-alias-label-tertiary); font-size: 11px; }

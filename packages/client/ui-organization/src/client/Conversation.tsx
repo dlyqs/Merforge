@@ -1,6 +1,6 @@
 /** Private organization conversation view over fixed native actions and current authorized task facts. */
-import { useEffect, useRef, useState } from 'react'
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button, ConversationFrame, conversationFrameStyles as frame, conversationComposerStyles as composer, MarkdownText, IconSendOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConversationSelectionProps } from './conversation-store.ts'
 import type { OrganizationProps } from './contract.ts'
@@ -31,21 +31,20 @@ export function OrganizationConversation(props: OrganizationProps & Conversation
   const project = valid ? projects.find(p => p.id === selected.projectId) : undefined
   const assignment = valid && selected.planId && selected.assignmentId
     ? { planId: selected.planId, assignmentId: selected.assignmentId } : undefined
-  return <section className={css.conversationPage}>
-    {!valid || !project ? <>
-      <h2>{props.t('conversationNewGoal')}</h2>
-      <label className={css.field}>{props.t('conversationProject')}<select value="" disabled={c.phase !== 'ready'} onChange={(e) => {
-        if (!c.principal || !c.organizationId) return
-        const project = projects.find(p => p.id === e.target.value)
-        if (project) props.actions.select({ ...c.principal, organizationId: c.organizationId, projectId: project.id,
-          conversationId: valid && selected.conversationId ? selected.conversationId : randomUUID() as Request['conversationId'] })
-      }}><option value="">{props.t('chooseProject')}</option>
-        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select></label>{!projects.length && <p>{props.t('emptyProjects')}</p>}
-    </> : <ProjectConversation key={`${selected.serverId}:${selected.accountId}:${selected.conversationId ?? selected.assignmentId}:${project.id}`}
-      {...props} project={project} {...(assignment ? { assignment } : {})}
-      conversationId={selected.conversationId} botId={selected.botId} onChange={props.actions.refresh} />}
-  </section>
+  if (!valid || !project) return <ConversationFrame phase="hero"><div className={frame.body}><div className={frame.scrollBody}><div className={css.conversationWelcome}>
+    <h2>{props.t('conversationNewGoal')}</h2>
+    <label className={css.field}>{props.t('conversationProject')}<select value="" disabled={c.phase !== 'ready'} onChange={(e) => {
+      if (!c.principal || !c.organizationId) return
+      const project = projects.find(p => p.id === e.target.value)
+      if (project) props.actions.select({ ...c.principal, organizationId: c.organizationId, projectId: project.id,
+        conversationId: valid && selected.conversationId ? selected.conversationId : randomUUID() as Request['conversationId'] })
+    }}><option value="">{props.t('chooseProject')}</option>
+      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+    </select></label>{!projects.length && <p>{props.t('emptyProjects')}</p>}
+  </div></div></div></ConversationFrame>
+  return <ProjectConversation key={`${selected.serverId}:${selected.accountId}:${selected.conversationId ?? selected.assignmentId}:${project.id}`}
+    {...props} project={project} {...(assignment ? { assignment } : {})}
+    conversationId={selected.conversationId} botId={selected.botId} onChange={props.actions.refresh} />
 }
 /** @param props - Project and current native actions. @returns Persistent private transcript and unapproved task tree. */
 export function ProjectConversation(props: OrganizationProps & { project: OrganizationProjectView
@@ -54,6 +53,7 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
   botId?: Request['botId']
   onChange?(): void }) {
   const c = props.useOrganization(s => s.connection), { t } = props
+  const markdownLabels = useMemo(() => ({ code: { copyLabel: t('copyCode'), copiedLabel: t('copiedCode') }, footnotes: t('footnotes') }), [t])
   const [reply, setReply] = useState<{ generation: number; result: ConversationResult }>()
   const [policy, setPolicy] = useState<{ generation: number; value: NonNullable<ConnectionResult['planning']> }>()
   const [targets, setTargets] = useState<NonNullable<ConnectionResult['workgraph']>>()
@@ -104,7 +104,8 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
   }, [ready, c.generation])
   const send = () => {
     const selection = models[Number(model)]
-    if (!selection || !text.trim()) return
+    if (!ready || !current || current.assignment && !['pending', 'accepted'].includes(current.assignment.state)
+      || c.pendingOperation || lock.current || model === '' || !selection || !text.trim()) return
     const target = targets?.generation === c.generation && targets.result.kind === 'tasks' ? targets.result.value.items.find(t => t.id === targetId) : undefined
     const request: Request = pending.current?.kind === 'send' && pending.current.text === text ? pending.current
       : { ...query, kind: 'send', operationId: randomUUID() as Request['operationId'], selection, text,
@@ -118,50 +119,61 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
     if (index >= 0) setModel(String(index))
   }, [props.botId, policy?.generation])
   const settings = current?.settings
-  return <section className={css.form}>
-    <h2>{props.project.name}</h2>
-    <p>{t('conversationPrivate')}</p>
-    {current?.assignment && <><p>{t('conversationAssignmentOrigin', { task: current.assignment.taskId, issuer: current.assignment.approvedBy, revision: current.assignment.planRevision })}</p>
-      <p>{t(`assignment-${current.assignment.state}`)}</p>{current.assignment.planRevision !== goal?.proposal?.revision && <p>{t('assignmentOldVersion')}</p>}</>}
-    {!current && <p role="status">{t('conversationUnavailable')}</p>}
-    {notice && <p role="alert">{notice}</p>}
-    {c.pendingOperation && <Button disabled={busy} onClick={() => { void props.connection({ kind: 'reconcile' }).catch(() => { if (alive.current) setNotice(t('conversationFailure')) }) }}>{t('reconcile')}</Button>}
-    <div className={css.actions}>
-      <Button disabled={!ready || busy} onClick={() => { void run({ ...query, kind: 'read', operationId: randomUUID() as Request['operationId'] }) }}>{t('refreshAccess')}</Button>
-      {!props.assignment && <Button disabled={busy} onClick={() => { setGoalId(null); setTargetId(''); pending.current = undefined }}>{t('conversationNewGoal')}</Button>}
-      {busy && <Button onClick={() => { if (props.conversation) void props.conversation({ ...query, kind: 'stop', operationId: randomUUID() as Request['operationId'] }).catch((_error: unknown) => { /* Native cancellation may already have invalidated this interval. */ }) }}>{t('cancel')}</Button>}
-    </div>
-    {settings && <div className={css.actions}>
-      <label><input type="checkbox" checked={settings.enabled} disabled={busy} onChange={(e) => { void run({ ...query, kind: 'settings', operationId: randomUUID() as Request['operationId'], expectedRevision: settings.revision, settings: { enabled: e.target.checked, granularity: settings.granularity } }) }} />{t('conversationAuto')}</label>
-      <label>{t('conversationGranularity')}<select value={settings.granularity} disabled={busy} onChange={(e) => { void run({ ...query, kind: 'settings', operationId: randomUUID() as Request['operationId'], expectedRevision: settings.revision, settings: { enabled: settings.enabled, granularity: e.target.value === 'fine' ? 'fine' : 'balanced' } }) }}>
-        <option value="balanced">{t('conversationBalanced')}</option><option value="fine">{t('conversationFine')}</option>
-      </select></label>
-    </div>}
-    <div aria-live="polite">{current?.entries.map((entry, index) => <article key={index} className={css.card}>
-      <strong>{t(entry.role === 'user' ? 'me' : 'conversationAssistant')}</strong><p className={css.transcriptText}>{entry.text}</p>
-    </article>)}</div>
-    {current?.truncated && <p>{t('conversationTruncated')}</p>}
-    {current && !props.assignment && <label>{t('conversationGoal')}<select value={goal?.id ?? ''} disabled={busy} onChange={(e) => { setGoalId(e.target.value ? e.target.value as Goal['id'] : null) }}>
-      <option value="">{t('conversationNewGoal')}</option>{current.goals.map((g, i) => <option key={g.id} value={g.id}>{t('conversationGoalNumber', { number: i + 1 })}</option>)}
-    </select></label>}
-    {retainedGoal?.proposal && <div hidden={!current}><ConversationPlan {...props} goal={retainedGoal} query={query}
-      generation={c.generation} busy={busy} {...(props.assignment ? { assignmentId: props.assignment.assignmentId,
-        ...(reply?.result.assignment ? { assignmentTaskId: reply.result.assignment.taskId } : {}) } : {})}
-      suggest={(taskId, membershipId) => { void run({ ...query, kind: 'suggest', goalId: retainedGoal.id, taskId,
-        membershipId, expectedRevision: retainedGoal.proposal?.revision ?? 0, operationId: randomUUID() as Request['operationId'] }) }} /></div>}
-    {!props.assignment && !goal && targets?.generation === c.generation && targets.result.kind === 'tasks' && <label>{t('conversationExistingTask')}<select value={targetId} disabled={busy} onChange={(e) => { setTargetId(e.target.value) }}>
-      <option value="">{t('conversationNewGoal')}</option>{targets.result.value.items.map(task => <option key={task.id} value={task.id}>{task.goal}</option>)}
-    </select></label>}
-    {goal && goal.classification !== 'clarify' && <label>{t('conversationMessageIntent')}<select value={route} disabled={busy} onChange={(e) => { setRoute(e.target.value === 'query' ? 'query' : 'modify'); pending.current = undefined }}>
-      <option value="modify">{t('conversationModify')}</option><option value="query">{t('conversationQuery')}</option>
-    </select></label>}
-    <form onSubmit={(e) => { e.preventDefault(); send() }} className={css.form}>
-      <label>{t('conversationModel')}<select value={model} disabled={busy} onChange={(e) => { setModel(e.target.value) }}>
-        <option value="">{t('conversationChooseModel')}</option>{models.map((m, i) => <option key={`${m.endpoint}:${m.model}`} value={i}>{m.model}</option>)}
-      </select></label>
-      <label>{t('conversationMessage')}<Input value={text} disabled={!ready || busy} placeholder={t('conversationPlaceholder')} onChange={(e) => { setText(e.target.value) }} /></label>
-      <p>{t('conversationImpact')}</p>
-      <Button type="submit" variant="primary" disabled={!current || !!current.assignment && !['pending', 'accepted'].includes(current.assignment.state) || busy || !text.trim() || model === '' || !!c.pendingOperation}>{t(busy ? 'working' : 'conversationSend')}</Button>
-    </form>
-  </section>
+  const phase = current?.entries.length ? 'active' : 'hero'
+  return <ConversationFrame phase={phase}>
+    <header className={frame.header}><div className={frame.titleRow}><div className={frame.titleCluster}>
+      <span className={frame.crumbCurrent}>{props.project.name}</span>
+    </div></div></header>
+    <div className={frame.body}><div className={frame.scrollBody}>
+      <div className={`${frame.viewArea} ${css.conversationContent}`}>
+        <details className={css.advanced}><summary>{t('conversationOptions')}</summary><p>{t('conversationPrivate')}</p>
+          {current?.assignment && <><p>{t('conversationAssignmentOrigin', { task: current.assignment.taskId, issuer: current.assignment.approvedBy, revision: current.assignment.planRevision })}</p>
+            <p>{t(`assignment-${current.assignment.state}`)}</p>{current.assignment.planRevision !== goal?.proposal?.revision && <p>{t('assignmentOldVersion')}</p>}</>}
+          {!current && <p role="status">{t('conversationUnavailable')}</p>}
+          {c.pendingOperation && <Button disabled={busy} onClick={() => { void props.connection({ kind: 'reconcile' }).catch(() => { if (alive.current) setNotice(t('conversationFailure')) }) }}>{t('reconcile')}</Button>}
+          <div className={css.actions}>
+            <Button disabled={!ready || busy} onClick={() => { void run({ ...query, kind: 'read', operationId: randomUUID() as Request['operationId'] }) }}>{t('refreshAccess')}</Button>
+            {!props.assignment && <Button disabled={busy} onClick={() => { setGoalId(null); setTargetId(''); pending.current = undefined }}>{t('conversationNewGoal')}</Button>}
+          </div>
+          {settings && <div className={css.actions}>
+            <label><input type="checkbox" checked={settings.enabled} disabled={busy} onChange={(e) => { void run({ ...query, kind: 'settings', operationId: randomUUID() as Request['operationId'], expectedRevision: settings.revision, settings: { enabled: e.target.checked, granularity: settings.granularity } }) }} />{t('conversationAuto')}</label>
+            <label>{t('conversationGranularity')}<select value={settings.granularity} disabled={busy} onChange={(e) => { void run({ ...query, kind: 'settings', operationId: randomUUID() as Request['operationId'], expectedRevision: settings.revision, settings: { enabled: settings.enabled, granularity: e.target.value === 'fine' ? 'fine' : 'balanced' } }) }}>
+              <option value="balanced">{t('conversationBalanced')}</option><option value="fine">{t('conversationFine')}</option>
+            </select></label>
+          </div>}
+        </details>
+        {notice && <p role="alert">{notice}</p>}
+        <div aria-live="polite">{current?.entries.map((entry, index) => <article key={index} className={css.conversationMessage} data-role={entry.role}>
+          <strong>{t(entry.role === 'user' ? 'me' : 'conversationAssistant')}</strong><MarkdownText text={entry.text} labels={markdownLabels} />
+        </article>)}</div>
+        {current?.truncated && <p>{t('conversationTruncated')}</p>}
+        {current && !props.assignment && <label>{t('conversationGoal')}<select value={goal?.id ?? ''} disabled={busy} onChange={(e) => { setGoalId(e.target.value ? e.target.value as Goal['id'] : null) }}>
+          <option value="">{t('conversationNewGoal')}</option>{current.goals.map((g, i) => <option key={g.id} value={g.id}>{t('conversationGoalNumber', { number: i + 1 })}</option>)}
+        </select></label>}
+        {retainedGoal?.proposal && <div hidden={!current}><ConversationPlan {...props} goal={retainedGoal} query={query}
+          generation={c.generation} busy={busy} {...(props.assignment ? { assignmentId: props.assignment.assignmentId,
+            ...(reply?.result.assignment ? { assignmentTaskId: reply.result.assignment.taskId } : {}) } : {})}
+          suggest={(taskId, membershipId) => { void run({ ...query, kind: 'suggest', goalId: retainedGoal.id, taskId,
+            membershipId, expectedRevision: retainedGoal.proposal?.revision ?? 0, operationId: randomUUID() as Request['operationId'] }) }} /></div>}
+        {!props.assignment && !goal && targets?.generation === c.generation && targets.result.kind === 'tasks' && <label>{t('conversationExistingTask')}<select value={targetId} disabled={busy} onChange={(e) => { setTargetId(e.target.value) }}>
+          <option value="">{t('conversationNewGoal')}</option>{targets.result.value.items.map(task => <option key={task.id} value={task.id}>{task.goal}</option>)}
+        </select></label>}
+        {goal && goal.classification !== 'clarify' && <label>{t('conversationMessageIntent')}<select value={route} disabled={busy} onChange={(e) => { setRoute(e.target.value === 'query' ? 'query' : 'modify'); pending.current = undefined }}>
+          <option value="modify">{t('conversationModify')}</option><option value="query">{t('conversationQuery')}</option>
+        </select></label>}
+      </div>
+      <div className={frame.composerSeat}><div className={frame.composerStack}><div className={composer.root}>
+        <form onSubmit={(e) => { e.preventDefault(); send() }} className={composer.card}>
+          <label className={css.conversationModel}>{t('conversationModel')}<select value={model} disabled={busy} onChange={(e) => { setModel(e.target.value) }}>
+            <option value="">{t('conversationChooseModel')}</option>{models.map((m, i) => <option key={`${m.endpoint}:${m.model}`} value={i}>{m.model}</option>)}
+          </select></label>
+          <textarea className={css.conversationInput} aria-label={t('conversationMessage')} rows={3} value={text} disabled={!ready || busy} placeholder={t('conversationPlaceholder')} onChange={(e) => { setText(e.target.value) }}
+            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send() } }} />
+          <div className={css.conversationSend}><span>{t('conversationImpact')}</span>
+            {busy && <Button onClick={() => { if (props.conversation) void props.conversation({ ...query, kind: 'stop', operationId: randomUUID() as Request['operationId'] }).catch((_error: unknown) => { /* Native cancellation may already have invalidated this interval. */ }) }}>{t('cancel')}</Button>}
+            <Button type="submit" variant="primary" icon={<IconSendOutlineRegular />} disabled={!current || !!current.assignment && !['pending', 'accepted'].includes(current.assignment.state) || busy || !text.trim() || model === '' || !!c.pendingOperation}>{t(busy ? 'working' : 'conversationSend')}</Button>
+          </div>
+        </form></div></div></div>
+    </div></div>
+  </ConversationFrame>
 }

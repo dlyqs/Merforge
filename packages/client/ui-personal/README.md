@@ -41,3 +41,7 @@ The Bot editor loads the Host catalog and exposes backend, model and supported e
 ## Personal settings
 
 Settings → Tasks, Projects & Bots mounts the same `personal.manager` Component Factory as the sidebar. Project directory/name/description and Bot identity/direction/model/allowlists use the existing Host operations; both entries share the records observable and refresh after mutations. Settings hides conversation rows and creation actions, while keeping task review and Project/Bot editors. The settings section declares `settings.personal.testing`, where ui-personal-workflow contributes its temporary testing switch. No separate copy of personal records is persisted for settings.
+
+## Account presentation
+
+Project/Bot groups and conversation rows use the static shared account-navigation primitives. Personal records and actions stay with this Remote adapter; organization navigation supplies its own authorized data and callbacks to the same row components and styling.

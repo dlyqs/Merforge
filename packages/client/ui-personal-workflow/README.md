@@ -41,3 +41,7 @@ Settings → Tasks, Projects & Bots includes “Always decompose tasks”, off b
 The existing personal settings extension also exposes the profile's automatic recognition switch and balanced/fine suggested granularity through `workflowPreferences` / `workflowSetPreferences`. Writes compare the exact revision, show the committed value, and offer refresh after conflicts. Explicit conversation mode events override the profile default; no setting approves or starts a task. Execution controls continue to default to manual and require the selected exact task, stop phase and budgets. The temporary test switch remains separate and off by default.
 
 Existing `personal-workflow/snapshot` events also produce a keyed `personal-plan` conversation node. The renderer reads the authoritative plan, displays the current tree, revision and execution evidence, and edits goal/scope/acceptance with an exact expected revision. A failed save retains the local draft; refresh explicitly discards it and rereads current authority. This view adds no Session business event or execution permission. Node definitions and renderer slots are removed with the Client fiber.
+
+## Shared task presentation
+
+The personal task adapter supplies plan phases, authoritative statuses and localized controls to the shared `TaskMap` primitive. Organization tasks use the same canvas and detail styling with their authorized task projections and assignment controls. Personal approval, execution operations and Session membership remain owned by this adapter.

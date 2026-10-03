@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const conversationCss = readFileSync(fileURLToPath(new URL(
-  '../src/client/skeleton/ConversationRoot.module.css',
+  '../../ui-primitives/src/ConversationFrame.module.css',
   import.meta.url,
 )), 'utf8')
 

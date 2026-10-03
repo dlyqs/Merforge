@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 /** Native conversation controls tested in a detached DOM; no application or browser is started. */
+import { useSyncExternalStore } from 'react'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { ServerId, AccountId } from '@deepseek-ai/dsh-organization/types'
+import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
+import { createConversationStore } from '../src/client/conversation-store.ts'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -22,6 +27,7 @@ function fixture() {
     policy: { models: [{ model: 'test-model', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000, maxRequests: 10,
       maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } })
   let state: OrganizationDesktopSnapshot = { connection: { phase: 'ready', mode: 'organization', revision: 1, generation: 1,
+    principal: { serverId: brandString<ServerId>(result.owner.serverId), accountId: brandString<AccountId>(result.owner.accountId) },
     organizationId: project.organizationId, organizations: [], members: [] }, server: { phase: 'disabled',
     settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
   const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async () => ({ generation: 1, result }))
@@ -122,4 +128,60 @@ it('opens a bound task through the strict planning reader and continues its assi
       route: 'modify', goalId: assignmentId, assignment: request.assignment,
     })
   })
+})
+
+it('expands project conversations without creating one and opens the original private conversation in the shared destination', async () => {
+  const h = fixture(), store = createConversationStore().create(), openConversation = vi.fn()
+  h.result.catalog = { bots: [], conversations: [{ conversationId: h.result.owner.conversationId, title: 'Revenue discussion', createdAt: 1 }] }
+  h.connection.mockImplementation(async action => action.kind === 'project-page' ? { generation: 1,
+    projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } } : {})
+  render(<OrganizationBrowser {...h.props} section="projects" wide expandSidebar={vi.fn()} openConversation={openConversation}
+    actions={store.actions} useStore={selector =>
+      selector(useSyncExternalStore(callback => store.subscribe(callback), () => store.getSnapshot()))} />)
+  const project = await screen.findByRole('button', { name: h.project.name })
+  await waitFor(() => { expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'catalog' })) })
+  expect(screen.queryByRole('button', { name: 'Revenue discussion' })).toBeNull()
+  fireEvent.click(project)
+  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'open')).toBe(false)
+  fireEvent.click(await screen.findByRole('button', { name: 'Revenue discussion' }))
+  await waitFor(() => { expect(openConversation).toHaveBeenCalledOnce() })
+  expect(store.getSnapshot().selected).toMatchObject({ organizationId: h.project.organizationId, projectId: h.project.id,
+    conversationId: h.result.owner.conversationId })
+  expect(h.conversation.mock.calls.find(([request]) => request.kind === 'open')?.[0]).toMatchObject({
+    projectId: h.project.id, conversationId: h.result.owner.conversationId })
+  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
+})
+
+it('does not navigate to an old account when its delayed conversation open completes after a switch', async () => {
+  const h = fixture(), store = createConversationStore().create(), openConversation = vi.fn()
+  h.result.catalog = { bots: [], conversations: [{ conversationId: h.result.owner.conversationId, title: 'Old account conversation', createdAt: 1 }] }
+  h.connection.mockImplementation(async () => ({ generation: 1,
+    projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } }))
+  const props = { ...h.props, section: 'recent' as const, wide: true, expandSidebar: vi.fn(), openConversation,
+    actions: store.actions, useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) => selector(store.getSnapshot()) }
+  const view = render(<OrganizationBrowser {...props} />)
+  const button = await screen.findByRole('button', { name: 'Old account conversation' })
+  const late = Promise.withResolvers<Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>>()
+  h.conversation.mockReturnValueOnce(late.promise)
+  fireEvent.click(button)
+  h.change(2); view.rerender(<OrganizationBrowser {...props} />)
+  await act(async () => { late.resolve({ generation: 1, result: h.result }); await late.promise })
+  expect(store.getSnapshot().selected).toBeNull()
+  expect(openConversation).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: 'Old account conversation' })).toBeNull()
+})
+
+it('supports multiline drafts and sends with Enter only after an explicit model selection', async () => {
+  const h = fixture(); render(<ProjectConversation {...h.props} project={h.project} />)
+  await screen.findByText('Private report')
+  const input = screen.getByLabelText(zh.conversationMessage)
+  expect(input.tagName).toBe('TEXTAREA')
+  fireEvent.change(input, { target: { value: 'Review\nthe report' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
+  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
+  fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
+  fireEvent.keyDown(input, { key: 'Enter' })
+  await waitFor(() => { expect(h.conversation.mock.calls.find(([request]) => request.kind === 'send')?.[0].text).toBe('Review\nthe report') })
 })

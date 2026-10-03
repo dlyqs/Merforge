@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { ConversationWidthControlsProps } from '../contract/slots.ts'
-import css from './ConversationRoot.module.css'
+import { conversationFrameStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** localStorage key for the dragged transcript width preference (px). */
 const WIDTH_PREF_KEY = 'dsh.conversation.contentWidth'

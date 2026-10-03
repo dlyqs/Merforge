@@ -6,7 +6,7 @@ import type { OperationId, PlanDefinition, PlanView, TaskDefinition, TaskId, Pha
 import type { WorkflowProps } from './contract.ts'
 import { overlappingArtifacts } from './view.ts'
 import { TaskMindMap } from './TaskMindMap.tsx'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Present one entrance's persisted plans and exact-version review actions.
  * @param props - Framework slot data and Host callbacks.

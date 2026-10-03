@@ -33,7 +33,7 @@ import { resolveSubmitMode } from '../input/submission-policy.ts'
 import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
 import { ContextMeter } from './ContextMeter.tsx'
 import { observeControlRow } from './control-row-layout.ts'
-import css from './InputBar.module.css'
+import { conversationComposerStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 export type InputBarProps = ComposerBarProps
 

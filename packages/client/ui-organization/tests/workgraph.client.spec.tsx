@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 /** Task interaction regressions run with DOM controls only, without a browser or page. */
+import { useSyncExternalStore } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import { workgraphPageSchema, workgraphVersionSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import { randomUUID } from 'node:crypto'
 import type { OrganizationProps } from '../src/client/contract.ts'
-import { OrganizationTaskList } from '../src/client/Tasks.tsx'
+import { OrganizationTaskList, OrganizationTasks } from '../src/client/Tasks.tsx'
 import { createOrganizationTaskStore } from '../src/client/task-store.ts'
 import { OrganizationHierarchy } from '../src/client/Hierarchy.tsx'
 import { MemberSelect } from '../src/client/MemberSelect.tsx'
@@ -244,4 +245,33 @@ it('draws reporting members and only administrators can explicitly save a new su
   fireEvent.click(screen.getByRole('button', { name: zh.save }))
   await waitFor(() => { expect(h.connection.mock.calls.find(([action]) => action.kind === 'command')?.[0]).toMatchObject({ command: {
     kind: 'set-supervisor', membershipId: child, supervisorId: null, expectedVersion: 4, organizationId: h.project.organizationId } }) })
+})
+
+it('selects task nodes in the main canvas and keeps assignment controls in the right detail area', async () => {
+  const h = fixture(), root = h.page.items[0]!
+  const child = { ...root, id: brandString<typeof root.id>(randomUUID()), parentTaskId: root.id, goal: 'Assigned child', scope: 'Child scope' }
+  const principal = { serverId: brandString<import('@deepseek-ai/dsh-organization').ServerId>(randomUUID()), accountId: brandString<import('@deepseek-ai/dsh-organization').AccountId>(randomUUID()) }
+  h.setState({ principal })
+  const base = h.connection.getMockImplementation()!
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks') return h.reply({ kind: 'tasks', value: { ...h.page, items: [root, child], total: 2 } })
+    if (action.kind === 'assignment-tasks') return { assignment: { generation: 1, result: { kind: 'tasks',
+      value: { items: [], total: 0, offset: 0, cursor: h.page.cursor } } } }
+    return base(action)
+  })
+  const store = createOrganizationTaskStore().create()
+  store.actions.selectTask({ ...principal, organizationId: h.project.organizationId, projectId: h.project.id,
+    planId: root.planId, taskId: root.id })
+  const props = { ...h.props, actions: store.actions, openTasks: vi.fn(),
+    useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) =>
+      selector(useSyncExternalStore(callback => store.subscribe(callback), () => store.getSnapshot())) }
+  const view = render(<OrganizationTasks {...props} />)
+  fireEvent.click(await screen.findByRole('button', { name: child.goal }))
+  const detail = await screen.findByRole('region', { name: zh.taskDetail })
+  expect(await within(detail).findByText(child.scope)).toBeTruthy()
+  expect(await within(detail).findByLabelText(zh.assignee)).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command' || action.kind === 'execution-command')).toBe(false)
+  h.setState({ generation: 2, phase: 'offline' }); view.rerender(<OrganizationTasks {...props} />)
+  expect(screen.queryByRole('region', { name: zh.taskDetail })).toBeNull()
 })

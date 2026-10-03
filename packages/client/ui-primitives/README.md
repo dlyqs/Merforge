@@ -189,3 +189,11 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. Pure props-in React atoms with no Cordis API — no events, no services, no mutable cross-plugin state; rendering contracts are asserted directly by this package's component specs.
+
+## Account navigation and workspaces
+
+`AccountNavigationGroup` and `AccountConversationRow` render the shared Project, Bot and conversation rows. Callers own group expansion, selection, drag actions and localized controls. `accountNavigationStyles` supplies the corresponding section, action and editor classes.
+
+`TaskMap` draws task cards, parent connectors and a right-side detail overlay with scrolling, panning, zooming and branch collapse. Callers supply readable node fields, localized status text and `TaskMapLabels`; the component changes selection only. `layoutMindMap`, `taskAncestors` and `mapGeometry` supply the same deterministic geometry to both account adapters. `taskWorkspaceStyles` supplies task-browser rows and detail/editor styling.
+
+`ConversationFrame` renders the common main-conversation root. `conversationFrameStyles` and `conversationComposerStyles` supply the existing header, transcript, composer seat and input card styling to personal and organization consumers. All these components contain no account authority, Session storage or transport operations.

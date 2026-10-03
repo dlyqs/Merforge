@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { ConversationSessionSlotProps } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { resolveActiveView } from '../view-selection.ts'
-import css from './ConversationRoot.module.css'
+import { conversationFrameStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
  * Renders the active Session view inside the resident scrollport and keeps

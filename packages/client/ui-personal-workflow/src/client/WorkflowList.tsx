@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PlanView } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { WorkflowListProps, WorkflowEntryProps } from './contract.ts'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** @param props - Shared selection and Host plan reader. @returns Scrollable task list. */
 export function WorkflowList(props: WorkflowListProps) {

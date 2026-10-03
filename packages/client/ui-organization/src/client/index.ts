@@ -52,7 +52,12 @@ export function apply(ctx: Context): void {
   }
   const bind = (): OrganizationInjected => ({
     conversation: request => desktop ? desktop.conversation(request) : unavailable(),
-    openConversation: () => { ctx.layout.selectPanel('organization-conversation' as MainPanelId) }, available: !!desktop,
+    openProjectTasks: (project) => {
+      const c = state.getSnapshot().connection
+      if (c.mode !== 'organization' || c.organizationId !== project.organizationId || !c.principal) return
+      taskActions?.selectProject({ ...c.principal, project }); ctx.layout.selectPanel('tasks' as MainPanelId)
+    },
+    openConversation: () => { ctx.layout.selectPanel(null) }, available: !!desktop,
     loadModels,
     openCodexSettings: () => { ctx.settingsNavigation.open('models', 'codex') },
     connection: action => desktop ? desktop.connection(action) : unavailable(),
@@ -90,11 +95,11 @@ export function apply(ctx: Context): void {
     conversationActions?.select(c.principal && c.organizationId ? { ...c.principal, organizationId: c.organizationId,
       ...(project ? { projectId: project.id } : {}),
       conversationId: randomUUID() as ConversationRequest['conversationId'] } : null)
-    ctx.layout.selectPanel('organization-conversation' as MainPanelId)
+    ctx.layout.selectPanel(null)
     return true
   }, () => {
     if (state.getSnapshot().connection.mode !== 'organization') return false
-    ctx.layout.selectPanel('organization-conversation' as MainPanelId); return true
+    ctx.layout.selectPanel(null); return true
   }), 'organization.new-conversation')
   ctx.effect(() => {
     let stop: (() => void)[] = [], active = false, identity = ''
@@ -104,7 +109,7 @@ export function apply(ctx: Context): void {
       if (identity !== nextIdentity) {
         const changed = identity !== ''
         identity = nextIdentity; conversationActions?.select(null); taskActions?.selectTask(null)
-        if (changed) ctx.layout.selectPanel(organization ? 'organization-conversation' as MainPanelId : null)
+        if (changed) ctx.layout.selectPanel(null)
       }
       if (active === organization) return
       active = organization
@@ -112,6 +117,8 @@ export function apply(ctx: Context): void {
       stop = organization ? [
         ctx.slots.inject('sidebar.tasks', () => ctx.slots.register({ name: 'sidebar.tasks', priority: -10,
           locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTaskList)),
+        ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'conversation', priority: -10, store: conversationStore,
+          locale: 'organization', inject: bindConversation }, OrganizationConversation)),
         ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'tasks', priority: -10,
           locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTasks)),
       ] : []
@@ -120,8 +127,6 @@ export function apply(ctx: Context): void {
     return () => { unsubscribe(); for (const dispose of stop) dispose() }
   }, 'organization.task-navigation')
   const t = ctx.locale.bind('organization')
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-conversation', store: conversationStore,
-    locale: 'organization', inject: bindConversation }, OrganizationConversation))
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section',
     id: 'organization',
     order: 27,

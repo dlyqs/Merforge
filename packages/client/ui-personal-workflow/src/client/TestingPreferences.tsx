@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Switch, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkflowPreferences, SetWorkflowPreferencesRequest, WorkflowTestingPreferences, SetWorkflowTestingPreferencesRequest } from '@deepseek-ai/dsh-personal-workflow/types'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Host-owned preference operations available only to the user settings surface. */
 export interface TestingPreferencesActions {

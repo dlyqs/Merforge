@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
 import { HeroShell } from './EmptyHero.tsx'
-import css from './ConversationRoot.module.css'
+import { conversationFrameStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 function ConversationSessionView({ renderSlot }: ConversationViewsProps) {
   return renderSlot('conversation.session', {})

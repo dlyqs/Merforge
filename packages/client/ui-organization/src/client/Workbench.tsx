@@ -11,8 +11,10 @@ import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { TaskEditor } from './TaskEditor.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
 import { TaskGrants } from './TaskGrants.tsx'
-import { taskRows, workgraphError } from './workgraph-view.ts'
+import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
+import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
+import { TaskCanvas } from './TaskCanvas.tsx'
 
 type Draft = {
   planId: OrganizationPlanId
@@ -27,11 +29,17 @@ type Draft = {
 type ContextReply = Awaited<ReturnType<OrganizationProps['context']>>
 
 /** @param props - Project chosen in the current identity partition. @returns Authorized task list, editor and pre-execution context. */
-export function Workbench(props: OrganizationProps & { project: OrganizationProjectView; onBack: () => void }) {
+export function Workbench(props: OrganizationProps & {
+  project: Pick<OrganizationProjectView, 'id' | 'organizationId' | 'name'>
+  planId?: OrganizationPlanId
+  initialTaskId?: OrganizationTaskId
+  onSaved?: (planId: OrganizationPlanId, taskId: OrganizationTaskId) => void
+  onBack: () => void
+}) {
   const c = props.useOrganization(s => s.connection)
   const { t } = props
   const [page, setPage] = useState<{ generation: number; value: OrganizationTaskPage }>()
-  const [selected, setSelected] = useState<OrganizationTaskId>()
+  const [selected, setSelected] = useState<OrganizationTaskId | undefined>(props.initialTaskId)
   const [access, setAccess] = useState<'project' | 'task' | null>(null)
   const [draft, setDraft] = useState<Draft>()
   const [assignmentRevision, setAssignmentRevision] = useState<number>()
@@ -46,6 +54,7 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
   const query = { organizationId: props.project.organizationId, projectId: props.project.id }
   const ready = c.phase === 'ready' && c.mode === 'organization' && c.organizationId === props.project.organizationId
   const currentPage = ready && page?.generation === c.generation ? page.value : undefined
+  const pageTasks = currentPage?.items ?? []
   const task = currentPage?.items.find(item => item.id === selected)
   const retainedTask = page?.value.items.find(item => item.id === selected)
   const writable = ready && !busy && !c.pendingOperation
@@ -60,14 +69,27 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
     loading.current = true
     denied.current = false
     try {
-      const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search: querySearch, offset, ...(offset && currentPage ? { cursor: currentPage.cursor } : {}) } })
-      if (alive.current && sequence === loadSequence.current && result.workgraph?.result.kind === 'tasks') setPage({ generation: result.workgraph.generation, value: result.workgraph.result.value })
+      const items: OrganizationTaskView[] = []
+      let nextOffset = offset, cursor = offset ? currentPage?.cursor : undefined
+      let next: { generation: number; value: OrganizationTaskPage } | undefined
+      while (true) {
+        const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search: querySearch, offset: nextOffset,
+          ...(props.planId ? { planId: props.planId } : {}), ...(cursor ? { cursor } : {}) } })
+        if (!alive.current || sequence !== loadSequence.current || result.workgraph?.result.kind !== 'tasks') return
+        next = { generation: result.workgraph.generation, value: result.workgraph.result.value }
+        items.push(...next.value.items); nextOffset += next.value.items.length; cursor = next.value.cursor
+        if (!props.planId || !next.value.items.length || nextOffset >= next.value.total) break
+      }
+      setPage({
+        generation: next.generation, value: { ...next.value, items, offset },
+      })
     } catch (error) {
       if (sequence === loadSequence.current) denied.current = workgraphError(error) === 'forbidden'
       throw error
     } finally { if (sequence === loadSequence.current) loading.current = false }
   }
   useEffect(() => { if (ready && !denied.current && !loading.current) void run(() => load()) }, [ready, c.generation])
+  useEffect(() => { setSelected(props.initialTaskId); setAccess(null); setContext(undefined) }, [props.initialTaskId])
   const edit = async (item: OrganizationTaskView) => {
     const result = await props.connection({ kind: 'workgraph-read', request: { ...query, planId: item.planId } })
     if (!alive.current || result.workgraph?.result.kind !== 'plan') return
@@ -93,7 +115,9 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
           artifacts: item.artifacts.map(text => text.trim()).filter(Boolean) })) } } })
       if (!alive.current) return
       setSelected(draft.taskId); setContext(undefined); setAssignmentRevision(undefined); setDraft(undefined)
-      setNotice(t('taskSavedNext')); setSearch(''); await load(0, '')
+      setNotice(t('taskSavedNext')); setSearch('')
+      if (props.onSaved) props.onSaved(draft.planId, draft.taskId)
+      else await load(0, '')
     } catch (error) {
       if (alive.current && workgraphError(error) === 'version-conflict') setDraft(previous => previous && ({ ...previous, conflict: true }))
       throw error
@@ -128,54 +152,55 @@ export function Workbench(props: OrganizationProps & { project: OrganizationProj
       <Button disabled={!writable || !!draft} onClick={create}>{t('createTask')}</Button>
     </form>
     {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
-    {currentPage && <><p>{t('taskTotal', { count: currentPage.total })}</p><ul className={css.taskList}>
-      {taskRows(currentPage.items).map(({ task: item, depth }) => <li key={item.id} style={{ '--task-depth': depth } as React.CSSProperties}>
-        <button aria-pressed={selected === item.id}
-          onClick={() => {
-            setSelected(item.id); setAccess(null); setContext(undefined); setAssignmentRevision(undefined)
-          }}>{item.goal}</button>
-        <small>{item.phaseTitle}</small>
-      </li>)}
-    </ul><div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
-      <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div></>}
-    {task && !draft && <section className={css.card}>
-      <h4>{task.goal}</h4><p>{task.scope}</p><p>{t('taskVersion', { revision: task.revision })}</p>
-      <p>{t('suggestedMember')} ·
-        {c.members.find(member => member.id === task.suggestedMembershipId)?.username ?? (task.suggestedMembershipId ? t('selectedMember') : t('noSuggestion'))} · {t(task.assignable ? 'activeMember' : 'unassignable')}</p>
-      <h4>{t('taskAcceptance')}</h4><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
-      {!!task.artifacts.length && <><h4>{t('taskArtifacts')}</h4><ul>{task.artifacts.map((text, index) => <li key={index}>{text}</li>)}</ul></>}
-      <details className={css.advanced}><summary>{t('taskDetails')}</summary><p>{t(task.required ? 'requiredTask' : 'optionalTask')}</p>
-        <p>{t('dependencies')} · {task.dependsOn.map(id => currentPage?.items.find(item => item.id === id)?.goal ?? id).join(', ') || t('noDependencies')}</p>
-        {task.hasUndisclosedPrerequisite && <p>{t('hiddenPrerequisite')}</p>}</details>
-      <details><summary>{t('taskIdentifiers')}</summary><p>{t('planId')}: {task.planId}</p><p>{t('taskId')}: {task.id}</p></details>
-      <div className={css.actions}><Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
-        <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
-        {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'task' ? null : 'task') }}>{t('taskPermissions')}</Button>}</div>
-    </section>}
-    {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
-    {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
-    {retainedTask && !draft && <ExecutionPanel key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${retainedTask.id}:${retainedTask.revision}`} {...props} task={retainedTask}
-      projectId={props.project.id} current={!!task} />}
-    {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
-      task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}
-    {draft && <section className={css.card}>
-      <h4>{t('taskDraft')}</h4>
-      {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}
-      {ready && draftCurrent && <>
-        {draft.conflict && <p role="alert">{t('draftConflict')}</p>}
-        <TaskEditor t={t} connection={c} definition={draft.definition} taskId={draft.taskId} disabled={!writable || draft.conflict}
-          change={(definition) => {
-            setDraft({ ...draft, definition, attempted: false, operationId: draft.attempted ? randomUUID() : draft.operationId })
-          }}
-          save={() => { void run(save) }} />
-      </>}
-      <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('discardDraft')}</Button>
-    </section>}
-    {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
-      <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
-      {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
-      <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
-      <ul>{context.result.snapshot.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
-    </section>}
+    {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
+      <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
+    {(currentPage?.items.length || draft) && <TaskCanvas t={t}
+      tasks={draft ? draft.definition.tasks.map(item => ({ ...item, phaseTitle: draft.definition.phases.find(phase => phase.id === item.phaseId)?.title ?? '' })) : pageTasks}
+      selected={draft?.taskId ?? selected ?? null} onSelect={(id) => {
+        setSelected(id); setAccess(null); setContext(undefined); setAssignmentRevision(undefined)
+        if (draft) setDraft({ ...draft, taskId: id })
+      }}>
+      {(task || draft) && <section className={taskWorkspaceStyles.detail} aria-label={t('taskDetail')}>
+        {task && !draft && <section className={css.card}>
+          <h4>{task.goal}</h4><p>{task.scope}</p><p>{t('taskVersion', { revision: task.revision })}</p>
+          <p>{t('suggestedMember')} ·
+            {c.members.find(member => member.id === task.suggestedMembershipId)?.username ?? (task.suggestedMembershipId ? t('selectedMember') : t('noSuggestion'))} · {t(task.assignable ? 'activeMember' : 'unassignable')}</p>
+          <h4>{t('taskAcceptance')}</h4><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
+          {!!task.artifacts.length && <><h4>{t('taskArtifacts')}</h4><ul>{task.artifacts.map((text, index) => <li key={index}>{text}</li>)}</ul></>}
+          <details className={css.advanced}><summary>{t('taskDetails')}</summary><p>{t(task.required ? 'requiredTask' : 'optionalTask')}</p>
+            <p>{t('dependencies')} · {task.dependsOn.map(id => currentPage?.items.find(item => item.id === id)?.goal ?? id).join(', ') || t('noDependencies')}</p>
+            {task.hasUndisclosedPrerequisite && <p>{t('hiddenPrerequisite')}</p>}</details>
+          <details><summary>{t('taskIdentifiers')}</summary><p>{t('planId')}: {task.planId}</p><p>{t('taskId')}: {task.id}</p></details>
+          <div className={css.actions}><Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
+            <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
+            {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'task' ? null : 'task') }}>{t('taskPermissions')}</Button>}</div>
+        </section>}
+        {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
+        {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
+        {retainedTask && !draft && <ExecutionPanel key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${retainedTask.id}:${retainedTask.revision}`} {...props} task={retainedTask}
+          projectId={props.project.id} current={!!task} />}
+        {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
+          task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}
+        {draft && <section className={css.card}>
+          <h4>{t('taskDraft')}</h4>
+          {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}
+          {ready && draftCurrent && <>
+            {draft.conflict && <p role="alert">{t('draftConflict')}</p>}
+            <TaskEditor t={t} connection={c} definition={draft.definition} taskId={draft.taskId} disabled={!writable || draft.conflict}
+              change={(definition) => {
+                setDraft({ ...draft, definition, attempted: false, operationId: draft.attempted ? randomUUID() : draft.operationId })
+              }}
+              save={() => { void run(save) }} />
+          </>}
+          <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('discardDraft')}</Button>
+        </section>}
+        {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
+          <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
+          {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
+          <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
+          <ul>{context.result.snapshot.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
+        </section>}
+      </section>}
+    </TaskCanvas>}
   </section>
 }

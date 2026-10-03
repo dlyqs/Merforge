@@ -62,7 +62,7 @@ View selection is deterministic: a registered persisted selection wins, otherwis
 
 The shell reads the persisted View preference before rendering when a Session first binds or a cached Session becomes current, activates the registered preferred View or Chat fallback, and activates later tab or focus selections before committing them to the store. A blank Session still omits the `conversation.view` slot; no unselected target is activated.
 
-Active transcripts in the main occurrence expose content-width drag handles in their uncovered side gutters; embedded occurrences omit them. A View that paints into a gutter raises only its concrete painted element above the handle; transparent full-width wrappers stay below so they do not claim empty gutter. This requires the path between that element and the Conversation body to remain outside an intermediate stacking context; the shipped Chromium behavior is pinned by the browser scenario. Chat applies the rule to table elements, while its column-bounded tool cards need no raise. Wheel motion over a handle still scrolls the transcript, while Ctrl+wheel remains a browser zoom gesture. The sticky composer intentionally owns its full footer band, which is not a resize target; an already-captured drag lifts its indicator until release ([handle styles](src/client/skeleton/ConversationRoot.module.css)).
+Active transcripts in the main occurrence expose content-width drag handles in their uncovered side gutters; embedded occurrences omit them. A View that paints into a gutter raises only its concrete painted element above the handle; transparent full-width wrappers stay below so they do not claim empty gutter. This requires the path between that element and the Conversation body to remain outside an intermediate stacking context; the shipped Chromium behavior is pinned by the browser scenario. Chat applies the rule to table elements, while its column-bounded tool cards need no raise. Wheel motion over a handle still scrolls the transcript, while Ctrl+wheel remains a browser zoom gesture. The sticky composer intentionally owns its full footer band, which is not a resize target; an already-captured drag lifts its indicator until release ([handle styles](../ui-primitives/src/ConversationFrame.module.css)).
 
 The width-handle indicator follows the pointer only during a captured drag; ordinary hover leaves its position unchanged.
 
@@ -158,3 +158,7 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. Conversation Definitions, target builders, and Views are already validated by their owning registries and the Slot ledger.
+
+## Account presentation
+
+The main conversation uses the static `ConversationFrame` primitive and shared header, scrollport and input-card styles. Organization navigation selects the same main destination and supplies its private transcript and authorized actions to that presentation. Personal Session bindings, live conversation assembly and the existing composer lifecycle remain owned by this plugin.

@@ -9,6 +9,8 @@ import type { OrganizationKey } from './locales.ts'
 import { AssignmentBatch } from './AssignmentBatch.tsx'
 import { ConversationTask } from './ConversationTask.tsx'
 import css from './Organization.module.css'
+import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
+import { TaskCanvas } from './TaskCanvas.tsx'
 
 type Query = Pick<ConversationRequest, 'organizationId' | 'projectId' | 'conversationId'>
 type Goal = ConversationResult['goals'][number]
@@ -61,53 +63,48 @@ export function ConversationPlan(props: OrganizationProps & {
   const status: Record<typeof proposal.status, OrganizationKey> = { shared: 'conversationShared', private: 'conversationSuggestion',
     conflict: 'draftConflict', unknown: 'conversationUnknown', unavailable: 'conversationUnavailable' }
   const tasks = proposal.definition?.tasks ?? []
-  const depth = (item: Task) => {
-    let count = 0, parent = item.parentTaskId
-    while (parent && count < tasks.length) { count++; parent = tasks.find(t => t.id === parent)?.parentTaskId ?? null }
-    return count
-  }
   const assignment = facts?.history?.result.kind === 'tasks' ? facts.history.result.value.items[0] : undefined
   const submission = facts?.delivery?.submissions[0], run = facts?.executions?.items[0]
   const name = (id: string | null | undefined) => candidates?.items.find(m => m.membershipId === id)?.username ?? (id ? t('selectedMember') : t('chooseMember'))
   return <section className={css.card}>
     <h3>{t(status[proposal.status])}</h3><p>{t('taskVersion', { revision: proposal.revision })}</p>
     <p>{t('conversationImpact')}</p>
-    <nav aria-label={t('conversationTree')}>{tasks.map(item => <Button key={item.id} variant={item.id === task?.id ? 'primary' : 'ghost'} onClick={() => { setSelected(item.id) }}>
-      {'　'.repeat(depth(item))}{item.goal}
-    </Button>)}</nav>
-    {task && <article>
-      <h4>{task.goal}</h4><p>{task.scope}</p><ul>{task.acceptance.map((a, i) => <li key={i}>{a}</li>)}</ul>
-      <p>{t('taskArtifacts')}: {task.artifacts.join(', ')}</p>
-      <p>{t('assignee')}: {name(assignment?.assigneeId ?? task.suggestedMembershipId)}</p>
-      <p>{assignment ? t(`assignment-${assignment.state}`) : t('conversationUnassigned')}</p>
-      {run && <p>{t(`run-${run.state}`)}</p>}
-      <p>{submission?.reviewState === 'pending' ? t('waitingDispatcher') : assignment?.state === 'pending' ? t('waitingEmployee') : t('waitingPreparation')}</p>
-      <p>{t('conversationLatestSubmission')}: {submission?.summary ?? t('conversationNoSubmission')}</p>
-      <label className={css.field}>{t('conversationFindMember')}<Input value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0) }} /></label>
-      {candidates && candidates.total > 1 && search && <p>{t('conversationAmbiguous')}</p>}
-      <label className={css.field}>{t('suggestedMember')}<select disabled={props.busy || !candidates || !['shared', 'private'].includes(proposal.status)} value={task.suggestedMembershipId ?? ''} onChange={(e) => {
-        const member = candidates?.items.find(m => m.membershipId === e.target.value)
-        if (member || e.target.value === '') props.suggest(task.id, member?.membershipId ?? null)
-      }}><option value="">{t('chooseMember')}</option>
-        {task.suggestedMembershipId && !candidates?.items.some(m => m.membershipId === task.suggestedMembershipId) && <option value={task.suggestedMembershipId}>{t('conversationMemberUnavailable')}</option>}
-        {candidates?.items.map(m => <option key={m.membershipId} value={m.membershipId}>{m.username} · {m.membershipId}</option>)}
-      </select></label>
-      {candidates && <div className={css.actions}><Button disabled={offset === 0} onClick={() => { setOffset(0) }}>{t('refreshAccess')}</Button>
-        <Button disabled={offset + candidates.items.length >= candidates.total} onClick={() => { setOffset(offset + candidates.items.length) }}>{t('conversationMoreMembers')}</Button></div>}
-      <p>{t('conversationSuggestionOnly')}</p>
-      {task.suggestedMembershipId && proposal.status === 'shared' && <Button disabled={props.busy} onClick={() => {
-        const epoch = ++reviewEpoch.current
-        void props.connection({ kind: 'assignment-review', request: { organizationId: props.query.organizationId, projectId: props.query.projectId,
-          planId: proposal.planId, planRevision: proposal.revision, taskId: task.id, assigneeId: task.suggestedMembershipId,
-        } }).then((r) => {
-          if (!alive.current || epoch !== reviewEpoch.current) return
-          if (r.assignment?.result.kind === 'review') setNotice(t(r.assignment.result.value.assigneeCanRead ? 'approvalAccessReady' : 'approvalAccessMissing'))
-        }, () => { if (alive.current && epoch === reviewEpoch.current) setNotice(t('conversationDetailsRestricted')) })
-      }}>{t('reviewApprovalAccess')}</Button>}
-    </article>}
-    {proposal.status === 'shared' && !props.assignmentId && <AssignmentBatch key={`${proposal.planId}:${proposal.revision}`} {...props} proposal={proposal} projectId={props.query.projectId} />}
-    {task && proposal.status === 'shared' && (!props.assignmentId || props.assignmentTaskId === task.id) && <ConversationTask key={task.id} {...props} projectId={props.query.projectId}
-      planId={proposal.planId} taskId={task.id} />}
+    <TaskCanvas tasks={tasks.map(item => ({ ...item, phaseTitle: proposal.definition?.phases.find(phase => phase.id === item.phaseId)?.title ?? '' }))}
+      selected={task?.id ?? null} t={t} onSelect={setSelected}>
+      {task && <article className={taskWorkspaceStyles.detail} aria-label={t('taskDetail')}>
+        <h4>{task.goal}</h4><p>{task.scope}</p><ul>{task.acceptance.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        <p>{t('taskArtifacts')}: {task.artifacts.join(', ')}</p>
+        <p>{t('assignee')}: {name(assignment?.assigneeId ?? task.suggestedMembershipId)}</p>
+        <p>{assignment ? t(`assignment-${assignment.state}`) : t('conversationUnassigned')}</p>
+        {run && <p>{t(`run-${run.state}`)}</p>}
+        <p>{submission?.reviewState === 'pending' ? t('waitingDispatcher') : assignment?.state === 'pending' ? t('waitingEmployee') : t('waitingPreparation')}</p>
+        <p>{t('conversationLatestSubmission')}: {submission?.summary ?? t('conversationNoSubmission')}</p>
+        <label className={css.field}>{t('conversationFindMember')}<Input value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0) }} /></label>
+        {candidates && candidates.total > 1 && search && <p>{t('conversationAmbiguous')}</p>}
+        <label className={css.field}>{t('suggestedMember')}<select disabled={props.busy || !candidates || !['shared', 'private'].includes(proposal.status)} value={task.suggestedMembershipId ?? ''} onChange={(e) => {
+          const member = candidates?.items.find(m => m.membershipId === e.target.value)
+          if (member || e.target.value === '') props.suggest(task.id, member?.membershipId ?? null)
+        }}><option value="">{t('chooseMember')}</option>
+          {task.suggestedMembershipId && !candidates?.items.some(m => m.membershipId === task.suggestedMembershipId) && <option value={task.suggestedMembershipId}>{t('conversationMemberUnavailable')}</option>}
+          {candidates?.items.map(m => <option key={m.membershipId} value={m.membershipId}>{m.username} · {m.membershipId}</option>)}
+        </select></label>
+        {candidates && <div className={css.actions}><Button disabled={offset === 0} onClick={() => { setOffset(0) }}>{t('refreshAccess')}</Button>
+          <Button disabled={offset + candidates.items.length >= candidates.total} onClick={() => { setOffset(offset + candidates.items.length) }}>{t('conversationMoreMembers')}</Button></div>}
+        <p>{t('conversationSuggestionOnly')}</p>
+        {task.suggestedMembershipId && proposal.status === 'shared' && <Button disabled={props.busy} onClick={() => {
+          const epoch = ++reviewEpoch.current
+          void props.connection({ kind: 'assignment-review', request: { organizationId: props.query.organizationId, projectId: props.query.projectId,
+            planId: proposal.planId, planRevision: proposal.revision, taskId: task.id, assigneeId: task.suggestedMembershipId,
+          } }).then((r) => {
+            if (!alive.current || epoch !== reviewEpoch.current) return
+            if (r.assignment?.result.kind === 'review') setNotice(t(r.assignment.result.value.assigneeCanRead ? 'approvalAccessReady' : 'approvalAccessMissing'))
+          }, () => { if (alive.current && epoch === reviewEpoch.current) setNotice(t('conversationDetailsRestricted')) })
+        }}>{t('reviewApprovalAccess')}</Button>}
+        {proposal.status === 'shared' && !props.assignmentId && <AssignmentBatch key={`${proposal.planId}:${proposal.revision}`} {...props} proposal={proposal} projectId={props.query.projectId} />}
+        {proposal.status === 'shared' && (!props.assignmentId || props.assignmentTaskId === task.id) && <ConversationTask key={task.id} {...props} projectId={props.query.projectId}
+          planId={proposal.planId} taskId={task.id} />}
+      </article>}
+    </TaskCanvas>
     {notice && <p role="status">{notice}</p>}
   </section>
 }

@@ -4,13 +4,13 @@ import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { AffiliationProjection, BotId, BotProfile, Project, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 import {
-  IconAgentPresetOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenOutlineRegular, IconFolderOpenRegular,
-  IconNewChatOutlineRegular, IconPlusOutlineRegular, IconTrashOutlineRegular, IconTriangleRightFillRegular,
+  IconAgentPresetOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenOutlineRegular,
+  IconNewChatOutlineRegular, IconPlusOutlineRegular, IconTrashOutlineRegular,
+  AccountNavigationGroup, AccountConversationRow, accountNavigationStyles as css,
   IconUnarchiveOutlineRegular, IconEllipsisOutlineRegular, Button, Menu, Modal, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PersonalSidebarProps } from './contract.ts'
 import { memberIds, unassignedIds, type Entrance } from './membership.ts'
-import css from './PersonalSidebar.module.css'
 
 type ProjectDraft = { kind: 'project'; id?: ProjectId; name: string; description: string; path: string }
 type BotDraft = {
@@ -186,18 +186,13 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
           : status?.completionUnread ? t('completed') : t('idle')
     const statusState = archived ? 'idle' : status?.pendingInteraction !== undefined ? 'warning'
       : status?.running || summary.running ? 'ongoing' : status?.completionUnread ? 'done' : 'idle'
-    return <div key={id} className={css.sessionRow} draggable onDragStart={(event) => {
-      event.dataTransfer.setData('application/x-dsh-personal-session', id)
-      event.dataTransfer.effectAllowed = 'move'
-    }}>
-      <button type="button" className={css.sessionButton} onClick={() => {
-        if (!archived) openSession(id)
-      }} aria-label={`${summary.displayTitle} · ${statusLabel}`}>
-        <span className={css.statusSlot}>{statusState !== 'idle' && <StateDot state={statusState} />}</span>
-        <span className={css.sessionTitle}>{summary.blank ? t('newSession') : summary.displayTitle}</span>
-        {context === 'project' && botName !== undefined && <span className={css.tag}>{botName}</span>}
-      </button>
-      <div className={css.sessionActions}>
+    return <AccountConversationRow key={id} title={summary.blank ? t('newSession') : summary.displayTitle}
+      label={`${summary.displayTitle} · ${statusLabel}`} tag={context === 'project' ? botName : undefined}
+      status={statusState !== 'idle' ? <StateDot state={statusState} /> : undefined}
+      draggable onDragStart={(event) => {
+        event.dataTransfer.setData('application/x-dsh-personal-session', id)
+        event.dataTransfer.effectAllowed = 'move'
+      }} onOpen={() => { if (!archived) openSession(id) }} actions={<>
         <Menu open={menu === menuId} portal align="end" autoFocus onClose={() => { setMenu(null) }}
           anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${summary.displayTitle}`}
             aria-haspopup="menu" aria-expanded={menu === menuId}
@@ -213,57 +208,38 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
           }} />
         {archived && <Tooltip label={t('unarchive')}><button type="button" className={css.rowAction}
           aria-label={t('unarchive')} onClick={() => { void perform(() => unarchiveSession(id)) }}><IconUnarchiveOutlineRegular /></button></Tooltip>}
-      </div>
-    </div>
+      </>} />
   }
 
   const groupRow = (target: Entrance, name: string, edit: () => void) => {
     const menuId = `${target.kind}:${target.id}`
     const open = expanded.has(menuId)
     const ids = memberIds(sessions, target)
-    return <div key={`${target.kind}:${target.id}`} className={css.group}>
-      <div className={css.groupRow}
-        onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
-        onDrop={(event) => { acceptDrop(target, event) }}>
-        <button type="button" className={css.groupButton} aria-expanded={open}
-          aria-label={`${name} · ${t(target.kind === 'project' ? 'dropProject' : 'dropBot')}`}
-          onClick={() => {
-            if (!wide) expandSidebar()
-            setExpanded((current) => {
-              const next = new Set(current)
-              if (next.has(menuId)) next.delete(menuId)
-              else next.add(menuId)
-              return next
-            })
-            setSelectedSession(null)
-          }}>
-          <span className={css.leadingIcon} aria-hidden="true">
-            {target.kind === 'project'
-              ? open ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />
-              : <IconAgentPresetOutlineRegular />}
-            <IconTriangleRightFillRegular className={css.chevron} />
-          </span>
-          {wide && <span className={css.groupTitle}>{name}</span>}
-        </button>
-        {wide && <div className={css.rowActions}>
-          <Menu open={menu === menuId} portal align="end" autoFocus
-            onClose={() => { setMenu(null) }}
-            anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${name}`}
-              aria-haspopup="menu" aria-expanded={menu === menuId}
-              onClick={() => { setMenu(menu === menuId ? null : menuId) }}><IconEllipsisOutlineRegular /></button>}
-            items={[
-              { id: 'edit', label: t('edit'), icon: <IconEditOutlineRegular />, disabled: busy },
-              { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
-            ]}
-            onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
-          {!management && <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
-            disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
-        </div>}
-      </div>
-      {wide && open && <div className={css.groupContents}>
-        {!management && ids.map(id => sessionRow(id, target.kind))}
-      </div>}
-    </div>
+    return <AccountNavigationGroup key={`${target.kind}:${target.id}`} kind={target.kind} name={name}
+      open={open} wide={wide} label={`${name} · ${t(target.kind === 'project' ? 'dropProject' : 'dropBot')}`}
+      onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
+      onDrop={(event) => { acceptDrop(target, event) }} onToggle={() => {
+        if (!wide) expandSidebar()
+        setExpanded((current) => {
+          const next = new Set(current); if (next.has(menuId)) next.delete(menuId); else next.add(menuId); return next
+        })
+        setSelectedSession(null)
+      }} actions={<>
+        <Menu open={menu === menuId} portal align="end" autoFocus
+          onClose={() => { setMenu(null) }}
+          anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${name}`}
+            aria-haspopup="menu" aria-expanded={menu === menuId}
+            onClick={() => { setMenu(menu === menuId ? null : menuId) }}><IconEllipsisOutlineRegular /></button>}
+          items={[
+            { id: 'edit', label: t('edit'), icon: <IconEditOutlineRegular />, disabled: busy },
+            { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
+          ]}
+          onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
+        {!management && <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
+          disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
+      </>}>
+      {!management && ids.map(id => sessionRow(id, target.kind))}
+    </AccountNavigationGroup>
   }
 
   return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>

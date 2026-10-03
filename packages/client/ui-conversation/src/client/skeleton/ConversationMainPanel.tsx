@@ -1,7 +1,7 @@
 import type { ConversationSlotProps } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { ConversationWidthControls } from './ConversationWidthControls.tsx'
-import css from './ConversationRoot.module.css'
+import { ConversationFrame } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
  * Render the existing main Conversation frame around the extracted content.
@@ -41,7 +41,7 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
   const phase = settling ? 'settling' : hero ? 'hero' : 'active'
 
   return (
-    <div className={css.root} data-phase={phase}>
+    <ConversationFrame phase={phase}>
       {renderSlot('conversation.header', {})}
       {renderFactorySlot('conversation.content', {
         variant: 'main',
@@ -50,6 +50,6 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
       }, {
         slots: { widthControls: ConversationWidthControls },
       })}
-    </div>
+    </ConversationFrame>
   )
 }

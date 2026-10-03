@@ -2,7 +2,7 @@
 import type { PropsRuntime, PropsRenderFactories, PropsRenderSlots, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from './contract.ts'
-import css from './PersonalSidebar.module.css'
+import { accountNavigationStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Mount the shared manager using the sidebar's geometry.
  * @param props - Sidebar owner and framework factory renderer.

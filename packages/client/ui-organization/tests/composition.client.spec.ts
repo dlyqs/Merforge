@@ -26,7 +26,7 @@ it('registers organization settings while retaining the personal management fact
   expect(app.ctx.slots.entries('sidebar.personal')[0]?.component).toBe(OrganizationSidebar)
   expect(app.ctx.slots.entries('settings.section').find(item => item.options.id === 'organization')?.component).toBe(OrganizationSettings)
   expect(JSON.stringify(app.ctx.slots.snapshot('factory:personal.manager'))).toContain('personal.manager.workflow')
-  expect(app.ctx.slots.entries('main').find(e => e.options.key === 'organization-conversation')?.component).toBe(OrganizationConversation)
+  expect(app.ctx.slots.entries('main').some(e => e.options.key === 'organization-conversation')).toBe(false)
   const slots = app.ctx.slots
   await app.ctx.fiber.dispose()
   expect(slots.entries('sidebar.personal')).toHaveLength(0)
@@ -64,7 +64,8 @@ it('routes new and recent conversation navigation to the organization and replac
     app.ctx.uiWorkspace.startSession()
     app.ctx.uiWorkspace.showConversation()
     expect(mock.remote.session.create).not.toHaveBeenCalled()
-    expect(selectPanel).toHaveBeenLastCalledWith('organization-conversation')
+    expect(selectPanel).toHaveBeenLastCalledWith(null)
+    expect(app.ctx.slots.entries('main').filter(e => e.options.key === 'conversation')[0]?.component).toBe(OrganizationConversation)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, mode: 'personal', generation: 2 } })
     await vi.waitFor(() => { expect(app.ctx.slots.entries('sidebar.tasks').some(e => e.component === OrganizationTaskList)).toBe(false) })
     app.ctx.uiWorkspace.showConversation()

@@ -12,20 +12,10 @@ import css from './Organization.module.css'
 /** @param props - Organization facts and personal factory seat. @returns Navigation and centered workspace dialog. */
 export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sidebar.personal'> & PropsRenderFactories & ConversationSelectionProps) {
   const c = props.useOrganization(s => s.connection)
-  const [open, setOpen] = useState(false)
-  const org = c.organizations.find(item => item.id === c.organizationId)
   return <div className={css.sidebar}>
     {c.mode === 'organization'
-      ? <div className={css.sidebarSummary}>
-        <button className={css.organizationEntry} onClick={() => { setOpen(true) }}>
-          <span className={css.avatar}><IconUsersOutlineRegular size={18} /></span>
-          <span className={css.entryText}><strong>{org?.name ?? props.t('title')}</strong><small>{props.t(c.phase)}</small></span>
-          <IconChevronRightOutlineRegular size={14} />
-        </button>
-        <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`} {...props} section={props.section ?? 'recent'} />
-      </div>
+      ? <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`} {...props} section={props.section ?? 'recent'} wide={props.wide} expandSidebar={props.expandSidebar} />
       : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })}
-    {open && <OrganizationDialog {...props} initialSection={c.organizationId ? 'projects' : 'connection'} onClose={() => { setOpen(false) }} />}
   </div>
 }
 

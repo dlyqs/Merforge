@@ -7,7 +7,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkflowActions } from './contract.ts'
 import type { OperationId, PlanDefinition, PlanView, TaskId } from '@deepseek-ai/dsh-personal-workflow/types'
 import { TaskMindMap } from './TaskMindMap.tsx'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** @param props - Keyed durable node, current plan reads and explicit save callback.
  * @returns Inline current tree and retained conflicting draft. */

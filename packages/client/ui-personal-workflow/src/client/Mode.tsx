@@ -3,7 +3,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Switch, Tooltip, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkflowMode, OperationId, SetWorkflowModeRequest } from '@deepseek-ai/dsh-personal-workflow/types'
-import css from './Workflow.module.css'
+import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModeProps } from './contract.ts'
 
 /** Persist the user's mode gesture independently from submitting a goal.

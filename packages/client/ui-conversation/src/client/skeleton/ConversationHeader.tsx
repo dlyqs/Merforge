@@ -2,7 +2,7 @@
 import clsx from 'clsx'
 import type { ConversationHeaderProps } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
-import css from './ConversationRoot.module.css'
+import { conversationFrameStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
  * Keeps global navigation available before a Session exists.

@@ -11,6 +11,8 @@ export interface OrganizationInjected {
   loadModels?(): Promise<import('@deepseek-ai/dsh-api-session-controller/types').ModelCatalog>
   conversation?: OrganizationDesktopBridge['conversation']
   openConversation?: () => void
+  /** Open the selected project's tasks in the shared main task destination. */
+  openProjectTasks?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => void
   available: boolean
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']
