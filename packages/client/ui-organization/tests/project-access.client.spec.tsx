@@ -66,19 +66,20 @@ it('does not display an old permission result after the native identity generati
 })
 
 it('opens a newly created project immediately using the committed receipt', async () => {
-  const h = fixture()
+  const h = fixture(), openProjectTasks = vi.fn(), onClose = vi.fn()
   h.connection.mockImplementation(async (action) => {
     if (action.kind === 'command') return { receipt: { operationId: brandString(randomUUID()), revision: 9,
       projectId: h.project.id, organizationId: h.project.organizationId } }
     return {}
   })
-  render(<OrganizationDialog {...h.props} initialSection="projects" onClose={vi.fn()} />)
+  render(<OrganizationDialog {...h.props} openProjectTasks={openProjectTasks} initialSection="projects" onClose={onClose} />)
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
   fireEvent.change(screen.getByLabelText(zh.projectName), { target: { value: 'New project' } })
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
-  await screen.findByRole('heading', { name: 'New project' })
-  await waitFor(() => { expect(h.connection).toHaveBeenCalledWith({ kind: 'workgraph-tasks', request: {
-    organizationId: h.project.organizationId, projectId: h.project.id, search: '', offset: 0,
-  } }) })
+  await waitFor(() => { expect(openProjectTasks).toHaveBeenCalledExactlyOnceWith({
+    organizationId: h.project.organizationId, id: h.project.id, name: 'New project', version: 9,
+  }) })
+  expect(onClose).toHaveBeenCalledOnce()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-tasks')).toBe(false)
   expect(screen.queryByLabelText(zh.projectName)).toBeNull()
 })

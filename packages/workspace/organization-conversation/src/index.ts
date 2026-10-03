@@ -1,4 +1,6 @@
 /** Private organization project conversations, durable reservations and explicit planning intervals. */
+import { createAssistantMessage, createSystemMessage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import { randomUUID, createHash } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { z } from 'zod'
@@ -26,20 +28,6 @@ export const conversationConfigSchema = z.object({ root: z.string().min(1), mode
 /** Private Host deployment configuration. */
 export type Config = z.input<typeof conversationConfigSchema>
 declare module '@deepseek-ai/cordis' { interface Context { organizationConversation: OrganizationConversation } }
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /** Immutable original account/project/conversation owner in an independent namespace. */
-    'organization/conversation-owner': z.output<typeof conversationOwnerSchema>
-    /** Exact accepted input, method, settings and online authorization sent to the planning model. */
-    'organization/planning-input': z.output<typeof conversationInputSchema>
-    /** Private assessment of one stable goal; never an approved task definition. */
-    'organization/planning-assessment': z.output<typeof conversationAssessmentSchema>
-    /** Private proposal, dispatch intent and confirmed authority receipt. */
-    'organization/planning-proposal': z.output<typeof conversationProposalSchema>
-    /** Native permission intent and historical receipt, separate from model-visible user input. */
-    'organization/planning-operation': z.output<typeof conversationOperationSchema>
-  }
-}
 type State = z.output<typeof conversationStateSchema>
 type Binding = z.output<typeof conversationBindingSchema>
 const ownerKey = (owner: z.output<typeof conversationOwnerSchema>) => JSON.stringify(owner)
@@ -82,13 +70,17 @@ export default class OrganizationConversation extends Service {
   perform(input: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal): Promise<ConversationResult> {
     const request = conversationRequestSchema.parse(input), cancel = new AbortController()
     if (this.closing) return Promise.reject(new Error('organization-conversation: unavailable'))
-    if (request.kind === 'stop') return authorize().then((authority) => {
+    if (request.kind === 'stop' || request.kind === 'delete') return authorize().then((authority) => {
       const key = ownerKey(conversationOwnerSchema.parse({ serverId: authority.serverId, accountId: authority.accountId,
         organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
         ...(request.assignment ? { assignment: request.assignment } : {}) }))
       if (this.activeOwner?.key === key) this.activeOwner.cancel.abort()
-      return this.perform({ ...request, kind: 'read' }, authorize, signal)
+      return this.enqueue(request.kind === 'stop' ? { ...request, kind: 'read' } : request, authorize, signal, cancel)
     })
+    return this.enqueue(request, authorize, signal, cancel)
+  }
+  private enqueue(request: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal,
+    cancel: AbortController): Promise<ConversationResult> {
     this.running.add(cancel)
     const combined = AbortSignal.any([signal, cancel.signal])
     const task = this.tail.then(() => this.performCurrent(request, authorize, combined, cancel)).finally(() => {
@@ -160,6 +152,20 @@ export default class OrganizationConversation extends Service {
     }
     if (!binding.ready) this.ctx.logger.info('organization component=conversation bindingId=%s assignmentId=%s operationId=%s result=pending',
       binding.sessionId, owner.assignment?.assignmentId ?? '', request.operationId)
+    if (request.kind === 'delete') {
+      const deleted = binding
+      await state.set({ ...state.get(),
+        bindings: state.get().bindings.map(row => row.sessionId === deleted.sessionId ? { ...row, deleted: true } : row),
+        intents: state.get().intents.filter(row => ownerKey(row.owner) !== ownerKey(owner)), controls: controls() })
+      if (this.navigation) await this.navigation.set({ ...this.navigation.get(),
+        metadata: this.navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)),
+        selections: this.navigation.get().selections.filter(row => ownerKey(row.owner) !== ownerKey(owner)) })
+      if (await this.isolated.sessionPersistence.stat(binding.sessionId)) await this.isolated.sessionPersistence.delete(binding.sessionId)
+      await bridge(); check()
+      return { sessionId: binding.sessionId, owner, settings: this.settings(owner), entries: [], history: [], goals: [],
+        truncated: false, state: 'ready' }
+    }
+    if (binding.deleted) throw new Error('organization-conversation: deleted')
     await this.materialize(binding); check()
     if (!binding.ready) {
       binding = { ...binding, ready: true }
@@ -172,6 +178,57 @@ export default class OrganizationConversation extends Service {
       await state.set({ ...state.get(), controls: controls() })
     const navigation = this.navigation
     if (!navigation) throw new Error('organization-conversation: unavailable')
+    if (request.kind === 'affiliation' && !control) {
+      if (owner.assignment) throw new Error('organization-conversation: assignment-mismatch')
+      if (request.nextBotId && !navigation.get().bots.some(row => ownerKey({ ...row.owner,
+        conversationId: owner.conversationId }) === ownerKey(owner)
+        && row.bot.id === request.nextBotId)) throw new Error('organization-conversation: bot-unavailable')
+      await navigation.set({ ...navigation.get(), selections: [
+        ...navigation.get().selections.filter(row => ownerKey(row.owner) !== ownerKey(owner)),
+        ...(request.nextBotId ? [{ owner, botId: request.nextBotId }] : [])] })
+      await state.set({ ...state.get(), controls: controls() })
+    }
+    if (request.kind === 'rename' && !control) {
+      if (!request.title) throw new Error('organization-conversation: title-required')
+      await navigation.set({ ...navigation.get(), metadata: [
+        ...navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)), { owner, title: request.title }] })
+      await state.set({ ...state.get(), controls: controls() })
+    }
+    if (request.kind === 'select-task' && !control) {
+      if (first.assignment && (first.assignment.planId !== request.target.planId || first.assignment.taskId !== request.target.taskId))
+        throw new Error('organization-conversation: assignment-mismatch')
+      const target = { kind: 'read-planning-plan' as const, organizationId: owner.organizationId, projectId: owner.projectId,
+        conversationId: owner.conversationId, ...request.target }
+      if (!(await bridge(target)).plan) throw new Error('organization-conversation: task-required')
+      const events = await this.events(binding)
+      const previous = events.find(event => event.type === 'organization/task-selection' && event.data.operationId === request.operationId)
+      if (previous?.type === 'organization/task-selection' && previous.data.digest !== digest) throw new Error('organization-conversation: operation-conflict')
+      if (!previous) {
+        const writer = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+        try {
+          await writer.append([{ type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(),
+            data: { owner, target, operationId: request.operationId, digest } }]); await writer.flush()
+        } finally { await writer.close() }
+      }
+      await state.set({ ...state.get(), controls: controls() })
+    }
+    if (request.kind === 'select-model' && !control) {
+      if (!first.view.policy.models.some(model => model.model === request.selection.model && model.endpoint === request.selection.endpoint)
+        || !this.config.models.some(model => model.model === request.selection.model && model.endpoint === request.selection.endpoint))
+        throw new Error('organization-conversation: local-model-policy-denied')
+      const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+      try {
+        const rows = (await handle.read()).events
+        const previous = rows.find(row => row.type === 'organization/model-selection-operation' && row.data.operationId === request.operationId)
+        if (previous?.type === 'organization/model-selection-operation' && previous.data.digest !== digest) throw new Error('organization-conversation: operation-conflict')
+        if (!previous) await handle.append([{ type: 'organization/model-selection-operation', seq: SessionSeq(rows.length),
+          time: Date.now(), data: { operationId: request.operationId, digest } },
+        { type: 'model/selection', seq: SessionSeq(rows.length + 1), time: Date.now(),
+          data: { provider: request.selection.endpoint, model: request.selection.model } }]); await handle.flush()
+      } finally { await handle.close() }
+      await state.set({ ...state.get(), controls: controls() })
+    }
+    if (owner.assignment && request.kind === 'open') await this.seedAssignment(binding, bridge)
     const sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
       && candidate.projectId === owner.projectId
     if (request.kind === 'bot-save') {
@@ -281,7 +338,8 @@ export default class OrganizationConversation extends Service {
         const timer = setTimeout(() => { interval.abort() }, this.config.maxDurationMs)
         try {
           let authority = await bridge()
-          if (!authority.view.eligible) {
+          if (!authority.view.eligible || authority.view.grant?.selection.model !== request.selection.model
+            || authority.view.grant.selection.endpoint !== request.selection.endpoint) {
             const command = planningCommandSchema.parse({ kind: 'open-planning', operationId: randomUUID(), selection: request.selection,
               organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId })
             await this.append(binding, 'organization/planning-operation', { command })
@@ -347,6 +405,35 @@ export default class OrganizationConversation extends Service {
     } finally { await handle.close() }
     await this.events(binding)
   }
+  private async seedAssignment(binding: Binding, bridge: ConversationBridge): Promise<void> {
+    if (!binding.owner.assignment) return
+    const authority = await bridge()
+    if (!authority.assignment) throw new Error('organization-conversation: assignment-required')
+    const plan = (await bridge({ kind: 'read-planning-plan', organizationId: binding.owner.organizationId,
+      projectId: binding.owner.projectId, conversationId: binding.owner.conversationId,
+      planId: authority.assignment.planId, taskId: authority.assignment.taskId })).plan
+    const task = plan?.version.definition.tasks.find(task => task.id === authority.assignment?.taskId)
+    if (!task || !plan) throw new Error('organization-conversation: task-required')
+    const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+    try {
+      const events = (await handle.read()).events
+      if (events.some(event => event.type === 'assistant/message' && event.data.message.source.provider === 'organization-assignment')) return
+      const text = [task.goal, task.scope, ...task.acceptance.map(item => `• ${item}`),
+        ...task.artifacts.map(item => `• ${item}`)].filter(Boolean).join('\n\n')
+      await handle.append([{ type: 'organization/assignment-context', seq: SessionSeq(events.length), time: Date.now(),
+        data: { owner: binding.owner, assignment: authority.assignment, plan } },
+      { type: 'turn/start', seq: SessionSeq(events.length + 1), time: Date.now(), data: { turn: 1 } },
+      { type: 'step/start', seq: SessionSeq(events.length + 2), time: Date.now(), data: { turn: 1, step: 1 } },
+      { type: 'system/message', seq: SessionSeq(events.length + 3), time: Date.now(), surfaceOp: 'append',
+        data: { turn: 1, step: 1, message: createSystemMessage('') } },
+      { type: 'assistant/message', seq: SessionSeq(events.length + 4), time: Date.now(), surfaceOp: 'append',
+        data: { turn: 1, step: 1, stream: [], message: createAssistantMessage({ content: [{ type: 'text', text }],
+          source: { provider: 'organization-assignment', model: 'Agent' } }) } },
+      { type: 'step/end', seq: SessionSeq(events.length + 5), time: Date.now(), data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: SessionSeq(events.length + 6), time: Date.now(), data: { turn: 1, reason: { kind: 'completed' } } }])
+      await handle.flush()
+    } finally { await handle.close() }
+  }
   private async events(binding: Binding): Promise<readonly SessionEvent[]> {
     const reader = await this.isolated.sessionPersistence.open(binding.sessionId, 'read')
     try {
@@ -359,8 +446,12 @@ export default class OrganizationConversation extends Service {
     } finally { await reader.close() }
   }
   private async checkHistory(binding: Binding, bridge: ConversationBridge): Promise<void> {
-    const targets = new Map<string, { planId: import('@deepseek-ai/dsh-organization').OrganizationPlanId; taskId: import('@deepseek-ai/dsh-organization').OrganizationTaskId }>()
+    const targets = new Map<string, { planId: import('@deepseek-ai/dsh-organization').OrganizationPlanId
+      taskId: import('@deepseek-ai/dsh-organization').OrganizationTaskId }>()
     for (const event of await this.events(binding)) {
+      if (event.type === 'organization/task-selection') targets.set(event.data.target.taskId, event.data.target)
+      if (event.type === 'organization/assignment-context') targets.set(event.data.assignment.id,
+        { planId: event.data.assignment.planId, taskId: event.data.assignment.taskId })
       if (event.type === 'organization/planning-input' && event.data.authority.plan) {
         const v = event.data.authority.plan.version
         targets.set(`${v.planId}:${v.definition.taskId}`, { planId: v.planId, taskId: v.definition.taskId })
@@ -377,6 +468,14 @@ export default class OrganizationConversation extends Service {
   private goals(events: readonly SessionEvent[]): ConversationResult['goals'] {
     const goals = new Map<string, ConversationResult['goals'][number]>()
     for (const e of events) {
+      if (e.type === 'organization/task-selection') {
+        const id = conversationGoalSchema.parse(e.data.target.taskId)
+        const goal = goals.get(id) ?? { id, classification: 'unassessed' as const }
+        goals.delete(id); goals.set(id, goal)
+      }
+      if (e.type === 'organization/assignment-context') goals.set(conversationGoalSchema.parse(e.data.assignment.id), {
+        id: conversationGoalSchema.parse(e.data.assignment.id), classification: 'unassessed', proposal: { status: 'shared',
+          planId: e.data.plan.version.planId, revision: e.data.plan.version.revision, definition: e.data.plan.version.definition } })
       if (e.type === 'organization/planning-input') {
         const plan = e.data.authority.plan
         goals.set(e.data.goalId, goals.get(e.data.goalId) ?? { id: e.data.goalId, classification: 'unassessed',
@@ -401,15 +500,25 @@ export default class OrganizationConversation extends Service {
         text: e.data.message.content.filter(b => b.type === 'text').map(b => b.text).join('') })
     }
     const intent = this.state?.get().intents.filter(i => ownerKey(i.owner) === ownerKey(binding.owner)).at(-1)
-    const result: ConversationResult = { sessionId: binding.sessionId, owner: binding.owner, settings: this.settings(binding.owner),
+    let inputText = ''
+    const history = events.map((event): SessionEvent => {
+      if (event.type === 'organization/planning-input' && event.data.request.kind === 'send') inputText = event.data.request.text
+      if (event.type === 'user/message') return { ...event, data: { ...event.data, content: [{ type: 'text', text: inputText }] } }
+      return event
+    })
+    const selection = events.findLast(event => event.type === 'model/selection')
+    const title = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(binding.owner))?.title
+    const result: ConversationResult = { history, ...(title ? { title } : {}),
+      ...(selection?.type === 'model/selection' ? { selection: { endpoint: selection.data.provider,
+        model: selection.data.model } } : {}), sessionId: binding.sessionId, owner: binding.owner, settings: this.settings(binding.owner),
       entries, goals: this.goals(events), truncated: false,
       state: !intent ? 'ready' : intent.state === 'sending' || intent.state === 'received' ? 'unknown' : intent.state }
-    if (navigationOnly) { result.entries = []; result.goals = []; await bridge() }
+    if (navigationOnly) { result.entries = []; result.history = []; result.goals = []; await bridge() }
     else {
       try { await this.checkHistory(binding, bridge) }
       catch (_error) {
         await bridge()
-        result.entries = []
+        result.entries = []; result.history = []
         for (const goal of result.goals) if (goal.proposal) goal.proposal = { status: 'unavailable', planId: goal.proposal.planId, revision: 0 }
         return conversationResultSchema.parse(result)
       }
@@ -418,6 +527,15 @@ export default class OrganizationConversation extends Service {
         result.assignment = authority.assignment
         const id = conversationGoalSchema.parse(authority.assignment.id)
         if (!result.goals.some(g => g.id === id)) result.goals.push({ id, classification: 'unassessed' })
+      }
+      const selected = events.findLast(event => event.type === 'organization/task-selection')
+      const target = authority.assignment ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }
+        : selected?.type === 'organization/task-selection' ? selected.data.target : undefined
+      if (target) {
+        const plan = (await bridge({ kind: 'read-planning-plan', organizationId: binding.owner.organizationId,
+          projectId: binding.owner.projectId, conversationId: binding.owner.conversationId, ...target })).plan
+        const task = plan?.version.definition.tasks.find(task => task.id === target.taskId)
+        if (task) result.execution = { target: { planId: target.planId, taskId: target.taskId }, title: task.goal }
       }
       for (const goal of result.goals) {
         const proposal = goal.proposal, link = authority.assignment
@@ -433,7 +551,7 @@ export default class OrganizationConversation extends Service {
             revision: current.plan.version.revision, definition: current.plan.version.definition }
         } catch (_error) {
           await bridge()
-          result.entries = []
+          result.entries = []; result.history = []
           goal.proposal = { status: 'unavailable', planId: link.planId, revision: 0 }
         }
       }
@@ -442,16 +560,31 @@ export default class OrganizationConversation extends Service {
       const owner = binding.owner, sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
         && candidate.projectId === owner.projectId
       const conversations: NonNullable<ConversationResult['catalog']>['conversations'] = []
-      for (const row of this.state.get().bindings.filter(row => row.ready && !row.owner.assignment && sameProject(row.owner))
+      for (const row of this.state.get().bindings.filter(row => row.ready && !row.deleted && sameProject(row.owner))
         .sort((a, b) => b.createdAt - a.createdAt).slice(0, this.config.maxCatalogItems)) {
-        const input = (await this.events(row)).find(e => e.type === 'organization/planning-input' && e.data.request.kind === 'send')
-        const title = input?.type === 'organization/planning-input' && input.data.request.kind === 'send'
-          ? input.data.request.text.slice(0, 120) : ''
+        const rowEvents = await this.events(row)
+        if (row.owner.assignment) {
+          const context = rowEvents.find(event => event.type === 'organization/assignment-context')
+          if (context?.type !== 'organization/assignment-context') continue
+          try {
+            await bridge({ kind: 'read-planning-plan', organizationId: owner.organizationId, projectId: owner.projectId,
+              conversationId: owner.conversationId, planId: context.data.assignment.planId, taskId: context.data.assignment.taskId })
+          } catch (_error: unknown) { await bridge(); continue }
+        }
+        const input = rowEvents.find(e => e.type === 'organization/planning-input' && e.data.request.kind === 'send')
+        const storedTitle = this.navigation.get().metadata.find(meta => ownerKey(meta.owner) === ownerKey(row.owner))?.title
+        const title = storedTitle ?? (input?.type === 'organization/planning-input' && input.data.request.kind === 'send'
+          ? input.data.request.text.slice(0,
+            120) : row.owner.assignment ? (await this.events(row)).find(e => e.type === 'assistant/message')?.data.message.content.filter(b => b.type === 'text').map(b => b.text).join('').slice(0, 120) ?? '' : '')
         if (!title && String(row.owner.conversationId) === String(row.owner.projectId)) continue
         const botId = this.navigation.get().selections.find(link => ownerKey(link.owner) === ownerKey(row.owner))?.botId
-        conversations.push({ conversationId: row.owner.conversationId, title, createdAt: row.createdAt, ...(botId ? { botId } : {}) })
+        conversations.push({ conversationId: row.owner.conversationId, title, createdAt: row.createdAt,
+          ...(botId ? { botId } : {}), ...(row.owner.assignment ? { assignment: row.owner.assignment } : {}) })
       }
       result.catalog = { conversations, bots: this.navigation.get().bots.filter(row => sameProject(row.owner)).map(row => row.bot) }
+    }
+    while (result.history.length && Buffer.byteLength(JSON.stringify(result)) > this.config.maxReportBytes) {
+      result.history.shift(); result.truncated = true
     }
     while (entries.length && Buffer.byteLength(JSON.stringify(result)) > this.config.maxReportBytes) {
       entries.shift(); result.truncated = true
@@ -492,7 +625,7 @@ export default class OrganizationConversation extends Service {
     for (const b of this.state.get().bindings) {
       if (owners.has(ownerKey(b.owner)) || sessions.has(b.sessionId)) throw new Error('organization-conversation: duplicate-binding')
       owners.add(ownerKey(b.owner)); sessions.add(b.sessionId)
-      if (b.ready || await this.isolated.sessionPersistence.stat(b.sessionId)) {
+      if (!b.deleted && (b.ready || await this.isolated.sessionPersistence.stat(b.sessionId))) {
         const events = await this.events(b)
         if (events.filter(e => e.type === 'organization/conversation-owner').length !== 1)
           throw new Error('organization-conversation: binding-log-mismatch')

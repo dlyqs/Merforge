@@ -390,7 +390,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         reference.release()
         return
       }
-      const subagentAddress = typeof target === 'string'
+      const subagentAddress = typeof target === 'string' || 'kind' in target
         ? this.sessions.subagentAddress(reference.sessionId)
         : target
       this.selection.set({

@@ -1,6 +1,6 @@
 /** Identity-scoped project, Bot and recent-conversation navigation over private native catalogs. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Input, Modal, Menu, Tooltip, AccountNavigationGroup, AccountConversationRow, accountNavigationStyles as css, IconNewChatOutlineRegular, IconPlusOutlineRegular, IconEditOutlineRegular, IconEllipsisOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Modal, Menu, Tooltip, AccountNavigationGroup, AccountConversationRow, AccountConversationMenu, accountNavigationStyles as css, IconNewChatOutlineRegular, IconPlusOutlineRegular, IconEditOutlineRegular, IconEllipsisOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConversationRequest, ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
@@ -13,7 +13,9 @@ import { workgraphError } from './workgraph-view.ts'
 type Bot = NonNullable<ConversationResult['catalog']>['bots'][number]
 type Catalog = { project: OrganizationProjectView; catalog: NonNullable<ConversationResult['catalog']> }
 /** @param props - Framework navigation seat and current identity. @returns Project, Bot or recent rows. */
-export function OrganizationBrowser(props: OrganizationProps & ConversationSelectionProps & { section: 'projects' | 'bots' | 'recent'; wide: boolean; expandSidebar(): void }) {
+export function OrganizationBrowser(props: OrganizationProps & ConversationSelectionProps & { section: 'projects' | 'bots' | 'recent'
+  wide: boolean
+  expandSidebar(): void }) {
   const alive = useRef(false)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const c = props.useOrganization(s => s.connection), revision = props.useStore(s => s.revision), selected = props.useStore(s => s.selected)
@@ -52,16 +54,23 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setExpanded(new Set()); setMenu(null)
   }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   const items = ready && catalogs?.generation === c.generation ? catalogs.items : []
-  const open = async (project: OrganizationProjectView, conversationId: ConversationRequest['conversationId'], botId?: Bot['id']) => {
+  const open = async (project: OrganizationProjectView, conversationId: ConversationRequest['conversationId'],
+    botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
     if (!c.principal || busy || !props.conversation) return
     const principal = c.principal
     setBusy(true); setNotice('')
     try {
-      const result = await props.conversation({ organizationId: project.organizationId, projectId: project.id, conversationId,
-        kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'], ...(botId ? { botId } : {}) })
-      if (!alive.current || result.generation !== identity.current.generation || identity.current.mode !== 'organization') return
-      props.actions.select({ ...principal, organizationId: project.organizationId, projectId: project.id, conversationId,
-        ...(botId ? { botId } : {}) })
+      const chosen = { ...principal, organizationId: project.organizationId, projectId: project.id, conversationId,
+        ...(botId ? { botId } : {}), ...(assignment ? { planId: assignment.planId, assignmentId: assignment.assignmentId } : {}) }
+      if (props.selectConversation) await props.selectConversation(chosen)
+      else {
+        const result = await props.conversation({ organizationId: project.organizationId, projectId: project.id, conversationId,
+          kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'], ...(botId ? { botId } : {}),
+          ...(assignment ? { assignment } : {}) })
+        if (result.generation !== identity.current.generation) return
+      }
+      if (!alive.current || c.generation !== identity.current.generation || identity.current.mode !== 'organization') return
+      if (!props.selectConversation) props.actions.select(chosen)
       setNewTarget(undefined); props.actions.refresh(); props.openConversation?.()
     } catch (error) { setNotice(props.t(workgraphError(error))) }
     finally { setBusy(false) }
@@ -77,7 +86,17 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     <AccountConversationRow key={`${project.id}:${conversation.conversationId}`} title={conversation.title || props.t('newConversation')}
       tag={props.section === 'recent' ? project.name : undefined} disabled={busy}
       selected={selected?.conversationId === conversation.conversationId}
-      onOpen={() => { void open(project, conversation.conversationId, conversation.botId) }} />
+      onOpen={() => { void open(project, conversation.conversationId, conversation.botId, conversation.assignment) }}
+      actions={<AccountConversationMenu title={conversation.title || props.t('newConversation')} disabled={busy}
+        labels={{ more: props.t('more'), manage: props.t('manageConversation'), delete: props.t('deleteConversation') }}
+        onManage={() => { if (c.principal) props.manageConversation?.({ ...c.principal, organizationId: project.organizationId,
+          projectId: project.id, conversationId: conversation.conversationId,
+          ...(conversation.assignment ? { planId: conversation.assignment.planId,
+            assignmentId: conversation.assignment.assignmentId } : {}) }) }}
+        onDelete={() => { if (c.principal) props.manageConversation?.({ ...c.principal, organizationId: project.organizationId,
+          projectId: project.id, conversationId: conversation.conversationId,
+          ...(conversation.assignment ? { planId: conversation.assignment.planId,
+            assignmentId: conversation.assignment.assignmentId } : {}) }, 'delete') }} />} />
   const newButton = (project: OrganizationProjectView, bot?: Bot) => <Tooltip label={props.t('newConversation')}>
     <button type="button" className={css.rowAction} disabled={busy} aria-label={`${props.t('newConversation')} ${bot?.name ?? project.name}`}
       onClick={() => { setNewBot(''); setNewTarget({ project, ...(bot ? { bot } : {}) }) }}><IconNewChatOutlineRegular /></button>
@@ -92,7 +111,9 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         onSelect={(id) => { setSortName(id === 'name'); setMenu(null) }} />
       {(props.section === 'bots' || c.organizations.find(org => org.id === c.organizationId)?.role === 'admin') && <Tooltip label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')}>
         <button type="button" className={css.headerAction} aria-label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')} disabled={!ready || busy}
-          onClick={() => { if (props.section === 'bots') setEditing({}); else { projectOperation.current = undefined; setProjectDraft({ name: '' }) } }}><IconPlusOutlineRegular /></button>
+          onClick={() => { if (props.section === 'bots') setEditing({})
+          else { projectOperation.current = undefined
+            setProjectDraft({ name: '' }) } }}><IconPlusOutlineRegular /></button>
       </Tooltip>}
     </div></div>}
     {notice && <p role="alert">{notice}</p>}
@@ -103,7 +124,10 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
           <Menu open={menu === project.id} portal align="end" onClose={() => { setMenu(null) }}
             anchor={<button type="button" className={css.rowAction} aria-label={`${props.t('more')} ${project.name}`} aria-haspopup="menu" aria-expanded={menu === project.id} onClick={() => { setMenu(menu === project.id ? null : project.id) }}><IconEllipsisOutlineRegular /></button>}
             items={[{ id: 'tasks', label: props.t('tasks') }, { id: 'edit', label: props.t('editProject'), icon: <IconEditOutlineRegular /> }]}
-            onSelect={(id) => { setMenu(null); if (id === 'tasks') props.openProjectTasks?.(project); else { projectOperation.current = undefined; setProjectDraft({ project, name: project.name }) } }} />
+            onSelect={(id) => { setMenu(null)
+              if (id === 'tasks') props.openProjectTasks?.(project)
+              else { projectOperation.current = undefined
+                setProjectDraft({ project, name: project.name }) } }} />
           {newButton(project)}
         </>}>
         {catalog.conversations.map(conversation => row(project, conversation))}
@@ -154,7 +178,8 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         }, (error: unknown) => { if (alive.current) setNotice(props.t(workgraphError(error))) })
         .finally(() => { if (alive.current) setBusy(false) })
     }}>
-      <label>{props.t('projectName')}<Input autoFocus required disabled={busy} value={projectDraft.name} onChange={(event) => { projectOperation.current = undefined; setProjectDraft({ ...projectDraft, name: event.target.value }) }} /></label>
+      <label>{props.t('projectName')}<Input autoFocus required disabled={busy} value={projectDraft.name} onChange={(event) => { projectOperation.current = undefined
+        setProjectDraft({ ...projectDraft, name: event.target.value }) }} /></label>
       {notice && <p role="alert">{notice}</p>}
       <div className={css.formActions}><Button disabled={busy} onClick={() => { setProjectDraft(undefined) }}>{props.t('cancel')}</Button><Button type="submit" variant="primary" disabled={busy || !projectDraft.name.trim()}>{props.t('save')}</Button></div>
     </form>

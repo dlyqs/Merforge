@@ -1,7 +1,7 @@
 /** Private execution-session preparation; no renderer-supplied identity or Session ID. */
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { executionReadSchema, executionActionSchema, executionViewSchema, executionCapabilitySchema, executionModelSchema, executionCommandSchema, executionCodexBackendSchema } from '@deepseek-ai/dsh-organization/execution'
 import { contextAuthoritySchema, contextResultSchema, contextRequestSchema } from '@deepseek-ai/dsh-organization-context/protocol'
 /** Non-secret local model selection and exact user-authorized inputs. */

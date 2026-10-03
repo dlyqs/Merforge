@@ -59,11 +59,13 @@ it('retains a failed save draft and retries the identical operation; conflicts r
   await screen.findByLabelText(zh.taskGoal)
   fireEvent.change(screen.getByLabelText(zh.taskGoal), { target: { value: 'Local edit' } })
   const base = h.connection.getMockImplementation()!
-  h.connection.mockImplementation(async (action) => { if (action.kind === 'workgraph-save') throw new Error('unavailable'); return base(action) })
+  h.connection.mockImplementation(async (action) => { if (action.kind === 'workgraph-save') throw new Error('unavailable')
+    return base(action) })
   fireEvent.click(screen.getByRole('button', { name: zh.saveTask }))
   await screen.findByText(zh.unavailable)
   expect((screen.getByLabelText(zh.taskGoal)).value).toBe('Local edit')
-  h.connection.mockImplementation(async (action) => { if (action.kind === 'workgraph-save') throw new Error('version-conflict'); return base(action) })
+  h.connection.mockImplementation(async (action) => { if (action.kind === 'workgraph-save') throw new Error('version-conflict')
+    return base(action) })
   fireEvent.click(screen.getByRole('button', { name: zh.saveTask }))
   await screen.findByRole('alert')
   const saves = h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-save')
@@ -85,19 +87,18 @@ it('uses native context action and hides expired content including delayed resul
   await waitFor(() =>{  expect(screen.queryByText('Authorized scope')).toBeNull() })
   expect(screen.queryByText(zh.contextReadonly)).toBeNull()
 })
-it('drops task drafts and project selection immediately on organization switch', async () => {
-  const h = fixture(); const view = render(<OrganizationDialog {...h.props} initialSection="projects" onClose={vi.fn()} />)
+it('opens project tasks in the main destination and removes the manual task workbench', async () => {
+  const h = fixture(), openProjectTasks = vi.fn(), onClose = vi.fn()
+  render(<OrganizationDialog {...h.props} openProjectTasks={openProjectTasks} initialSection="projects" onClose={onClose} />)
   fireEvent.click(screen.getByRole('button', { name: zh.tasks }))
-  await screen.findByRole('button', { name: 'Visible task' })
-  fireEvent.click(screen.getByRole('button', { name: zh.createTask }))
-  fireEvent.change(screen.getByLabelText(zh.taskGoal), { target: { value: 'Private draft' } })
-  h.setState({ organizationId: brandString(randomUUID()), generation: 2, projects: undefined })
-  view.rerender(<OrganizationDialog {...h.props} initialSection="projects" onClose={vi.fn()} />)
-  expect(screen.queryByDisplayValue('Private draft')).toBeNull()
-  expect(screen.queryByText('Shared project')).toBeNull()
+  expect(openProjectTasks).toHaveBeenCalledWith(h.project)
+  expect(onClose).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('button', { name: zh.createTask })).toBeNull()
+  expect(h.connection.mock.calls.some(([a]) => a.kind === 'workgraph-save')).toBe(false)
 })
 it('administers grants from identifiers without requesting task content', async () => {
-  const h = fixture(); h.connection.mockImplementation(async action => action.kind === 'workgraph-grants' ? h.reply({ kind: 'grants', value: [] }) : {})
+  const h = fixture()
+  h.connection.mockImplementation(async action => action.kind === 'workgraph-grants' ? h.reply({ kind: 'grants', value: [] }) : {})
   render(<TaskGrants {...h.props} projectId={h.project.id} />)
   fireEvent.change(screen.getByLabelText(zh.planId), { target: { value: h.version.planId } })
   fireEvent.click(screen.getByRole('button', { name: zh.inspectGrants }))
@@ -110,29 +111,12 @@ it('orders visible children after their parent without inventing off-page ancest
   expect(taskRows([child, root]).map(row => row.depth)).toEqual([0, 1])
   expect(taskRows([child]).map(row => row.depth)).toEqual([0])
 })
-it('creates a complete single-task definition and opens only the saved read-only task snapshot', async () => {
+it('offers model-created tasks without a manual create task action', async () => {
   const h = fixture()
-  h.context.mockResolvedValue({ generation: 1, result: { mode: 'pre-execution', sessionId: 'organization-context:local' as import('@deepseek-ai/dsh-session').SessionId,
-    owner: { version: 1, serverId: brandString(randomUUID()), accountId: brandString(randomUUID()),
-      organizationId: h.project.organizationId,
-      planId: h.version.planId, taskId: h.page.items[0]!.id },
-    snapshot: { ...h.page.items[0]!, goal: 'Original saved goal', revision: h.version.revision } } })
   render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
   await screen.findByRole('button', { name: 'Visible task' })
-  fireEvent.click(screen.getByRole('button', { name: zh.createTask }))
-  for (const [label, value] of [[zh.taskGoal, 'New task'], [zh.taskScope, 'New scope'], [zh.taskAcceptance, 'Review new task']]) {
-    fireEvent.change(screen.getByLabelText(label!), { target: { value } })
-  }
-  fireEvent.click(screen.getByRole('button', { name: zh.saveTask }))
-  await waitFor(() =>{  expect(screen.queryByLabelText(zh.taskGoal)).toBeNull() })
-  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-save')?.[0]).toMatchObject({
-    request: { expectedRevision: 0, definition: { tasks: [{ parentTaskId: null, goal: 'New task', scope: 'New scope', acceptance: ['Review new task'] }] } },
-  })
-  fireEvent.click(screen.getByRole('button', { name: 'Visible task' }))
-  fireEvent.click(screen.getByRole('button', { name: zh.myContext }))
-  await screen.findByText('Original saved goal')
-  expect(screen.getByText(zh.contextReadonly)).toBeTruthy()
-  expect(screen.queryByRole('textbox', { name: /send|message/i })).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.createTask })).toBeNull()
+  expect(h.connection.mock.calls.some(([a]) => a.kind === 'workgraph-save')).toBe(false)
 })
 
 it('shows the saved context revision separately when the current task has changed', async () => {

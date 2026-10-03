@@ -19,8 +19,7 @@ import { Workflow } from './Workflow.tsx'
 import { en, zh } from './locales.ts'
 
 /** Services used by the Remote adapter and navigation. */
-export const inject = ['slots', 'remote', 'remote.session', 'locale', 'uiWorkspace', 'layout', 'uiConversation']
-
+export const inject = ['slots', 'remote', 'remote.session', 'locale', 'uiWorkspace', 'layout', 'uiConversation', 'sessions']
 function valueOf<T>(result: RemoteResult<T>): T {
   if (!result.ok) throw new Error(result.error.message)
   return result.value
@@ -70,14 +69,17 @@ export function apply(ctx: Context): void {
     name: 'conversation.input.left', id: 'personal-workflow-mode', locale: 'personalWorkflow',
     inject: (): ModeActions => ({
       readTesting: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
-      readMode: async sessionId => valueOf(await ctx.remote.session.workflowMode(sessionId)),
-      setMode: async request => valueOf(await ctx.remote.session.workflowSetMode(request)),
+      readMode: async sessionId => ctx.sessions.binding(sessionId)?.controls?.readMode()
+        ?? valueOf(await ctx.remote.session.workflowMode(sessionId)),
+      setMode: async request => ctx.sessions.binding(request.sessionId)?.controls?.setMode(request.enabled,
+        request.expectedRevision, request.operationId) ?? valueOf(await ctx.remote.session.workflowSetMode(request)),
     }),
   }, Mode))
 
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left', id: 'personal-workflow-execution', locale: 'personalWorkflow',
-    inject: (): ExecutionActions => ({
+    inject: (sessionId): ExecutionActions => ({
+      account: ctx.sessions.binding(sessionId)?.controls,
       candidates: async sessionId => valueOf(await ctx.remote.session.workflowCandidates(sessionId)),
       readRun: async sessionId => valueOf(await ctx.remote.session.workflowRun(sessionId)),
       limits: async () => valueOf(await ctx.remote.session.workflowLimits()),

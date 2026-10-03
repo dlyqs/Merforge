@@ -300,6 +300,11 @@ class TestSessionReference implements SessionReference {
  * behavior/calls/stubs) are bench-only surface.
  */
 export class TestSessions implements ISessions {
+  /**
+   * Create a standard source for fixture-controlled events.
+   * @returns An empty event publisher.
+   */
+  createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   /** The useSessions catalog feed, independent of view ownership. */
   readonly list: SnapshotStore<SessionListState>
   private readonly records = new Map<SessionId, SessionRecord>()
@@ -700,6 +705,7 @@ export class TestSessions implements ISessions {
   }
 
   private resolveTarget(target: SessionTarget): SessionId {
+    if (typeof target !== 'string' && 'kind' in target) throw new Error('External account fixtures require the real ClientSessions service')
     const id = typeof target === 'string' ? target : target.childSessionId
     if (typeof target !== 'string') {
       this.addresses.set(id, target)

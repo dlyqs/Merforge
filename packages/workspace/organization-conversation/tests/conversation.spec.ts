@@ -9,6 +9,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { workgraphHarness, password } from '../../../api/organization-api/tests/workgraph-harness.ts'
 import { organizationConversation } from '../../../../apps/desktop/src/organization-conversation.ts'
 import { conversationRequestSchema } from '../src/protocol.ts'
+import { conversationStateSchema } from '../src/state.ts'
 import { boot, reply, selection } from './harness.ts'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { vi.restoreAllMocks(); for (const close of cleanup.splice(0).reverse()) await close() })
@@ -345,4 +346,90 @@ it('persists independent organization conversations and Bots, logs Bot instructi
   expect(account.result.catalog?.bots).toEqual([])
   expect(account.result.catalog?.conversations.some(c => c.conversationId === a.conversationId)).toBe(false)
   expect(fetch).toHaveBeenCalledTimes(1)
+}, 20000)
+
+it('persists rename and Bot association, and keeps a deleted conversation absent after restart', async () => {
+  const h = await setup(), opened = await h.perform(), botId = randomUUID()
+  const request = (fields: object) => conversationRequestSchema.parse({ ...h.request, operationId: randomUUID(), ...fields })
+  await h.perform(request({ kind: 'bot-save', expectedVersion: 0, bot: { id: botId, name: 'Reports', instructions: 'Summarize reports', selection, version: 0 } }))
+  await h.perform(request({ kind: 'rename', title: 'Quarterly report' }))
+  await h.perform(request({ kind: 'affiliation', nextBotId: botId }))
+  await expect(h.perform(request({ kind: 'affiliation', nextBotId: randomUUID() }))).rejects.toThrow()
+  const catalog = (await h.perform(request({ kind: 'catalog' }))).result.catalog
+  expect(catalog?.conversations.find(row => row.conversationId === h.request.conversationId)).toMatchObject({ title: 'Quarterly report', botId })
+  await h.local.close()
+  const reopened = await boot(h.remote.root); cleanup.push(reopened.close)
+  const perform = (input: ReturnType<typeof request>) =>
+    organizationConversation(h.connection, reopened.host, input, () => {}, new AbortController().signal)
+  expect((await perform(request({ kind: 'read' }))).result.sessionId).toBe(opened.result.sessionId)
+  const deleted = request({ kind: 'delete' })
+  await perform(deleted); await perform(deleted)
+  await expect(perform(request({ kind: 'open' }))).rejects.toThrow()
+  const other = request({ kind: 'catalog', conversationId: randomUUID() })
+  expect((await perform(other)).result.catalog?.conversations.some(row => row.conversationId === h.request.conversationId)).toBe(false)
+  await reopened.service.verifyBindings()
+}, 20000)
+
+it('persists authorized task selection without starting a model or an execution', async () => {
+  const h = await setup(); await h.perform()
+  const fetch = vi.spyOn(globalThis, 'fetch')
+  const target = { planId: h.remote.query.planId, taskId: h.remote.grant.taskId }
+  const selected = conversationRequestSchema.parse({ ...h.request, operationId: randomUUID(), kind: 'select-task', target })
+  const result = await h.perform(selected); await h.perform(selected)
+  expect(result.result.execution?.target).toEqual(target)
+  expect(result.result.goals.at(-1)?.id).toBe(target.taskId)
+  expect(result.result.history.filter(event => event.type === 'organization/task-selection')).toHaveLength(1)
+  expect(fetch).not.toHaveBeenCalled()
+  fetch.mockResolvedValue(reply())
+  const continued = await h.perform(conversationRequestSchema.parse({ ...h.request, kind: 'send', operationId: randomUUID(),
+    selection, route: 'query', goalId: target.taskId, target, text: 'Explain the selected node' }))
+  expect(continued.result.goals).toHaveLength(1)
+  expect(continued.result.goals[0]?.id).toBe(target.taskId)
+  expect(fetch.mock.calls[0]?.[1]?.body).toContain('Visible task')
+  expect(fetch.mock.calls[0]?.[1]?.body).not.toMatch(/HIDDEN_ROOT|HIDDEN_TASK/)
+  await expect(h.perform(conversationRequestSchema.parse({ ...selected, operationId: randomUUID(),
+    target: { ...target, taskId: h.remote.save.definition.tasks[2]!.id } }))).rejects.toThrow()
+  await h.local.close()
+  const reopened = await boot(h.remote.root); cleanup.push(reopened.close)
+  const read = await organizationConversation(h.connection, reopened.host, { ...h.request, kind: 'read' }, () => {}, new AbortController().signal)
+  expect(read.result.execution).toEqual(result.result.execution)
+  await reopened.service.verifyBindings()
+}, 20000)
+
+it('recovers a committed model selection when the control receipt write fails', async () => {
+  const h = await setup(); await h.perform()
+  const domain = h.local.ctx.storageDomain.get('organization_conversation')!
+  const unit = Reflect.get(domain, 'unit') as import('@deepseek-ai/dsh-storage').KvUnit
+  const original = unit.setGlobal.bind(unit)
+  const failed = vi.spyOn(unit, 'setGlobal').mockRejectedValueOnce(new Error('receipt-write-failed'))
+  const request = conversationRequestSchema.parse({ ...h.request, operationId: randomUUID(), kind: 'select-model', selection })
+  await expect(h.perform(request)).rejects.toThrow()
+  failed.mockImplementation(original)
+  const result = await h.perform(request)
+  expect(result.result.selection).toEqual(selection)
+  expect(result.result.history.filter(event => event.type === 'model/selection')).toHaveLength(1)
+  await expect(h.perform(conversationRequestSchema.parse({ ...request, selection: { ...selection, model: 'different' } }))).rejects.toThrow()
+  await h.local.service.verifyBindings()
+}, 20000)
+
+it('deletes a running conversation after draining its model and removes retained private inputs', async () => {
+  const h = await setup(); await h.perform()
+  let arrived!: () => void
+  const ready = new Promise<void>((resolve) => { arrived = resolve })
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+    arrived()
+    return await new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => { reject(new DOMException('Cancelled', 'AbortError')) }, { once: true })
+    })
+  })
+  const send = conversationRequestSchema.parse({ ...h.request, kind: 'send', operationId: randomUUID(), selection,
+    route: 'new_goal', text: 'Private input must be removed' })
+  const running = h.perform(send), rejection = expect(running).rejects.toThrow()
+  await ready
+  const result = await h.perform(conversationRequestSchema.parse({ ...h.request, kind: 'delete', operationId: randomUUID() }))
+  await rejection
+  expect(result.result.history).toEqual([])
+  expect(conversationStateSchema.parse(h.local.ctx.storageDomain.get('organization_conversation')!.global.get()).intents).toEqual([])
+  await expect(h.perform(conversationRequestSchema.parse({ ...h.request, operationId: randomUUID() }))).rejects.toThrow()
+  await h.local.service.verifyBindings()
 }, 20000)

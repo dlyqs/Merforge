@@ -43,6 +43,9 @@ export type ModeProps = PropsRuntime<'conversation.input.left'> & PropsLocale<'p
 
 /** Explicit execution controls exposed only through user actions. */
 export interface ExecutionActions {
+  /** Account task selection uses the same composer action and its authorized detail area. */
+  account?: Pick<import('@deepseek-ai/dsh-api-session-controller/client').SessionControls,
+    'assigned' | 'openExecution' | 'taskTitle' | 'taskId' | 'listTasks' | 'selectTask'> | undefined
   candidates(sessionId: SessionId): Promise<PlanView[]>
   readRun(sessionId: SessionId): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun | null>
   limits(): Promise<{ maxActions: number; maxTurns: number; maxDurationMs: number }>

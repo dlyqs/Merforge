@@ -3,8 +3,7 @@ import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { workgraphReadSchema, workgraphSaveSchema, workgraphTaskViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, ServerId } from '@deepseek-ai/dsh-organization/types'
-import { SessionId } from '@deepseek-ai/dsh-session'
-
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 /** Local open selector; an existing personal Session cannot be supplied. */
 export const contextRequestSchema = workgraphReadSchema.omit({ revision: true }).extend({
   taskId: workgraphTaskViewSchema.shape.id, operationId: workgraphSaveSchema.shape.operationId,

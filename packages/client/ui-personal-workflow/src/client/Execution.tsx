@@ -13,6 +13,7 @@ import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitive
 export function Execution(props: ExecutionProps) {
   const { t } = props
   const [open, setOpen] = useState(false)
+  const [accountTasks, setAccountTasks] = useState<Awaited<ReturnType<NonNullable<ExecutionProps['account']>['listTasks']>>>([])
   const [plans, setPlans] = useState<PlanView[]>([])
   const [run, setRun] = useState<TaskRun | null>(null)
   const [selection, setSelection] = useState('')
@@ -25,7 +26,7 @@ export function Execution(props: ExecutionProps) {
   const [error, setError] = useState<string | null>(null)
   const lock = useRef(false)
   const retry = useRef<{ fingerprint: string; operationId: OperationId } | null>(null)
-  const running = props.useSession(value => value.running)
+  const running = props.useSession(value => value).running
   const prepared = run?.handoffs.find(handoff => handoff.status === 'prepared' && handoff.sourceSessionId === props.sessionId)
   const plan = plans.find(item => item.ready.some(id => id === selection))
   const task = plan?.snapshot.definition.tasks.find(item => item.id === selection)
@@ -52,12 +53,42 @@ export function Execution(props: ExecutionProps) {
     const value = { sessionId: props.sessionId, runId: run.id, ownerEpoch: run.ownerEpoch }
     return { ...value, operationId: operation({ ...value, action, note }) }
   }
+  const account = props.account, accountTask = accountTasks.find(item => item.id === selection)
+  if (account) return <>
+    <Button variant="ghost" size="sm" className={css.composerButton} icon={<IconPlayOutlineRegular />}
+      aria-pressed={account.assigned} disabled={running} onClick={() => {
+        setSelection(account.taskId ?? ''); setOpen(true); setBusy(true); setError(null)
+        void account.listTasks().then(setAccountTasks, (reason: unknown) => { setError(String(reason)) }).finally(() => { setBusy(false) })
+      }}>{account.taskTitle ?? t('selectTask')}</Button>
+    {open && <Modal open title={t('selectTask')} closeLabel={t('close')} onClose={() => { if (!busy) setOpen(false) }} className={`${css.dialog} ${css.executionDialog}`} contentClassName={css.dialogContent ?? ''}>
+      <div className={css.body}>
+        {busy && <p role="status">{t('loadingExecution')}</p>}
+        {error && <p role="alert">{t('error', { message: error })}</p>}
+        <label className={css.field}>{t('selectTask')}<select value={selection} disabled={busy} onChange={(event) => { setSelection(event.target.value) }}>
+          <option value="">{t('chooseAccountTask')}</option>{accountTasks.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+        </select></label>
+        {accountTasks.filter(item => item.id === selection).map(item => <section key={item.id} className={css.taskPreview}>
+          <h3>{item.title}</h3><p className={css.prose}>{item.scope}</p><dl className={css.facts}>
+            <dt>{t('acceptanceTitle')}</dt><dd><ul>{item.acceptance.map((value, index) => <li key={index}>{value}</li>)}</ul></dd>
+            <dt>{t('artifactsTitle')}</dt><dd>{item.artifacts.join(', ') || t('none')}</dd></dl>
+        </section>)}
+        <div className={css.dialogActions}><Button variant="primary" disabled={busy || !accountTask} onClick={() => {
+          if (!accountTask) return
+          setBusy(true); setError(null)
+          void account.selectTask(accountTask.id).then(() => { setOpen(false) },
+            (reason: unknown) => { setError(String(reason)) }).finally(() => { setBusy(false) })
+        }}>{t('selectTask')}</Button><Button disabled={busy || !account.assigned} onClick={() => { setOpen(false)
+          account.openExecution() }}>{t('executionSettings')}</Button></div>
+      </div>
+    </Modal>}
+  </>
   return <>
-    <Button variant="ghost" size="sm" className={css.composerButton} icon={<IconPlayOutlineRegular />} onClick={() => { setOpen(true); void perform(async () => {
-      await refresh()
-      const limits = await props.limits()
-      setMaxActions(limits.maxActions); setMaxTurns(limits.maxTurns); setMaxDurationMs(limits.maxDurationMs)
-    }) }}>{t('selectTask')}</Button>
+    <Button variant="ghost" size="sm" className={css.composerButton} icon={<IconPlayOutlineRegular />} onClick={() => { setOpen(true)
+      void perform(async () => {
+        await refresh()
+        const limits = await props.limits()
+        setMaxActions(limits.maxActions); setMaxTurns(limits.maxTurns); setMaxDurationMs(limits.maxDurationMs)
+      }) }}>{t('selectTask')}</Button>
     {open && <Modal open title={t('selectTask')} closeLabel={t('close')} onClose={() => { if (!busy) setOpen(false) }} className={`${css.dialog} ${css.executionDialog}`} contentClassName={css.dialogContent ?? ''}>
       <div className={css.body}>
         <div className={css.toolbar}><p className={css.muted}>{t('executionHint')}</p>

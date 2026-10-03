@@ -3,7 +3,10 @@ import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-sto
 import type { PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OrganizationId, OrganizationProjectId, OrganizationProjectView, Principal } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationTaskView } from '@deepseek-ai/dsh-organization'
-type Selection = Principal & Pick<OrganizationTaskView, 'planId'> & { organizationId: OrganizationId; projectId: OrganizationProjectId; taskId: OrganizationTaskView['id'] }
+type Selection = Principal & Pick<OrganizationTaskView, 'planId'> & { organizationId: OrganizationId
+  projectId: OrganizationProjectId
+  taskId: OrganizationTaskView['id']
+  assignmentId?: import('@deepseek-ai/dsh-organization').OrganizationAssignmentId }
 type ProjectSelection = Principal & { project: OrganizationProjectView }
 type State = { selected: Selection | null; project: ProjectSelection | null }
 type Actions = {

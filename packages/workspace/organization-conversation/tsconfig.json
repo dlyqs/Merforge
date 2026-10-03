@@ -55,6 +55,12 @@
     },
     {
       "path": "../../llm/llm-retry"
+    },
+    {
+      "path": "../../session/session-format-current"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.host.json"
     }
   ]
 }

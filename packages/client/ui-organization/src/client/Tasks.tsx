@@ -67,7 +67,8 @@ export function OrganizationTasks(props: TaskProps) {
     <div className={css.toolbar}><div><h2>{props.t('tasks')}</h2><p className={css.muted}>{props.t('plansHint')}</p></div></div>
     {current ? <Workbench key={`${selected.serverId}:${selected.accountId}:${selected.planId}`} {...props}
       project={{ id: selected.projectId, organizationId: selected.organizationId, name: navigationProject?.name ?? props.t('tasks') }}
-      planId={selected.planId} initialTaskId={selected.taskId} onBack={() => { props.actions.selectTask(null) }}
+      planId={selected.planId} initialTaskId={selected.taskId}
+      {...(selected.assignmentId ? { assignmentId: selected.assignmentId } : {})} onBack={() => { props.actions.selectTask(null) }}
       onSaved={(planId, taskId) => { props.actions.selectTask({ ...selected, planId, taskId }) }} />
       : currentProject ? <Workbench key={`${project.serverId}:${project.accountId}:${project.project.id}`} {...props}
         project={project.project} onBack={() => { props.actions.selectTask(null) }} />

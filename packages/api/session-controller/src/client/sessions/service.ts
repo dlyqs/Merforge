@@ -1,4 +1,5 @@
 /** Client catalog and source-labelled ownership of exact Session generations. */
+import { MutableSessionEventSource } from '../contract/events.ts'
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
@@ -13,7 +14,7 @@ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protoc
 import type { SessionEventSource } from '../contract/events.ts'
 import type { SessionFace } from '../contract/session.ts'
 import type {
-  AgentContext, ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
+  AgentContext, ExternalSessionTarget, ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
 } from '../contract/sessions.ts'
 import type { SessionReferenceSource } from '../index.ts'
 import { createScope, scopeIdentityOf, scopeOf as scopeTagOf } from '../scope.ts'
@@ -102,6 +103,8 @@ export interface SessionBinding {
   /** Contiguous event window reserved for Conversation assembly. */
   readonly eventSource: SessionEventSource
   readonly ctx: AgentContext
+  /** Account transport operations; absent for the default Host transport. */
+  readonly controls?: import('../contract/session.ts').SessionControls
 }
 
 // Scope primitives live in ../scope.ts (the client mirror of host
@@ -241,6 +244,14 @@ export class ClientSessions implements ISessions {
   /** The object-layer instance cluster and frame dispatch entry. */
   private readonly manager: SessionManager
   private readonly scopes = new Map<SessionId, ScopeRecord>()
+  private readonly external = new Map<SessionId, {
+    binding: SessionBinding
+    fiber: Fiber
+    target: ExternalSessionTarget
+    live: boolean
+    retention: SessionRetainInfo
+    stop: () => void
+  }>()
   /** Stable per-id sources retained for the Client root lifetime, including across generation replacement. */
   private readonly retainObservers = new Map<SessionId, RetentionObserver>()
   private readonly scopeDrops = new Set<Promise<void>>()
@@ -261,6 +272,10 @@ export class ClientSessions implements ISessions {
     const disposeManagerProjection = this.manager.subscribe(() => { this.projectList() })
     rootCtx.effect(() => async () => {
       this.closed = true
+      const accounts = [...this.external]
+      for (const [, entry] of accounts) { entry.live = false; entry.stop(); await entry.fiber.dispose() }
+      this.external.clear(); this.projectList()
+      for (const [id] of accounts) this.publishRetention(id)
       disposeManagerProjection()
       const scopes = [...this.scopes]
       this.scopes.clear()
@@ -279,10 +294,20 @@ export class ClientSessions implements ISessions {
     rootCtx.reflect.provide('sessions', this, undefined)
   }
 
+  /**
+   * Create the standard event publisher without opening a Host Session.
+   * @returns An empty account-owned event source.
+   */
+  createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   retain(target: SessionTarget, options: SessionRetainOptions): SessionReference {
     const { source, signal } = options
     signal?.throwIfAborted()
     if (this.closed) throw new Error('Session Controller is disposed')
+    if (typeof target !== 'string' && 'kind' in target) return this.retainExternal(target, options)
+    if (typeof target === 'string') {
+      const account = this.external.get(target)
+      if (account) return this.retainExternal(account.target, options)
+    }
     const id = this.manager.resolveTarget(target)
     const reference = this.retainScope(id, source)
     try {
@@ -481,7 +506,7 @@ export class ClientSessions implements ISessions {
    * @returns the scoped Context, or undefined without a retained generation.
    */
   scope(id: SessionId): AgentContext | undefined {
-    return this.scopes.get(id)?.ctx
+    return this.scopes.get(id)?.ctx ?? this.external.get(id)?.binding.ctx
   }
 
   /**
@@ -491,7 +516,8 @@ export class ClientSessions implements ISessions {
    */
   retainAgentScope(id: SessionId): SessionReference {
     if (this.closed) throw new Error('Session Controller is disposed')
-    return this.retainScope(id, 'gateway')
+    const account = this.external.get(id)
+    return account ? this.retainExternal(account.target, { source: 'gateway' }) : this.retainScope(id, 'gateway')
   }
 
   /**
@@ -518,6 +544,8 @@ export class ClientSessions implements ISessions {
   sessionOf(ctx: Context): SessionFace | undefined {
     const id = scopeTagOf(ctx)
     if (id === undefined) return undefined
+    const account = this.external.get(id)
+    if (account && scopeIdentityOf(account.binding.ctx) === scopeIdentityOf(ctx)) return account.binding.session
     const record = this.scopes.get(id)
     return record !== undefined && scopeIdentityOf(record.ctx) === scopeIdentityOf(ctx)
       ? record.binding.session
@@ -530,7 +558,54 @@ export class ClientSessions implements ISessions {
    * @returns the live binding, or undefined without a retained generation.
    */
   binding(id: SessionId): SessionBinding | undefined {
-    return this.scopes.get(id)?.binding
+    return this.scopes.get(id)?.binding ?? this.external.get(id)?.binding
+  }
+  private retainExternal(target: ExternalSessionTarget, options: SessionRetainOptions): SessionReference {
+    const id = target.session.sessionId
+    let entry = this.external.get(id)
+    if (entry && entry.target.session !== target.session) {
+      if (!entry.target.session.getSnapshot().removed) throw new Error(`Session ${id} already has another account transport`)
+      entry.live = false; this.external.delete(id); entry.stop()
+      const drop = entry.fiber.dispose()
+      this.scopeDrops.add(drop); void drop.finally(() => { this.scopeDrops.delete(drop) }).catch(() => {})
+      entry = undefined
+    }
+    if (!entry) {
+      const { fiber, ctx } = createScope(this.rootCtx, id)
+      const binding: SessionBinding = { sessionId: id, session: target.session, eventSource: target.eventSource, ctx,
+        controls: target.controls }
+      const stopTitle = target.title.subscribe(() => { this.projectList() })
+      const stopSession = target.session.subscribe(() => { this.projectList() })
+      entry = { binding, fiber, target, live: true, retention: EMPTY_RETAIN_INFO, stop: () => { stopTitle(); stopSession() } }
+      this.external.set(id, entry)
+    }
+    const account = entry, source = options.source
+    account.retention = { referenceCount: account.retention.referenceCount + 1,
+      retainedBy: freezeRetainedBy({ ...account.retention.retainedBy, [source]: (account.retention.retainedBy[source] ?? 0) + 1 }) }
+    this.projectList(); this.publishRetention(id)
+    let released = false
+    const reference: SessionReference = {
+      sessionId: id,
+      get binding() { if (released || !account.live) throw new Error(`Session reference ${id} is released`); return account.binding },
+      ready: Promise.resolve().then(() => { options.signal?.throwIfAborted(); return reference.binding }),
+      release: () => {
+        if (released) return
+        released = true
+        if (this.external.get(id) !== account) return
+        const { [source]: count = 0, ...others } = account.retention.retainedBy
+        account.retention = { referenceCount: account.retention.referenceCount - 1,
+          retainedBy: freezeRetainedBy(count > 1 ? { ...others, [source]: count - 1 } : others) }
+        if (!account.retention.referenceCount) {
+          account.live = false; this.external.delete(id); account.stop()
+          const drop = account.fiber.dispose()
+          this.scopeDrops.add(drop); void drop.finally(() => { this.scopeDrops.delete(drop) }).catch(() => {})
+        }
+        this.projectList(); this.publishRetention(id)
+      },
+      [Symbol.dispose]() { this.release() },
+    }
+    void reference.ready.catch(() => {})
+    return reference
   }
 
   private retainScope(id: SessionId, source: SessionReferenceSource): ClientSessionReference {
@@ -559,7 +634,7 @@ export class ClientSessions implements ISessions {
   }
 
   private retentionSnapshot(id: SessionId): SessionRetainInfo {
-    return this.scopes.get(id)?.retention ?? EMPTY_RETAIN_INFO
+    return this.scopes.get(id)?.retention ?? this.external.get(id)?.retention ?? EMPTY_RETAIN_INFO
   }
 
   private publishRetention(id: SessionId): void {
@@ -678,6 +753,11 @@ export class ClientSessions implements ISessions {
         ...(projectionValues === undefined ? {} : { projectionValues }),
         ...(title === undefined ? {} : { title, displayTitle: title }),
       }
+    }
+    for (const [id, entry] of this.external) {
+      const snapshot = entry.binding.session.getSnapshot()
+      byId[id] = { id, displayTitle: entry.target.title.getSnapshot(), running: snapshot.running,
+        blank: snapshot.blank, updatedAt: 0, retainedBy: entry.retention.retainedBy }
     }
     this.list.set({ ids, byId, phase, projectionsBySession })
   }

@@ -4,16 +4,20 @@ import { useSyncExternalStore } from 'react'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ServerId, AccountId } from '@deepseek-ai/dsh-organization/types'
 import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
+import { MutableSessionEventSource } from '@deepseek-ai/dsh-api-session-controller/client'
+import { AccountSession } from '../src/client/account-session.ts'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { createConversationStore } from '../src/client/conversation-store.ts'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { conversationRequestSchema, conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
-import { planningReadSchema, planningViewSchema } from '@deepseek-ai/dsh-organization/planning'
+import { conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import { planningViewSchema } from '@deepseek-ai/dsh-organization/planning'
 import type { OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from '../src/client/contract.ts'
-import { ProjectConversation } from '../src/client/Conversation.tsx'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 function fixture() {
@@ -34,102 +38,10 @@ function fixture() {
   const connection = vi.fn<OrganizationProps['connection']>(async () => ({ generation: 1, planning }))
   const props: OrganizationProps = { available: true, conversation, connection, server: vi.fn(), secret: vi.fn(), context: vi.fn(),
     execution: vi.fn(), executionReport: vi.fn(), t: makeTranslate(zh), useModelCatalogRevision: f => f(0), useOrganization: f => f(state) }
-  return { result, props, project, conversation, connection, change: (generation: number) => {
+  return { result, props, project, conversation, connection, identity: createSnapshotStore(state), change: (generation: number) => {
     state = { ...state, connection: { ...state.connection, generation, phase: 'offline' } }
   } }
 }
-it('ordinary send uses default planning, retains failed input and retries the same input identity', async () => {
-  const h = fixture(); render(<ProjectConversation {...h.props} project={h.project} />)
-  await screen.findByText('Private report')
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'Build a revenue report' } })
-  h.conversation.mockRejectedValueOnce(new Error('offline'))
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
-  await screen.findByRole('alert')
-  expect(screen.getByDisplayValue('Build a revenue report')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
-  await waitFor(() => { expect(h.conversation.mock.calls.filter(([r]) => r.kind === 'send')).toHaveLength(2) })
-  const sends = h.conversation.mock.calls.filter(([r]) => r.kind === 'send')
-  expect(sends[0]).toEqual(sends[1])
-  expect(sends[0]?.[0]).toMatchObject({ route: 'new_goal', text: 'Build a revenue report' })
-  expect(h.connection.mock.calls.some(([a]) => a.kind === 'assignment-command')).toBe(false)
-})
-it('hides old text on generation change and discards a late read result', async () => {
-  const h = fixture(), late = Promise.withResolvers<Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>>()
-  h.conversation.mockReturnValueOnce(late.promise)
-  const view = render(<ProjectConversation {...h.props} project={h.project} />)
-  h.change(2); view.rerender(<ProjectConversation {...h.props} project={h.project} />)
-  await act(async () => { late.resolve({ generation: 1, result: h.result }); await late.promise })
-  expect(screen.queryByText('Private report')).toBeNull()
-  expect(screen.getByText(zh.conversationUnavailable)).toBeTruthy()
-})
-it('disposes an active conversation by requesting a stop and ignores the late send', async () => {
-  const h = fixture(), view = render(<ProjectConversation {...h.props} project={h.project} />)
-  await screen.findByText('Private report')
-  const late = Promise.withResolvers<Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>>()
-  h.conversation.mockImplementation(async r => r.kind === 'send' ? late.promise : { generation: 1, result: h.result })
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'Wait' } })
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend })); view.unmount()
-  expect(h.conversation.mock.calls.some(([r]) => r.kind === 'stop')).toBe(true)
-  await act(async () => { late.resolve({ generation: 1, result: h.result }); await late.promise })
-})
-
-it('keeps the explicitly selected earlier goal after its modification completes', async () => {
-  const h = fixture()
-  h.result.goals.push(
-    { id: randomUUID() as typeof h.result.goals[number]['id'], classification: 'complex' },
-    { id: randomUUID() as typeof h.result.goals[number]['id'], classification: 'simple' },
-  )
-  render(<ProjectConversation {...h.props} project={h.project} />)
-  await screen.findByText('Private report')
-  fireEvent.change(screen.getByLabelText(zh.conversationGoal), { target: { value: h.result.goals[0]!.id } })
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'Refine the first goal' } })
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
-  await waitFor(() => { expect(screen.getByLabelText(zh.conversationMessage).value).toBe('') })
-  expect(screen.getByLabelText(zh.conversationGoal).value).toBe(h.result.goals[0]!.id)
-  expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({
-    route: 'modify', goalId: h.result.goals[0]!.id,
-  })
-})
-
-it('sends an explicit progress query on the existing goal without proposing a new root', async () => {
-  const h = fixture(), id = randomUUID() as typeof h.result.goals[number]['id']
-  h.result.goals.push({ id, classification: 'complex' })
-  render(<ProjectConversation {...h.props} project={h.project} />)
-  await screen.findByText('Private report')
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessageIntent), { target: { value: 'query' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'What remains?' } })
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
-  await waitFor(() =>{  expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({ route: 'query', goalId: id }) })
-})
-
-it('opens a bound task through the strict planning reader and continues its assignment goal', async () => {
-  const h = fixture(), assignmentId = randomUUID()
-  const request = conversationRequestSchema.parse({ organizationId: h.result.owner.organizationId, projectId: h.result.owner.projectId,
-    kind: 'open', operationId: randomUUID(), conversationId: assignmentId,
-    assignment: { planId: randomUUID(), assignmentId } })
-  const base = h.connection.getMockImplementation()!
-  h.connection.mockImplementation(async (action) => {
-    if (action.kind === 'planning-read') planningReadSchema.parse(action.request)
-    return base(action)
-  })
-  h.result.goals.push({ id: assignmentId as typeof h.result.goals[number]['id'], classification: 'unassessed' })
-  render(<ProjectConversation {...h.props} project={h.project} assignment={request.assignment} />)
-  await screen.findByText('Private report')
-  expect(screen.queryByRole('button', { name: zh.conversationNewGoal })).toBeNull()
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.change(screen.getByLabelText(zh.conversationMessage), { target: { value: 'Discuss my assignment' } })
-  fireEvent.click(screen.getByRole('button', { name: zh.conversationSend }))
-  await waitFor(() => {
-    expect(h.conversation.mock.calls.find(([r]) => r.kind === 'send')?.[0]).toMatchObject({
-      route: 'modify', goalId: assignmentId, assignment: request.assignment,
-    })
-  })
-})
-
 it('expands project conversations without creating one and opens the original private conversation in the shared destination', async () => {
   const h = fixture(), store = createConversationStore().create(), openConversation = vi.fn()
   h.result.catalog = { bots: [], conversations: [{ conversationId: h.result.owner.conversationId, title: 'Revenue discussion', createdAt: 1 }] }
@@ -170,18 +82,70 @@ it('does not navigate to an old account when its delayed conversation open compl
   expect(openConversation).not.toHaveBeenCalled()
   expect(screen.queryByRole('button', { name: 'Old account conversation' })).toBeNull()
 })
+it('feeds standard Session events and retires pending submissions after account sends', async () => {
+  const h = fixture(), onRetire = vi.fn()
+  const adapter = new AccountSession({ generation: 1, result: h.result }, h.result.owner,
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
+    zh.newConversation, new MutableSessionEventSource())
+  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
+  const handle = adapter.session.beginSubmission({ mode: 'queue', text: 'Plan quarterly results', attachments: [], onRetire })
+  expect(adapter.session.getSnapshot().pendingSubmissions[0]?.requestId).toBe(handle.requestId)
+  await adapter.session.prompt([{ type: 'text', text: 'Plan quarterly results' }])
+  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'send', text: 'Plan quarterly results', route: 'new_goal' }))
+  expect(onRetire).toHaveBeenCalledWith({ reason: 'observed', attachments: [] })
+  expect(adapter.session.getSnapshot().pendingSubmissions).toEqual([])
+  adapter.dispose()
+})
+it('retains the original operation after a lost reply and ignores late account results after disposal', async () => {
+  const h = fixture()
+  const adapter = new AccountSession({ generation: 1, result: h.result }, h.result.owner,
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
+    zh.newConversation, new MutableSessionEventSource())
+  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
+  h.conversation.mockRejectedValueOnce(new Error('lost-reply'))
+  expect((await adapter.session.prompt([{ type: 'text', text: 'Plan results' }])).ok).toBe(false)
+  await adapter.session.prompt([{ type: 'text', text: 'Plan results' }])
+  const sends = h.conversation.mock.calls.filter(([request]) => request.kind === 'send')
+  expect(sends[0]?.[0].operationId).toBe(sends[1]?.[0].operationId)
+  const late = Promise.withResolvers<Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>>()
+  h.conversation.mockImplementation(request => request.kind === 'send' ? late.promise : Promise.resolve({ generation: 1,
+    result: h.result }))
+  const pending = adapter.session.prompt([{ type: 'text', text: 'Another goal' }])
+  adapter.dispose()
+  late.resolve({ generation: 1, result: { ...h.result, history: [{ type: 'assistant/message', seq: SessionSeq(1), time: 1,
+    surfaceOp: 'append', data: { turn: 1, step: 1, stream: [], message: createAssistantMessage({ source: { provider: 'test',
+      model: 'test' }, content: [{ type: 'text', text: 'LATE_PRIVATE_RESULT' }] }) } }] } })
+  await pending
+  expect(adapter.eventSource.getSnapshot().entries).toEqual([])
+  expect(adapter.session.getSnapshot().removed).toBe(true)
+  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'stop' }))
+})
+it('uses the same conversation hover menu for account management and deletion', async () => {
+  const h = fixture(), store = createConversationStore().create(), manageConversation = vi.fn()
+  h.result.catalog = { bots: [], conversations: [{ conversationId: h.result.owner.conversationId, title: 'Revenue discussion', createdAt: 1 }] }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1,
+    cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } })
+  render(<OrganizationBrowser {...h.props} manageConversation={manageConversation} section="recent" wide expandSidebar={vi.fn()}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  fireEvent.click(await screen.findByRole('button', { name: `${zh.more} Revenue discussion` }))
+  fireEvent.click(screen.getByRole('menuitem', { name: zh.manageConversation }))
+  expect(manageConversation).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: h.result.owner.conversationId }))
+  fireEvent.click(screen.getByRole('button', { name: `${zh.more} Revenue discussion` }))
+  fireEvent.click(screen.getByRole('menuitem', { name: zh.deleteConversation }))
+  expect(manageConversation).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: h.result.owner.conversationId }), 'delete')
+})
 
-it('supports multiline drafts and sends with Enter only after an explicit model selection', async () => {
-  const h = fixture(); render(<ProjectConversation {...h.props} project={h.project} />)
-  await screen.findByText('Private report')
-  const input = screen.getByLabelText(zh.conversationMessage)
-  expect(input.tagName).toBe('TEXTAREA')
-  fireEvent.change(input, { target: { value: 'Review\nthe report' } })
-  fireEvent.keyDown(input, { key: 'Enter' })
-  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
-  fireEvent.change(screen.getByLabelText(zh.conversationModel), { target: { value: '0' } })
-  fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
-  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
-  fireEvent.keyDown(input, { key: 'Enter' })
-  await waitFor(() => { expect(h.conversation.mock.calls.find(([request]) => request.kind === 'send')?.[0].text).toBe('Review\nthe report') })
+it('continues the selected task in a fresh standard conversation instead of creating another goal', async () => {
+  const h = fixture(), taskId = randomUUID(), planId = randomUUID()
+  const selected = conversationResultSchema.parse({ ...h.result,
+    goals: [{ id: taskId, classification: 'unassessed' }], execution: { target: { planId, taskId }, title: 'Selected node' } })
+  const adapter = new AccountSession({ generation: 1, result: selected }, selected.owner,
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
+    zh.newConversation, new MutableSessionEventSource())
+  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
+  expect(adapter.controls.taskId).toBe(taskId)
+  await adapter.session.prompt([{ type: 'text', text: 'Explain the selected node' }])
+  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'send', route: 'query', goalId: taskId,
+    target: { planId, taskId }, text: 'Explain the selected node' }))
+  adapter.dispose()
 })

@@ -11,8 +11,6 @@ import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { RemoteResult, TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ModelCatalogDirectory } from './catalog.ts'
-
 /** Directory snapshot both entries render from. */
 export interface ModelDirectoryState {
   /** Effective selection: durable next-request projection, then Host default. */
@@ -60,7 +58,9 @@ export class ModelDirectory {
     private readonly sessions: Pick<TypertClientRemote['session'], 'selectModel'>,
     private readonly sessionId: SessionId,
     private readonly available: () => boolean,
-    private readonly catalog: ModelCatalogDirectory,
+    private readonly catalog: { store: ObservableSnapshot<import('./catalog.ts').ModelCatalogState>
+      load(): Promise<import('@deepseek-ai/dsh-api-session-controller/types').ModelCatalog>
+      refresh(clear?: boolean): void },
     private readonly projected: ObservableSnapshot<unknown>,
     private readonly openReplacement?: (sessionId: SessionId) => Promise<void>,
   ) {

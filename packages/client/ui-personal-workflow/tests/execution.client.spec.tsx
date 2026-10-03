@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { SessionTaskChoiceId } from '@deepseek-ai/dsh-api-session-controller/client'
 import { Execution } from '../src/client/Execution.tsx'
 import type { ExecutionProps } from '../src/client/contract.ts'
 import { zh } from '../src/client/locales.ts'
@@ -65,4 +67,22 @@ it('retries a persisted prepared receiver after remount using its original opera
   await waitFor(() => { expect(openSession).toHaveBeenCalledWith(target) })
   expect(handoff).toHaveBeenCalledWith({ sessionId: source, runId: run.id, ownerEpoch: 1,
     operationId: 'original-operation', context: 'Persisted decisions and remaining work' })
+})
+
+it('preselects the assigned account task and opens its settings without claiming or starting a Run', async () => {
+  const openExecution = vi.fn(), selectTask = vi.fn().mockResolvedValue(undefined), claim = vi.fn()
+  const props: Partial<ExecutionProps> = { sessionId: 'organization-conversation:test' as SessionId,
+    t: makeTranslate(zh, commonZh), useSession: () => false, claim,
+    account: { assigned: true, taskId: brandString<SessionTaskChoiceId>(ids[1]!), taskTitle: 'Assigned API agreement', openExecution, selectTask,
+      listTasks: vi.fn().mockResolvedValue([{ id: ids[1], title: 'Assigned API agreement', scope: 'Publish agreement', acceptance: ['Reviewed'], artifacts: ['api.md'] }]) } }
+  render(<Execution {...props as ExecutionProps} />)
+  const button = screen.getByRole('button', { name: 'Assigned API agreement' })
+  expect(button.getAttribute('aria-pressed')).toBe('true')
+  fireEvent.click(button)
+  await screen.findByRole('option', { name: 'Assigned API agreement' })
+  expect(screen.getByRole('combobox', { name: zh.selectTask }).value).toBe(ids[1])
+  expect(selectTask).not.toHaveBeenCalled(); expect(claim).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: zh.executionSettings }))
+  expect(openExecution).toHaveBeenCalledOnce()
+  expect(claim).not.toHaveBeenCalled()
 })

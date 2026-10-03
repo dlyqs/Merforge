@@ -77,11 +77,12 @@ export class ModelDirectoryResolver extends Service {
     if (binding === undefined) throw new Error(`ui-model-selection: session "${String(sessionId)}" resolved no binding`)
     const existing = live.directories.get(binding)
     if (existing !== undefined) return existing
+    const controls = binding.controls
     const directory = new ModelDirectory(
-      this.ctx.remote.session,
+      controls ? { selectModel: request => controls.selectModel(request) } : this.ctx.remote.session,
       sessionId,
       () => sessions.subagentAddress(sessionId) === undefined,
-      this.catalog,
+      binding.controls?.catalog ?? this.catalog,
       binding.session.projections.faceOf('modelSelection'),
       async (replacementId) => {
         await sessions.refresh()

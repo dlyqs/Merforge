@@ -2,7 +2,9 @@
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { assignmentReadSchema, assignmentSchema } from '@deepseek-ai/dsh-organization/assignment'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import { assertV4RowAdmission } from '@deepseek-ai/dsh-session-format-current'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { planningReadSchema, planningViewSchema, planningCommandSchema, planningOpenSchema,
   planningMutationReceiptSchema, planningPlanReadSchema, planningPlanViewSchema, planningDraftSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 const uuid = <T extends Branded<string>>() => z.uuid().transform(brandString<T>)
@@ -30,7 +32,7 @@ export const conversationBotSchema = z.object({ id: conversationBotIdSchema, nam
 export const conversationCatalogSchema = z.object({ bots: z.array(conversationBotSchema),
   conversations: z.array(z.object({ conversationId: planningReadSchema.shape.conversationId,
     title: z.string().max(120), createdAt: z.number().int().nonnegative(),
-    botId: conversationBotIdSchema.optional() }).strict()) }).strict()
+    botId: conversationBotIdSchema.optional(), assignment: conversationAssignmentSchema.optional() }).strict()) }).strict()
 const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
   assignment: conversationAssignmentSchema.optional(), botId: conversationBotIdSchema.optional() })
 /** Durable goal identity, distinct from the associated WorkGraph task identity. */
@@ -38,6 +40,10 @@ export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoal
 /** Fixed selectors; opening/reading never wakes a model. */
 export const conversationRequestSchema = z.discriminatedUnion('kind', [
   base.extend({ kind: z.enum(['open', 'read', 'stop', 'catalog']) }).strict(),
+  base.extend({ kind: z.enum(['delete', 'rename']), title: z.string().trim().min(1).max(120).optional() }).strict(),
+  base.extend({ kind: z.literal('affiliation'), nextBotId: conversationBotIdSchema.nullable() }).strict(),
+  base.extend({ kind: z.literal('select-task'), target: planningPlanReadSchema.pick({ planId: true, taskId: true }) }).strict(),
+  base.extend({ kind: z.literal('select-model'), selection: planningOpenSchema.shape.selection }).strict(),
   base.extend({ kind: z.literal('bot-save'), bot: conversationBotSchema, expectedVersion: z.number().int().nonnegative() }).strict(),
   base.extend({ kind: z.literal('suggest'), goalId: conversationGoalSchema,
     taskId: planningPlanReadSchema.shape.taskId, expectedRevision: z.number().int().nonnegative(),
@@ -57,10 +63,36 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
   if (request.kind === 'send' && (request.route !== 'new_goal') !== (request.goalId !== undefined))
     ctx.addIssue({ code: 'custom', message: 'Continuation must reference its original goal' })
 })
+/** Effective input and method reference enter the same private Session as model dispatch. */
+export const conversationInputSchema = z.object({ request: conversationRequestSchema, goalId: conversationGoalSchema,
+  settings: conversationSettingsSchema, authority: conversationAuthoritySchema,
+  bot: conversationBotSchema.optional(),
+  methodVersion: z.enum(['organization-planning/v1', 'organization-planning/v2']) }).strict()
+/** Private assessment remains separate from shared WorkGraph definitions. */
+export const conversationAssessmentSchema = z.object({ goalId: conversationGoalSchema,
+  operationId: planningCommandSchema.options[0].shape.operationId,
+  classification: z.enum(['simple', 'clarify', 'infeasible', 'complex']), rationale: z.string().min(1).max(32768) }).strict()
+/** Write intent is flushed before its fixed native command; unknown calls stay charged. */
+export const conversationOperationSchema = z.object({ command: planningCommandSchema,
+  receipt: planningMutationReceiptSchema.optional() }).strict()
+/** Proposal intent is durable before dispatch; unknown outcomes never imply a retry. */
+export const conversationProposalSchema = z.object({ command: planningDraftSchema,
+  status: z.enum(['private', 'unknown', 'shared', 'conflict']), receipt: planningMutationReceiptSchema.optional() }).strict()
+/** Standard Session rows validated before crossing the private IPC result channel. */
+const historyEventSchema: z.ZodType<SessionEvent> = z.object({ type: z.string(), seq: z.number().int().nonnegative(),
+  time: z.number().nonnegative(), data: z.json() })
+  .loose().superRefine((event, ctx) => {
+    try { assertV4RowAdmission(event) }
+    catch (error: unknown) { ctx.addIssue({ code: 'custom', message: error instanceof Error ? error.message : String(error) }) }
+  }).transform(event => event as SessionEvent)
 /** Bounded private transcript and currently authorized plan or private proposal details. */
 export const conversationResultSchema = z.object({
   sessionId: z.string().regex(/^organization-conversation:[0-9a-f-]{36}$/).transform(SessionId),
   owner: conversationOwnerSchema, assignment: assignmentSchema.optional(), settings: conversationSettingsSchema,
+  history: z.array(historyEventSchema).default([]),
+  title: z.string().max(120).optional(),
+  selection: planningOpenSchema.shape.selection.optional(),
+  execution: z.object({ target: planningPlanReadSchema.pick({ planId: true, taskId: true }), title: z.string() }).strict().optional(),
   entries: z.array(z.object({ role: z.enum(['user', 'assistant', 'tool']), text: z.string() }).strict()), truncated: z.boolean(),
   goals: z.array(z.object({ id: conversationGoalSchema, proposal: z.object({ status: z.enum(['shared', 'private', 'conflict', 'unknown', 'unavailable']),
     definition: planningPlanViewSchema.shape.version.shape.definition.optional(),
@@ -99,3 +131,28 @@ export const conversationNativeMessageSchema = z.discriminatedUnion('type', [
   correlation.extend({ type: z.literal('organization-conversation-result'),
     result: conversationResultSchema.optional(), error: z.string().optional() }).strict(),
 ])
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Immutable original account/project/conversation owner in an independent namespace. */
+    'organization/conversation-owner': z.output<typeof conversationOwnerSchema>
+    /** Authorized task and context synchronized into the assignee's private Session. */
+    'organization/assignment-context': { owner: z.output<typeof conversationOwnerSchema>
+      assignment: z.output<typeof assignmentSchema>
+      plan: z.output<typeof planningPlanViewSchema> }
+    /** Explicit execution setting; selecting it does not accept or start work. */
+    'organization/task-selection': { digest: string
+      operationId: ConversationRequest['operationId']
+      target: z.output<typeof planningPlanReadSchema>
+      owner: z.output<typeof conversationOwnerSchema> }
+    /** Durable correlation for selecting a model through native account controls. */
+    'organization/model-selection-operation': { operationId: ConversationRequest['operationId']; digest: string }
+    /** Exact accepted input, method, settings and online authorization sent to the planning model. */
+    'organization/planning-input': z.output<typeof conversationInputSchema>
+    /** Private assessment of one stable goal; never an approved task definition. */
+    'organization/planning-assessment': z.output<typeof conversationAssessmentSchema>
+    /** Private proposal, dispatch intent and confirmed authority receipt. */
+    'organization/planning-proposal': z.output<typeof conversationProposalSchema>
+    /** Native permission intent and historical receipt, separate from model-visible user input. */
+    'organization/planning-operation': z.output<typeof conversationOperationSchema>
+  }
+}

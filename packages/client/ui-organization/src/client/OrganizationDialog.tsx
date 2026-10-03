@@ -10,11 +10,8 @@ import { zh } from './locales.ts'
 import css from './Organization.module.css'
 import { OrganizationHierarchy } from './Hierarchy.tsx'
 import { Inbox } from './Inbox.tsx'
-import { Workbench } from './Workbench.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
 import { TaskGrants } from './TaskGrants.tsx'
-import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
-
 type Section = 'connection' | 'projects' | 'members' | 'server' | 'inbox' | 'hierarchy'
 type Task = 'login' | 'register' | 'accept' | 'createOrg' | 'passwordChange' | 'createProject' | 'permissions' | 'configure' | 'initialize' | 'recover' | 'restore'
 
@@ -32,7 +29,6 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const projects = c.projects
   const stopped = state.server.phase === 'disabled' || state.server.phase === 'failed'
   const org = c.organizations.find(item => item.id === c.organizationId)
-  const [project, setProject] = useState<OrganizationProjectView | null>(null)
   const [section, setSection] = useState<Section>(props.initialSection)
   const [task, setTask] = useState<Task | null>(null)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
@@ -47,7 +43,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const focusTarget = useRef<HTMLHeadingElement>(null)
   const value = (key: string) => fields[key] ?? ''
   const set = (key: string, text: string) => { setNotice(null); setFields(previous => ({ ...previous, [key]: text })) }
-  useEffect(() => { setInvitation(''); setNotice(null); setFields({}); setProject(null) }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
+  useEffect(() => { setInvitation(''); setNotice(null); setFields({}) }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   useEffect(() => { setAutoStart(state.server.settings.restoreOnLaunch) }, [state.server.settings.restoreOnLaunch])
   useEffect(() => {
     const previous = document.activeElement
@@ -147,7 +143,8 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['projects', 'inbox', 'hierarchy', 'members', 'connection', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item); navigate(null); setProject(null) }}>{t(sectionLabels[item])}</button>)}
+        {(['projects', 'inbox', 'hierarchy', 'members', 'connection', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item)
+          navigate(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
         <div className={css.sectionHeading}>{task && <Button size="sm" aria-label={t('back')} icon={<IconChevronLeftOutlineRegular />} disabled={busy} onClick={() => { navigate(null) }} />}<h3 ref={focusTarget} tabIndex={-1}>{t(task ?? sectionLabels[section])}</h3></div>
@@ -183,17 +180,18 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
           {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}{confirmation('newPassword')}</>, !writable || !value('password') || value('newPassword').length < 8 || value('newPassword') !== value('confirmPassword'))}
           {!task && section === 'hierarchy' && <OrganizationHierarchy {...props} />}
           {!task && section === 'inbox' && <Inbox {...props} />}
-          {!task && section === 'projects' && !project && <>
+          {!task && section === 'projects' && <>
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>
               <form className={css.search} onSubmit={(event) => { event.preventDefault(); if (!busy && c.phase === 'ready') void run(() => connect({ kind: 'search', query: value('search'), offset: 0 })) }}><Input className={css.input ?? ''} icon={<IconSearchOutlineRegular />} aria-label={t('search')} placeholder={t('search')} value={value('search')} onChange={(event) => { set('search', event.target.value) }} /><Button type="submit" variant="outline" disabled={busy || c.phase !== 'ready'}>{t('searchAction')}</Button></form>
               {admin && <div className={css.actions}>{launch('createProject', !writable)}</div>}
               {admin && <details className={css.advanced}><summary>{t('advancedAccess')}</summary>{launch('permissions', !writable)}</details>}
-              {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { if (props.openProjectTasks) { props.openProjectTasks(project); props.onClose() } else setProject(project) }}>{t('tasks')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions'); set('projectId', project.id) }}>{t('projectMembers')}</Button>}</div></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
-                <div className={css.pagination}>{button('firstPage', () => connect({ kind: 'search', query: value('search'), offset: 0 }), c.phase !== 'ready' || projects.offset === 0)}{button('next', () => connect({ kind: 'search', query: value('search'), offset: projects.offset + projects.items.length }), c.phase !== 'ready' || projects.offset + projects.items.length >= projects.total)}</div></>}
+              {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { if (props.openProjectTasks) { props.openProjectTasks(project)
+                props.onClose() } }}>{t('tasks')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions')
+                set('projectId', project.id) }}>{t('projectMembers')}</Button>}</div></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
+              <div className={css.pagination}>{button('firstPage', () => connect({ kind: 'search', query: value('search'), offset: 0 }), c.phase !== 'ready' || projects.offset === 0)}{button('next', () => connect({ kind: 'search', query: value('search'), offset: projects.offset + projects.items.length }), c.phase !== 'ready' || projects.offset + projects.items.length >= projects.total)}</div></>}
             </>}
           </>}
-          {!task && section === 'projects' && project && <Workbench key={[c.principal?.serverId, c.principal?.accountId, c.organizationId, c.mode, project.id].join(':')} {...props} project={project} onBack={() => { setProject(null) }} />}
           {task === 'createProject' && form(async () => {
             const name = value('projectName').trim()
             const result = await command({ kind: 'create-project', organizationId: c.organizationId, name })
@@ -201,7 +199,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             if (result.receipt?.projectId && result.receipt.organizationId) {
               const created = { id: result.receipt.projectId, organizationId: result.receipt.organizationId,
                 name, version: result.receipt.revision }
-              if (props.openProjectTasks) { props.openProjectTasks(created); props.onClose() } else setProject(created)
+              if (props.openProjectTasks) { props.openProjectTasks(created); props.onClose() }
             }
           }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !admin || !writable || !value('projectName').trim())}
           {task === 'permissions' && admin && <>

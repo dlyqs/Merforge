@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ISessions, SessionListState, SessionReference, SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import { SessionCreateError } from '@deepseek-ai/dsh-api-session-controller/client'
+import { MutableSessionEventSource, SessionCreateError } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -133,6 +133,7 @@ interface RetainedSession {
 }
 
 class FakeSessions implements ISessions {
+  createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   readonly list: MutableSource<SessionListState>
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
   readonly fork = vi.fn<ISessions['fork']>(async () => sid('forked'))
@@ -140,7 +141,7 @@ class FakeSessions implements ISessions {
   readonly refreshProjections = vi.fn<ISessions['refreshProjections']>(() => Promise.resolve())
   readonly retain = vi.fn<ISessions['retain']>((target) => {
     const release = vi.fn<() => void>()
-    const sessionId = typeof target === 'string' ? target : target.childSessionId
+    const sessionId = typeof target === 'string' ? target : 'kind' in target ? target.session.sessionId : target.childSessionId
     const binding = { sessionId } as SessionReference['binding']
     const reference: SessionReference = {
       sessionId,

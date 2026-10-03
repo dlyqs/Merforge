@@ -4,7 +4,7 @@ import { IntegrationPanel } from './IntegrationPanel.tsx'
 import { ExecutionPanel } from './ExecutionPanel.tsx'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationPhaseId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
+import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OperationId, OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
 import { AssignmentPanel } from './AssignmentPanel.tsx'
@@ -33,6 +33,7 @@ export function Workbench(props: OrganizationProps & {
   project: Pick<OrganizationProjectView, 'id' | 'organizationId' | 'name'>
   planId?: OrganizationPlanId
   initialTaskId?: OrganizationTaskId
+  assignmentId?: import('@deepseek-ai/dsh-organization').OrganizationAssignmentId
   onSaved?: (planId: OrganizationPlanId, taskId: OrganizationTaskId) => void
   onBack: () => void
 }) {
@@ -97,14 +98,6 @@ export function Workbench(props: OrganizationProps & {
     setDraft({ planId: version.planId, taskId: item.id, expectedRevision: version.revision, definition: version.definition,
       generation: result.workgraph.generation, operationId: randomUUID(), attempted: false, conflict: false })
   }
-  const create = () => {
-    const taskId = randomUUID() as OrganizationTaskId, phaseId = randomUUID() as OrganizationPhaseId
-    setDraft({ planId: randomUUID() as OrganizationPlanId, taskId, expectedRevision: 0, generation: c.generation,
-      operationId: randomUUID(), attempted: false, conflict: false, definition: { taskId,
-        phases: [{ id: phaseId, title: t('preparation') }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
-          goal: '', scope: '', acceptance: [''], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null }] } })
-    setNotice('')
-  }
   const save = async () => {
     if (!draft || draft.conflict) return
     setDraft({ ...draft, attempted: true })
@@ -149,7 +142,6 @@ export function Workbench(props: OrganizationProps & {
     <form className={css.search} onSubmit={(event) => { event.preventDefault(); void run(() => load()) }}>
       <Input aria-label={t('taskSearch')} value={search} onChange={(event) =>{  setSearch(event.target.value) }} />
       <Button type="submit" disabled={!writable}>{t('searchAction')}</Button>
-      <Button disabled={!writable || !!draft} onClick={create}>{t('createTask')}</Button>
     </form>
     {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
@@ -178,9 +170,10 @@ export function Workbench(props: OrganizationProps & {
         {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
         {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
         {retainedTask && !draft && <ExecutionPanel key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${retainedTask.id}:${retainedTask.revision}`} {...props} task={retainedTask}
-          projectId={props.project.id} current={!!task} />}
+          projectId={props.project.id} current={!!task} {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} />}
         {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
-          task={retainedTask} projectId={props.project.id} current={!!task} onAssignmentRevision={setAssignmentRevision} />}
+          task={retainedTask} projectId={props.project.id} current={!!task}
+          {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} onAssignmentRevision={setAssignmentRevision} />}
         {draft && <section className={css.card}>
           <h4>{t('taskDraft')}</h4>
           {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}

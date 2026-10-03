@@ -285,6 +285,7 @@ export class UiSession extends Service {
   private readonly completionUnread = new Set<SessionId>()
   private statusSnapshot: SessionStatusSnapshot = new Map()
   private readonly statusListeners = new Set<() => void>()
+  private mainSource: HostObservable<SessionReference | undefined> | undefined
   private mainRetainId: SessionId | undefined
   private disposeMainRetain = (): void => {}
   private active = true
@@ -431,9 +432,27 @@ export class UiSession extends Service {
     this.bindings.set(owner, record)
     return record.source
   }
-
+  /**
+   * Select an account's main reference while retaining the standard Conversation assembly.
+   * @param source - Account-owned current reference, including its empty selection.
+   * @returns Disposer restoring the default main selection.
+   */
+  registerMainSource(source: HostObservable<SessionReference | undefined>): () => void {
+    if (this.mainSource) throw new Error('ui-session: main source already registered')
+    this.mainSource = source
+    const stop = source.subscribe(() => { this.publishMain() })
+    this.publishMain()
+    return () => { stop(); if (this.mainSource === source) { this.mainSource = undefined; this.publishMain() } }
+  }
   private publishMain(): void {
     if (!this.active) return
+    if (this.mainSource) {
+      const reference = this.mainSource.getSnapshot()
+      const value = reference ? this.sourceFor(reference.binding).value : this.absent.value
+      if (value !== this.current.value) { this.current.value = value
+        notifySubscribers(this.current.listeners, '[ui-session] account binding') }
+      return
+    }
     const byId = this.sessions.list.getSnapshot().byId
     const currentId = this.current.value.key as SessionId | undefined
     const currentIsMain = currentId !== undefined

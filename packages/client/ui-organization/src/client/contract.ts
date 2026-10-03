@@ -11,8 +11,12 @@ export interface OrganizationInjected {
   loadModels?(): Promise<import('@deepseek-ai/dsh-api-session-controller/types').ModelCatalog>
   conversation?: OrganizationDesktopBridge['conversation']
   openConversation?: () => void
+  /** Open an account-owned Session through the standard Conversation assembly. */
+  selectConversation?: (selection: import('./conversation-store.ts').ConversationSelection | null) => Promise<void>
   /** Open the selected project's tasks in the shared main task destination. */
   openProjectTasks?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => void
+  /** Show the shared conversation management or delete dialog. */
+  manageConversation?: (selection: import('./conversation-store.ts').ConversationSelection, action?: 'manage' | 'delete') => void
   available: boolean
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']

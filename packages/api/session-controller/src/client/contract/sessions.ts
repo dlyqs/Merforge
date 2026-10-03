@@ -13,14 +13,23 @@ import type { AgentContext } from '../scope.ts'
 import type { SessionSearchResultItem } from '../sessions/manager.ts'
 import type { SessionBinding, SessionListState } from '../sessions/service.ts'
 import type { SessionFace } from './session.ts'
+import type { MutableSessionEventSource, SessionEventSource } from './events.ts'
+import type { SessionControls } from './session.ts'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionReferenceSource } from '../index.ts'
 
 export type { AgentContext } from '../scope.ts'
 
 /** Known Session identity or durable direct-parent subagent address; an address owns no lifetime. */
-export type SessionTarget = SessionId | SubagentAddress
-
+export type SessionTarget = SessionId | SubagentAddress | ExternalSessionTarget
+/** An authorized account transport using the standard Session presentation and scope lifecycle. */
+export interface ExternalSessionTarget {
+  readonly kind: 'external'
+  readonly session: SessionFace
+  readonly eventSource: SessionEventSource
+  readonly title: ObservableSnapshot<string>
+  readonly controls: SessionControls
+}
 /** One independent use of an exact Client generation, without Host Agent ownership. */
 export interface SessionReference extends Disposable {
   readonly sessionId: SessionId
@@ -47,6 +56,11 @@ export interface SessionRetainInfo {
 
 /** The sessions-service face injected as `ctx.sessions`. */
 export interface ISessions {
+  /**
+   * Create a standard event source for an authorized account transport.
+   * @returns An initially empty event publisher owned by the transport.
+   */
+  createEventSource(): MutableSessionEventSource
   /** Host catalog and local reference-source counts; navigation belongs to view owners. */
   readonly list: ObservableSnapshot<SessionListState>
   /**

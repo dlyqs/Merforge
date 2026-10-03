@@ -7,12 +7,14 @@
  * must stub); implementation-internal entry points (history staging, wire-frame
  * dispatch) stay on the class, invisible out here.
  */
+import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { OperationId } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { AttachmentIdType, FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { PromptContentPart, QueueAction, SessionRequestId } from '../../types.ts'
+import type { ModelCatalog, ModelSelection, PromptContentPart, QueueAction, SessionRequestId } from '../../types.ts'
 import type { PendingSubmissionAttachment, SessionSnapshot } from './snapshot.ts'
 
 /**
@@ -153,3 +155,46 @@ export interface ISession {
  * `SessionBinding.session` and the provide channel.
  */
 export type SessionFace = ISession & ObservableSnapshot<SessionSnapshot>
+/** Opaque task choice returned by an account's authorized candidate reader. */
+export type SessionTaskChoiceId = Branded<'SessionTaskChoiceId'>
+
+/** Account-owned operations consumed by the same Session controls as the personal transport. */
+export interface SessionControls {
+  /** Current account-authorized model directory. */
+  readonly catalog: {
+    readonly store: ObservableSnapshot<{ value: ModelCatalog | null; status: 'idle' | 'loading' | 'ready' | 'error'; error: string | null }>
+    /** @returns Fresh authorized models. */
+    load(): Promise<ModelCatalog>
+    /** @param clear - Hide the previous directory while refreshing. */
+    refresh(clear?: boolean): void
+  }
+  /** @param selection - Authorized next model. @returns Committed selection or transport failure. */
+  selectModel(selection: ModelSelection): Promise<RemoteResult<import('../../types.ts').SessionSelectModelValue>>
+  /** @returns Current account planning preference. */
+  readMode(): Promise<{ enabled: boolean; revision: number }>
+  /** @param enabled - Automatic task planning.
+   * @param expectedRevision - Last observed preference.
+   * @param operationId - Idempotent user gesture.
+   * @returns Committed preference. */
+  setMode(enabled: boolean, expectedRevision: number, operationId: OperationId): Promise<{ enabled: boolean; revision: number }>
+  /** @returns Authorized task candidates in this account partition. */
+  listTasks(): Promise<readonly {
+    id: SessionTaskChoiceId
+    title: string
+    scope: string
+    acceptance: readonly string[]
+    artifacts: readonly string[]
+  }[]>
+  /** @param id - A candidate returned by listTasks. @returns Committed task selection without starting execution. */
+  selectTask(id: SessionTaskChoiceId): Promise<void>
+  /** Current task label for the common composer. */
+  readonly taskTitle: string | undefined
+  /** Selected task identifier for the shared task selector. */
+  readonly taskId: SessionTaskChoiceId | undefined
+  /** Open the current task's execution settings without starting an Agent. */
+  openExecution(): void
+  /** Open this account's conversation management. */
+  manage(): void
+  /** Whether the conversation is already bound to an assigned task. */
+  readonly assigned: boolean
+}

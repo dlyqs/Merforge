@@ -6,7 +6,7 @@ import type { AffiliationProjection, BotId, BotProfile, Project, ProjectId } fro
 import {
   IconAgentPresetOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenOutlineRegular,
   IconNewChatOutlineRegular, IconPlusOutlineRegular, IconTrashOutlineRegular,
-  AccountNavigationGroup, AccountConversationRow, accountNavigationStyles as css,
+  AccountNavigationGroup, AccountConversationRow, AccountConversationMenu, accountNavigationStyles as css,
   IconUnarchiveOutlineRegular, IconEllipsisOutlineRegular, Button, Menu, Modal, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PersonalSidebarProps } from './contract.ts'
@@ -172,7 +172,6 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     void perform(() => moveSession({ sessionId: id, ...(target.kind === 'project' ? { projectId: target.id } : { botId: target.id }) }))
   }
   const sessionRow = (id: SessionId, context: 'project' | 'bot' | 'recent') => {
-    const menuId = `${context}:session:${id}`
     const summary = sessions.byId[id]
     if (summary === undefined) return null
     const status = statuses.get(id)
@@ -193,19 +192,9 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         event.dataTransfer.setData('application/x-dsh-personal-session', id)
         event.dataTransfer.effectAllowed = 'move'
       }} onOpen={() => { if (!archived) openSession(id) }} actions={<>
-        <Menu open={menu === menuId} portal align="end" autoFocus onClose={() => { setMenu(null) }}
-          anchor={<button type="button" className={css.rowAction} aria-label={`${t('more')} ${summary.displayTitle}`}
-            aria-haspopup="menu" aria-expanded={menu === menuId}
-            onClick={() => { setMenu(menu === menuId ? null : menuId) }}><IconEllipsisOutlineRegular /></button>}
-          items={[
-            { id: 'manage', label: t('manageSession'), icon: <IconEditOutlineRegular />, disabled: busy },
-            { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
-          ]}
-          onSelect={(action) => {
-            setMenu(null); setError(null)
-            if (action === 'delete') setDeleteSessionId(id)
-            else setSelectedSession(id)
-          }} />
+        <AccountConversationMenu title={summary.displayTitle} disabled={busy}
+          labels={{ more: t('more'), manage: t('manageSession'), delete: t('delete') }}
+          onDelete={() => { setError(null); setDeleteSessionId(id) }} onManage={() => { setError(null); setSelectedSession(id) }} />
         {archived && <Tooltip label={t('unarchive')}><button type="button" className={css.rowAction}
           aria-label={t('unarchive')} onClick={() => { void perform(() => unarchiveSession(id)) }}><IconUnarchiveOutlineRegular /></button></Tooltip>}
       </>} />
@@ -236,7 +225,9 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
           ]}
           onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
         {!management && <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
-          disabled={busy} onClick={() => { setError(null); setBotForNew(''); setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
+          disabled={busy} onClick={() => { setError(null)
+            setBotForNew('')
+            setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
       </>}>
       {!management && ids.map(id => sessionRow(id, target.kind))}
     </AccountNavigationGroup>
@@ -347,7 +338,8 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
       </div></Modal>}
     {draft !== null && <Modal open={!setupOpen} onClose={closeOverlay} closeLabel={t('close')}
       title={t(draft.kind === 'project' ? draft.id === undefined ? 'addProject' : 'editProject' : draft.id === undefined ? 'addBot' : 'editBot')}
-      className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}><form className={css.form} onSubmit={(event) => { event.preventDefault(); saveDraft() }}>
+      className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}><form className={css.form} onSubmit={(event) => { event.preventDefault()
+        saveDraft() }}>
         <label>{t('name')}<input autoFocus required disabled={busy} value={draft.name} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} /></label>
         {draft.kind === 'project' ? <>
           <label>{t('description')}<textarea disabled={busy} value={draft.description} onChange={(event) => { setDraft({ ...draft, description: event.target.value }) }} /></label>

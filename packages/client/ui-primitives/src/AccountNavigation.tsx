@@ -1,6 +1,8 @@
 /** Account-independent project/Bot disclosure and conversation navigation rows. */
+import { useState } from 'react'
+import { Menu } from './Menu.tsx'
 import type { HTMLAttributes, ReactNode } from 'react'
-import { IconAgentPresetOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular, IconTriangleRightFillRegular } from './icons/index.tsx'
+import { IconAgentPresetOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular, IconTriangleRightFillRegular, IconEllipsisOutlineRegular, IconEditOutlineRegular, IconTrashOutlineRegular } from './icons/index.tsx'
 import css from './AccountNavigation.module.css'
 
 /** @param props - Group identity, disclosure state and account-owned controls. @returns Shared project or Bot row. */
@@ -47,4 +49,20 @@ export function AccountConversationRow({ title, label = title, tag, status, acti
     </button>
     {actions && <div className={css.sessionActions}>{actions}</div>}
   </div>
+}
+/** @param props - Localized conversation menu labels and account-owned actions. @returns The shared hover/focus row menu. */
+export function AccountConversationMenu({ title, labels, disabled, onManage, onDelete }: {
+  title: string
+  labels: { more: string; manage: string; delete: string }
+  disabled?: boolean
+  onManage: () => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return <Menu open={open} portal align="end" autoFocus onClose={() => { setOpen(false) }}
+    anchor={<button type="button" className={css.rowAction} aria-label={`${labels.more} ${title}`} aria-haspopup="menu"
+      aria-expanded={open} onClick={() => { setOpen(!open) }}><IconEllipsisOutlineRegular /></button>}
+    items={[{ id: 'manage', label: labels.manage, icon: <IconEditOutlineRegular />, disabled: !!disabled },
+      { id: 'delete', label: labels.delete, icon: <IconTrashOutlineRegular />, danger: true, disabled: !!disabled }]}
+    onSelect={(action) => { setOpen(false); if (action === 'delete') onDelete(); else onManage() }} />
 }

@@ -1,5 +1,8 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  manageConversation: '管理会话', deleteConversation: '删除', conversationName: '名称',
+  confirmDeleteConversation: '确认删除会话“{name}”？', assignedExecution: '执行已分配任务',
+  conversationProjectScope: '所属项目',
   noBot: '不指定 Bot',
   copyCode: '复制代码', copiedCode: '已复制', footnotes: '脚注',
   conversationOptions: '对话设置',
@@ -230,7 +233,7 @@ export const zh = {
   accessSaved: '权限已保存',
   refreshAccess: '刷新权限',
   projectCardHint: '任务、分配与成员协作',
-  createProjectHint: '只需填写项目名称。创建后自动获得读写权限，并进入项目创建任务。',
+  createProjectHint: '只需填写项目名称。创建后自动获得读写权限，可在项目对话中规划任务。',
   chooseProject: '选择项目',
   selectedProject: '已选项目',
   advancedAccess: '高级权限管理',
@@ -241,7 +244,7 @@ export const zh = {
   taskAcceptancePlaceholder: '例如：导出的字段完整，测试通过；每行填写一项',
   taskSavedNext: '任务已保存。可以在下方选择责任人并下发。',
   emptyTasksTitle: '开始这个项目的第一项任务',
-  emptyTasksHint: '填写目标、范围和验收要求，即可保存任务；选人和下发可稍后完成。',
+  emptyTasksHint: '在项目中新建对话，向 Agent 描述目标。对话生成的任务会显示在这里，可选择节点分配。',
   shareTaskAccess: '授予必要查看权限',
   shareAccessHint: '为所选成员补齐项目和当前任务查看权。已有权限保持不变，不新增其他任务、编辑或执行授权。完成后仍需确认下发。',
   partialAccessSaved: '部分查看权限已保存，但后续步骤未完成；尚未下发。可重试补齐。',
@@ -421,6 +424,9 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  manageConversation: 'Manage conversation', deleteConversation: 'Delete', conversationName: 'Name',
+  confirmDeleteConversation: 'Delete conversation “{name}”?', assignedExecution: 'Execute assigned task',
+  conversationProjectScope: 'Project',
   noBot: 'No Bot',
   copyCode: 'Copy code', copiedCode: 'Copied', footnotes: 'Footnotes',
   conversationOptions: 'Conversation settings',
@@ -651,7 +657,7 @@ export const en: Record<OrganizationKey, string> = {
   accessSaved: 'Access saved',
   refreshAccess: 'Refresh access',
   projectCardHint: 'Tasks, assignments and collaboration',
-  createProjectHint: 'Enter a project name. You receive read/write access and can create its first task immediately.',
+  createProjectHint: 'Enter a project name. You receive read/write access and can plan tasks in its conversations.',
   chooseProject: 'Choose a project',
   selectedProject: 'Selected project',
   advancedAccess: 'Advanced access management',
@@ -662,7 +668,7 @@ export const en: Record<OrganizationKey, string> = {
   taskAcceptancePlaceholder: 'For example: all columns export and tests pass; one requirement per line',
   taskSavedNext: 'Task saved. Choose an assignee below when ready to dispatch.',
   emptyTasksTitle: 'Start the first task in this project',
-  emptyTasksHint: 'Enter a goal, scope and acceptance requirements. Assign and dispatch when ready.',
+  emptyTasksHint: 'Start a project conversation and describe your goal to the Agent. Generated tasks appear here for node assignment.',
   shareTaskAccess: 'Grant required read access',
   shareAccessHint: 'Add missing project and task read access. Preserve existing permissions without adding grants for other tasks, editing or execution. Confirm dispatch separately afterward.',
   partialAccessSaved: 'Some read access was saved, but later steps failed. Nothing was dispatched. Retry to complete access.',

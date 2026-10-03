@@ -44,13 +44,15 @@ export type {
 export type {
   BeginSubmissionInput,
   ISession,
+  SessionControls,
+  SessionTaskChoiceId,
   PendingSubmissionRetirement,
   ProjectionsFace,
   SessionFace,
   SubmissionHandle,
 } from './contract/session.ts'
 export type {
-  ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
+  ExternalSessionTarget, ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
 } from './contract/sessions.ts'
 export { MutableSessionEventSource } from './contract/events.ts'
 export type {
