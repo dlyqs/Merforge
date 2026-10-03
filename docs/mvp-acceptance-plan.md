@@ -54,10 +54,10 @@
 
 | 阶段 | 主题 | 主要目标 | 状态 | 实际产出 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| Phase 1 | 验收基线与准入 | 固定候选、历史待验及证据映射 | pending | — | 计划评审后开始 |
-| Phase 2 | 候选构建与采证准备 | 可重复构建、现有无窗口组合及最小诊断 | pending | — | 依赖 1；不启动 UI |
-| Phase 3 | 真实模型闭环 | 语料及双身份真实规划到文件交付 | pending | — | 依赖 2；真实模型证据为 gate |
-| Phase 4 | 个人体验与三机准备 | 遗留个人验收、实际 A/B/C 身份/网络 | pending | — | 依赖 3；用户可见验证 |
+| Phase 1 | 验收基线与准入 | 固定候选、历史待验及证据映射 | completed | [验收记录](mvp-acceptance.md)：dirty 候选、历史映射、资源/设备及证据规则 | A/B/C 实际信息待用户；不阻碍 Phase 2 |
+| Phase 2 | 候选构建与采证准备 | 可重复构建、现有无窗口组合及最小诊断 | completed | 当前候选 build、22 项聚焦测试、Node/Electron/packed/personal smoke、脱敏链路摘要 | 已达 Phase 2 授权终点；产品 gate 仍待验 |
+| Phase 3 | 真实模型闭环 | 语料及双身份真实规划到文件交付 | blocked | 真实双身份入口及关闭策略语料已补；三入口无 key 跳过 | 需要可用模型后重跑 |
+| Phase 4 | 个人体验与三机准备 | 遗留个人验收、实际 A/B/C 身份/网络 | blocked | 当前正常策略操作清单、登记与证据字段已准备 | 依赖 3；缺用户可见和实际设备结果 |
 | Phase 5 | 三机主路径 | 自然目标到返工、汇合和最终交付 | pending | — | 依赖 4；用户双人操作 |
 | Phase 6 | 权限与故障收敛 | 真实失联、撤权、重开及隐私负例 | pending | — | 依赖 5；仅测试环境 |
 | Phase 7 | 双平台发行资格 | macOS/Windows 实际候选包与安装检查 | pending | — | 依赖 6；恢复安装验收需明确授权 |
@@ -71,14 +71,14 @@
 
 验收清单：
 
-- [ ] 固定当前源码/dirty 状态、候选识别方式、合成样例、不可修改资源及证据目录规则。
-- [ ] 将个人 Project/Bot/同机接力、组织身份/TLS/授权、对话规划到交付、跨平台和恢复逐项映射到旧证据或待验；记录旧证据环境与适用范围。
-- [ ] 列出 A/B/C 角色、OS/架构、模型/端点需求及安装验收历史选择；未知值明确待填，不编造三机环境。
-- [ ] 固定 API 主验收与 Codex 能力限制；真实模型 lane、人工 gate、候选变化后的证据失效规则明确。
+- [x] 固定当前源码/dirty 状态、候选识别方式、合成样例、不可修改资源及证据目录规则。
+- [x] 将个人 Project/Bot/同机接力、组织身份/TLS/授权、对话规划到交付、跨平台和恢复逐项映射到旧证据或待验；记录旧证据环境与适用范围。
+- [x] 列出 A/B/C 角色、OS/架构、模型/端点需求及安装验收历史选择；未知值明确待填，不编造三机环境。
+- [x] 固定 API 主验收与 Codex 能力限制；真实模型 lane、人工 gate、候选变化后的证据失效规则明确。
 
 助理验证：只读源码/文档/命令入口核对，检查链接与文档一致性；不重跑已有 passing 检查。用户检查：在记录中补设备、参与人和可用平台；此信息未齐不妨碍独立工程准备。依赖：本计划获准执行。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：新增 `docs/mvp-acceptance.md`，固定 HEAD、三个既有 dirty 文件及摘要、本机版本、隔离证据目录与合成数据，映射个人/组织/规划/交付/恢复/平台/Codex 的历史适用范围和待验。A/B/C 实际信息保持待登记；API 主路线、Codex 限制、真人 gate 和候选失效规则已明确。只读核对源码、入口与文档；未重跑历史 passing 检查、未调用模型或页面。用户授权「请自动完成 phase1-2」，已设置 auto_until Phase 1–2，进入 Phase 2。
 
 ## Phase 2：候选构建、无窗口验证与采证准备
 
@@ -88,14 +88,18 @@
 
 验收清单：
 
-- [ ] 从当前候选构建 Host/Client；Node/Electron Node mode 私有进程、方法资源和 Client 闭包检查通过。
-- [ ] 按 Phase 1 缺口选择回归，实际解释相关门禁失败；不默认运行全仓套件或借历史结果填本次通过。
-- [ ] 证据可关联 operation、goal/plan/revision、assignment、Run、submission 和 integration；普通失败含稳定原因及当前阶段，日志无密钥、聊天全文或绝对私人路径。
-- [ ] 退出/取消等待所属进程、授权请求及日志完成；测试临时目录和端口有清理，采证不会改变业务权限。
+- [x] 从当前候选构建 Host/Client；Node/Electron Node mode 私有进程、方法资源和 Client 闭包检查通过。
+- [x] 按 Phase 1 缺口选择回归，实际解释相关门禁失败；不默认运行全仓套件或借历史结果填本次通过。
+- [x] 证据可关联 operation、goal/plan/revision、assignment、Run、submission 和 integration；普通失败含稳定原因及当前阶段，日志无密钥、聊天全文或绝对私人路径。
+- [x] 退出/取消等待所属进程、授权请求及日志完成；测试临时目录和端口有清理，采证不会改变业务权限。
 
 助理验证：定向测试、对应类型/局部 lint、必要 gate，执行一次候选完整构建及相关 built smoke；不启动产品窗口。用户检查：可读的候选说明与命令；尚不要求安装。依赖：Phase 1。
 
-实际完成：未开始；执行后填充。
+实际完成（2026-10-03）：一次 `pnpm run build` 构建当前 dirty 候选 Host/Client/native 与内部 Web；规划交付的 Node/Electron Node mode、四个 npm tarball/方法/Client 闭包及个人 built smoke 均通过。3 文件 21 项规划/个人/SSE 与权限恢复回归通过，追加取消排空定向用例 1 项通过、16 项因筛选跳过。已有修改局部 lint、Desktop 入口及 21 个 Cordis 配置门禁通过。完整命令、退出码、资源/日志摘要、历史限制见 [验收记录](mvp-acceptance.md)。
+
+首轮 smoke 控制台未保留完整链路 ID，因此用本地只读包装原消费者额外采证一次 built Node 场景，保留 465 项操作的脱敏 ID/revision/状态/哈希，不改变模型或业务动作。原 fixture 的独立字节/哈希、SQLite/JSONL 关联与清理断言通过，取消等待测试通过；所属私有子进程已退出，临时资源清理。没有产品代码修复、通用日志设施、真实模型调用、页面、安装、提交或推送；三处原有 dirty 文件保持原哈希。
+
+变更文件为 `docs/mvp-acceptance.md`、本计划、`docs/overview.md` 与路线图当前态。无构建/测试失败；chunk/Vite 配置提示保持原样，历史全仓失败未重跑且不追认为通过。Phase 1–2 已达到授权终点，恢复 `manual`、清空自动边界、relay 关闭；Phase 3–8 保持 pending。下一阶段需另行授权真实模型验证及双身份闭环，未提前执行。
 
 ## Phase 3：正常模式真实模型与双身份无窗口闭环
 
@@ -116,7 +120,7 @@
 
 依赖/硬门槛：Phase 2；必须有已获准的真实模型路线和可用凭据。无 key 可以写完/静态检查测试入口，但本阶段保持 blocked，记录“需要用户自行配置可用模型后重跑”；不要求用户在聊天中粘贴秘密。模拟结果不解除此 gate。
 
-实际完成：未开始；执行后填充。
+实际执行（2026-10-03）：用户授权「请自动完成 phase3-4」，记录 auto_until Phase 3–4。现有 corpus 与文件 smoke 均因无 key 跳过；新增真实双身份 `conversation-delivery.e2e.ts`、共享 fixture/声明，补关闭自动规划语料，复用现有执行/交付夹具但消费模型实际任务 ID/revision。确定性完整链回归通过，类型 lint 首轮缺声明失败已修复，语法与空白检查通过。新增真实路径仍无 key 跳过，未发模型请求，真实 gate 不通过。完整命令、限制见[验收记录](mvp-acceptance.md#phase-3-真实模型入口与阻塞记录)。Phase 3 blocked；用户自行配置可用模型后按 --retry=0 重跑，保留 auto_until 范围，不索取秘密。未改产品代码/格式或增加诊断日志。
 
 ## Phase 4：个人历史待验与 A/B/C 就绪
 
@@ -136,7 +140,7 @@
 
 依赖/硬门槛：Phase 3；缺参与人、设备、网络或可见结果时 blocked。可提前准备剧本，但不能把“剧本已写”当成本阶段完成。已运行的受影响用例才重验，不要求用户重复无关历史步骤。
 
-实际完成：未开始；执行后填充。
+实际准备（2026-10-03）：提前完成不依赖模型/设备的[六组个人与三机检查交接](mvp-acceptance.md#phase-4-可见与三机准备交接)，用当前正常规划策略替代旧剧本必须手动开启增强的前提，明确接力暂停/旧 owner/累计预算、forced 恢复、私人数据隔离、GUI TLS/网络/grant/保险库/目录哨兵及脱敏字段。用户尚未提供实际结果或设备登记，全部 not_run；Phase 3 亦 blocked，因此 Phase 4 blocked。未打开页面、连接其他设备或实施安装。需 Phase 3 通过与用户提供实际 Desktop/A/B/C 结果后沿原授权恢复，不能记作 completed。
 
 ## Phase 5：真实三机对话到交付主路径
 
@@ -247,7 +251,7 @@ node apps/desktop-host/tests/conversation-planning-packed-smoke.mjs
 # Phase 3：现有真实模型入口；无密钥为 skipped，不能完成真实模型 gate
 pnpm exec vitest run --config vitest.e2e.config.ts apps/desktop/tests/conversation-planning.e2e.ts --retry=0 --maxWorkers=1
 pnpm exec vitest run --config vitest.e2e.config.ts apps/desktop/tests/organization-execution.e2e.ts --retry=0 --maxWorkers=1
-# conversation-delivery.e2e.ts 由 Phase 3 实现后再运行，不假定现在已存在。
+pnpm exec vitest run --config vitest.e2e.config.ts apps/desktop/tests/conversation-delivery.e2e.ts --retry=0 --maxWorkers=1
 ```
 
 代码修复先读相关 AGENTS、architecture、testing 和涉及生命周期时的 defensive-patterns；前端改动只用静态/构建/纯逻辑测试，用户负责可见验收。按变更选择 source 聚焦测试、显式 Host/Client 类型面、局部 lint、i18n/入口/配置/依赖/持久化等门禁；built smoke 依赖其真实构建闭包，不混用 source 替代。文档写准确执行命令及结果；仅有 staged 文件时运行 `git diff --cached --check`，不为检查自动暂存。
@@ -257,12 +261,12 @@ Phase 3 的凭据/模型可用性、Phase 4 的设备/可见结果、Phase 5–6
 ## 执行规则
 
 ```text
-execution mode: manual
-automatic start phase: none
-automatic stop phase: none
+execution mode: auto_until
+automatic start phase: Phase 3
+automatic stop phase: Phase 4
 conversation relay: off
-plan review: pending
-execution authorization: 仅生成下一阶段执行计划，未授权 Phase 1
+plan review: approved for Phase 1–4
+execution authorization: 2026-10-03 用户「请自动完成 phase3-4」；auto_until Phase 3–4，真实 gate 阻塞时保留范围；此前 Phase 1–2 授权已完成
 skill: /Users/git_local/dev-workflow-skill/SKILL.md
 ```
 

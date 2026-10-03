@@ -76,6 +76,11 @@ it.skipIf(!process.env.DEEPSEEK_API_KEY)('classifies normal goals, clarifies one
       text: 'Explain my assigned task and its acceptance checklist; do not change it.' })
     expect(continued.result.goals).toHaveLength(1)
     expect(continued.result.assignment?.state).toBe('pending')
+    const disabled = await perform({ ...request, kind: 'settings', operationId: randomUUID(), expectedRevision: 0,
+      settings: { enabled: false, granularity: 'balanced' } })
+    expect(disabled.result.settings.enabled).toBe(false)
+    const unplanned = await send('Plan a team project producing a CSV report and an independent JSON contract, both requiring review. Automatic planning is disabled for this conversation; explain the approach in prose.')
+    expect(unplanned.result.goals.at(-1)?.proposal).toBeUndefined()
     const login = await app.authority.login({ username: 'owner', password })
     await app.authority.readPlanning(login.token, { organizationId: request.organizationId, projectId: request.projectId,
       conversationId: request.conversationId }, (view) => {

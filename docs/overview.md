@@ -4,7 +4,7 @@
 
 ## 下一阶段计划入口
 
-[首版真实闭环与演示候选版执行计划](mvp-acceptance-plan.md)细化路线图产品 Phase 8，当前仅完成计划编写，内部 Phase 1–8 均未执行，模式为 `manual`，自动边界 `none`，relay 关闭。执行顺序为证据基线、候选构建与采证、真实模型双身份闭环、个人可见及三机准备、三机主路径、权限故障、双平台发行资格、演示候选结论。复用 7C 工程与验收入口；现有 live corpus 是同账号规划/绑定测试，执行 live smoke 在单文件检查后结束，不能替代真实双人交付。新计划将凭据、实际设备/参与人、用户可见结果和平台资格列为相应阶段的真实 gate；用户此前取消的安装验收不会因制定计划自动恢复。本轮未运行模型、测试、构建或产品 UI；未开始产品 Phase 8 验收。
+[首版真实闭环与演示候选版执行计划](mvp-acceptance-plan.md)细化产品 Phase 8，已按用户 2026-10-03「请自动完成 phase1-2」完成内部 Phase 1–2，达到授权终点并恢复 `manual`、自动边界 `none`、relay 关闭。[验收记录](mvp-acceptance.md)固定 HEAD 与三处既有 dirty 修改、历史用例映射、实际设备缺项和证据失效规则。当前 macOS arm64 候选完整 build、22 项选中聚焦测试、规划交付 Node/Electron Node mode、四个 tarball/方法/Client 闭包、个人 built smoke、局部 lint 和入口/配置门禁通过；取消用例另有 16 项因筛选跳过。补采一次原 built Node 场景的 465 项脱敏链路关联，所属进程/临时资源清理，未新增产品代码。随后用户授权「请自动完成 phase3-4」，当前保留 `auto_until` Phase 3–4。Phase 3 新增真实双身份规划到文件交付入口及类型声明，消费实际模型任务 ID/revision，覆盖人工等待、冷重开、驳回返工、两项成果与最终确认；现有 corpus 增补关闭自动规划断言。共享确定性回归及局部 lint/语法检查通过；三个真实入口因无 key 跳过，新增真实路径尚未验证，Phase 3 blocked。Phase 4 已备当前正常策略的个人接力、偏好/forced、隔离及 A/B/C 检查清单，缺实际用户结果/设备且依赖 Phase 3，保持 blocked；不能以准备完成代替验收。Phase 5–8 未执行，真实模型、可见、三机及双平台安装仍待验；用户取消安装验收的选择未撤销。没有启动页面、提交、推送或发布。
 
 [Codex 设置与首次使用实施计划](codex-setup-plan.md) Phase 1–6 工程完成，本轮已达到授权 Phase 4–6 终点，恢复 `manual`、自动边界 `none`、relay 关闭。固定版本设备码协议、Host setup service、共享执行准入和 Desktop 固定通道已实现；个人、Bot 和组织模型目录收到同一安全失效事件，保留显式模型选择并拒绝迟到旧结果。独立 Codex 卡片分开呈现 runtime、认证、模型与登录状态，可跳过的 Codex/API 首次接入及个人/Bot/组织失败导航共用该卡片并保留来源草稿；不要求全局 CLI、自动安装或改变默认后端，不推进 7C。真实 Loader 到 Client 的接入组合、Desktop build、tarball exports、普通 Node/Electron Node mode 的 setup/执行/组织 smoke 通过，最终产物记录已更新。[验收交接](codex-backend-acceptance.md)提供新用户、返回、取消/过期/重开和分平台剧本；真实账号、模型、可见与 macOS/Windows 安装体验证仍待用户。实际命令和既有全局门禁问题见计划，未代登录或启动页面。
 

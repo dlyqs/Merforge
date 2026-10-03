@@ -25,11 +25,11 @@ const cleanup: (() => unknown)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
 const password = 'eight123'
 const token = () => randomBytes(32).toString('base64url')
-async function setup() {
+async function setup(api: { streamMaxAgeMs?: number } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'org-connection-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
   const directory = join(root, 'service')
-  const config = { api: { directory, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
+  const config = { api: { directory, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20, ...api } }
   const app = await bootOrganization(config)
   cleanup.push(app.close)
   const initialized = await app.authority.initialize({ operationId: randomUUID(),
@@ -51,6 +51,30 @@ async function setup() {
   await owner.perform({ kind: 'select', organizationId: initialized.organizationId! })
   return { root, directory, config, app, owner, initialized, connect }
 }
+
+it('refreshes expired subscriptions without going offline and still detects a stopped service', async () => {
+  const followers = [
+    vi.spyOn(transport, 'followOrganizationEvents'),
+    vi.spyOn(transport, 'followWorkgraphEvents'),
+    vi.spyOn(transport, 'followInboxEvents'),
+  ]
+  try {
+    const h = await setup({ streamMaxAgeMs: 200 })
+    const phases: string[] = []
+    const unsubscribe = h.owner.subscribe(() => phases.push(h.owner.snapshot().phase))
+    cleanup.push(unsubscribe)
+    const generation = h.owner.snapshot().generation
+    await expect.poll(() => h.owner.snapshot().generation).toBeGreaterThanOrEqual(generation + 3)
+    await expect.poll(() => h.owner.snapshot().phase).toBe('ready')
+    expect(phases).not.toContain('offline')
+    expect(h.owner.snapshot()).toMatchObject({ organizationId: h.initialized.organizationId, error: undefined })
+    for (const follower of followers) expect(follower.mock.calls.length).toBeGreaterThanOrEqual(4)
+    await h.app.close()
+    await expect.poll(() => h.owner.snapshot().phase).toBe('offline')
+    expect(h.owner.snapshot().projects).toBeUndefined()
+    await expect(h.owner.perform({ kind: 'invite', role: 'member' })).rejects.toThrow('unavailable')
+  } finally { for (const follower of followers) follower.mockRestore() }
+}, 15000)
 
 it('isolates two real identities, filters search/counts, clears revoked views and preserves personal files', async () => {
   const h = await setup()

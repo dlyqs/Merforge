@@ -124,7 +124,7 @@ export async function executionScenario(kit, createHost = root => localExecution
       await writeFile(join(directory, 'untouched.txt'), 'PRIVATE_UNSELECTED_SENTINEL')
     }
     const server = join(root, 'server')
-    const config = { authority: { deviceChallengeMaxPerAccount: 1000, ...(kit.native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: nativeBackend.model, efforts: ['medium'], maxTurns: 30, maxDurationMs: 60000 }] } : {}), ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
+    const config = { authority: { deviceChallengeMaxPerAccount: 1000, ...(kit.native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: nativeBackend.model, efforts: ['medium'], maxTurns: 30, maxDurationMs: 60000 }] } : {}), ...(kit.planningRoute ? { planning: kit.planningPolicy } : {}), ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
     app = await kit.bootOrganization(config)
     const init = await app.authority.initialize({ operationId: randomUUID(), username: 'owner', password,
       organizationName: 'CSV team', recoveryToken: randomBytes(32).toString('base64url') })
@@ -151,12 +151,15 @@ export async function executionScenario(kit, createHost = root => localExecution
     await command({ kind: 'set-grant', projectId: project.projectId, membershipId: employee.membershipId, expectedVersion: 0, actions: ['read'] })
     await command({ kind: 'set-grant', projectId: project.projectId, membershipId: init.membershipId, expectedVersion: project.revision, actions: ['read', 'write'] })
     const query = { organizationId: init.organizationId, projectId: project.projectId, planId: randomUUID() }
-    const parent = randomUUID(), left = randomUUID(), right = randomUUID(), phaseId = randomUUID()
+    let parent = randomUUID(), left = randomUUID(), right = randomUUID()
+    const phaseId = randomUUID()
     const definition = { taskId: parent, phases: [{ id: phaseId, title: 'CSV' }], tasks: [parent, left, right].map(id => ({
       id, parentTaskId: id === parent ? null : parent, phaseId, goal: id === parent ? 'Deliver CSV and contract' : 'Prepare selected CSV evidence',
       scope: 'Selected files only', acceptance: ['Independent byte comparison'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
     })) }
-    const initialRevision = kit.planningHooks ? await kit.planningHooks.createPlan({ root, owner, member, query, definition, employee }) : 1
+    const planned = kit.planningHooks ? await kit.planningHooks.createPlan({ root, owner, member, query, definition, employee }) : 1
+    const initialRevision = typeof planned === 'number' ? planned : planned.revision
+    if (typeof planned !== 'number') ({ parent, left, right } = planned)
     if (!kit.planningHooks) await active(owner, { kind: 'workgraph-save', request: { ...query, expectedRevision: 0, operationId: randomUUID(), definition } })
     const grant = (await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: employee.membershipId,
       actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })).receipt
@@ -188,7 +191,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     }
     const runView = async run => (await active(member, { kind: 'execution-read', request: { ...run.selector, runId: run.request.runId } })).execution
     async function execute(run, script, resume) {
-      await writeFile(join(localRoot, 'script.json'), JSON.stringify(script))
+      if (!kit.liveRoute) await writeFile(join(localRoot, 'script.json'), JSON.stringify(script))
       await until(() => member.snapshot().phase === 'ready')
       return kit.openOrganizationExecution(member, host, { ...run.request, ...(resume ? { resume, operationId: randomUUID() } : {}) }, () => {})
     }
@@ -206,8 +209,12 @@ export async function executionScenario(kit, createHost = root => localExecution
         submissionId: file.submissionId, artifacts: [{ artifactId: file.artifactId, sha256: file.sha256 }], confirmed: true,
         ...(reject ? { reason: 'Missing quoted rows', requirements: 'Include Alice and Bob with CSV escaping.' } : {}) } })
     }
+    if (kit.liveDelivery) {
+      inputs.messages = ['PRIVATE_EXECUTION_SENTINEL: Before creating any file, ask me to confirm the column names. Wait for my answer. After I answer, create only the header name,note followed by a newline in result.csv. This is an intentionally incomplete QA draft; omit all rows in this first draft and leave every other file unchanged.']
+      configDigest = kit.executionInputsDigest(inputs)
+    }
     const first = await prepare(left, initialRevision, fault === 'budget' ? 1 : 30)
-    if (kit.liveRoute) {
+    if (kit.liveRoute && !kit.liveDelivery) {
       await execute(first, [])
       assert.equal(await readFile(join(work, 'result.csv'), 'utf8'), csv)
       assert.equal(await readFile(join(work, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
@@ -277,8 +284,18 @@ export async function executionScenario(kit, createHost = root => localExecution
     const rejectedFile = await submit(first, 'result.csv')
     await review(rejectedFile, true)
     await assert.rejects(execute(first, ['Must not run']))
+    if (kit.liveDelivery) {
+      assert.equal(await readFile(join(work, 'result.csv'), 'utf8'), 'name,note\n')
+      inputs.messages = [`PRIVATE_EXECUTION_SENTINEL: Correct the rejected draft. Write result.csv as UTF-8 with exact content ${JSON.stringify(csv)}. Independently read the resulting file. Preserve every other file.`]
+      configDigest = kit.executionInputsDigest(inputs)
+    }
     const second = await prepare(left, initialRevision + 1)
     await execute(second, [tool('write_file', { path: 'result.csv', content: csv }), tool('read_file', { path: 'result.csv' }), 'Revised CSV ready'])
+    if (kit.liveDelivery) {
+      const view = await runView(second)
+      assert.equal(view.run.state, 'succeeded')
+      for (const capability of ['fs-write', 'fs-read']) assert.ok(view.actions.some(action => action.capability === capability && action.state === 'succeeded'))
+    }
     const leftFile = await submit(second, 'result.csv'); await review(leftFile)
     const integrationQuery = { ...query, taskId: parent, planRevision: initialRevision + 1 }
     assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.inputsReady, false)
@@ -306,8 +323,19 @@ export async function executionScenario(kit, createHost = root => localExecution
       inputs.messages = ['SECOND_PRIVATE_EXECUTION_SENTINEL: prepare independent contract']
       configDigest = kit.executionInputsDigest(inputs)
     }
+    if (kit.liveDelivery) {
+      assert.equal(await readFile(join(work, 'result.csv'), 'utf8'), csv)
+      inputs.messages = ['Create contract.json as UTF-8 JSON containing columns ["name","note"] and encoding "UTF-8". Read the file to check it. Leave all other files unchanged.']
+      configDigest = kit.executionInputsDigest(inputs)
+    }
     const third = await prepare(right, initialRevision + 1)
     await execute(third, [tool('write_file', { path: 'contract.json', content: '{"columns":["name","note"],"encoding":"UTF-8"}\n' }), 'Contract ready'])
+    if (kit.liveDelivery) {
+      assert.deepEqual(JSON.parse(await readFile(join(work, 'contract.json'), 'utf8')), { columns: ['name', 'note'], encoding: 'UTF-8' })
+      const view = await runView(third)
+      assert.equal(view.run.state, 'succeeded')
+      for (const capability of ['fs-write', 'fs-read']) assert.ok(view.actions.some(action => action.capability === capability && action.state === 'succeeded'))
+    }
     const rightFile = await submit(third, 'contract.json'); await review(rightFile)
     if (kit.twoMembers) {
       await assert.rejects(kit.readOrganizationExecution(firstMember, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal))

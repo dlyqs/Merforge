@@ -84,7 +84,12 @@ export class OrganizationStreams {
     response.once('close', close)
     response.once('finish', close)
     const timer = setInterval(subscription.pump, this.limits.eventPollMs)
-    const expiry = setTimeout(close, this.limits.streamMaxAgeMs)
+    const expiry = setTimeout(() => {
+      if (ended || response.destroyed) return
+      this.ctx.logger.info('organization component=events result=reset decisionCode=snapshot-required reason=stream-expired')
+      if (response.headersSent && response.writableLength === 0) response.end('event: reset\ndata: {"error":"snapshot-required"}\n\n')
+      else close()
+    }, this.limits.streamMaxAgeMs)
     return poll()
   }
 
