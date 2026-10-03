@@ -10,13 +10,15 @@ import { conversationModelSchema } from './model.ts'
 import { checkPlanningMembers } from './proposal.ts'
 import { runConversation } from './runtime.ts'
 import { conversationDomain, conversationStateSchema, conversationInputSchema, conversationBindingSchema,
-  conversationAssessmentSchema, conversationOperationSchema, conversationProposalSchema, type conversationIntentSchema } from './state.ts'
+  navigationDomain, navigationStateSchema, conversationAssessmentSchema, conversationOperationSchema, conversationProposalSchema, type conversationIntentSchema } from './state.ts'
 import { conversationRequestSchema, conversationAuthoritySchema, conversationOwnerSchema, conversationResultSchema,
   conversationGoalSchema, type ConversationBridge, type ConversationRequest, type ConversationResult } from './protocol.ts'
 export * from './protocol.ts'
 export { conversationAdapter, conversationModelSchema } from './model.ts'
 /** Validated deployment bounds; personal settings never resolve these values. */
 export const conversationConfigSchema = z.object({ root: z.string().min(1), models: z.array(conversationModelSchema).max(100),
+  maxCatalogItems: z.number().int().min(1).max(10000).default(200),
+  maxBots: z.number().int().min(1).max(1000).default(100),
   maxSteps: z.number().int().positive().max(1000), recheckMs: z.number().int().min(10).max(60000),
   maxDurationMs: z.number().int().positive().max(3600000), maxReportBytes: z.number().int().min(256).max(10485760),
   defaultSettings: z.object({ enabled: z.boolean(), granularity: z.enum(['balanced', 'fine']) }).strict(),
@@ -48,6 +50,7 @@ export default class OrganizationConversation extends Service {
   static inject = ['storageDomain']
   static Config = conversationConfigSchema
   private readonly isolated = new Context()
+  private navigation?: DomainGlobal<z.output<typeof navigationStateSchema>>
   private state?: DomainGlobal<State>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
@@ -58,9 +61,13 @@ export default class OrganizationConversation extends Service {
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(conversationDomain)
     this.state = domain.global
+    const navigation = await this.ctx.storageDomain.open(navigationDomain).catch(async (error: unknown) => {
+      await domain.close(); throw error
+    })
+    this.navigation = navigation.global
     this.ctx.effect(() => async () => {
       this.closing = true; for (const run of this.running) run.abort()
-      await this.tail; await this.isolated.fiber.dispose(); await domain.close()
+      await this.tail; await this.isolated.fiber.dispose(); await navigation.close(); await domain.close()
     }, 'organization-conversation.close')
     await this.isolated.plugin(Jsonl, { root: this.config.root, compression: 'none', namespace: 'organization-conversation' })
     await this.verifyStoredBindings()
@@ -137,6 +144,9 @@ export default class OrganizationConversation extends Service {
     if (request.kind !== 'read' && (control && (control.digest !== digest || ownerKey(control.owner) !== ownerKey(owner))
       || acceptedInput && (request.kind !== 'send' || acceptedInput.digest !== digest
         || ownerKey(acceptedInput.owner) !== ownerKey(owner)))) throw new Error('organization-conversation: operation-conflict')
+    const botOperation = this.navigation?.get().operations.find(sameOperation)
+    if (botOperation && (request.kind !== 'bot-save' || botOperation.digest !== digest
+      || ownerKey(botOperation.owner) !== ownerKey(owner))) throw new Error('organization-conversation: operation-conflict')
     const controls = () => control ? state.get().controls : [...state.get().controls,
       { owner, operationId: request.operationId, digest }]
     let binding = state.get().bindings.find(b => b.owner.serverId === owner.serverId && b.owner.accountId === owner.accountId
@@ -144,7 +154,7 @@ export default class OrganizationConversation extends Service {
       && b.owner.conversationId === owner.conversationId)
     if (binding && ownerKey(binding.owner) !== ownerKey(owner)) throw new Error('organization-conversation: owner-mismatch')
     if (!binding) {
-      if (request.kind !== 'open') throw new Error('organization-conversation: open-required')
+      if (!['open', 'catalog', 'bot-save'].includes(request.kind)) throw new Error('organization-conversation: open-required')
       binding = { owner, sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }
       await state.set({ ...state.get(), bindings: [...state.get().bindings, binding], controls: controls() })
     }
@@ -160,6 +170,37 @@ export default class OrganizationConversation extends Service {
     }
     if (request.kind === 'open' && !state.get().controls.some(sameOperation))
       await state.set({ ...state.get(), controls: controls() })
+    const navigation = this.navigation
+    if (!navigation) throw new Error('organization-conversation: unavailable')
+    const sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
+      && candidate.projectId === owner.projectId
+    if (request.kind === 'bot-save') {
+      if (!first.view.policy.models.some(model => model.model === request.bot.selection.model
+        && model.endpoint === request.bot.selection.endpoint)
+        || !this.config.models.some(model => model.model === request.bot.selection.model
+        && model.endpoint === request.bot.selection.endpoint))
+        throw new Error('organization-conversation: local-model-policy-denied')
+      const data = navigation.get(), previous = data.operations.find(record => sameOperation(record))
+      if (previous && (previous.digest !== digest || ownerKey(previous.owner) !== ownerKey(owner)))
+        throw new Error('organization-conversation: operation-conflict')
+      if (!previous) {
+        const existing = data.bots.find(record => sameProject(record.owner) && record.bot.id === request.bot.id)
+        if ((existing?.bot.version ?? 0) !== request.expectedVersion) throw new Error('organization-conversation: version-conflict')
+        if (!existing && data.bots.filter(record => sameProject(record.owner)).length >= this.config.maxBots)
+          throw new Error('organization-conversation: bot-limit')
+        await navigation.set({ ...data, bots: [...data.bots.filter(record => record !== existing),
+          { owner, bot: { ...request.bot, version: request.expectedVersion + 1 } }],
+        operations: [...data.operations, { owner, operationId: request.operationId, digest }] })
+      }
+    }
+    if (request.kind === 'open' && request.botId) {
+      if (!navigation.get().bots.some(record => sameProject(record.owner) && record.bot.id === request.botId))
+        throw new Error('organization-conversation: bot-unavailable')
+      const previous = navigation.get().selections.find(record => ownerKey(record.owner) === ownerKey(owner))
+      if (previous && previous.botId !== request.botId) throw new Error('organization-conversation: owner-mismatch')
+      if (!previous) await navigation.set({ ...navigation.get(),
+        selections: [...navigation.get().selections, { owner, botId: request.botId }] })
+    }
     if (request.kind === 'settings' && !control) {
       const settings = this.settings(owner)
       if (settings.revision !== request.expectedRevision) throw new Error('organization-conversation: settings-conflict')
@@ -219,9 +260,12 @@ export default class OrganizationConversation extends Service {
         if (request.route === 'clarification' && !goals.some(g => g.id === request.goalId && g.classification === 'clarify'))
           throw new Error('organization-conversation: clarification-required')
         if (request.route !== 'new_goal' && !goals.some(g => g.id === request.goalId)) throw new Error('organization-conversation: goal-required')
+        const selectedBot = navigation.get().selections.find(link => ownerKey(link.owner) === ownerKey(owner))?.botId
+        const bot = navigation.get().bots.find(record => sameProject(record.owner) && record.bot.id === selectedBot)?.bot
         intent = { owner, operationId: request.operationId, digest, state: 'received', input: conversationInputSchema.parse({ request,
           goalId: request.goalId ?? randomUUID(), settings: this.settings(owner), authority: await bridge(),
-          methodVersion: 'organization-planning/v2' }) }
+          methodVersion: 'organization-planning/v2',
+          ...(bot ? { bot } : {}) }) }
         await state.set({ ...state.get(), intents: [...state.get().intents, intent] })
         this.ctx.logger.info('organization component=planning sessionId=%s goalId=%s operationId=%s result=received',
           binding.sessionId, intent.input.goalId, request.operationId)
@@ -276,7 +320,7 @@ export default class OrganizationConversation extends Service {
       }
     }
     await bridge(); check()
-    return this.report(binding, bridge)
+    return this.report(binding, bridge, request.kind === 'catalog' || request.kind === 'bot-save')
   }
   private async append<T extends 'organization/planning-operation' | 'organization/planning-proposal'>(binding: Binding, type: T,
     data: import('@deepseek-ai/dsh-session').SessionEventMap[T]): Promise<void> {
@@ -348,7 +392,7 @@ export default class OrganizationConversation extends Service {
     }
     return [...goals.values()]
   }
-  private async report(binding: Binding, bridge: ConversationBridge): Promise<ConversationResult> {
+  private async report(binding: Binding, bridge: ConversationBridge, navigationOnly = false): Promise<ConversationResult> {
     const events = await this.events(binding), entries: ConversationResult['entries'] = []
     for (const e of events) {
       if (e.type === 'organization/planning-input' && e.data.request.kind === 'send') entries.push({ role: 'user',
@@ -360,40 +404,60 @@ export default class OrganizationConversation extends Service {
     const result: ConversationResult = { sessionId: binding.sessionId, owner: binding.owner, settings: this.settings(binding.owner),
       entries, goals: this.goals(events), truncated: false,
       state: !intent ? 'ready' : intent.state === 'sending' || intent.state === 'received' ? 'unknown' : intent.state }
-    try { await this.checkHistory(binding, bridge) }
-    catch (_error) {
-      await bridge()
-      result.entries = []
-      for (const goal of result.goals) if (goal.proposal) goal.proposal = { status: 'unavailable', planId: goal.proposal.planId, revision: 0 }
-      return conversationResultSchema.parse(result)
-    }
-    const authority = await bridge()
-    if (authority.assignment) {
-      result.assignment = authority.assignment
-      const id = conversationGoalSchema.parse(authority.assignment.id)
-      if (!result.goals.some(g => g.id === id)) result.goals.push({ id, classification: 'unassessed' })
-    }
-    for (const goal of result.goals) {
-      const proposal = goal.proposal, link = authority.assignment
-        ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }
-        : authority.view.plans.find(p => p.goalId === goal.id)
-        ?? (proposal?.status === 'shared' && proposal.definition ? { planId: proposal.planId, taskId: proposal.definition.taskId } : undefined)
-      if (!link) continue
-      try {
-        const current = await bridge({ organizationId: binding.owner.organizationId, projectId: binding.owner.projectId, conversationId: binding.owner.conversationId, planId: link.planId, taskId: link.taskId, kind: 'read-planning-plan' })
-        if (!current.plan) throw new Error('organization-conversation: missing-plan')
-        // Conflicting personal changes remain private and never replace the current shared version.
-        if (proposal?.status !== 'conflict' && proposal?.status !== 'private') goal.proposal = { status: 'shared', planId: link.planId,
-          revision: current.plan.version.revision, definition: current.plan.version.definition }
-      } catch (_error) {
+    if (navigationOnly) { result.entries = []; result.goals = []; await bridge() }
+    else {
+      try { await this.checkHistory(binding, bridge) }
+      catch (_error) {
         await bridge()
         result.entries = []
-        goal.proposal = { status: 'unavailable', planId: link.planId, revision: 0 }
+        for (const goal of result.goals) if (goal.proposal) goal.proposal = { status: 'unavailable', planId: goal.proposal.planId, revision: 0 }
+        return conversationResultSchema.parse(result)
       }
+      const authority = await bridge()
+      if (authority.assignment) {
+        result.assignment = authority.assignment
+        const id = conversationGoalSchema.parse(authority.assignment.id)
+        if (!result.goals.some(g => g.id === id)) result.goals.push({ id, classification: 'unassessed' })
+      }
+      for (const goal of result.goals) {
+        const proposal = goal.proposal, link = authority.assignment
+          ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }
+          : authority.view.plans.find(p => p.goalId === goal.id)
+        ?? (proposal?.status === 'shared' && proposal.definition ? { planId: proposal.planId, taskId: proposal.definition.taskId } : undefined)
+        if (!link) continue
+        try {
+          const current = await bridge({ organizationId: binding.owner.organizationId, projectId: binding.owner.projectId, conversationId: binding.owner.conversationId, planId: link.planId, taskId: link.taskId, kind: 'read-planning-plan' })
+          if (!current.plan) throw new Error('organization-conversation: missing-plan')
+          // Conflicting personal changes remain private and never replace the current shared version.
+          if (proposal?.status !== 'conflict' && proposal?.status !== 'private') goal.proposal = { status: 'shared', planId: link.planId,
+            revision: current.plan.version.revision, definition: current.plan.version.definition }
+        } catch (_error) {
+          await bridge()
+          result.entries = []
+          goal.proposal = { status: 'unavailable', planId: link.planId, revision: 0 }
+        }
+      }
+    }
+    if (!binding.owner.assignment && this.navigation && this.state) {
+      const owner = binding.owner, sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
+        && candidate.projectId === owner.projectId
+      const conversations: NonNullable<ConversationResult['catalog']>['conversations'] = []
+      for (const row of this.state.get().bindings.filter(row => row.ready && !row.owner.assignment && sameProject(row.owner))
+        .sort((a, b) => b.createdAt - a.createdAt).slice(0, this.config.maxCatalogItems)) {
+        const input = (await this.events(row)).find(e => e.type === 'organization/planning-input' && e.data.request.kind === 'send')
+        const title = input?.type === 'organization/planning-input' && input.data.request.kind === 'send'
+          ? input.data.request.text.slice(0, 120) : ''
+        if (!title && String(row.owner.conversationId) === String(row.owner.projectId)) continue
+        const botId = this.navigation.get().selections.find(link => ownerKey(link.owner) === ownerKey(row.owner))?.botId
+        conversations.push({ conversationId: row.owner.conversationId, title, createdAt: row.createdAt, ...(botId ? { botId } : {}) })
+      }
+      result.catalog = { conversations, bots: this.navigation.get().bots.filter(row => sameProject(row.owner)).map(row => row.bot) }
     }
     while (entries.length && Buffer.byteLength(JSON.stringify(result)) > this.config.maxReportBytes) {
       entries.shift(); result.truncated = true
     }
+    while (result.catalog?.conversations.length && Buffer.byteLength(JSON.stringify(result)) > this.config.maxReportBytes)
+      result.catalog.conversations.pop()
     if (Buffer.byteLength(JSON.stringify(result)) > this.config.maxReportBytes) throw new Error('organization-conversation: report-limit')
     return conversationResultSchema.parse(result)
   }
@@ -469,6 +533,26 @@ export default class OrganizationConversation extends Service {
     }
     for (const intent of this.state.get().intents) if (!owners.has(ownerKey(intent.owner))) throw new Error('organization-conversation: orphan-input')
     for (const control of this.state.get().controls) if (!owners.has(ownerKey(control.owner))) throw new Error('organization-conversation: orphan-operation')
+    if (!this.navigation) throw new Error('organization-conversation: navigation-unavailable')
+    const bots = new Set<string>(), links = new Set<string>(), mutations = new Set<string>()
+    const botKey = (owner: Binding['owner'], id: string) => JSON.stringify([preferenceKey(owner), owner.projectId, id])
+    for (const record of this.navigation.get().bots) {
+      const key = botKey(record.owner, record.bot.id)
+      if (bots.has(key) || !owners.has(ownerKey(record.owner)) || record.owner.assignment || record.bot.version < 1)
+        throw new Error('organization-conversation: bot-record-mismatch')
+      bots.add(key)
+    }
+    for (const record of this.navigation.get().selections) {
+      const key = ownerKey(record.owner)
+      if (links.has(key) || !owners.has(key) || record.owner.assignment || !bots.has(botKey(record.owner, record.botId)))
+        throw new Error('organization-conversation: bot-binding-mismatch')
+      links.add(key)
+    }
+    for (const record of this.navigation.get().operations) {
+      const key = JSON.stringify([record.owner.serverId, record.owner.accountId, record.operationId])
+      if (mutations.has(key) || !owners.has(ownerKey(record.owner))) throw new Error('organization-conversation: bot-operation-mismatch')
+      mutations.add(key)
+    }
     const preferences = new Set<string>()
     for (const preference of this.state.get().preferences) {
       const key = JSON.stringify([preference.owner.serverId, preference.owner.accountId, preference.owner.organizationId])

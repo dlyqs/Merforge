@@ -153,7 +153,7 @@ export class OrganizationApiService extends Service {
       const resourceRoute = /^\/organizations\/([a-f0-9-]+)\/(projects|search|events)$/.exec(path)
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
-      const memberRoute = /^\/organizations\/([a-f0-9-]+)\/members$/.exec(path)
+      const memberRoute = /^\/organizations\/([a-f0-9-]+)\/(members|hierarchy)$/.exec(path)
       const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
         : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
@@ -251,7 +251,7 @@ export class OrganizationApiService extends Service {
       else if (memberRoute?.[1]) {
         const id = z.uuid().safeParse(memberRoute[1])
         if (!id.success) throw new OrganizationError('invalid-input')
-        this.respond(res, 200, await authority.members(token, brandString<OrganizationId>(id.data)))
+        this.respond(res, 200, await (memberRoute[2] === 'hierarchy' ? authority.hierarchy.bind(authority) : authority.members.bind(authority))(token, brandString<OrganizationId>(id.data)))
       }
     } catch (error) {
       const code = error instanceof OrganizationError ? error.code : 'unavailable'

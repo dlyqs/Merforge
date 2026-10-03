@@ -20,13 +20,25 @@ export const conversationAssignmentSchema = assignmentReadSchema.pick({ planId: 
 /** Immutable private owner; no personal Project, preset, path or Run identity is accepted. */
 export const conversationOwnerSchema = conversationAuthoritySchema.pick({ serverId: true, accountId: true })
   .extend(planningReadSchema.shape).extend({ assignment: conversationAssignmentSchema.optional() }).strict()
+/** Identity of a private organization Bot; it never refers to a personal preset. */
+export const conversationBotIdSchema = uuid<Branded<'OrganizationConversationBotId'>>()
+/** Account-private planning Bot configuration; model dispatch retains organization policy checks. */
+export const conversationBotSchema = z.object({ id: conversationBotIdSchema, name: z.string().trim().min(1).max(120),
+  instructions: z.string().max(8192), selection: planningOpenSchema.shape.selection,
+  version: z.number().int().nonnegative() }).strict()
+/** Project-authorized navigation metadata, without private transcripts. */
+export const conversationCatalogSchema = z.object({ bots: z.array(conversationBotSchema),
+  conversations: z.array(z.object({ conversationId: planningReadSchema.shape.conversationId,
+    title: z.string().max(120), createdAt: z.number().int().nonnegative(),
+    botId: conversationBotIdSchema.optional() }).strict()) }).strict()
 const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
-  assignment: conversationAssignmentSchema.optional() })
+  assignment: conversationAssignmentSchema.optional(), botId: conversationBotIdSchema.optional() })
 /** Durable goal identity, distinct from the associated WorkGraph task identity. */
 export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoalId'>>()
 /** Fixed selectors; opening/reading never wakes a model. */
 export const conversationRequestSchema = z.discriminatedUnion('kind', [
-  base.extend({ kind: z.enum(['open', 'read', 'stop']) }).strict(),
+  base.extend({ kind: z.enum(['open', 'read', 'stop', 'catalog']) }).strict(),
+  base.extend({ kind: z.literal('bot-save'), bot: conversationBotSchema, expectedVersion: z.number().int().nonnegative() }).strict(),
   base.extend({ kind: z.literal('suggest'), goalId: conversationGoalSchema,
     taskId: planningPlanReadSchema.shape.taskId, expectedRevision: z.number().int().nonnegative(),
     membershipId: planningDraftSchema.shape.definition.shape.tasks.element.shape.suggestedMembershipId }).strict(),
@@ -36,6 +48,8 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
     route: z.enum(['new_goal', 'clarification', 'modify', 'query']), goalId: conversationGoalSchema.optional(),
     target: planningPlanReadSchema.pick({ planId: true, taskId: true }).optional() }).strict(),
 ]).superRefine((request, ctx) => {
+  if (request.assignment && (request.botId || request.kind === 'bot-save' || request.kind === 'catalog'))
+    ctx.addIssue({ code: 'custom', message: 'Task conversations cannot manage Bots or project navigation' })
   if (request.assignment && String(request.conversationId) !== String(request.assignment.assignmentId))
     ctx.addIssue({ code: 'custom', message: 'Task conversation identity must equal its original assignment' })
   if (request.assignment && request.kind === 'send' && request.route === 'new_goal')
@@ -53,6 +67,7 @@ export const conversationResultSchema = z.object({
     planId: planningPlanReadSchema.shape.planId, revision: z.number().int().nonnegative() }).strict().optional(),
   classification: z.enum(['unassessed', 'simple', 'clarify',
     'infeasible', 'complex']) }).strict()),
+  catalog: conversationCatalogSchema.optional(),
   state: z.enum(['ready', 'completed', 'stopped', 'unknown']),
 }).strict()
 /** Validated private local operation. */

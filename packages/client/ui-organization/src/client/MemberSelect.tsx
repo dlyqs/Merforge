@@ -17,11 +17,15 @@ export function MemberSelect(props: Pick<OrganizationProps, 't'> & {
   value: string
   change: (value: string) => void
   disabled?: boolean
+  assignableOnly?: boolean
 }) {
   const { t, connection: c } = props
   const id = useId()
   const own = c.organizations.find(org => org.id === c.organizationId)?.membershipId
-  const choices = c.members.map(member => ({ id: member.id, name: member.username, enabled: member.enabled && member.accountEnabled }))
+  const candidates = c.hierarchy
+    ? c.hierarchy.filter(member => !props.assignableOnly || c.organizations.find(o => o.id === c.organizationId)?.role === 'admin' || member.id === own || member.supervisorId === own)
+      .map(member => ({ ...member, accountEnabled: member.enabled })) : c.members
+  const choices = candidates.map(member => ({ id: member.id, name: member.username, enabled: member.enabled && member.accountEnabled }))
   if (own && !choices.some(member => member.id === own)) choices.unshift({ id: own, name: c.username ?? t('me'), enabled: true })
   return <div className={css.field}>
     <label htmlFor={id}>{t(props.labelKey)}</label>
@@ -32,7 +36,7 @@ export function MemberSelect(props: Pick<OrganizationProps, 't'> & {
         {member.name}{member.id === own ? ` · ${t('me')}` : ''}{member.enabled ? '' : ` · ${t('disabledMember')}`}
       </option>)}
     </select>
-    {!c.members.length && <details className={css.advanced}><summary>{t('memberById')}</summary>
+    {!c.members.length && !c.hierarchy?.length && <details className={css.advanced}><summary>{t('memberById')}</summary>
       <p className={css.muted}>{t('memberDirectoryHint')}</p>
       <Input aria-label={t('memberIdentifier')} disabled={props.disabled} value={props.value} onChange={(event) => { props.change(event.target.value.trim()) }} />
     </details>}

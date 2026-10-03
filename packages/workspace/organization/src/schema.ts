@@ -75,6 +75,7 @@ export const commandSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('invite'), organizationId: id<OrganizationId>(), role, invitationToken: token }).strict(),
   z.object({ ...base, kind: z.literal('accept-invitation'), invitationToken: token }).strict(),
   z.object({ ...base, kind: z.literal('set-membership'), organizationId: id<OrganizationId>(), membershipId: id<MembershipId>(), expectedVersion: version, enabled: z.boolean(), role }).strict(),
+  z.object({ ...base, kind: z.literal('set-supervisor'), organizationId: id<OrganizationId>(), membershipId: id<MembershipId>(), supervisorId: id<MembershipId>().nullable(), expectedVersion: version }).strict(),
   z.object({ ...base, kind: z.literal('set-account'), accountId: id<AccountId>(), expectedVersion: version, enabled: z.boolean() }).strict(),
   z.object({ ...base, kind: z.literal('change-password'), currentPassword: password, newPassword: password }).strict(),
 ])
@@ -139,7 +140,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['open-planning', 'reserve-planning-request', 'consume-planning-request', 'save-planning-draft', 'verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-account', 'change-password']),
+  kind: z.enum(['open-planning', 'reserve-planning-request', 'consume-planning-request', 'save-planning-draft', 'verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'save-plan', 'restore', 'create-project', 'rename-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-supervisor', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })
@@ -147,3 +148,7 @@ export const eventSchema = z.object({
 export const receiptRowSchema = z.object({
   scope: z.string(), operationId: id<OperationId>(), fingerprint: digest, response: z.string(),
 })
+
+/** Minimal organization chart available to current members, without account or credential fields. */
+export const hierarchySchema = z.array(z.object({ id: id<MembershipId>(), username: z.string(), role,
+  enabled: z.boolean(), supervisorId: id<MembershipId>().nullable(), version }).strict())

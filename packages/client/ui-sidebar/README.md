@@ -27,7 +27,7 @@ The sidebar is the navigation shell: users switch modes, start new sessions, col
 
 ### Mode selector and New Session
 
-The rail top renders `sidebar.account` for a circular avatar and centered account dialog. The rail foot renders Settings without a divider. The middle browser omits redundant section headings. The shell contributes a fixed-size collapse control to `shell.navigation` in the main workspace, with the `shell.navigation.badge` child seat. Branding slots remain reserved. New Session creates and opens an ordinary Session without Project or Bot affiliation.
+The rail top renders `sidebar.account` for a circular avatar and centered account dialog. The rail foot renders Settings without a divider. The middle browser omits redundant section headings. The shell contributes a fixed-size collapse control to `shell.navigation` in the main workspace, with the `shell.navigation.badge` child seat. Branding slots remain reserved. New Session delegates to the current identity through ui-workspace; personal mode creates and opens an ordinary Session without Project or Bot affiliation. Projects, Bots and Recent gestures return to the current identity’s conversation surface.
 
 ### Global panel entries
 

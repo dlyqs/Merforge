@@ -1,3 +1,4 @@
+import { authorizeHierarchyAssignment } from './hierarchy.ts'
 /** Transaction-local approval, visibility and irreversible authority invalidation. */
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -60,6 +61,7 @@ export function reviewAssignment(db: DatabaseSync, principal: Principal, query: 
   const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
   const task = definition.tasks.find(item => item.id === query.taskId)
   if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')
+  authorizeHierarchyAssignment(db, principal, query.assigneeId)
   const target = memberPrincipal(db, principal, query.assigneeId)
   try { visibleTasks(db, target, { ...query, revision: query.planRevision, search: '', offset: 0 }) }
   catch (error) {
@@ -118,6 +120,7 @@ export function assignmentInvalidation(db: DatabaseSync, assignment: Organizatio
     const base: Principal = { serverId, accountId: principalAccountSchema.parse(
       db.prepare('SELECT accountId FROM memberships WHERE id=?').get(assignment.approvedBy)).accountId, organizationId: assignment.organizationId }
     const author = memberPrincipal(db, base, assignment.approvedBy)
+    authorizeHierarchyAssignment(db, author, assignment.assigneeId)
     authorizeWorkgraph(db, author, assignment.projectId, assignment.planId, true)
     authorizeAssignmentRead(db, memberPrincipal(db, base, assignment.assigneeId), assignment)
     return null

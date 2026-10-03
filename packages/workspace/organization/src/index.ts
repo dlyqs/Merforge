@@ -1,3 +1,4 @@
+import { setSupervisor } from './hierarchy.ts'
 import { readPlanningPlan } from './planning-draft.ts'
 import { planningCommandSchema, planningReadSchema, planningPlanReadSchema, type planningPlanViewSchema, planningCandidatesSchema, type planningViewSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
 import { changePlanning, readPlanning, planningCandidates } from './planning.ts'
@@ -32,7 +33,7 @@ import type { OrganizationAssignment } from './assignment-types.ts'
 import { openOrganizationDatabase, transaction } from './database.ts'
 import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
-import { accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
+import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema } from './resource-schema.ts'
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
 import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
@@ -154,7 +155,7 @@ export class OrganizationService extends Service {
       const receipt = receiptSchema.parse(JSON.parse(String(row.response)))
       const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
       if (receipt.organizationId) {
-        const manage = ['invite', 'set-membership', 'create-project', 'set-grant', 'set-task-grant'].includes(String(event?.kind))
+        const manage = ['invite', 'set-membership', 'set-supervisor', 'create-project', 'set-grant', 'set-task-grant'].includes(String(event?.kind))
         const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
         if (receipt.planning && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'read')
         if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
@@ -460,8 +461,26 @@ export class OrganizationService extends Service {
     }))
   }
 
+  /**
+   * Read the organization chart under current membership without granting project or task access.
+   * @param token - Current login credential.
+   * @param organizationId - Selected organization.
+   * @returns Reporting nodes and independent reporting versions.
+   */
+  hierarchy(token: LoginToken, organizationId: OrganizationId): Promise<z.output<typeof hierarchySchema>> {
+    return this.enqueue('hierarchy', db => transaction(db, () => {
+      const principal = this.principal(db, token, organizationId, 'member')
+      return hierarchySchema.parse(db.prepare(`SELECT m.id,a.username,m.role,
+        (m.enabled=1 AND a.enabled=1) AS enabled,h.supervisorId,COALESCE(h.version,0) AS version
+        FROM memberships m JOIN accounts a ON a.id=m.accountId
+        LEFT JOIN organization_hierarchy h ON h.membershipId=m.id
+        WHERE m.organizationId=? AND (?='admin' OR (m.enabled=1 AND a.enabled=1)) ORDER BY a.username`)
+        .all(organizationId, principal.role ?? 'member').map(row => ({ ...row, enabled: row.enabled === 1 })))
+    }))
+  }
+
   private authorizeCommand(db: DatabaseSync, token: LoginToken, command: Command): Principal {
-    if (command.kind === 'invite' || command.kind === 'set-membership') return this.principal(db, token, command.organizationId, 'manage')
+    if (command.kind === 'invite' || command.kind === 'set-membership' || command.kind === 'set-supervisor') return this.principal(db, token, command.organizationId, 'manage')
     const principal = this.principal(db, token)
     if (command.kind === 'set-account' && this.metadata(db).rootAccountId !== principal.accountId) throw new OrganizationError('forbidden')
     return principal
@@ -528,6 +547,10 @@ export class OrganizationService extends Service {
         db.prepare('UPDATE invitations SET consumed=1,version=? WHERE id=?').run(revision, invitation.id)
         db.prepare('UPDATE organization_events SET organizationId=? WHERE revision=?').run(invitation.organizationId, revision)
         return { accountId: principal.accountId, membershipId, organizationId: invitation.organizationId }
+      }
+      case 'set-supervisor': {
+        setSupervisor(db, command.organizationId, command.membershipId, command.supervisorId, command.expectedVersion, revision)
+        return { membershipId: command.membershipId, organizationId: command.organizationId }
       }
       case 'set-membership': {
         const row = db.prepare('SELECT * FROM memberships WHERE id=? AND organizationId=?').get(command.membershipId, command.organizationId)

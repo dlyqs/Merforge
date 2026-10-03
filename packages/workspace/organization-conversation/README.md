@@ -1,6 +1,6 @@
 # @deepseek-ai/dsh-organization-conversation
 
-Owns installation-local, account-private organization project conversations described in [conversation planning](../../../docs/conversation-planning.md). Desktop loads this service alongside the unchanged read-only context and execution services. `perform` accepts open, read, stop, settings, explicit send and member-suggestion operations through the private Node IPC consumer. Electron authenticates project read and supplies generation-bound online planning callbacks. Renderer cannot supply a Session ID, authority, credential, arbitrary URL or tool permission.
+Owns installation-local, account-private organization project conversations described in [conversation planning](../../../docs/conversation-planning.md). Desktop loads this service alongside the unchanged read-only context and execution services. `perform` accepts open, read, stop, settings, explicit send, member-suggestion, catalog and Bot-save operations through the private Node IPC consumer. Electron authenticates project read and supplies generation-bound online planning callbacks. Renderer cannot supply a Session ID, authority, credential, arbitrary URL or tool permission.
 
 The `organization_conversation` storage domain atomically reserves a server/account/organization/project/conversation owner before materializing its separately durable JSONL. Authorized opening recovers the same reserved Session after partial persistence. All organization conversation IDs use a dedicated namespace rejected by personal Session/Agent registries, JSONL, query, upload and fork consumers. Opening or reading never activates an Agent. The `./invariant` companion compares independent domain and JSONL ownership, exact accepted input/settings/authority, assessment sources and duplicate/orphan evidence. The real Loader tests execute it and check disposal.
 
@@ -10,7 +10,7 @@ A send mounts fresh isolated Session and Agent registries, the standard loop, to
 
 `models` explicitly binds model/endpoint pairs to local credential references. The authority policy and that local policy must both admit the route. Immediately before each Messages HTTP request, including provider retries, the adapter reserves request count and actual serialized payload bytes plus its maximum output ceiling, then consumes a one-use permit online. Permission loss or an unknown receipt prevents dispatch. Redirects are refused. Consumed or uncertain attempts remain charged. Polling, deadlines and identity/window cancellation stop and drain the owned interval; reconnecting does not start another turn.
 
-Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxReportBytes` and `defaultSettings`; each is validated at load. No application launcher or public Remote is exported. The Desktop private IPC carries nonce, request and authorization IDs; unrelated and late replies are ignored, and teardown awaits model work, private authorization requests and durable writes.
+Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxReportBytes`, `maxCatalogItems`, `maxBots` and `defaultSettings`; each is validated at load. No application launcher or public Remote is exported. The Desktop private IPC carries nonce, request and authorization IDs; unrelated and late replies are ignored, and teardown awaits model work, private authorization requests and durable writes.
 
 ## Model Experience
 
@@ -18,7 +18,7 @@ Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxRepo
 
 #### What the model sees
 
-The private conversation history and a JSON user message containing the accepted request, stable goal, effective organization settings, current authorized project facts and finite planning permission. The method is `organization-planning/v2`.
+The private conversation history and a JSON user message containing the accepted request, stable goal, effective organization settings, current authorized project facts, the selected private Bot snapshot when present, and finite planning permission. The method is `organization-planning/v2`.
 
 ##### Verbatim enabled method
 
@@ -75,3 +75,9 @@ Conversation controls select Runs by the bound assignment. Private execution rep
 ## Validation
 
 The Desktop conversation-planning composition starts with a normal send, persists a two-child CSV plan through model tools, and continues through explicit assignment, independent employee conversations, human intervention, rework and verified delivery. Source and published Node/Electron IPC tests share the scenario. The [acceptance guide](../../../docs/conversation-planning-acceptance.md) separates deterministic model evidence from the live-model corpus and pending visible, Windows and three-machine checks.
+
+## Private navigation
+
+Each explicit new conversation has its own UUID within its server/account/organization/project partition. `catalog` returns recent project conversations and private Bots without invoking a model or requiring old task-history access. Assignment conversations retain their separate Inbox entry and immutable assignment selector. The canonical project-ID conversation used for catalog reads is omitted while empty.
+
+The separate `organization_navigation` storage domain (version 1) stores private Bots, conversation/Bot links and idempotent Bot-save operation digests. The existing `organization_conversation` domain stays at version 1. `bot-save` checks both local and organization model policies and the observed Bot version. Changed content under a reused operation ID is refused. Bot instructions and the exact selected configuration are durably included in `organization/planning-input` before becoming model input; personal presets are never reused. Current authority is required on every operation. `maxBots` limits Bots per account/project (default 100); `maxCatalogItems` bounds recent rows per project (default 200), within `maxReportBytes`.

@@ -1,3 +1,4 @@
+import { hierarchyDdl, validateHierarchy } from './hierarchy.ts'
 import { planningDraftDdl, validatePlanningDraftDatabase } from './planning-draft.ts'
 import { planningDdl, validatePlanningDatabase } from './planning.ts'
 import { integrationDdl, validateIntegrationDatabase } from './integration.ts'
@@ -18,7 +19,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 14
+export const ORGANIZATION_SCHEMA_VERSION = 15
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -88,12 +89,13 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       const app = db.prepare('PRAGMA application_id').get()?.application_id
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
-          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl + planningDdl + planningDraftDdl)
+          + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl
+          + planningDdl + planningDraftDdl + hierarchyDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
         stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9
-        || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13) && app === applicationId) {
+        || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13 || stamp === 14) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -108,6 +110,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 11) db.exec(integrationDdl)
         if (stamp < 13) db.exec(planningDdl)
         if (stamp < 14) db.exec(planningDraftDdl)
+        if (stamp < 15) db.exec(hierarchyDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -124,6 +127,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
 
 function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, assignments = true): void {
   try {
+    if (assignments) validateHierarchy(db)
     if (workgraph) validateWorkgraphDatabase(db)
     if (assignments) {
       validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db)

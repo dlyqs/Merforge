@@ -73,13 +73,13 @@
 
 资格绑定 server epoch、账户/成员/project grant 版本、完整策略摘要及模型选择。新的显式发送可续期失效资格，保留首次限额和累积 usedRequests/usedBytes；不重置预算，也不重新启用旧 qualificationRevision 的未消费 permit。冷重开和重连只读取，不自动续期或启动模型。每次最终 HTTP payload 在 credential/preparation 后按 UTF-8 实际字节预留 inputBytes 与输出上限；预留和消费意图各先 flush，回执确认后再在线读与同步取消/到期检查，然后 fetch。provider retry 使用新的一次性许可；消费重放拒绝，历史回执仍可核对。预留、取消和不确定派发不退款。
 
-`organization-conversation.perform` 只接受 open、read、stop、settings、send、suggest，固定选择 organizationId/projectId/conversationId/operationId；SessionId、服务身份、文件路径、credential 和任意 URL 由调用方注入均拒绝。open 原子预留独立 `organization-conversation:` Session 后创建 JSONL，半完成重开恢复同一绑定。send 先持久输入身份、稳定 goalId、设置和方法，new_goal 创建目标，clarification 必须明确引用本对话已评为 clarify 的目标。相同 operation 只读原状态；相同文本的新 operation 可以提出新目标。发送一旦进入 sending，崩溃后呈现 unknown，取消呈现 stopped，均不自动重放。
+`organization-conversation.perform` 只接受 open、read、stop、settings、send、suggest、catalog、bot-save，固定选择 organizationId/projectId/conversationId/operationId；SessionId、服务身份、文件路径、credential 和任意 URL 由调用方注入均拒绝。open 原子预留独立 `organization-conversation:` Session 后创建 JSONL，半完成重开恢复同一绑定。send 先持久输入身份、稳定 goalId、设置和方法，new_goal 创建目标，clarification 必须明确引用本对话已评为 clarify 的目标。相同 operation 只读原状态；相同文本的新 operation 可以提出新目标。发送一旦进入 sending，崩溃后呈现 unknown，取消呈现 stopped，均不自动重放。
 
 五个必需 Session 事件是 organization/conversation-owner、organization/planning-input、organization/planning-assessment、organization/planning-operation、organization/planning-proposal。普通 user/message 记录 organization-planning/v2 方法（兼容读取旧 v1 输入）与实际有效授权输入，标准 request/header 和模型/工具事件记录请求历史。`./invariant` 比较本机预留、JSONL owner、输入/评估归属和重复/孤儿记录；真实 Loader 执行校验。个人 Session/Agent、查询、持久化、上传和 fork 消费者拒绝该 namespace；原 organization-context 两事件不变。
 
 发送挂载隔离标准 loop、text-only DeepSeekAdapter 和 workflow_assess/workflow_propose/planning_authorization/planning_members；关闭自动识别时移除评估及提案工具。当前输入的 complex 评估允许保存未批准共享草案，无 edit 者只保存本人私有建议。Host 通过 nonce/request/authorizationId 对应在线授权，Electron 核验 generation、所属 top-frame、Host 和窗口寿命；销毁、身份切换、离线、休眠与权限复核失败取消并排空。组织主面板支持普通发送、稳定目标选择、设置、树/版本、负责人建议和权威业务详情；个人对话从已有快照增量构造 personal-plan 节点。可见验收由用户检查。
 
-SQLite 当前 v14，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
+SQLite 当前 v15；v15 保存直属上级关系，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
 
 ## 对话分配与执行消费者
 
@@ -94,3 +94,11 @@ SQLite 当前 v14，planning_goals 保存本人 conversation/goal 到 plan/task 
 ## 验证与产品交接
 
 正常模式发送到 CSV 交付、规划故障回归和发行验证入口见[验收交接](conversation-planning-acceptance.md)。确定性模型仅验证其结果沿真实工具和权威服务产生的效果；自然识别质量由独立真实模型语料及用户三机验收判断。Desktop 可见和 Windows 结果单独记录，不由无窗口 smoke 推导。
+
+## 组织对话与 Bot 导航
+
+组织身份下的加号建立独立 conversationId，Projects、Bots、Recent 展示当前身份的组织记录；Recent 重开原有私有对话，任务分配对话继续通过 Inbox 的原 assignmentId 打开。移除侧边栏范围说明及请求/未读摘要，组织工作台从组织名称和账号入口打开。个人输入框不再显示“强制拆分已覆盖”徽标，既有拆分设置仍由原 writer 决定。
+
+独立 organization_navigation v1 域保存私有 Bot、对话关联及保存操作摘要，不改变 organization_conversation v1 域格式。Bot 仅属于本人及所选组织项目，保存需当前在线授权和本机/组织模型策略均允许的显式 API 模型。名称、指令和选择的配置在每次实际发送前作为 Bot 快照写入 organization/planning-input，再进入模型输入；不使用个人 Bot 配置。catalog 只读取当前项目的本人导航，不触发模型，也不让已撤权任务历史阻塞最近列表。导航按每项目 maxCatalogItems（默认 200）及 maxBots（默认 100）限制，并受 maxReportBytes 限制。
+
+Tasks 显示当前授权的节点，选中后复用审核、分配与执行控件。分配必须另行确认；普通成员只可选自己或直属下属，管理员可选任意启用成员，后端叠加现有任务/项目授权校验。组织工作台增加组织架构树及管理员直属上级编辑，变更后的分配权限在线重新计算。

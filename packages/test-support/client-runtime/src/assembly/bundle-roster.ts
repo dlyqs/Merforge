@@ -132,6 +132,8 @@ function readManifest(path: string): PackageManifest {
 
 /** Resolve package manifests to real paths so linked bundles use their own dependency directories. */
 function locateManifest(anchors: readonly string[], name: string): string | undefined {
+  const self = anchors.find(anchor => anchor.endsWith('/package.json') && readManifest(anchor).name === name)
+  if (self !== undefined) return self
   const paths = anchors.map(anchor => createRequire(anchor).resolve.paths(name) ?? [])
   for (let depth = 0; depth < Math.max(...paths.map(search => search.length)); depth++) {
     for (const search of paths) {

@@ -1,10 +1,11 @@
 /** Compact organization entry points; all account and administration forms open in a centered dialog. */
 import { useState } from 'react'
-import { Button, IconUsersOutlineRegular, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconUsersOutlineRegular, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime, PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-personal/client'
 import type { ConversationSelectionProps } from './conversation-store.ts'
 import type { OrganizationProps } from './contract.ts'
+import { OrganizationBrowser } from './OrganizationBrowser.tsx'
 import { OrganizationDialog } from './OrganizationDialog.tsx'
 import css from './Organization.module.css'
 
@@ -21,19 +22,7 @@ export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sid
           <span className={css.entryText}><strong>{org?.name ?? props.t('title')}</strong><small>{props.t(c.phase)}</small></span>
           <IconChevronRightOutlineRegular size={14} />
         </button>
-        <p className={css.muted}>{props.t('scope')}</p>
-        {c.inbox && <p>{props.t('inboxCounts', { total: c.inbox.total, unread: c.inbox.unread })}</p>}
-        <Button variant="primary" onClick={() => { props.actions.select(null); props.openConversation?.() }}>{props.t('conversationTitle')}</Button>
-        {c.phase === 'ready' && c.inbox?.items.filter((item, i, items) => item.assignment.assigneeId === org?.membershipId
-          && items.findIndex(other => other.assignment.id === item.assignment.id) === i).map(item =>
-          <Button key={item.assignment.id} onClick={() => {
-            if (!c.principal) return
-            const a = item.assignment
-            props.actions.select({ ...c.principal, organizationId: a.organizationId, projectId: a.projectId,
-              planId: a.planId, assignmentId: a.id })
-            props.openConversation?.()
-          }}>{props.t('conversationOpenTask')} · {item.assignment.taskId}</Button>)}
-        <Button variant="outline" onClick={() => { setOpen(true) }}>{props.t('openWorkspace')}</Button>
+        <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`} {...props} section={props.section ?? 'recent'} />
       </div>
       : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })}
     {open && <OrganizationDialog {...props} initialSection={c.organizationId ? 'projects' : 'connection'} onClose={() => { setOpen(false) }} />}

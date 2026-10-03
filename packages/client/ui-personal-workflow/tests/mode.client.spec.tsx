@@ -29,7 +29,7 @@ it('stays off until a gesture commits and preserves failed gesture identity for 
   expect(setMode.mock.calls[0]?.[0]).toEqual(setMode.mock.calls[1]?.[0])
 })
 
-it('displays the test override while preserving the explicit conversation choice', async () => {
+it('preserves the explicit conversation choice without a test override label', async () => {
   const props = {
     sessionId: 'forced-mode' as SessionId, t: makeTranslate(zh, commonZh),
     readMode: vi.fn().mockResolvedValue({ enabled: false, revision: 1 }), setMode: vi.fn(),
@@ -38,6 +38,6 @@ it('displays the test override while preserving the explicit conversation choice
   render(<Mode {...props as ModeProps} />)
   const toggle = await screen.findByRole('switch')
   expect(toggle.getAttribute('aria-checked')).toBe('false')
-  expect(screen.getByText(zh.testingOverrides)).toBeDefined()
+  expect(screen.queryByText(zh.testingOverrides)).toBeNull()
   expect(props.setMode).not.toHaveBeenCalled()
 })

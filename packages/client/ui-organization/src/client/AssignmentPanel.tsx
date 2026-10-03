@@ -225,7 +225,7 @@ export function AssignmentPanel(props: OrganizationProps & {
         planRevision: task.revision, assigneeId: assignee } })
     }}>
       <h4>{t('approveAssignment')}</h4><p>{t('approvalAccessHint')}</p>
-      <MemberSelect t={t} connection={c} labelKey="assignee" disabled={!writable} value={assignee} change={(value) => {
+      <MemberSelect t={t} connection={c} assignableOnly labelKey="assignee" disabled={!writable} value={assignee} change={(value) => {
         reviewSequence.current++; blockedReview.current = false; setReview(undefined); setAssignee(value); setConfirmedRevision(undefined)
       }} />
       {!reviewCurrent && <Button disabled={!writable || !assignee} onClick={() => { void reviewApproval() }}>{t('reviewApprovalAccess')}</Button>}

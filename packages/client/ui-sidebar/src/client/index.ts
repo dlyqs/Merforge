@@ -32,6 +32,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 const NS = 'sidebar'
 
 interface SessionNavigation {
+  showConversation(): void
   startSession(): void
 }
 
@@ -64,7 +65,7 @@ export function apply(ctx: ClientContext): void {
   const injectProps = (): SidebarRootInjected => ({
     startSession: () => { sessionNavigation.startSession() },
     toggleSidebar: () => { ctx.layout.toggleSidebar() },
-    selectPanel: (id) => { ctx.layout.selectPanel(id) },
+    selectPanel: (id) => { if (id === null) sessionNavigation.showConversation(); else ctx.layout.selectPanel(id) },
     hooks: { panels },
   })
   ctx.slots.inject('sidebar', () => ctx.slots.register({

@@ -66,11 +66,12 @@ export function visibleEvents(db: DatabaseSync, principal: Principal, after: num
  * Read the member's visibility epoch, including structural grants and suggestion assignability.
  * @param db - Active authority transaction.
  * @param principal - Current organization member.
- * @returns Latest account, organization-membership, project/task-grant or structural version.
+ * @returns Latest account, organization-membership, project/task-grant, reporting or structural version.
  */
 export function accessVersion(db: DatabaseSync, principal: Principal): number {
   return Number(db.prepare(`SELECT max(a.version,m.version,coalesce((SELECT max(g.version) FROM resource_grants g WHERE g.membershipId=m.id),0),
     coalesce((SELECT max(max(t.version,p.structureVersion)) FROM task_grants t JOIN organization_plans p ON p.id=t.planId WHERE t.membershipId=m.id),0),
+    coalesce((SELECT max(h.version) FROM organization_hierarchy h JOIN memberships hm ON hm.id=h.membershipId WHERE hm.organizationId=m.organizationId),0),
     coalesce((SELECT max(max(a2.version,m2.version)) FROM memberships m2 JOIN accounts a2 ON a2.id=m2.accountId WHERE m2.organizationId=m.organizationId),0)) AS version
     FROM memberships m JOIN accounts a ON a.id=m.accountId WHERE m.accountId=? AND m.organizationId=?`)
     .get(principal.accountId, principal.organizationId ?? null)?.version)

@@ -1,7 +1,13 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import type { BoundActions } from '@deepseek-ai/dsh-client-store'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { ConversationRequest } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import { createOrganizationTaskStore } from './task-store.ts'
+import { OrganizationTaskList, OrganizationTasks } from './Tasks.tsx'
 import { createConversationStore } from './conversation-store.ts'
-import { OrganizationConversation, OrganizationConversationIcon } from './Conversation.tsx'
+import { OrganizationConversation } from './Conversation.tsx'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,7 +24,7 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { zh, en } from './locales.ts'
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
-export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout']
+export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout', 'uiWorkspace']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.
@@ -66,11 +72,56 @@ export function apply(ctx: Context): void {
     return () => { alive = false; unsubscribe() }
   }, 'organization.native-state')
   const conversationStore = createConversationStore()
+  const taskStore = createOrganizationTaskStore()
+  let conversationActions: BoundActions<typeof conversationStore> | undefined
+  let taskActions: BoundActions<typeof taskStore> | undefined
+  const bindConversation = (actions: BoundActions<typeof conversationStore>): OrganizationInjected => {
+    conversationActions = actions
+    return bind()
+  }
+  const bindTasks = (actions: BoundActions<typeof taskStore>) => {
+    taskActions = actions
+    return { ...bind(), openTasks: () => { ctx.layout.selectPanel('tasks' as MainPanelId) } }
+  }
+  ctx.effect(() => ctx.uiWorkspace.registerSessionStarter(() => {
+    const c = state.getSnapshot().connection
+    if (c.mode !== 'organization') return false
+    const project = c.projects?.items.length === 1 ? c.projects.items[0] : undefined
+    conversationActions?.select(c.principal && c.organizationId ? { ...c.principal, organizationId: c.organizationId,
+      ...(project ? { projectId: project.id } : {}),
+      conversationId: randomUUID() as ConversationRequest['conversationId'] } : null)
+    ctx.layout.selectPanel('organization-conversation' as MainPanelId)
+    return true
+  }, () => {
+    if (state.getSnapshot().connection.mode !== 'organization') return false
+    ctx.layout.selectPanel('organization-conversation' as MainPanelId); return true
+  }), 'organization.new-conversation')
+  ctx.effect(() => {
+    let stop: (() => void)[] = [], active = false, identity = ''
+    const update = () => {
+      const c = state.getSnapshot().connection, organization = c.mode === 'organization'
+      const nextIdentity = `${c.mode}:${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`
+      if (identity !== nextIdentity) {
+        const changed = identity !== ''
+        identity = nextIdentity; conversationActions?.select(null); taskActions?.selectTask(null)
+        if (changed) ctx.layout.selectPanel(organization ? 'organization-conversation' as MainPanelId : null)
+      }
+      if (active === organization) return
+      active = organization
+      for (const dispose of stop) dispose()
+      stop = organization ? [
+        ctx.slots.inject('sidebar.tasks', () => ctx.slots.register({ name: 'sidebar.tasks', priority: -10,
+          locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTaskList)),
+        ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'tasks', priority: -10,
+          locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTasks)),
+      ] : []
+    }
+    const unsubscribe = state.subscribe(update); update()
+    return () => { unsubscribe(); for (const dispose of stop) dispose() }
+  }, 'organization.task-navigation')
   const t = ctx.locale.bind('organization')
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'organization-conversation',
-    order: -90, label: () => t('conversationTitle') }, OrganizationConversationIcon))
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-conversation', store: conversationStore,
-    locale: 'organization', inject: bind }, OrganizationConversation))
+    locale: 'organization', inject: bindConversation }, OrganizationConversation))
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section',
     id: 'organization',
     order: 27,
@@ -82,5 +133,5 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.personal', () => ctx.slots.register({ name: 'sidebar.personal', store: conversationStore,
     priority: -10,
     locale: 'organization',
-    inject: bind }, OrganizationSidebar))
+    inject: bindConversation }, OrganizationSidebar))
 }

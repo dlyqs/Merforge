@@ -17,6 +17,8 @@ export type ConnectionAction =
   | { kind: 'trust'; fingerprint: string }
   | { kind: 'login'; username: string; password: string }
   | { kind: 'register'; invitationToken: string; username: string; password: string }
+  | { kind: 'hierarchy' }
+  | { kind: 'project-page'; offset: number; cursor?: string }
   | { kind: 'logout' | 'reconnect' | 'personal' | 'reconcile' }
   | { kind: 'select'; organizationId: OrganizationId }
   | { kind: 'search'; query: string; offset: number }
@@ -37,6 +39,7 @@ export interface ConnectionSnapshot {
   organizationId?: OrganizationId | undefined
   projects?: OrganizationProjectPage | undefined
   members: MemberView[]
+  hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema> | undefined
   username?: string | undefined
   error?: string | undefined
   pendingOperation?: OperationId | undefined
@@ -45,6 +48,9 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  projects?: OrganizationProjectPage
+  hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema>
+
   assignmentBatch?: import('./assignment-batch.ts').AssignmentBatch
   planningPlan?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningPlanViewSchema>
   planning?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningViewSchema>

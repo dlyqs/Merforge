@@ -7,6 +7,11 @@ import type { OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai
 import { workgraphPageSchema, workgraphVersionSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import { randomUUID } from 'node:crypto'
 import type { OrganizationProps } from '../src/client/contract.ts'
+import { OrganizationTaskList } from '../src/client/Tasks.tsx'
+import { createOrganizationTaskStore } from '../src/client/task-store.ts'
+import { OrganizationHierarchy } from '../src/client/Hierarchy.tsx'
+import { MemberSelect } from '../src/client/MemberSelect.tsx'
+import { readNavigationProjects } from '../src/client/projects.ts'
 import { Workbench } from '../src/client/Workbench.tsx'
 import { OrganizationDialog } from '../src/client/OrganizationDialog.tsx'
 import { TaskGrants } from '../src/client/TaskGrants.tsx'
@@ -178,4 +183,65 @@ it('edits selected task access using names and the displayed grant version witho
     planId: task.planId, taskId: task.id, membershipId: memberId, scope: 'node', actions: [], expectedVersion: 8,
   } })
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-read')).toBe(false)
+})
+
+it('loads navigation pages with a consistent cursor independently of workspace search and rejects late identities', async () => {
+  const h = fixture(), second = { ...h.project, id: brandString<typeof h.project.id>(randomUUID()), name: 'Second project' }
+  h.connection.mockImplementation(async action => action.kind === 'project-page' ? { generation: 1,
+    projects: { items: action.offset ? [second] : [h.project], total: 2, offset: action.offset, revision: 1, cursor: h.page.cursor } } : {})
+  expect(await readNavigationProjects(h.connection, 1, () => true)).toEqual([h.project, second])
+  expect(h.connection).toHaveBeenNthCalledWith(2, { kind: 'project-page', offset: 1, cursor: h.page.cursor })
+  expect(await readNavigationProjects(h.connection, 2, () => true)).toBeUndefined()
+})
+it('selects a paginated authorized task node without assigning or starting it', async () => {
+  const h = fixture(), second = { ...h.page.items[0]!, id: brandString<import('@deepseek-ai/dsh-organization').OrganizationTaskId>(randomUUID()), goal: 'Next node' }
+  const principal = { serverId: brandString<import('@deepseek-ai/dsh-organization').ServerId>(randomUUID()), accountId: brandString<import('@deepseek-ai/dsh-organization').AccountId>(randomUUID()) }
+  h.setState({ principal })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'project-page') return { generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: h.page.cursor } }
+    if (action.kind === 'workgraph-tasks') {
+      const request = action.request as { offset: number }
+      return h.reply({ kind: 'tasks', value: { ...h.page, items: request.offset ? [second] : h.page.items, total: 2, offset: request.offset } })
+    }
+    return {}
+  })
+  const store = createOrganizationTaskStore().create(), openTasks = vi.fn()
+  render(<OrganizationTaskList {...h.props} useStore={selector => selector(store.getSnapshot())} actions={store.actions}
+    openTasks={openTasks} />)
+  fireEvent.click(await screen.findByRole('button', { name: second.goal }))
+  expect(store.getSnapshot().selected).toEqual({ ...principal, organizationId: h.project.organizationId, projectId: h.project.id,
+    planId: second.planId, taskId: second.id })
+  expect(openTasks).toHaveBeenCalledOnce()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command' || action.kind === 'execution-command')).toBe(false)
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-tasks')[1]?.[0]).toMatchObject({ request: { offset: 1, cursor: h.page.cursor } })
+})
+it('shows self and direct reports in the assignment selector and keeps indirect reports out', () => {
+  const h = fixture(), c = h.props.useOrganization(s => s.connection), own = c.organizations[0]!.membershipId
+  const lead = brandString<typeof own>(randomUUID()), junior = brandString<typeof own>(randomUUID())
+  const peer = brandString<typeof own>(randomUUID())
+  c.hierarchy = [{ id: own, username: 'Manager', role: 'member', enabled: true, supervisorId: null, version: 0 },
+    { id: lead, username: 'Direct report', role: 'member', enabled: true, supervisorId: own, version: 1 },
+    { id: junior, username: 'Indirect report', role: 'member', enabled: true, supervisorId: lead, version: 1 },
+    { id: peer, username: 'Peer', role: 'member', enabled: true, supervisorId: null, version: 0 }]
+  render(<MemberSelect t={h.props.t} connection={c} labelKey="assignee" value="" change={vi.fn()} assignableOnly />)
+  expect(screen.getByRole('option', { name: /Manager/ })).toBeTruthy()
+  expect(screen.getByRole('option', { name: 'Direct report' })).toBeTruthy()
+  expect(screen.queryByRole('option', { name: 'Indirect report' })).toBeNull()
+  expect(screen.queryByRole('option', { name: 'Peer' })).toBeNull()
+})
+it('draws reporting members and only administrators can explicitly save a new supervisor', async () => {
+  const h = fixture(), org = h.props.useOrganization(s => s.connection.organizations[0]!)
+  const own = org.membershipId, child = brandString<typeof own>(randomUUID())
+  const nodes = [{ id: own, username: 'Manager', role: 'member' as const, enabled: true, supervisorId: null, version: 0 },
+    { id: child, username: 'Employee', role: 'member' as const, enabled: true, supervisorId: own, version: 4 }]
+  h.connection.mockImplementation(async action => action.kind === 'hierarchy' ? { hierarchy: nodes, generation: 1 } : {})
+  const view = render(<OrganizationHierarchy {...h.props} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Employee/ }))
+  expect(screen.queryByLabelText(zh.directSupervisor)).toBeNull()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'command')).toBe(false)
+  h.setState({ organizations: [{ ...org, role: 'admin' }] }); view.rerender(<OrganizationHierarchy {...h.props} />)
+  fireEvent.change(screen.getByLabelText(zh.directSupervisor), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.save }))
+  await waitFor(() => { expect(h.connection.mock.calls.find(([action]) => action.kind === 'command')?.[0]).toMatchObject({ command: {
+    kind: 'set-supervisor', membershipId: child, supervisorId: null, expectedVersion: 4, organizationId: h.project.organizationId } }) })
 })

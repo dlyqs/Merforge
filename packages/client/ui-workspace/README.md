@@ -216,3 +216,7 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. This is a pure-consumer plugin that registers presentational components into two host-declared slots and registers its locale dictionaries; its inject face consists of stateless RPC wrappers plus a create-and-open call. It emits no Cordis events and owns no cross-plugin mutable state.
+
+## Identity-specific conversation gestures
+
+`uiWorkspace.registerSessionStarter(start, show?)` registers synchronous consumers for the new-conversation and return-to-conversation gestures. A consumer returns true only when its current identity owns the gesture; its disposer restores ordinary Session navigation. `startSession()` consults these consumers before personal Session creation. `showConversation()` consults the optional show consumers before selecting the personal main panel. The organization UI consumes both gestures while organization mode is selected.

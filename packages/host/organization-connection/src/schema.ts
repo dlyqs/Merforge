@@ -43,6 +43,7 @@ revision: version,
 cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('project-page'), offset: z.number().int().nonnegative(), cursor: z.string().optional() }).strict(),
   z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
   z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('device-register'), name: z.string().trim().min(1).max(120) }).strict(),
@@ -53,7 +54,7 @@ export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('trust'), fingerprint: z.string() }).strict(),
   z.object({ kind: z.literal('login'), username: z.string(), password: z.string() }).strict(),
   z.object({ kind: z.literal('register'), username: z.string(), password: z.string(), invitationToken: z.string() }).strict(),
-  z.object({ kind: z.enum(['logout', 'reconnect', 'personal', 'reconcile']) }).strict(),
+  z.object({ kind: z.enum(['logout', 'reconnect', 'personal', 'reconcile', 'hierarchy']) }).strict(),
   z.object({ kind: z.literal('select'), organizationId: org }).strict(),
   z.object({ kind: z.literal('search'), query: z.string().max(120), offset: version }).strict(),
   z.object({ kind: z.literal('invite'), role }).strict(),

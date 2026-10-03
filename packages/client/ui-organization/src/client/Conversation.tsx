@@ -1,54 +1,58 @@
 /** Private organization conversation view over fixed native actions and current authorized task facts. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Input, IconUsersOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import type { ConversationSelectionProps, ConversationSelection } from './conversation-store.ts'
+import type { ConversationSelectionProps } from './conversation-store.ts'
 import type { OrganizationProps } from './contract.ts'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import type { ConversationRequest, ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
+import { readNavigationProjects } from './projects.ts'
 import { ConversationPlan } from './ConversationPlan.tsx'
-import { Inbox } from './Inbox.tsx'
 import css from './Organization.module.css'
 
 type Request = ConversationRequest
 type Goal = ConversationResult['goals'][number]
 /** @param props - Native identity subscription and fixed actions. @returns Project conversation entry, independent of the workbench. */
 export function OrganizationConversation(props: OrganizationProps & ConversationSelectionProps) {
-  const c = props.useOrganization(s => s.connection)
-  const selectedTask = props.useStore(s => s.selected)
-  const taskSelected = selectedTask && selectedTask.serverId === c.principal?.serverId
-    && selectedTask.accountId === c.principal.accountId && selectedTask.organizationId === c.organizationId
-  const [selected, setSelected] = useState('')
-  const project = c.projects?.items.find(p => p.id === selected)
-  return <section className={css.card}>
-    <h2>{props.t('conversationTitle')}</h2>
-    <Inbox {...props} />
-    {taskSelected && <SelectedTaskConversation key={`${selectedTask.serverId}:${selectedTask.accountId}:${selectedTask.assignmentId}`}
-      {...props} selected={selectedTask} />}
-    <label className={css.field}>{props.t('projects')}<select value={selected} onChange={(e) => { setSelected(e.target.value) }}>
-      <option value="">{props.t('conversationProject')}</option>
-      {c.projects?.items.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-    </select></label>
-    {project && c.mode === 'organization' && <ProjectConversation key={`${c.principal?.serverId}:${c.principal?.accountId}:${project.id}`} {...props} project={project} />}
+  const c = props.useOrganization(s => s.connection), selected = props.useStore(s => s.selected)
+  const [projectPage, setProjectPage] = useState<{ generation: number; items: OrganizationProjectView[] }>()
+  useEffect(() => {
+    let active = true; setProjectPage(undefined)
+    if (c.phase === 'ready' && c.mode === 'organization') void readNavigationProjects(props.connection, c.generation, () => active)
+      .then((items) => { if (active && items) setProjectPage({ generation: c.generation, items }) }, (_error: unknown) => {
+        /* A failed read leaves project selection unavailable until refresh. */
+      })
+    return () => { active = false }
+  }, [c.phase, c.mode, c.generation])
+  const projects = projectPage && projectPage.generation === c.generation ? projectPage.items : []
+  const valid = selected && selected.serverId === c.principal?.serverId && selected.accountId === c.principal.accountId
+    && selected.organizationId === c.organizationId
+  const project = valid ? projects.find(p => p.id === selected.projectId) : undefined
+  const assignment = valid && selected.planId && selected.assignmentId
+    ? { planId: selected.planId, assignmentId: selected.assignmentId } : undefined
+  return <section className={css.conversationPage}>
+    {!valid || !project ? <>
+      <h2>{props.t('conversationNewGoal')}</h2>
+      <label className={css.field}>{props.t('conversationProject')}<select value="" disabled={c.phase !== 'ready'} onChange={(e) => {
+        if (!c.principal || !c.organizationId) return
+        const project = projects.find(p => p.id === e.target.value)
+        if (project) props.actions.select({ ...c.principal, organizationId: c.organizationId, projectId: project.id,
+          conversationId: valid && selected.conversationId ? selected.conversationId : randomUUID() as Request['conversationId'] })
+      }}><option value="">{props.t('chooseProject')}</option>
+        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select></label>{!projects.length && <p>{props.t('emptyProjects')}</p>}
+    </> : <ProjectConversation key={`${selected.serverId}:${selected.accountId}:${selected.conversationId ?? selected.assignmentId}:${project.id}`}
+      {...props} project={project} {...(assignment ? { assignment } : {})}
+      conversationId={selected.conversationId} botId={selected.botId} onChange={props.actions.refresh} />}
   </section>
 }
-/** @param props - Account-scoped sidebar selection. @returns The independently authorized employee conversation. */
-function SelectedTaskConversation(props: OrganizationProps & { selected: ConversationSelection }) {
-  const c = props.useOrganization(s => s.connection), selected = props.selected
-  const [project, setProject] = useState<OrganizationProjectView>()
-  useEffect(() => {
-    let active = true
-    if (c.phase === 'ready' && c.mode === 'organization') void props.connection({ kind: 'planning-read', request: {
-      organizationId: selected.organizationId, projectId: selected.projectId, conversationId: selected.assignmentId,
-    } }).then((result) => { if (active) setProject(result.planning?.project) }, () => { if (active) setProject(undefined) })
-    return () => { active = false }
-  }, [c.generation, c.phase])
-  return project ? <ProjectConversation {...props} project={project}
-    assignment={{ planId: selected.planId, assignmentId: selected.assignmentId }} /> : <p>{props.t('conversationUnavailable')}</p>
-}
 /** @param props - Project and current native actions. @returns Persistent private transcript and unapproved task tree. */
-export function ProjectConversation(props: OrganizationProps & { project: OrganizationProjectView; assignment?: Request['assignment'] }) {
+export function ProjectConversation(props: OrganizationProps & { project: OrganizationProjectView
+  assignment?: Request['assignment']
+  conversationId?: Request['conversationId'] | undefined
+  botId?: Request['botId']
+  onChange?(): void }) {
   const c = props.useOrganization(s => s.connection), { t } = props
   const [reply, setReply] = useState<{ generation: number; result: ConversationResult }>()
   const [policy, setPolicy] = useState<{ generation: number; value: NonNullable<ConnectionResult['planning']> }>()
@@ -60,8 +64,10 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
   const alive = useRef(false), sequence = useRef(0), lock = useRef(false)
   const pending = useRef<Request>()
   const planningQuery = { organizationId: props.project.organizationId, projectId: props.project.id,
-    conversationId: String(props.assignment?.assignmentId ?? props.project.id) as Request['conversationId'] }
-  const query = { ...planningQuery, ...(props.assignment ? { assignment: props.assignment } : {}) }
+    conversationId: String(
+      props.assignment?.assignmentId ?? props.conversationId ?? props.project.id) as Request['conversationId'] }
+  const query = { ...planningQuery, ...(props.botId ? { botId: props.botId } : {}),
+    ...(props.assignment ? { assignment: props.assignment } : {}) }
   const ready = c.phase === 'ready' && c.mode === 'organization' && c.organizationId === props.project.organizationId
   const current = ready && reply?.generation === c.generation ? reply.result : undefined
   const retainedGoal = goalId === null ? undefined : reply?.result.goals.find(g => g.id === goalId) ?? reply?.result.goals.at(-1)
@@ -75,7 +81,7 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
       const result = await props.conversation(request)
       if (!alive.current || sequence.current !== epoch) return
       setReply(result); pending.current = undefined
-      if (request.kind === 'send') { setText(''); setGoalId(request.goalId ?? result.result.goals.at(-1)?.id) }
+      if (request.kind === 'send') { setText(''); setGoalId(request.goalId ?? result.result.goals.at(-1)?.id); props.onChange?.() }
     } catch (_error) { if (alive.current && sequence.current === epoch) setNotice(t('conversationFailure')) }
     finally { lock.current = false; if (alive.current) setBusy(false) }
   }
@@ -93,7 +99,7 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
     void Promise.all([props.connection({ kind: 'planning-read', request: planningQuery }),
       props.conversation({ ...query, kind: 'open', operationId: randomUUID() as Request['operationId'] }),
       props.connection({ kind: 'workgraph-tasks', request: { organizationId: query.organizationId, projectId: query.projectId } })]).then(([p, r, tasks]) => {
-      if (alive.current && epoch === sequence.current && p.planning) { setPolicy({ generation: r.generation, value: p.planning }); setReply(r); setTargets(tasks.workgraph); setNotice('') }
+      if (alive.current && epoch === sequence.current && p.planning) { setPolicy({ generation: r.generation, value: p.planning }); setReply(r); setTargets(tasks.workgraph); setNotice(''); props.onChange?.() }
     }, () => { if (alive.current && epoch === sequence.current) setNotice(t('conversationFailure')) })
   }, [ready, c.generation])
   const send = () => {
@@ -105,8 +111,15 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
         route: !goal ? 'new_goal' : goal.classification === 'clarify' ? 'clarification' : route, ...(goal ? { goalId: goal.id } : {}), ...(!goal && target ? { target: { planId: target.planId, taskId: target.id } } : {}) }
     pending.current = request; void run(request)
   }
+  useEffect(() => {
+    if (!props.botId || !current?.catalog) return
+    const bot = current.catalog.bots.find(b => b.id === props.botId)
+    const index = bot ? models.findIndex(m => m.model === bot.selection.model && m.endpoint === bot.selection.endpoint) : -1
+    if (index >= 0) setModel(String(index))
+  }, [props.botId, policy?.generation])
   const settings = current?.settings
   return <section className={css.form}>
+    <h2>{props.project.name}</h2>
     <p>{t('conversationPrivate')}</p>
     {current?.assignment && <><p>{t('conversationAssignmentOrigin', { task: current.assignment.taskId, issuer: current.assignment.approvedBy, revision: current.assignment.planRevision })}</p>
       <p>{t(`assignment-${current.assignment.state}`)}</p>{current.assignment.planRevision !== goal?.proposal?.revision && <p>{t('assignmentOldVersion')}</p>}</>}
@@ -152,6 +165,3 @@ export function ProjectConversation(props: OrganizationProps & { project: Organi
     </form>
   </section>
 }
-
-/** @returns Organization conversation navigation glyph. */
-export function OrganizationConversationIcon() { return <IconUsersOutlineRegular size={21} /> }

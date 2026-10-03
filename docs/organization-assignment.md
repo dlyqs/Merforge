@@ -95,3 +95,9 @@ Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment
 SQLite v7 retains preparation delegations without expanding `task-read` or `draft`. The employee separately grants finite execution capabilities bound to a preparation delegation, device and configuration digest. Run creation and action reservation use current exact-version and dual-epoch qualification. Claiming or opening a prepared execution Session never starts a model. See the [execution protocol](organization-execution.md).
 
 执行 Phase 8 起，带自身或祖先依赖的叶子允许批准与准备；真实执行要求当前可读的已验收前置成果。目标核验及最终确认见[执行协议](organization-execution.md#phase-8依赖准入与目标集成)。
+
+## 组织层级与分发权限
+
+SQLite v15 的 organization_hierarchy 独立保存成员的直属上级及版本，由组织管理员明确修改。普通成员只能向自己及直属下属分配；不能向同级或间接下属分配。管理员可以向本组织任意启用成员分配。以上规则叠加现有项目 read/write、任务 read/edit、负责人 read 和准确版本校验，不因层级关系自动补授权。审核和实际批准均由服务端校验。
+
+修改上级会重新检查原下发人的分配权限；不再符合规则的分配及其委托、租约和新执行资格失效，保留原有历史回执。组织任务视图可选节点并使用原有分配审核与确认控件；打开节点不自动下发。组织工作台的组织架构页按直属上级画树，管理员选择成员后修改上级并保存，拒绝循环、跨组织关系和过期版本。

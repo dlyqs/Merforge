@@ -307,6 +307,23 @@ function bench(options: BenchOptions = {}) {
 }
 
 describe('UiWorkspaceService', () => {
+  it('routes new conversations through the active identity consumer and restores personal creation on disposal', async () => {
+    const b = bench()
+    const start = vi.fn(() => true)
+    const show = vi.fn(() => true)
+    const off = b.uiWorkspace.registerSessionStarter(start, show)
+    b.uiWorkspace.startSession()
+    expect(start).toHaveBeenCalledOnce()
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    b.uiWorkspace.showConversation()
+    expect(show).toHaveBeenCalledOnce()
+    off()
+    b.uiWorkspace.showConversation()
+    expect(b.selectPanel).toHaveBeenCalledWith(null)
+    b.uiWorkspace.startSession()
+    await vi.waitFor(() => { expect(b.sessions.create).toHaveBeenCalledOnce() })
+  })
+
   it('starts an ordinary Session after both startup catalogs are ready', async () => {
     const b = bench()
     b.sessions.list.set(sessionState())

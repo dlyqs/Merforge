@@ -61,6 +61,15 @@ export interface UiWorkspace {
    */
   startSession(workspaceId?: WorkspaceId): void
   /**
+   * Register an identity-specific new-conversation consumer; true means it owns this gesture.
+   * @param start - Synchronous admission and navigation for the selected identity.
+   * @param show - Optional consumer of navigation back to the current conversation.
+   * @returns Disposer restoring personal navigation.
+   */
+  registerSessionStarter(start: () => boolean, show?: () => boolean): () => void
+  /** Show the current identity's conversation surface without creating another conversation. */
+  showConversation(): void
+  /**
    * Archive a Session and clear it when it is the current selection.
    * @param sessionId - Session to archive.
    * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
@@ -129,6 +138,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   private readonly selection = createSnapshotStore<MainSelection>(
     {}, { persist: { name: 'dsh.sessions.current' } },
   )
+  private readonly sessionStarters = new Map<() => boolean, (() => boolean) | undefined>()
   private mainReference: SessionReference | undefined
 
   /**
@@ -219,7 +229,18 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     await this.sessions.fork({ sessionId, increaseTitle: true })
   }
 
+  registerSessionStarter(start: () => boolean, show?: () => boolean): () => void {
+    this.sessionStarters.set(start, show)
+    return () => { this.sessionStarters.delete(start) }
+  }
+
+  showConversation(): void {
+    if ([...this.sessionStarters.values()].some(show => show?.())) return
+    this.ctx.layout.selectPanel(null)
+  }
+
   startSession(workspaceId?: WorkspaceId): void {
+    if (workspaceId === undefined && [...this.sessionStarters.keys()].some(start => start())) return
     if (workspaceId !== undefined) {
       void this.openWorkspace(workspaceId).catch(
         (reason: unknown) => { console.warn('new session failed:', reason) },

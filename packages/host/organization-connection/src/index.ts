@@ -1,3 +1,4 @@
+import { hierarchySchema } from '@deepseek-ai/dsh-organization/protocol'
 import { AssignmentBatches } from './assignment-batch.ts'
 import { planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 import { integrationReadSchema, integrationCommandSchema, integrationViewSchema } from '@deepseek-ai/dsh-organization/delivery'
@@ -158,7 +159,7 @@ export class OrganizationConnection {
     this.generation++
     this.denialRefreshed = denialRefreshed
     this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
-      members: [], error: undefined, ...next })
+      members: [], hierarchy: undefined, error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
@@ -443,6 +444,16 @@ export class OrganizationConnection {
           const cursor = action.offset ? this.state.projects?.cursor : undefined
           const next = this.reset({ phase: 'loading' })
           await this.refresh(next, action.query, action.offset, cursor); return {}
+        }
+        case 'project-page': {
+          const id = this.currentOrganization()
+          const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=&offset=${action.offset}${action.cursor ? `&cursor=${encodeURIComponent(action.cursor)}` : ''}`, undefined, generation))
+          return { generation, projects }
+        }
+        case 'hierarchy': {
+          const id = this.currentOrganization()
+          const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
+          return { generation, hierarchy }
         }
         case 'grants': {
           const id = this.currentOrganization()
@@ -772,8 +783,9 @@ export class OrganizationConnection {
     const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=${encodeURIComponent(query)}&offset=${offset}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, undefined, generation))
     const inbox = inboxPageSchema.parse(await this.request('/assignment/inbox', { organizationId: id }, generation))
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
+    const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
     if (generation !== this.generation) return
-    this.publish({ organizations, projects, members, inbox, phase: 'ready', error: undefined })
+    this.publish({ organizations, projects, members, hierarchy, inbox, phase: 'ready', error: undefined })
     this.follow(generation, id, projects, 'projects')
     this.follow(generation, id, projects, 'workgraph')
     this.follow(generation, id, inbox, 'inbox')

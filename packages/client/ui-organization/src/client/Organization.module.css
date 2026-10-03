@@ -119,3 +119,21 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.browser { display: flex; flex-direction: column; gap: 8px; padding-block: 12px; }
+.browser h3, .browser h4 { margin: 4px 0; }
+.browser > button, .botRow > button:first-child { justify-content: flex-start; text-align: start; height: auto; white-space: normal; overflow-wrap: anywhere; }
+.browser small { display: block; color: var(--dsw-alias-label-tertiary); }
+.botRow { display: flex; align-items: center; gap: 4px; }
+.botRow > button:first-child { flex: 1; }
+.conversationPage { width: min(100%, 960px); margin-inline: auto; padding: 24px; overflow-y: auto; height: 100%; }
+.taskTree { list-style: none; margin: 0; padding: 0; }
+.taskTree button { display: block; width: 100%; border: 0; border-left: 1px solid var(--dsw-alias-border-l2); padding: 10px; background: transparent; color: var(--dsw-alias-label-primary); text-align: start; font: inherit; cursor: pointer; }
+.taskTree button:hover, .taskTree button[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
+.chart { overflow: auto; padding: 12px; }
+.chart ul { display: flex; justify-content: center; gap: 16px; list-style: none; margin: 0; padding: 20px 0 0; }
+.chart li { display: flex; flex-direction: column; align-items: center; position: relative; }
+.chart li::before { content: ''; height: 20px; border-left: 1px solid var(--dsw-alias-border-l2); position: absolute; top: -20px; }
+.chart li > ul { border-top: 1px solid var(--dsw-alias-border-l2); margin-top: 20px; }
+.chartNode { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 130px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); font: inherit; cursor: pointer; }
+.chartNode[aria-pressed="true"] { border-color: var(--dsw-alias-brand-primary); }

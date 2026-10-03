@@ -29,6 +29,9 @@ export function ConversationTask(props: OrganizationProps & { projectId: Organiz
   const current = c.phase === 'ready' && c.mode === 'organization' && detail?.generation === c.generation
   if (!detail) return null
   return <div hidden={!current}>
+    <h3>{detail.task.goal}</h3><p>{detail.task.scope}</p>
+    <p>{props.t('taskVersion', { revision: detail.task.revision })}</p>
+    <ul>{detail.task.acceptance.map((text, i) => <li key={i}>{text}</li>)}</ul>
     <AssignmentPanel key={`${props.taskId}:${props.assignmentId ?? ''}`} {...props} task={detail.task} current={current} />
     <ExecutionPanel key={`${props.taskId}:${props.assignmentId ?? ''}:${detail.task.revision}`} {...props} task={detail.task} current={current} />
     {current && <IntegrationPanel {...props} task={detail.task} />}
