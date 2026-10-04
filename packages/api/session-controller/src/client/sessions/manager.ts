@@ -132,7 +132,7 @@ export class SessionManager {
    * @param target - known identity or durable direct-parent address.
    * @returns the resolved identity with its explicit or catalog-derived history route installed.
    */
-  resolveTarget(target: Exclude<SessionTarget, { kind: 'external' }>): SessionId {
+  resolveTarget(target: Exclude<SessionTarget, { kind: 'external' | 'account' }>): SessionId {
     const id = typeof target === 'string' ? target : target.childSessionId
     const address = typeof target === 'string' ? this.subagentAddress(id) : target
     if (typeof target === 'string'

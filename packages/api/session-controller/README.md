@@ -147,3 +147,11 @@ Native groups use the shared `codexSetup` discovery owner. A failure carries a f
 ## Personal planning defaults
 
 `workflowPreferences` and `workflowSetPreferences` expose profile-owned automatic recognition and suggested granularity through the generated Session Remote. They compare the exact settings revision and do not create plans, activate Agents or grant execution. `workflowMode` returns the last explicit Session choice, otherwise the profile default, initially enabled. Human Session overrides and existing task execution controls remain separate. See [conversation planning](../../../docs/conversation-planning.md).
+
+## Account-owned ordinary Sessions
+
+Native account owners use the non-Remote `importSession` method to adopt validated history into the standard preset and `releaseSession` to drain its Agent while retaining durable history. A durable alias permits ordinary prompt, attachment, command, queue, model-selection and follow APIs to serve organization conversations. The account access policy authorizes those operations and hides the alias and its descendants from the default catalog.
+
+The Client `AccountSessionTarget` contributes task controls to an ordinary Controller-owned Session. It supplies no message transport or event window. Account retention withdraws old scopes and clears their history and projections on replacement or identity loss. Account rows are available by ID to the common panel without joining personal sidebar IDs.
+
+Backend switching creates an empty successor through the ordinary Controller. Account successors inherit the source as their durable parent before publication. The Host-only serial `api-session/backend-replaced` event lets the account owner persist task metadata and navigation before returning the replacement ID. Message history is not copied by this event.

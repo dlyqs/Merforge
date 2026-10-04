@@ -64,7 +64,7 @@ export async function boot(root: string) {
         if (!query) return
         if (response.type === 'organization-conversation-result') {
           if (response.result) query.resolve(response.result); else query.reject(new Error(response.error))
-        } else {
+        } else if (response.type === 'organization-conversation-authorize') {
           void query.authorize(response.command).then(authority => bus.emit('message',
             { requestId: response.requestId, nonce, authorizationId: response.authorizationId,
               type: 'organization-conversation-authorized', authority }), (error: unknown) => bus.emit('message', {

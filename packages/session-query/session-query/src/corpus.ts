@@ -59,6 +59,7 @@ export class SessionCorpus {
    * @returns records in deterministic newest-first order.
    */
   async listSessions(signal?: AbortSignal): Promise<SessionRecord[]> {
+    await this._ctx.sessions.prepareAccess()
     signal?.throwIfAborted()
     const persistence = this._persistence
     const persisted = persistence === undefined ? [] : await listPersisted(persistence, signal)
@@ -76,7 +77,7 @@ export class SessionCorpus {
         persisted: durable !== undefined,
       })
     }
-    return [...records.values()].sort(compareSessions)
+    return [...records.values()].filter(row => this._ctx.sessions.visible(row.header.id)).sort(compareSessions)
   }
 
   /**
@@ -89,6 +90,7 @@ export class SessionCorpus {
    * @returns detached live-preferred header and events.
    */
   async load(sessionId: SessionId, signal?: AbortSignal): Promise<LogicalSession> {
+    await this._ctx.sessions.authorizeAccess(sessionId)
     signal?.throwIfAborted()
     const live = this._ctx.sessions.get(sessionId)
     if (live !== undefined) {
@@ -139,6 +141,8 @@ export class SessionCorpus {
     const resolved = new Map<SessionId, LogicalProjectionResult<Value>>()
     const unresolved: SessionId[] = []
     for (const id of ids) {
+      try { await this._ctx.sessions.authorizeAccess(id) }
+      catch (error: unknown) { resolved.set(id, { sessionId: id, status: 'rejected', reason: error }); continue }
       const session = this._ctx.sessions.get(id)
       if (session === undefined) {
         unresolved.push(id)

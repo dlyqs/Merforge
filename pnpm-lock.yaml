@@ -12562,6 +12562,9 @@ importers:
       '@deepseek-ai/cordis-plugin-loader':
         specifier: workspace:~
         version: link:../../../vendor/loader
+      '@deepseek-ai/dsh-agent-default-model':
+        specifier: workspace:*
+        version: link:../../core/agent-default-model
       '@deepseek-ai/dsh-api-session-controller':
         specifier: workspace:*
         version: link:../../api/session-controller
@@ -12574,6 +12577,9 @@ importers:
       '@deepseek-ai/dsh-organization-connection':
         specifier: workspace:*
         version: link:../../host/organization-connection
+      '@deepseek-ai/dsh-personal-workflow':
+        specifier: workspace:*
+        version: link:../personal-workflow
       '@deepseek-ai/dsh-session-query':
         specifier: workspace:*
         version: link:../../session-query/session-query

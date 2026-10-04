@@ -364,6 +364,7 @@ export class CommandRuntime extends TypertRemoteService {
     submittedAttachments: readonly CommandSubmitAttachment[],
     signal: AbortSignal,
   ): Promise<CommandExecution | undefined> {
+    await this.ctx.get('sessions')?.authorizeAccess(agent.id)
     const parsed = parseCommand(line)
     if (parsed === undefined) return undefined
     const command = this.view(agent).get(parsed.name)

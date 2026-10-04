@@ -165,3 +165,7 @@ Recursive traversal through cited source events, extractor and search-provider r
 </details>
 
 Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.
+
+## Account access
+
+`registerAccessPolicy` delegates to the ordinary Session store. Exact observations, corpus reads and batched title projections await current account authorization, including cold history. Corpus listings exclude account-owned rows from the default catalog after durable ownership initializes. Organization owners supply permission checks; query does not compose a separate Agent.

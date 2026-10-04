@@ -4,8 +4,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { conversationHostMessageSchema, type ConversationAuthority } from '@deepseek-ai/dsh-organization-conversation'
 
 /**
- * Attach planning operations to the owned parent channel and drain them on disposal.
- * @param ctx - Loaded personal Host containing the isolated conversation plugin.
+ * Attach organization authorization to the common Session runtime and drain it on disposal.
+ * @param ctx - Loaded Desktop Host containing the account conversation owner.
  * @param channel - Private Node IPC channel, never a Renderer port.
  */
 export function installOrganizationConversationControl(ctx: Context, channel: {
@@ -46,21 +46,30 @@ export function installOrganizationConversationControl(ctx: Context, channel: {
     pending.set(message.requestId, active)
     active.done = (async () => {
       try {
-        const result = await ctx.organizationConversation.perform(message.request, command => new Promise((resolve, reject) => {
+        const authorize = (command?: Parameters<import('@deepseek-ai/dsh-organization-conversation').ConversationBridge>[0]) => new Promise<ConversationAuthority>((resolve, reject) => {
           cancel.signal.throwIfAborted()
           const id = randomUUID()
           active.authorizations.set(id, { resolve, reject })
           channel.send({ type: 'organization-conversation-authorize', requestId: message.requestId,
             nonce: message.nonce, authorizationId: id, ...(command ? { command } : {}) })
-        }), cancel.signal)
-        cancel.signal.throwIfAborted()
-        channel.send({ type: 'organization-conversation-result', requestId: message.requestId, nonce: message.nonce, result })
+        })
+        if (message.request.kind === 'attach') {
+          await ctx.organizationConversation.attach(message.request, authorize, cancel.signal, (result) => {
+            clearTimeout(timer)
+            channel.send({ type: 'organization-conversation-result', requestId: message.requestId, nonce: message.nonce, result })
+          })
+        } else {
+          const result = await ctx.organizationConversation.perform(message.request, authorize, cancel.signal)
+          cancel.signal.throwIfAborted()
+          channel.send({ type: 'organization-conversation-result', requestId: message.requestId, nonce: message.nonce, result })
+        }
       } catch (_error) {
         ctx.logger.info('component=conversation operationId=%s result=denied', message.request.operationId)
         channel.send({ type: 'organization-conversation-result', requestId: message.requestId,
           nonce: message.nonce, error: 'organization-conversation-unavailable' })
       } finally {
         clearTimeout(timer); cancel.signal.removeEventListener('abort', aborted); pending.delete(message.requestId)
+        if (message.request.kind === 'attach') channel.send({ type: 'organization-conversation-closed', requestId: message.requestId, nonce: message.nonce })
       }
     })().catch((error: unknown) => { ctx.logger.warn('component=conversation result=ipc-unavailable',
       error instanceof Error ? error.name : 'Error') })

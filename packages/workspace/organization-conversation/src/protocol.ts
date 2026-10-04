@@ -24,9 +24,11 @@ export const conversationOwnerSchema = conversationAuthoritySchema.pick({ server
   .extend(planningReadSchema.shape).extend({ assignment: conversationAssignmentSchema.optional() }).strict()
 /** Identity of a private organization Bot; it never refers to a personal preset. */
 export const conversationBotIdSchema = uuid<Branded<'OrganizationConversationBotId'>>()
-/** Account-private planning Bot configuration; model dispatch retains organization policy checks. */
+const commonModelSelectionSchema = z.object({ backend: z.enum(['harness-api', 'codex']).optional(),
+  provider: z.string().min(1), model: z.string().min(1), reasoningEffort: z.string().min(1).optional() }).strict()
+/** Account-private Bot instructions and ordinary model selection; historical endpoint selections remain readable. */
 export const conversationBotSchema = z.object({ id: conversationBotIdSchema, name: z.string().trim().min(1).max(120),
-  instructions: z.string().max(8192), selection: planningOpenSchema.shape.selection,
+  instructions: z.string().max(8192), selection: z.union([commonModelSelectionSchema, planningOpenSchema.shape.selection]),
   version: z.number().int().nonnegative() }).strict()
 /** Project-authorized navigation metadata, without private transcripts. */
 export const conversationCatalogSchema = z.object({ bots: z.array(conversationBotSchema),
@@ -39,7 +41,8 @@ const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.o
 export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoalId'>>()
 /** Fixed selectors; opening/reading never wakes a model. */
 export const conversationRequestSchema = z.discriminatedUnion('kind', [
-  base.extend({ kind: z.enum(['open', 'read', 'stop', 'catalog']) }).strict(),
+  base.extend({ kind: z.enum(['open', 'read', 'stop', 'catalog', 'attach']) }).strict(),
+  base.extend({ kind: z.literal('detach'), attachmentId: planningOpenSchema.shape.operationId }).strict(),
   base.extend({ kind: z.enum(['delete', 'rename']), title: z.string().trim().min(1).max(120).optional() }).strict(),
   base.extend({ kind: z.literal('affiliation'), nextBotId: conversationBotIdSchema.nullable() }).strict(),
   base.extend({ kind: z.literal('select-task'), target: planningPlanReadSchema.pick({ planId: true, taskId: true }) }).strict(),
@@ -88,6 +91,8 @@ const historyEventSchema: z.ZodType<SessionEvent> = z.object({ type: z.string(),
 /** Bounded private transcript and currently authorized plan or private proposal details. */
 export const conversationResultSchema = z.object({
   sessionId: z.string().regex(/^organization-conversation:[0-9a-f-]{36}$/).transform(SessionId),
+  sharedSessionId: z.string().regex(/^session-[0-9a-f-]{36}$/).transform(SessionId).optional(),
+  attachmentId: planningOpenSchema.shape.operationId.optional(),
   owner: conversationOwnerSchema, assignment: assignmentSchema.optional(), settings: conversationSettingsSchema,
   history: z.array(historyEventSchema).default([]),
   title: z.string().max(120).optional(),
@@ -130,6 +135,7 @@ export const conversationNativeMessageSchema = z.discriminatedUnion('type', [
     command: conversationBridgeCommandSchema.optional() }).strict(),
   correlation.extend({ type: z.literal('organization-conversation-result'),
     result: conversationResultSchema.optional(), error: z.string().optional() }).strict(),
+  correlation.extend({ type: z.literal('organization-conversation-closed') }).strict(),
 ])
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {

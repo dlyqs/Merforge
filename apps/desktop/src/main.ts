@@ -420,13 +420,19 @@ async function main(): Promise<void> {
     if (!host) throw new Error('organization-conversation-unavailable')
     const lifetime = new AbortController(), abort = () => { lifetime.abort() }
     event.sender.once('destroyed', abort); event.sender.once('render-process-gone', abort)
+    let retained = false
+    const close = () => {
+      event.sender.removeListener('destroyed', abort); event.sender.removeListener('render-process-gone', abort)
+    }
     try {
-      return await organizationConversation(organizationManager.connection, host, input, () => {
+      const value = await organizationConversation(organizationManager.connection, host, input, () => {
         assertProductSender(event)
         if (backend.host !== host) throw new Error('superseded')
-      }, lifetime.signal)
+      }, lifetime.signal, close)
+      retained = !!value.result.sharedSessionId && typeof input === 'object' && input !== null && 'kind' in input && input.kind === 'attach'
+      return value
     } finally {
-      event.sender.removeListener('destroyed', abort); event.sender.removeListener('render-process-gone', abort)
+      if (!retained) close()
     }
   })
   ipcMain.handle(DESKTOP_IPC.organizationContext, async (event, input: unknown) => {

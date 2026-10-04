@@ -302,7 +302,7 @@ export class AgentRegistry extends Service {
         wire: 'agentId',
         hostTypeSymbol: '@deepseek-ai/dsh-agent#Agent',
         wireTypeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
-        resolve: sessionId => this.get(sessionId),
+        resolve: async (sessionId) => { await this.ctx.get('sessions')?.authorizeAccess(sessionId); return this.get(sessionId) },
       })
       typeCtx.typert.contexts.registerHost('agent', {
         wire: 'agentId',

@@ -12,6 +12,7 @@ import {
   SessionSeq,
   snapshotSessionEvent,
   type SessionId,
+  type SessionAccessPolicy,
   type SessionSeq as SessionSeqType,
 } from '@deepseek-ai/dsh-session'
 import { foldSessionTitle } from '@deepseek-ai/dsh-session-title'
@@ -89,13 +90,9 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/**
- * Unified live-preferred session query service.
- *
- * Exact reads, filters, and traces are backend-independent concrete behavior.
- * A backend implements full-text observation, reconciliation, ranking, cursor
- * generations, and query execution on the same `ctx.sessionQuery` service.
- */
+export type { SessionAccessPolicy } from '@deepseek-ai/dsh-session'
+
+/** Common Session reads and catalogs with native-owned account policies. */
 export abstract class SessionQueryEngine extends Service {
   static inject = ['sessions']
 
@@ -143,7 +140,34 @@ export abstract class SessionQueryEngine extends Service {
     options: SessionObservationOptions = {},
   ): Promise<SessionObservation> {
     assertPersonalSessionId(sessionId)
-    return this._observations.read(sessionId, options)
+    return this.authorize(sessionId).then(() => this._observations.read(sessionId, options))
+  }
+
+  /**
+   * Register account ownership checks for ordinary Sessions.
+   * @param policy - Native-owned authorization and catalog partitioning.
+   * @returns Disposer removing the policy.
+   */
+  registerAccessPolicy(policy: SessionAccessPolicy): () => Promise<void> {
+    return this.ctx.sessions.registerAccessPolicy(policy)
+  }
+
+  /**
+   * Authorize an exact Session read through current account owners.
+   * @param id - Ordinary Session identity.
+   * @returns Completion after all account checks.
+   */
+  async authorize(id: SessionId): Promise<void> {
+    await this.ctx.sessions.authorizeAccess(id)
+  }
+
+  /**
+   * Apply account filters to a catalog candidate.
+   * @param id - Catalog candidate.
+   * @returns Whether every account policy admits the row.
+   */
+  visible(id: SessionId): boolean {
+    return this.ctx.sessions.visible(id)
   }
 
   /**
@@ -173,8 +197,8 @@ export abstract class SessionQueryEngine extends Service {
    * @param signal - optional cancellation for persistence listing.
    * @returns deterministic newest-first cloned session records.
    */
-  listSessions(signal?: AbortSignal): Promise<SessionRecord[]> {
-    return this._corpus.listSessions(signal)
+  async listSessions(signal?: AbortSignal): Promise<SessionRecord[]> {
+    return (await this._corpus.listSessions(signal)).filter(record => this.visible(record.header.id))
   }
 
   /**

@@ -118,6 +118,7 @@ export class DesktopHostProcess {
     authorize: ConversationBridge
     resolve: (result: ConversationResult) => void
     reject: (error: Error) => void
+    close?: () => void
   }>()
   private readonly executionQueries = new Map<string, {
     authorize: (command?: ExecutionCommand) => Promise<ExecutionAuthority | ExecutionReadAuthority>
@@ -206,7 +207,9 @@ export class DesktopHostProcess {
       if (conversation.success) {
         const response = conversation.data, query = this.conversationQueries.get(response.requestId)
         if (!query || response.nonce !== this.contextNonce) return
-        if (response.type === 'organization-conversation-result') {
+        if (response.type === 'organization-conversation-closed') {
+          query.close?.()
+        } else if (response.type === 'organization-conversation-result') {
           if (response.result && !response.error) query.resolve(response.result)
           else query.reject(new Error(response.error ?? 'organization-conversation-unavailable'))
         } else {
@@ -324,10 +327,11 @@ export class DesktopHostProcess {
    * @param authorize - Native online planning read/command callback.
    * @param timeoutMs - Interval deadline, also enforced by the child.
    * @param signal - Native identity and top-frame lifetime.
-   * @returns Private bounded transcript after Host settlement.
+   * @param onClosed - Account attachment cleanup after the Host drains.
+   * @returns Private transcript, or an attached ordinary Session whose authorization stays owned.
    */
   async organizationConversation(input: ConversationRequest, authorize: ConversationBridge, timeoutMs: number,
-    signal: AbortSignal): Promise<ConversationResult> {
+    signal: AbortSignal, onClosed?: () => void): Promise<ConversationResult> {
     signal.throwIfAborted()
     const request = conversationRequestSchema.parse(input), child = this.child, requestId = randomUUID()
     if (!child?.connected || this.stopping || this.failureReported) throw new Error('organization-conversation-unavailable')
@@ -339,17 +343,25 @@ export class DesktopHostProcess {
     }
     signal.addEventListener('abort', abort, { once: true })
     let timer: ReturnType<typeof setTimeout> | undefined
+    let retained = false
+    const close = () => {
+      clearTimeout(timer); signal.removeEventListener('abort', abort); this.conversationQueries.delete(requestId)
+      onClosed?.()
+    }
     try {
-      return await new Promise<ConversationResult>((resolve, reject) => {
-        this.conversationQueries.set(requestId, { authorize, resolve, reject })
+      const result = await new Promise<ConversationResult>((resolve, reject) => {
+        this.conversationQueries.set(requestId, { authorize, resolve: (value) => { clearTimeout(timer); resolve(value) },
+          reject: (error) => { close(); reject(error) }, close })
         timer = setTimeout(abort, timeoutMs)
         child.send({ type: 'organization-conversation-operation', requestId, nonce: this.contextNonce, request, timeoutMs }, (error) => { if (error) reject(error) })
       })
+      retained = request.kind === 'attach'
+      return result
     } finally {
-      clearTimeout(timer); signal.removeEventListener('abort', abort); this.conversationQueries.delete(requestId)
+      if (!retained) close()
       // The child may disconnect while its owned interval drains.
       // oxlint-disable-next-line typescript/no-unnecessary-condition
-      if (child.connected) child.send({ type: 'organization-conversation-cancel', requestId, nonce: this.contextNonce }, () => {})
+      if (!retained && child.connected) child.send({ type: 'organization-conversation-cancel', requestId, nonce: this.contextNonce }, () => {})
     }
   }
 

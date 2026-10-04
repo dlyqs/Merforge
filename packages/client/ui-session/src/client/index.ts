@@ -448,7 +448,8 @@ export class UiSession extends Service {
     if (!this.active) return
     if (this.mainSource) {
       const reference = this.mainSource.getSnapshot()
-      const value = reference ? this.sourceFor(reference.binding).value : this.absent.value
+      const binding = reference ? this.sessions.binding(reference.sessionId) : undefined
+      const value = binding ? this.sourceFor(binding).value : this.absent.value
       if (value !== this.current.value) { this.current.value = value
         notifySubscribers(this.current.listeners, '[ui-session] account binding') }
       return

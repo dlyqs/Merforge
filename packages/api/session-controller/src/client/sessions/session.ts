@@ -592,6 +592,15 @@ export class Session implements SessionFace {
     this.notifier.markDirty()
   }
 
+  /** Withdraw private account data synchronously before asynchronous stream disposal. */
+  withdrawAccount(): void {
+    this.openGeneration++
+    this.stopObservingInbox()
+    this.projections.clear()
+    this.installWindow([], false)
+    this.notifier.markDirty()
+  }
+
   /**
    * Stop the Session's live Remote source.
    * @returns when the Remote iterator has completed teardown.

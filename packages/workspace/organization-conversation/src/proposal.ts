@@ -24,24 +24,22 @@ export const planningProjection = {
 } satisfies ProjectionDefinition<'organizationPlanning', Projection>
 
 /**
- * Register the isolated proposal consumer; no approval, file or execution capabilities are installed.
- * @param ctx - Isolated runtime with owned tool registry.
+ * Register organization proposal writes on a private or ordinary Agent.
+ * @param ctx - Agent-scoped tool registration owner.
  * @param agent - Current private conversation Agent.
- * @param input - Persisted accepted input and exact settings.
+ * @param inputSource - Persisted input, or a reader for the current ordinary Agent input.
  * @param bridge - Current native authority, scoped to this conversation.
  * @param signal - Interval cancellation.
  */
-export function installProposal(ctx: Context, agent: Agent, input: z.output<typeof conversationInputSchema>,
+export function installProposal(ctx: Context, agent: Agent,
+  inputSource: z.output<typeof conversationInputSchema> | (() => z.output<typeof conversationInputSchema>),
   bridge: ConversationBridge, signal: AbortSignal): void {
-  const request = input.request
-  if (request.kind !== 'send' || !input.settings.enabled) return
+  if (typeof inputSource !== 'function' && (inputSource.request.kind !== 'send' || !inputSource.settings.enabled)) return
   const state = () => {
     const value = ctx.sessionProjections.stateOf(agent.session, 'organizationPlanning')
     if (!value) throw new Error('organization-conversation: projection-required')
     return value
   }
-  const prior = state().proposals.filter(e => e.command.goalId === input.goalId).at(-1)
-  const planId = input.authority.plan?.version.planId ?? prior?.command.planId ?? randomUUID()
   ctx.effect(() => ctx.tools.register(defineTool({ name: 'workflow_propose',
     description: 'Save the current clarified complex goal as an unapproved plan. Use UUID task and phase IDs. Keep existing IDs and the exact current revision when modifying. A subtree replacement keeps its root goal, scope, acceptance and resources unchanged. Saving invalidates previous approvals and execution qualifications; original approvers must approve new leaves. No task is assigned or started. Without edit access this saves a private suggestion only.',
     parameters: {
@@ -62,6 +60,10 @@ export function installProposal(ctx: Context, agent: Agent, input: z.output<type
     },
     output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
     execute: async (args) => {
+      const input = typeof inputSource === 'function' ? inputSource() : inputSource, request = input.request
+      if (request.kind !== 'send' || !input.settings.enabled) throw new Error('organization-conversation: planning-disabled')
+      const prior = state().proposals.filter(e => e.command.goalId === input.goalId).at(-1)
+      const planId = input.authority.plan?.version.planId ?? prior?.command.planId ?? randomUUID()
       signal.throwIfAborted()
       const assessment = state().assessments.filter(e => e.goalId === input.goalId && e.operationId === request.operationId).at(-1)
       if (request.route === 'query' || assessment?.classification !== 'complex') throw new Error('organization-conversation: complex-assessment-required')

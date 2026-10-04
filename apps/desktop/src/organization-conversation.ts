@@ -13,7 +13,7 @@ export interface ConversationHost {
    * @returns Bounded private transcript under current project read.
    */
   organizationConversation(request: ConversationRequest, authorize: ConversationBridge, timeoutMs: number,
-    signal: AbortSignal): Promise<ConversationResult>
+    signal: AbortSignal, onClosed?: () => void): Promise<ConversationResult>
 }
 /**
  * Route a fixed project operation through the native bearer owner and private Host.
@@ -25,7 +25,7 @@ export interface ConversationHost {
  * @returns Generation-scoped private project conversation result.
  */
 export async function organizationConversation(connection: OrganizationConnection, host: ConversationHost, input: unknown,
-  assertCurrent: () => void, lifetime: AbortSignal): Promise<{ generation: number; result: ConversationResult }> {
+  assertCurrent: () => void, lifetime: AbortSignal, onClosed?: () => void): Promise<{ generation: number; result: ConversationResult }> {
   assertCurrent()
   const request = conversationRequestSchema.parse(input), initial = connection.snapshot()
   const cancel = new AbortController(), signal = AbortSignal.any([lifetime, cancel.signal])
@@ -72,11 +72,14 @@ export async function organizationConversation(connection: OrganizationConnectio
       ...(receipt ? { receipt } : {}), ...(plan ? { plan } : {}), ...(candidates ? { candidates } : {}) })
   }
   const unsubscribe = connection.subscribe(() => { if (connection.snapshot().generation !== initial.generation) cancel.abort() })
+  let retained = false
+  const close = () => { unsubscribe(); cancel.abort(); onClosed?.() }
   try {
     const first = await bridge()
     const duration = request.kind === 'send' ? first.view.policy.maxDurationMs + connection.timeoutMs : connection.timeoutMs
-    const result = await host.organizationConversation(request, bridge, duration, signal)
+    const result = await host.organizationConversation(request, bridge, duration, signal, close)
     await bridge(); current()
+    retained = request.kind === 'attach'
     return { generation: initial.generation, result }
   } catch (error) {
     if (!draft.sent || lifetime.aborted || connection.snapshot().generation === initial.generation) throw error
@@ -94,5 +97,5 @@ export async function organizationConversation(connection: OrganizationConnectio
       lifetime.addEventListener('abort', abort, { once: true }); check()
     })
     return await organizationConversation(connection, host, { kind: 'read', ...selector, ...(request.assignment ? { assignment: request.assignment } : {}), operationId: request.operationId }, assertCurrent, lifetime)
-  } finally { unsubscribe(); cancel.abort() }
+  } finally { if (!retained) close() }
 }

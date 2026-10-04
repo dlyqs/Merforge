@@ -21,7 +21,13 @@ import type { SessionReferenceSource } from '../index.ts'
 export type { AgentContext } from '../scope.ts'
 
 /** Known Session identity or durable direct-parent subagent address; an address owns no lifetime. */
-export type SessionTarget = SessionId | SubagentAddress | ExternalSessionTarget
+export type SessionTarget = SessionId | SubagentAddress | ExternalSessionTarget | AccountSessionTarget
+/** An ordinary Host Session with account-owned task controls and catalog partitioning. */
+export interface AccountSessionTarget {
+  readonly kind: 'account'
+  readonly sessionId: SessionId
+  readonly controls: SessionControls
+}
 /** An authorized account transport using the standard Session presentation and scope lifecycle. */
 export interface ExternalSessionTarget {
   readonly kind: 'external'

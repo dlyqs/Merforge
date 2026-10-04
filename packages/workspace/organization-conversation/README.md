@@ -1,16 +1,12 @@
 # @deepseek-ai/dsh-organization-conversation
 
-Owns installation-local, account-private organization project conversations described in [conversation planning](../../../docs/conversation-planning.md). Desktop loads this service alongside the unchanged read-only context and execution services. `perform` accepts open, read, stop, settings, explicit send, member-suggestion, catalog, Bot-save, rename, delete, Bot affiliation, model selection and task selection operations through the private Node IPC consumer. Electron authenticates project read and supplies generation-bound online planning callbacks. Renderer cannot supply a Session ID, authority, credential, arbitrary URL or tool permission.
+Owns account-private conversation selectors, organization task controls and native authorization described in [conversation planning](../../../docs/conversation-planning.md). The main Desktop runtime adopts organization conversations into its ordinary Session Controller, standard presets, model providers and tools. Streaming, attachments, slash commands, queue editing and local execution use the same APIs as personal conversations.
 
-The `organization_conversation` storage domain atomically reserves a server/account/organization/project/conversation owner before materializing its separately durable JSONL. Authorized opening recovers the same reserved Session after partial persistence. All organization conversation IDs use a dedicated namespace rejected by personal Session/Agent registries, JSONL, query, upload and fork consumers. Opening or reading never activates an Agent. The `./invariant` companion compares independent domain and JSONL ownership, exact accepted input/settings/authority, assessment sources and duplicate/orphan evidence. The real Loader tests execute it and check disposal.
+The version-1 `organization_conversation` domain retains immutable server/account/organization/project/conversation ownership and an optional durable `sharedSessionId`. Historical private JSONL is imported once under that alias. An optional `activeSessionId` selects a backend successor whose durable parent preserves account ownership; backend switches copy task metadata without copying messages. Current history is written by ordinary Session persistence. `attach` makes no model request and retains native online authorization until account/window cancellation, exact-token `detach`, deletion or permission loss. It cancels and drains owned ordinary Agents before closing. A stale detach cannot close a replacement attachment. Deleted reservations prevent assignment synchronization from recreating a conversation.
 
-Opening and preference changes also retain operation digests; conflicting control retries are refused, and repeated settings writes do not increment revisions again. Each explicit send saves its operation identity and goal before dispatch. Repeating a received operation returns its original conversation state; changed input under the same identity is refused. Interrupted or uncertain sends require a new explicit message and are never replayed automatically. Clarification references an existing goal assessed as `clarify`. Account settings are stored by server/account/organization, with revision checks and no personal preference fallback.
+The Session access policy hides account aliases and descendants from the default catalog, authorizes exact reads and operations, and rejects inactive or revoked task histories. The managed-method adapter logs organization task facts and Bot instructions in the ordinary model history. Organization proposal tools write through the existing native permission checks. Task selection supplies authorized facts to ordinary execution; it starts no isolated Run. Shared assignment, delivery and issuer-acceptance actions retain their own authorization.
 
-A send mounts fresh isolated Session and Agent registries, the standard loop, tools, prompt assembly and a text-only model adapter. The tools are `workflow_assess`, `workflow_propose`, `planning_authorization` and `planning_members`; disabling automatic planning removes assessment and proposal tools. No file, shell, execution, assignment or approval service is mounted. Every model-visible input carries the effective settings, method version and exact online project/model qualification in its normal `user/message`. Separate permission events persist each native command intent before mutation and its historical receipt after acknowledgment.
-
-`models` explicitly binds model/endpoint pairs to local credential references. The authority policy and that local policy must both admit the route. Immediately before each Messages HTTP request, including provider retries, the adapter reserves request count and actual serialized payload bytes plus its maximum output ceiling, then consumes a one-use permit online. Permission loss or an unknown receipt prevents dispatch. Redirects are refused. Consumed or uncertain attempts remain charged. Polling, deadlines and identity/window cancellation stop and drain the owned interval; reconnecting does not start another turn.
-
-Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxReportBytes`, `maxCatalogItems`, `maxBots` and `defaultSettings`; each is validated at load. No application launcher or public Remote is exported. The Desktop private IPC carries nonce, request and authorization IDs; unrelated and late replies are ignored, and teardown awaits model work, private authorization requests and durable writes.
+The legacy planning runtime serves unattached historical reservations. Once adopted, its `send` operation is refused and the caller must use the ordinary Session API. The invariant compares legacy domain/log evidence, while common adoption checks the alias's durable owner. No private leader transcript is copied into an employee conversation.
 
 ## Model Experience
 
@@ -18,33 +14,33 @@ Config owns `root`, `models`, `maxSteps`, `recheckMs`, `maxDurationMs`, `maxRepo
 
 #### What the model sees
 
-The private conversation history and a JSON user message containing the accepted request, stable goal, effective organization settings, current authorized project facts, the selected private Bot snapshot when present, and finite planning permission. The method is `organization-planning/v2`.
+The ordinary conversation history and a logged JSON context message containing the current goal, effective organization settings, authorized project or selected-task facts, and selected Bot instructions. The method version is `organization-planning/v2`.
 
 ##### Verbatim enabled method
 
 ```markdown
-Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. For a clarified complex goal, call workflow_propose to save an unapproved plan. For modifications preserve task identities and exact version; progress queries only read the current plan. Shared plan changes invalidate approvals, grants on structure changes, Runs and delivery eligibility. Subtree edits preserve the original root scope, acceptance and resources. Name suggestions require current visible membership IDs; never guess identities. Shared definitions contain task summaries and authorized project facts only; never copy chat transcripts, credentials or private context. Never claim assignment, approval or execution. Respect the requested granularity.
+Discuss this goal with the user. Assess complexity with workflow_assess; clarify missing requirements and propose an unapproved organization plan with workflow_propose when the goal is complex. Shared task definitions contain task summaries and authorized facts, never private conversation transcripts.
 ```
 
 ##### Verbatim disabled method
 
 ```markdown
-Answer within the current organization project. Automatic goal assessment is disabled. Shared plan saving, assignment and execution are unavailable.
+Provide ordinary assistance. Automatic task planning is disabled.
 ```
 
 #### Token effect
 
-Each explicit message appends method and authorization context. The authority bounds each request's complete serialized input and reserved output exposure; the local loop also bounds steps and duration. Opening, reading and preference changes make no model call.
+Each ordinary message appends its task method and current authorization context. Standard provider and preset configuration bounds model requests and execution. Organization shared writes retain their authority checks. Opening, reading and preference changes make no model call.
 
 #### KV Cache effect
 
-Messages append to the same private Session history. A new isolated runtime reuses that durable history for explicit continuation; changing settings or current authorization changes the new appended input. Provider cache availability remains outside this service.
+Messages append to the same private Session history. The ordinary Controller resumes that durable history for continuation; changing settings or current authorization changes the new appended input. Provider cache availability remains outside this service.
 
 ### Planning tools
 
 #### What the model sees
 
-`workflow_assess` records simple, clarify, infeasible or complex advice for the current input and stable goal. `workflow_propose` requires that input’s complex assessment, validates the complete definition and records intent before a versioned authority save. Without edit access it records a private suggestion. `planning_authorization` reads current permission and `planning_members` returns paginated visible member identities. None approves, assigns or executes tasks.
+`workflow_assess` records simple, clarify, infeasible or complex advice for the current input and stable goal. `workflow_propose` requires that input’s complex assessment, validates the complete definition and records intent before a versioned authority save. Without edit access it records a private suggestion. `planning_members` returns paginated visible member identities. None approves, assigns or executes tasks. Ordinary tools remain available for user-directed work.
 
 #### Token effect
 
@@ -56,7 +52,7 @@ Calls and results append. Tool selection changes the request envelope when the a
 
 ## Known Limitations and Deferred Work
 
-Shared drafts and ordinary project chat controls are implemented. Employee task conversations and explicit conversation-based execution controls are implemented. This host currently admits the built-in API backend; native Codex project planning requires its own planning capability and is never replaced with an API model. No offline reads, automatic resumption, personal Bot/history import, attachment, export or cross-device preference synchronization is offered. A finite qualification can be explicitly renewed after authority restart without resetting previously charged request/byte usage. Local filesystem confidentiality still depends on the owning OS account.
+Shared drafts, employee task conversations and ordinary API/Codex backend selection use the common runtime. Current account authorization is required for history access; cross-device preference synchronization remains deferred. The legacy finite planning service retains its own permit accounting. Local filesystem confidentiality depends on the owning OS account.
 
 ## Proposal persistence and recovery
 
@@ -70,7 +66,7 @@ An optional `assignment` selector contains only `planId` and `assignmentId`; its
 
 Task conversations derive one stable goal from the assignment and refuse `new_goal`, another goal or another task target. Their planning permission remains separate from execution permission. Each actual planning call rechecks the original assignment; revoked, invalidated and rejected assignments cannot send. Authorized historical reads retain the original issuer and assignment revision while current task projections display newer revisions. A reassignment creates another immutable assignment and another conversation; the old Session never becomes the new employee's qualification.
 
-Conversation controls select Runs by the bound assignment. Private execution reports continue through the independent employee-only native report reader. Acceptance, delegation, claim, start, stop, human answers, explicit continuation, upload, submission, original-issuer review and target confirmation use the existing fixed business actions. Model tools cannot call them. Opening a conversation makes no model call and changes none of those business states.
+The task detail action opens an ordinary conversation with the assigned task selected. Advanced Run controls select Runs by the bound assignment. Private execution reports continue through the independent employee-only native report reader. Acceptance, delegation, claim, start, stop, human answers, explicit continuation, upload, submission, original-issuer review and target confirmation use the existing fixed business actions. Model tools cannot call them. Opening a conversation makes no model call and changes none of those business states.
 
 ## Validation
 
@@ -80,8 +76,8 @@ The Desktop conversation-planning composition starts with a normal send, persist
 
 Each explicit new conversation has its own UUID within its server/account/organization/project partition. `catalog` returns recent project conversations and private Bots without invoking a model or requiring old task-history access. Assignment conversations appear in the ordinary project/recent catalog with their immutable assignment selector, alongside their Inbox entry. Task-derived catalog titles require current task read. The canonical project-ID conversation used for catalog reads is omitted while empty.
 
-The separate `organization_navigation` storage domain (version 1) stores private Bots, conversation/Bot links and idempotent Bot-save operation digests. The existing `organization_conversation` domain stays at version 1. `bot-save` checks both local and organization model policies and the observed Bot version. Changed content under a reused operation ID is refused. Bot instructions and the exact selected configuration are durably included in `organization/planning-input` before becoming model input; personal presets are never reused. Current authority is required on every operation. `maxBots` limits Bots per account/project (default 100); `maxCatalogItems` bounds recent rows per project (default 200), within `maxReportBytes`.
+The separate `organization_navigation` storage domain (version 1) stores private Bots, conversation/Bot links and idempotent Bot-save operation digests. The existing `organization_conversation` domain stays at version 1. Bot selections use the ordinary provider/model/backend/effort fields; historical endpoint selections retain their legacy policy checks. `bot-save` validates the ordinary model and observed Bot version. Changed content under a reused operation ID is refused. New conversations apply their Bot default through the common Controller; explicit conversation choices survive reopen. Bot instructions and the configured selection are durably included in `organization/planning-input` before becoming model input; actual request headers record the selected route. Current authority is required on every operation. `maxBots` limits Bots per account/project (default 100); `maxCatalogItems` bounds recent rows per project (default 200), within `maxReportBytes`.
 
 Rename and same-project Bot affiliation persist account-private navigation metadata. Model selection and task selection append correlated durable Session events and retain operation digests; retries recover committed events even if the control receipt write failed. A selected task supplies a stable goal and task-context query route, without starting execution. Assignment Sessions cannot select another node. Delete cancels and drains the matching model interval, tombstones the reserved binding, removes retained private input intents and navigation metadata, then removes its JSONL; repeated delete is idempotent and subsequent open refuses recreation. The tombstone retains the original owner and operation records.
 
-Reports include validated standard Session history for the common Client renderer. Personal Host registries still reject these IDs; the Client external transport binding supplies the existing presentation without routing organization records through personal Remote calls.
+Reports include validated standard Session history for the common Client renderer. The legacy selector remains account-owned; its durable common alias uses ordinary Controller Remote calls and the ordinary Client Session.

@@ -103,6 +103,10 @@ export class SessionCommandController {
    * @returns the Session identity and resolved preset when configured.
    */
   async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
+    return this.createOwned(request)
+  }
+
+  private async createOwned(request: SessionCreateRequest, parentSession?: SessionId): Promise<SessionCreateValue> {
     const sessionId = request.sessionId ?? brandString<SessionId>(`session-${randomUUID()}`)
     const personal = this.ctx.get('personalProjects')
     const project = request.projectId === undefined ? undefined : personal?.getProject(request.projectId)
@@ -132,6 +136,7 @@ export class SessionCommandController {
         request.sessionId !== undefined,
         request.agentPreset,
         backend,
+        parentSession,
       )
     } catch (error) {
       this.rejectCreation(sessionId, error)
@@ -184,13 +189,15 @@ export class SessionCommandController {
           const chosen = selected === undefined ? request : { backend: 'codex' as const, provider: 'codex', model: selected.model, reasoningEffort: selected.effort }
           const cwd = agent.session.header.cwd
           if (cwd === undefined) throw new Error('Backend switching requires a working directory')
-          const created = await this.create({ cwd, selection: chosen,
+          const created = await this.createOwned({ cwd, selection: chosen,
             ...(affiliation?.projectId === undefined ? {} : { projectId: affiliation.projectId }),
-            ...(affiliation?.botId === undefined ? {} : { botId: affiliation.botId }) })
+            ...(affiliation?.botId === undefined ? {} : { botId: affiliation.botId }) },
+          this.ctx.sessionQuery.visible(agent.id) ? undefined : agent.id)
           const replacement = this.ctx.agents.get(created.sessionId)
           if (replacement === undefined) throw new Error('Backend replacement conversation was disposed')
           replacement.session.append('agent/backend-handoff', { sourceSessionId: agent.id, scope: 'none' })
           await this.ctx.sessions.flush(replacement.session)
+          await this.ctx.serial('api-session/backend-replaced', agent.session, replacement.session)
           return { selected: chosen, sessionId: created.sessionId }
         }
         const resolved = await this.ctx.llm.resolveCallConfig({
@@ -592,6 +599,7 @@ export class SessionCommandController {
   }
 
   private async readSessionState(sessionId: SessionId): Promise<SessionReadState> {
+    await this.ctx.sessionQuery.authorize(sessionId)
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
       // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.

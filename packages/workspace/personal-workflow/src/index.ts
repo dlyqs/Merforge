@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { defineDomain, domainTable, type KvTable, type DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-agent'
+import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-personal-project'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -24,6 +24,17 @@ import type {
 } from './types.ts'
 export type * from './types.ts'
 export { exportPlan, projectPlan } from './projection.ts'
+
+/** Account task providers participate in the ordinary managed-method pipeline. */
+export interface WorkflowSessionAdapter {
+  /** @param id - Ordinary Session identity. @returns Whether this provider owns its task data. */
+  owns(id: SessionId): boolean
+  /** @param session - Current Session. @param tool - Tool name. @returns Current task-tool visibility. */
+  allowsTool(session: Session, tool: string): boolean
+  /** @param agent - Ordinary Agent. @param decision - Claimed input. @param signal - Turn lifetime.
+   * @returns Input with authorized task facts, using the ordinary durable message pipeline. */
+  prepare(agent: Agent, decision: PreStepDecision, signal: AbortSignal): Promise<PreStepDecision>
+}
 
 const domainSpec = defineDomain({
   name: 'personal_workflow', version: 1,
@@ -80,6 +91,28 @@ export class PersonalWorkflow extends Service {
   private plans?: KvTable<TaskId, StoredPlan>
   private tail: Promise<void> = Promise.resolve()
   private closing = false
+  private readonly sessionAdapters = new Set<WorkflowSessionAdapter>()
+
+  /**
+   * Register account-owned task behavior for ordinary Sessions.
+   * @param adapter - Account task provider.
+   * @returns Disposer removing its contribution.
+   */
+  registerSessionAdapter(adapter: WorkflowSessionAdapter): () => Promise<void> {
+    return this.ctx.effect(() => {
+      this.sessionAdapters.add(adapter)
+      return () => { this.sessionAdapters.delete(adapter) }
+    }, 'personalWorkflow.registerSessionAdapter()')
+  }
+
+  /**
+   * Resolve the task method owned by an account Session.
+   * @param id - Ordinary Session.
+   * @returns Its account task provider, when present.
+   */
+  sessionAdapter(id: SessionId): WorkflowSessionAdapter | undefined {
+    return [...this.sessionAdapters].find(adapter => adapter.owns(id))
+  }
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'personalWorkflow')

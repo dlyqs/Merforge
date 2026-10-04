@@ -113,9 +113,15 @@ export function apply(ctx: Context): void {
       ...(selected.botId ? { botId: selected.botId } : {}),
       ...(selected.assignmentId && selected.planId ? { assignment: { assignmentId: selected.assignmentId,
         planId: selected.planId } } : {}) }
-    const reply = await desktop.conversation({ ...query, kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'] })
-    if (sequence !== openSequence || state.getSnapshot().connection.generation !== reply.generation)
+    const reply = await desktop.conversation({ ...query, kind: 'attach', operationId: randomUUID() as ConversationRequest['operationId'] })
+    if (sequence !== openSequence || state.getSnapshot().connection.generation !== reply.generation) {
+      if (reply.result.attachmentId) await desktop.conversation({ ...query, kind: 'detach',
+        attachmentId: reply.result.attachmentId, operationId: randomUUID() as ConversationRequest['operationId'] })
+        .catch((_error: unknown) => { /* A retired native generation already cancels its attachment. */ })
       throw new Error('organization-conversation: superseded')
+    }
+    const sharedSessionId = reply.result.sharedSessionId
+    if (!sharedSessionId || !reply.result.attachmentId) throw new Error('organization-conversation: shared-session-required')
     const projectId = selected.projectId
     accountSession = new AccountSession(reply, query, desktop, state, () => { conversationActions?.refresh() }, (report) => {
       const a = report.assignment, proposal = report.goals.at(-1)?.proposal
@@ -124,10 +130,19 @@ export function apply(ctx: Context): void {
       if (taskId && planId) taskActions?.selectTask({ ...selected, projectId, planId, taskId,
         ...(a ? { assignmentId: a.id } : {}) })
       ctx.layout.selectPanel('tasks' as MainPanelId)
-    }, () => { management.set({ selected, action: 'manage' }) }, ctx.locale.bind('organization')('newConversation'), ctx.sessions.createEventSource())
+    }, () => { management.set({ selected, action: 'manage' }) }, loadModels,
+    async (selection) => {
+      const result = await ctx.remote.session.selectModel({ sessionId: sharedSessionId, ...selection })
+      if ('value' in result && result.value.sessionId !== undefined) await selectConversation(selected)
+      return result
+    })
     accountReference.set(ctx.sessions.retain(accountSession, { source: 'mainView' }))
   }
   ctx.effect(() => () => { retire() }, 'organization.account-session')
+  ctx.on('api-session/activity', (id) => { if (accountSession?.sessionId === id) conversationActions?.refresh() })
+  ctx.on('api-session/status', (id, running) => {
+    if (!running && accountSession?.sessionId === id) { conversationActions?.refresh() }
+  })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'organization-conversation-manager',
     locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, conversationManagement: management },
       dismiss: () => { management.set(null) }, committed: (selected: ConversationSelection, deleted: boolean) => {

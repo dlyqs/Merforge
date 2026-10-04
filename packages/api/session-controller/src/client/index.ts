@@ -52,7 +52,7 @@ export type {
   SubmissionHandle,
 } from './contract/session.ts'
 export type {
-  ExternalSessionTarget, ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
+  AccountSessionTarget, ExternalSessionTarget, ISessions, SessionReference, SessionRetainInfo, SessionRetainOptions, SessionTarget,
 } from './contract/sessions.ts'
 export { MutableSessionEventSource } from './contract/events.ts'
 export type {

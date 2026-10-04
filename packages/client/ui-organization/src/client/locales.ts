@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  executeInConversation: '在对话中执行',
   manageConversation: '管理会话', deleteConversation: '删除', conversationName: '名称',
   confirmDeleteConversation: '确认删除会话“{name}”？', assignedExecution: '执行已分配任务',
   conversationProjectScope: '所属项目',
@@ -424,6 +425,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  executeInConversation: 'Execute in conversation',
   manageConversation: 'Manage conversation', deleteConversation: 'Delete', conversationName: 'Name',
   confirmDeleteConversation: 'Delete conversation “{name}”?', assignedExecution: 'Execute assigned task',
   conversationProjectScope: 'Project',

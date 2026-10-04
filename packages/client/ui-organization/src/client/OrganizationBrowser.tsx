@@ -4,6 +4,7 @@ import { Button, Input, Modal, Menu, Tooltip, AccountNavigationGroup, AccountCon
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConversationRequest, ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { OrganizationProps } from './contract.ts'
 import type { ConversationSelectionProps } from './conversation-store.ts'
 import { readNavigationProjects } from './projects.ts'
@@ -196,20 +197,22 @@ function BotEditor(props: OrganizationProps & { projects: OrganizationProjectVie
   const c = props.useOrganization(s => s.connection), { t } = props
   const [projectId, setProjectId] = useState(props.initial.project?.id ?? props.projects[0]?.id ?? '')
   const [name, setName] = useState(props.initial.bot?.name ?? ''), [instructions, setInstructions] = useState(props.initial.bot?.instructions ?? '')
-  const [models, setModels] = useState<Bot['selection'][]>([]), [model, setModel] = useState('')
+  const [models, setModels] = useState<{ selection: ModelSelection; label: string }[]>([]), [model, setModel] = useState('')
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('')
   const [botId] = useState(props.initial.bot?.id ?? randomUUID() as Bot['id'])
   const alive = useRef(false), pending = useRef<{ digest: string; request: ConversationRequest }>()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
     let active = true; setModels([]); setModel('')
-    const project = props.projects.find(p => p.id === projectId)
-    if (project) void props.connection({ kind: 'planning-read', request: { organizationId: project.organizationId, projectId,
-      conversationId: String(projectId) as ConversationRequest['conversationId'] } }).then((result) => {
-      if (!active || !result.planning) return
-      const items = result.planning.policy.models; setModels(items)
-      const index = items.findIndex(m => m.model === props.initial.bot?.selection.model
-        && m.endpoint === props.initial.bot.selection.endpoint)
+    if (props.loadModels) void props.loadModels().then((catalog) => {
+      if (!active) return
+      const items = catalog.groups.flatMap(group => group.models.map(choice => ({ label: `${group.name} · ${choice.name}`,
+        selection: { backend: group.backend ?? 'harness-api', provider: group.id, model: choice.id,
+          ...(choice.reasoning?.defaultEffort ? { reasoningEffort: choice.reasoning.defaultEffort } : {}) } })))
+      setModels(items)
+      const selected = props.initial.bot?.selection ?? catalog.default
+      const index = items.findIndex(({ selection }) => selection.model === selected.model
+        && ('provider' in selected ? selection.provider === selected.provider : selection.backend === 'harness-api'))
       if (index >= 0) setModel(String(index))
     }, (error: unknown) => { if (active) setNotice(t(workgraphError(error))) })
     return () => { active = false }
@@ -217,7 +220,7 @@ function BotEditor(props: OrganizationProps & { projects: OrganizationProjectVie
   return <Modal open title={t(props.initial.bot ? 'editBot' : 'createBot')} closeLabel={t('close')} onClose={() => { if (!busy) props.close() }}>
     <form className={css.form} onSubmit={(event) => {
       event.preventDefault()
-      const project = props.projects.find(p => p.id === projectId), selection = models[Number(model)]
+      const project = props.projects.find(p => p.id === projectId), selection = models[Number(model)]?.selection
       if (!project || !selection || model === '' || !props.conversation || busy) return
       setBusy(true); setNotice('')
       const draft = { kind: 'bot-save' as const, organizationId: project.organizationId, projectId: project.id,
@@ -234,7 +237,8 @@ function BotEditor(props: OrganizationProps & { projects: OrganizationProjectVie
       <label>{t('botName')}<Input value={name} maxLength={120} disabled={busy} onChange={(e) => { setName(e.target.value) }} /></label>
       <label>{t('botInstructions')}<textarea value={instructions} maxLength={8192} disabled={busy} onChange={(e) => { setInstructions(e.target.value) }} /></label>
       <label>{t('conversationModel')}<select value={model} disabled={busy} onChange={(e) => { setModel(e.target.value) }}>
-        <option value="">{t('conversationChooseModel')}</option>{models.map((m, i) => <option key={`${m.endpoint}:${m.model}`} value={i}>{m.model}</option>)}</select></label>
+        <option value="">{t('conversationChooseModel')}</option>{models.map((m, i) =>
+          <option key={`${m.selection.provider}:${m.selection.model}`} value={i}>{m.label}</option>)}</select></label>
       {notice && <p role="alert">{notice}</p>}
       <Button type="submit" disabled={busy || !name.trim() || model === '' || c.phase !== 'ready'}>{t('save')}</Button>
     </form>

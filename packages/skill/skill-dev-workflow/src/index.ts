@@ -45,6 +45,8 @@ export function apply(ctx: Context): void {
   ctx.on('agent/created', ({ agent }) => {
     agent.ctx.inject(['tools'], (scoped) => {
       scoped.tools.filterVisible((tool) => {
+        const account = ctx.personalWorkflow.sessionAdapter(agent.id)
+        if (account) return account.allowsTool(agent.session, tool)
         // Native declarations remain stable across mode/task changes; executors recheck permission.
         if (agent.options.backend?.kind === 'codex' && ['workflow_assess', 'workflow_propose', 'workflow_complete'].includes(tool)) return true
         if (ctx.personalWorkflow.execution.forSession(agent.session.id) !== null
@@ -60,6 +62,8 @@ export function apply(ctx: Context): void {
   ctx.on('agent/pre-step', async ({ agent, signal }, next) => {
     const decision = await next()
     if (decision.kind === 'reject') return decision
+    const account = ctx.personalWorkflow.sessionAdapter(agent.id)
+    if (account) return account.prepare(agent, decision, signal)
     await ctx.personalWorkflow.execution.checkAccess(agent.session)
     if (!decision.messages.some(message => message.source.kind === 'user' || message.source.kind === 'personal-workflow-continue')) return decision
     const execution = await ctx.personalWorkflow.execution.enterTurn(agent.session)
@@ -180,6 +184,7 @@ function installExecution(ctx: Context): void {
   })
   ctx.tools.guard((exec) => {
     if (exec.agent === undefined) return undefined
+    if (ctx.personalWorkflow.sessionAdapter(exec.agent.id)) return undefined
     if (ctx.personalWorkflow.testingPreferences().forceDecomposition
       && ctx.personalWorkflow.execution.forSession(exec.agent.session.id) === null
       && !['workflow_assess', 'workflow_propose', 'ask_user_question'].includes(exec.name)) {

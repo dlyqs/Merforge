@@ -81,6 +81,15 @@ export { SessionFileReferences } from './file-references.ts'
 export { SessionSkillCatalog } from './skill-catalog.ts'
 
 declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * A backend switch created an empty successor; account owners persist task metadata and navigation.
+     * @mode serial
+     * @param source - Previous conversation, whose private transcript is not copied.
+     * @param replacement - New ordinary conversation, before the switch returns to the Client.
+     */
+    'api-session/backend-replaced'(source: import('@deepseek-ai/dsh-session').Session, replacement: import('@deepseek-ai/dsh-session').Session): Promise<void>
+  }
   interface Context {
     /** Host Session business API and Remote namespace owner. */
     sessionController: SessionController
@@ -178,13 +187,13 @@ export class SessionController extends TypertRemoteService {
     ctx.plugin(ArchivedSessionGate)
 
     ctx.on('session/created', (session) => {
-      ctx.emit('api-session/added', this.listState.summaryFor(session))
+      if (ctx.sessionQuery.visible(session.id)) ctx.emit('api-session/added', this.listState.summaryFor(session))
     })
     ctx.on('session/disposed', (session) => {
       if (!this.agents.isDeleting(session.id)) ctx.emit('api-session/removed', session.id)
     })
     const publishAgentAvailability = ({ agent }: { agent: Agent }): undefined => {
-      if (ctx.sessions.get(agent.id) === agent.session) {
+      if (ctx.sessions.get(agent.id) === agent.session && ctx.sessionQuery.visible(agent.id)) {
         ctx.emit('api-session/added', this.listState.summaryFor(agent.session))
       }
     }
@@ -232,6 +241,23 @@ export class SessionController extends TypertRemoteService {
   resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult> {
     return this.agents.resolveAgent(sessionId)
   }
+  /**
+   * Release an imported Agent while retaining its durable history.
+   * @param id - Native-attached ordinary Session.
+   * @returns Settlement after its Agent drains.
+   */
+  releaseSession(id: SessionId): Promise<void> { return this.agents.releaseSession(id) }
+
+  /**
+   * Import native-authorized private history into the common Session runtime.
+   * @param id - Reserved ordinary Session identity.
+   * @param cwd - Local working directory.
+   * @param events - Validated account history imported only on first creation.
+   * @returns The ordinary Agent without submitting a message.
+   */
+  importSession(id: SessionId, cwd: string, events: readonly import('@deepseek-ai/dsh-session').SessionEvent[]): Promise<Agent> {
+    return this.agents.importSession(id, cwd, events)
+  }
 
   /**
    * Inspect one attached or persisted Session without activating its Agent.
@@ -239,10 +265,11 @@ export class SessionController extends TypertRemoteService {
    * @param signal - optional caller cancellation for persistence reads.
    * @returns the current attached state or persisted header and event prefix.
    */
-  inspect(
+  async inspect(
     sessionId: SessionId,
     signal?: AbortSignal,
   ): Promise<SessionInspection> {
+    await this.ctx.sessionQuery.authorize(sessionId)
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
       return Promise.resolve({

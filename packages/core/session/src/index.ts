@@ -29,6 +29,15 @@ export type { SessionPreparationOptions } from './preparation.ts'
 export type { AssistantMessage, DeveloperMessage, SystemMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult, SessionMessageProjection, SessionMessageProjectionContext } from './surface.ts'
+/** Native account owners authorize ordinary Session access and partition the default catalog. */
+export interface SessionAccessPolicy {
+  /** @returns Completion after durable account ownership is available. */
+  prepare?(): Promise<void>
+  /** @param id - Requested Session. @returns Completion after checking the current account. */
+  authorize(id: SessionId): Promise<void>
+  /** @param id - Catalog candidate. @returns Whether it belongs to the default catalog. */
+  visible(id: SessionId): boolean
+}
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
@@ -937,6 +946,41 @@ export class SessionStore extends Service {
    */
   protected assertSessionId(id: string): void { assertPersonalSessionId(id) }
 
+  private readonly accessPolicies = new Set<SessionAccessPolicy>()
+  /**
+   * Register an account's exact-access and default-catalog rules.
+   * @param policy - Native-owned account policy.
+   * @returns Disposer removing the policy.
+   */
+  registerAccessPolicy(policy: SessionAccessPolicy): () => Promise<void> {
+    return this.ctx.effect(() => {
+      this.accessPolicies.add(policy)
+      return () => { this.accessPolicies.delete(policy) }
+    }, 'sessions.registerAccessPolicy()')
+  }
+  /**
+   * Authorize an ordinary Session operation through current account owners.
+   * @param id - Ordinary Session identity.
+   * @returns Completion after all account checks.
+   */
+  async authorizeAccess(id: SessionId): Promise<void> {
+    await this.prepareAccess()
+    for (const policy of this.accessPolicies) await policy.authorize(id)
+  }
+  /**
+   * Await durable ownership before ordinary catalog reads.
+   * @returns Completion after all account owners initialize.
+   */
+  async prepareAccess(): Promise<void> {
+    for (const policy of this.accessPolicies) await policy.prepare?.()
+  }
+  /**
+   * Test membership in the default Session catalog.
+   * @param id - Catalog candidate.
+   * @returns Whether all account policies admit the row.
+   */
+  visible(id: SessionId): boolean { return [...this.accessPolicies].every(policy => policy.visible(id)) }
+
   constructor(ctx: Context) {
     super(ctx, 'sessions')
     ctx.inject(['typert'], (typeCtx) => {
@@ -945,7 +989,7 @@ export class SessionStore extends Service {
         wire: 'sessionId',
         hostTypeSymbol: '@deepseek-ai/dsh-session#Session',
         wireTypeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
-        resolve: sessionId => this.get(sessionId),
+        resolve: async (sessionId) => { await this.authorizeAccess(sessionId); return this.get(sessionId) },
       })
     })
   }

@@ -35,6 +35,10 @@ ctx.sessions.get(sessionId)      // the live session
 ctx.sessions.list()              // every live session, in creation order
 ```
 
+### Account access
+
+Native account owners register `SessionAccessPolicy` through `ctx.sessions.registerAccessPolicy`. `prepareAccess` waits for durable ownership before catalog reads; `authorizeAccess(id)` rechecks exact Session reads and operations. `visible(id)` partitions the default catalog. Agent and Session Remote lookup use the same policies. Trusted same-process `get` and `list` remain registry operations.
+
 ### Append and derive
 
 `session.append(type, data, opts?)` commits one typed event — it snapshots and freezes the payload, validates it as lossless JSON, and notifies observers. `session.deriveMessages()` projects the log into the `Message[]` the model sees, incrementally and cached:

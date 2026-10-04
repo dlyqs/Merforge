@@ -104,7 +104,7 @@ export class FileUploads extends TypertRemoteService {
    * @returns the staged receipt and durable file reference.
    */
   @Remote('upload')
-  upload(agent: Agent, request: EncodedFileUploadRequest, signal: AbortSignal): Promise<FileUploadValue> {
+  async upload(agent: Agent, request: EncodedFileUploadRequest, signal: AbortSignal): Promise<FileUploadValue> {
     signal.throwIfAborted()
     return this.commit(agent, async () => this.ctx.attachments.admitEncodedFile({
       data: request.data,
@@ -183,6 +183,7 @@ export class FileUploads extends TypertRemoteService {
   }
 
   private async commit(agent: Agent, save: () => Promise<FileAttachmentRef>): Promise<FileUploadValue> {
+    await this.ctx.get('sessions')?.authorizeAccess(agent.id)
     this.assertOrdinaryAgent(agent)
     let file: FileAttachmentRef
     try {
@@ -198,6 +199,7 @@ export class FileUploads extends TypertRemoteService {
         { cause: error },
       )
     }
+    await this.ctx.get('sessions')?.authorizeAccess(agent.id)
     if (this.ctx.agents.get(agent.id) !== agent) {
       throw new RemoteError(
         'session/not-found',

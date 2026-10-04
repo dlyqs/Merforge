@@ -27,7 +27,7 @@ async function uploadHarness(origin?: 'subagent'): Promise<{
   agent: Agent
   followup: ReturnType<typeof vi.fn>
   saveFile: ReturnType<typeof vi.fn>
-  saveFileStream: ReturnType<typeof vi.fn>
+  saveFileStream: ReturnType<typeof vi.fn<(input: SaveFileStreamAttachment) => Promise<FileAttachmentRef>>>
   saveImages: ReturnType<typeof vi.fn>
   disposeAgent: () => Promise<void>
   uploadRoute: (request: Request) => Promise<Response>
@@ -44,6 +44,7 @@ async function uploadHarness(origin?: 'subagent'): Promise<{
   const agent = {
     id: session.id,
     session,
+    options: {},
     inbox,
     status: 'idle',
     ctx: undefined,
@@ -121,6 +122,28 @@ function promptRequest(content: Parameters<SessionCommandController['prompt']>[0
 }
 
 describe('Session file uploads', () => {
+  it('checks account authority for encoded and streaming uploads and again before publishing a receipt', async () => {
+    const { ctx, uploads, agent, saveFile, saveFileStream } = await uploadHarness()
+    let readable = true
+    const remove = ctx.sessions.registerAccessPolicy({ visible: () => false,
+      authorize: async () => { if (!readable) throw new Error('account revoked') } })
+    const signal = new AbortController().signal
+    try {
+      const accepted = await uploads.upload(agent, { data: 'AAAA' }, signal)
+      expect(uploads.resolve(agent, accepted.receiptId)).toBeDefined()
+      readable = false
+      await expect(uploads.upload(agent, { data: 'AAAA' }, signal)).rejects.toThrow('account revoked')
+      await expect(uploads.uploadStream({ sessionId: SESSION, data: (async function* () { yield Uint8Array.of(1) })() }))
+        .rejects.toThrow('account revoked')
+      expect(saveFile).toHaveBeenCalledTimes(1)
+      expect(saveFileStream).not.toHaveBeenCalled()
+      readable = true
+      saveFileStream.mockImplementationOnce(async () => { readable = false; return accepted.file })
+      await expect(uploads.uploadStream({ sessionId: SESSION, data: (async function* () { yield Uint8Array.of(1) })() }))
+        .rejects.toThrow('account revoked')
+    } finally { await remove(); await ctx.fiber.dispose() }
+  })
+
   it('registers an HTTP route bound to the upload service', async () => {
     const { uploadRoute } = await uploadHarness()
     await expect(uploadRoute(new Request('http://host/upload')))

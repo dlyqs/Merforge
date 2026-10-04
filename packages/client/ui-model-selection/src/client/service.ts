@@ -85,6 +85,7 @@ export class ModelDirectoryResolver extends Service {
       binding.controls?.catalog ?? this.catalog,
       binding.session.projections.faceOf('modelSelection'),
       async (replacementId) => {
+        if (controls) return
         await sessions.refresh()
         const workspace = this.ctx.get('uiWorkspace')
         if (workspace === undefined) throw new Error('New conversation navigation is unavailable')

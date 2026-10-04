@@ -4,11 +4,8 @@ import { useSyncExternalStore } from 'react'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ServerId, AccountId } from '@deepseek-ai/dsh-organization/types'
 import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
-import { MutableSessionEventSource } from '@deepseek-ai/dsh-api-session-controller/client'
 import { AccountSession } from '../src/client/account-session.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
-import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { createConversationStore } from '../src/client/conversation-store.ts'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -21,7 +18,7 @@ import type { OrganizationProps } from '../src/client/contract.ts'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 function fixture() {
-  const result = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+  const result = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`, sharedSessionId: `session-${randomUUID()}`, attachmentId: randomUUID(),
     owner: { serverId: randomUUID(), accountId: randomUUID(),
       organizationId: randomUUID(), projectId: randomUUID(), conversationId: randomUUID() },
     settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [{ role: 'assistant', text: 'Private report' }],
@@ -82,43 +79,21 @@ it('does not navigate to an old account when its delayed conversation open compl
   expect(openConversation).not.toHaveBeenCalled()
   expect(screen.queryByRole('button', { name: 'Old account conversation' })).toBeNull()
 })
-it('feeds standard Session events and retires pending submissions after account sends', async () => {
-  const h = fixture(), onRetire = vi.fn()
+it('contributes task controls while leaving message and model operations to the ordinary Session', async () => {
+  const h = fixture(), selectModel = vi.fn(async () => ({ ok: true as const, value: { selected: { provider: 'ordinary', model: 'vision' } } }))
+  const loadModels = vi.fn(async () => ({ groups: [], failures: [], routableProviders: ['ordinary'], default: { provider: 'ordinary', model: 'vision' } }))
   const adapter = new AccountSession({ generation: 1, result: h.result }, h.result.owner,
-    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
-    zh.newConversation, new MutableSessionEventSource())
-  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
-  const handle = adapter.session.beginSubmission({ mode: 'queue', text: 'Plan quarterly results', attachments: [], onRetire })
-  expect(adapter.session.getSnapshot().pendingSubmissions[0]?.requestId).toBe(handle.requestId)
-  await adapter.session.prompt([{ type: 'text', text: 'Plan quarterly results' }])
-  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'send', text: 'Plan quarterly results', route: 'new_goal' }))
-  expect(onRetire).toHaveBeenCalledWith({ reason: 'observed', attachments: [] })
-  expect(adapter.session.getSnapshot().pendingSubmissions).toEqual([])
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(), loadModels, selectModel)
+  expect(adapter.kind).toBe('account')
+  expect(adapter.sessionId).toBe(h.result.sharedSessionId)
+  expect('session' in adapter).toBe(false)
+  expect(await adapter.controls.catalog.load()).toEqual(await loadModels())
+  await adapter.controls.selectModel({ provider: 'ordinary', model: 'vision' })
+  expect(selectModel).toHaveBeenCalledWith({ provider: 'ordinary', model: 'vision' })
+  expect(h.conversation).not.toHaveBeenCalled()
   adapter.dispose()
-})
-it('retains the original operation after a lost reply and ignores late account results after disposal', async () => {
-  const h = fixture()
-  const adapter = new AccountSession({ generation: 1, result: h.result }, h.result.owner,
-    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
-    zh.newConversation, new MutableSessionEventSource())
-  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
-  h.conversation.mockRejectedValueOnce(new Error('lost-reply'))
-  expect((await adapter.session.prompt([{ type: 'text', text: 'Plan results' }])).ok).toBe(false)
-  await adapter.session.prompt([{ type: 'text', text: 'Plan results' }])
-  const sends = h.conversation.mock.calls.filter(([request]) => request.kind === 'send')
-  expect(sends[0]?.[0].operationId).toBe(sends[1]?.[0].operationId)
-  const late = Promise.withResolvers<Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>>()
-  h.conversation.mockImplementation(request => request.kind === 'send' ? late.promise : Promise.resolve({ generation: 1,
-    result: h.result }))
-  const pending = adapter.session.prompt([{ type: 'text', text: 'Another goal' }])
-  adapter.dispose()
-  late.resolve({ generation: 1, result: { ...h.result, history: [{ type: 'assistant/message', seq: SessionSeq(1), time: 1,
-    surfaceOp: 'append', data: { turn: 1, step: 1, stream: [], message: createAssistantMessage({ source: { provider: 'test',
-      model: 'test' }, content: [{ type: 'text', text: 'LATE_PRIVATE_RESULT' }] }) } }] } })
-  await pending
-  expect(adapter.eventSource.getSnapshot().entries).toEqual([])
-  expect(adapter.session.getSnapshot().removed).toBe(true)
-  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'stop' }))
+  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'detach' }))
+  await expect(adapter.controls.catalog.load()).rejects.toThrow('superseded')
 })
 it('uses the same conversation hover menu for account management and deletion', async () => {
   const h = fixture(), store = createConversationStore().create(), manageConversation = vi.fn()
@@ -135,17 +110,19 @@ it('uses the same conversation hover menu for account management and deletion', 
   expect(manageConversation).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: h.result.owner.conversationId }), 'delete')
 })
 
-it('continues the selected task in a fresh standard conversation instead of creating another goal', async () => {
+it('keeps the selected organization node on the ordinary Session controls without another send pipeline', () => {
   const h = fixture(), taskId = randomUUID(), planId = randomUUID()
   const selected = conversationResultSchema.parse({ ...h.result,
     goals: [{ id: taskId, classification: 'unassessed' }], execution: { target: { planId, taskId }, title: 'Selected node' } })
+  const execute = vi.fn()
   const adapter = new AccountSession({ generation: 1, result: selected }, selected.owner,
-    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
-    zh.newConversation, new MutableSessionEventSource())
-  await vi.waitFor(() => { expect(adapter.controls.catalog.store.getSnapshot().status).toBe('ready') })
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), execute, vi.fn(),
+    async () => ({ groups: [], failures: [], routableProviders: [], default: { provider: 'ordinary', model: 'default' } }),
+    async selection => ({ ok: true, value: { selected: selection } }))
   expect(adapter.controls.taskId).toBe(taskId)
-  await adapter.session.prompt([{ type: 'text', text: 'Explain the selected node' }])
-  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'send', route: 'query', goalId: taskId,
-    target: { planId, taskId }, text: 'Explain the selected node' }))
+  expect(adapter.controls.assigned).toBe(false)
+  adapter.controls.openExecution()
+  expect(execute).toHaveBeenCalledWith(selected)
+  expect(h.conversation).not.toHaveBeenCalled()
   adapter.dispose()
 })

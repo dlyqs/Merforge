@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type {} from '@deepseek-ai/dsh-personal-project'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
@@ -140,6 +140,36 @@ export async function inspectApiSession(
 /** Owns every operation that may create, resume, or configure a Web Agent. */
 export class ApiSessionAgentController {
   private readonly handles = new Map<SessionId, AgentHandle>()
+  /**
+   * Release a Controller-owned Agent while retaining its durable history.
+   * @param id - Controller-owned Session.
+   * @returns Settlement after the Agent drains.
+   */
+  async releaseSession(id: SessionId): Promise<void> {
+    const handle = this.handles.get(id)
+    if (handle) { await handle.dispose(); if (this.handles.get(id) === handle) this.handles.delete(id) }
+  }
+  /**
+   * Adopt authorized account history into the ordinary Agent composition.
+   * @param id - Durably reserved ordinary Session identity.
+   * @param cwd - Local workspace selected by the application.
+   * @param events - Validated private history, imported once.
+   * @returns The ordinary Agent, sharing presets, tools and model selection.
+   */
+  async importSession(id: SessionId, cwd: string, events: readonly SessionEvent[]): Promise<Agent> {
+    await this.ctx.sessionQuery.authorize(id)
+    const persistence = this.ctx.get('sessionPersistence')
+    if (!persistence) throw new Error('session import requires persistence')
+    if (await persistence.stat(id)) {
+      const result = await this.resolveAgent(id)
+      if ('error' in result) throw result.error
+      return result.agent
+    }
+    const composition = await this.composeAgent(undefined)
+    return this.own(await this.ctx.agents.create({ sessionId: id, seed: [...events],
+      meta: { cwd, ...(composition.agentPreset ? { agentPreset: composition.agentPreset } : {}) },
+      agentOptions: this.agentOptions(), setup: composition.setup }))
+  }
   private readonly deletions = new Map<SessionId, Promise<void>>()
   private readonly resumes = new Map<SessionId, Promise<Agent>>()
   private readonly creations = new Map<SessionId, Promise<Agent>>()
@@ -238,6 +268,7 @@ export class ApiSessionAgentController {
     sessionId: SessionId,
     observation?: SessionObservation,
   ): Promise<ApiSessionAgentResult> {
+    await this.ctx.sessionQuery.authorize(sessionId)
     if (this.isDeleting(sessionId)) {
       return { error: new RemoteError('session/agent-busy', 'Conversation is being deleted', { reason: 'Deletion is in progress' }) }
     }
@@ -292,6 +323,7 @@ export class ApiSessionAgentController {
    * @param checkPersistedIdentity - whether to inspect a cold identity before creation.
    * @param presetId - optional Agent preset the Session must own.
    * @param backend - external driver selection for fresh creation; adoption must match it.
+   * @param parentSession - Account predecessor whose ownership the new Session inherits.
    * @returns the matching live ordinary Agent.
    */
   async ensureSession(
@@ -300,12 +332,14 @@ export class ApiSessionAgentController {
     checkPersistedIdentity: boolean,
     presetId?: string,
     backend?: AgentBackendSelection,
+    parentSession?: SessionId,
   ): Promise<Agent> {
+    await this.ctx.sessionQuery.authorize(sessionId)
     if (this.isDeleting(sessionId)) throw new RemoteError('session/agent-busy', 'Conversation is being deleted', { reason: 'Deletion is in progress' })
     this.assertStandardPreset(presetId)
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
-      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId, backend)
+      creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId, backend, parentSession)
         .catch((error: unknown) => {
           const live = this.ctx.agents.get(sessionId)
           if (live !== undefined) {
@@ -544,6 +578,7 @@ export class ApiSessionAgentController {
     checkPersistedIdentity: boolean,
     presetId: string | undefined,
     backend?: AgentBackendSelection,
+    parentSession?: SessionId,
   ): Promise<Agent> {
     const attached = this.ctx.sessions.get(sessionId)
     const live = this.ctx.agents.get(sessionId)
@@ -586,6 +621,7 @@ export class ApiSessionAgentController {
       agentOptions: backend === undefined ? this.agentOptions() : { backend },
       meta: {
         cwd,
+        ...(parentSession === undefined ? {} : { parentSession }),
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
       },
       setup: composition.setup,

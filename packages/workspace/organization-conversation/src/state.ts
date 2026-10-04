@@ -12,10 +12,14 @@ interface ConversationBinding {
   createdAt: number
   ready: boolean
   deleted?: boolean | undefined
+  sharedSessionId?: SessionId | undefined
+  activeSessionId?: SessionId | undefined
 }
 /** Reservations precede creation of the separately durable JSONL. */
 export const conversationBindingSchema: z.ZodType<ConversationBinding> = z.object({ owner: conversationOwnerSchema,
   sessionId: conversationResultSchema.shape.sessionId,
+  sharedSessionId: conversationResultSchema.shape.sharedSessionId,
+  activeSessionId: conversationResultSchema.shape.sharedSessionId,
   createdAt: z.number().int().nonnegative(), ready: z.boolean(), deleted: z.boolean().optional() }).strict()
 /** A received input is never automatically retried after model dispatch or a crash. */
 export const conversationIntentSchema = z.object({ owner: conversationOwnerSchema,

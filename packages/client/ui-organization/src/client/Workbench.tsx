@@ -1,8 +1,8 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
 import { IntegrationPanel } from './IntegrationPanel.tsx'
-import { ExecutionPanel } from './ExecutionPanel.tsx'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OperationId, OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
@@ -126,6 +126,17 @@ export function Workbench(props: OrganizationProps & {
       setDraft(previous => previous && ({ ...previous, generation, conflict: previous.conflict || changed }))
     }
   }
+  const openConversation = async (item: OrganizationTaskView) => {
+    if (!c.principal || !props.selectConversation || !props.conversation) return
+    const conversationId = brandString<import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationRequest['conversationId']>(props.assignmentId ?? randomUUID())
+    const selector = { ...query, conversationId,
+      ...(props.assignmentId ? { assignment: { planId: item.planId, assignmentId: props.assignmentId } } : {}) }
+    await props.conversation({ ...selector, kind: 'open', operationId: randomUUID() as OperationId })
+    if (!props.assignmentId) await props.conversation({ ...selector, kind: 'select-task',
+      target: { planId: item.planId, taskId: item.id }, operationId: randomUUID() as OperationId })
+    await props.selectConversation({ ...query, serverId: c.principal.serverId, accountId: c.principal.accountId, conversationId,
+      ...(props.assignmentId ? { assignmentId: props.assignmentId, planId: item.planId } : {}) })
+  }
   const openContext = async (item: OrganizationTaskView) => {
     let operationId = contextOperations.current.get(item.id)
     if (!operationId) { operationId = randomUUID() as OperationId; contextOperations.current.set(item.id, operationId) }
@@ -135,7 +146,6 @@ export function Workbench(props: OrganizationProps & {
   return <section className={css.form} aria-busy={busy}>
     <div className={css.cardHeading}><Button onClick={props.onBack}>{t('back')}</Button><h4>{props.project.name}</h4>{c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'project' ? null : 'project') }}>{t('projectMembers')}</Button>}</div>
     {access === 'project' && <section className={css.card}><h4>{t('projectMembers')}</h4><ProjectAccess {...props} projectId={props.project.id} /></section>}
-    <p className={css.notice}>{t('preparationOnly')}</p>
     {!ready && <p role="status">{t(c.phase)}</p>}
     {notice && <p className={css.notice} role="status">{notice}</p>}
     {ready && !currentPage && <p>{t('taskStale')}</p>}
@@ -163,14 +173,13 @@ export function Workbench(props: OrganizationProps & {
             <p>{t('dependencies')} · {task.dependsOn.map(id => currentPage?.items.find(item => item.id === id)?.goal ?? id).join(', ') || t('noDependencies')}</p>
             {task.hasUndisclosedPrerequisite && <p>{t('hiddenPrerequisite')}</p>}</details>
           <details><summary>{t('taskIdentifiers')}</summary><p>{t('planId')}: {task.planId}</p><p>{t('taskId')}: {task.id}</p></details>
-          <div className={css.actions}><Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
+          <div className={css.actions}><Button disabled={!writable || !props.selectConversation} onClick={() => { void run(() => openConversation(task)) }}>{t('executeInConversation')}</Button>
+            <Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
             <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
             {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'task' ? null : 'task') }}>{t('taskPermissions')}</Button>}</div>
         </section>}
         {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
         {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
-        {retainedTask && !draft && <ExecutionPanel key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${retainedTask.id}:${retainedTask.revision}`} {...props} task={retainedTask}
-          projectId={props.project.id} current={!!task} {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} />}
         {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
           task={retainedTask} projectId={props.project.id} current={!!task}
           {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} onAssignmentRevision={setAssignmentRevision} />}

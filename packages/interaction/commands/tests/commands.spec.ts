@@ -207,6 +207,7 @@ describe('CommandRuntime', () => {
     })
     const running = new AbortController()
     const promise = ctx.commands.execute(agent, '/wait', [], running.signal)
+    await vi.waitFor(() => { expect(release).toBeTypeOf('function') })
     running.abort('operator cancelled command')
     await expect(promise).rejects.toThrow('operator cancelled command')
     release({ kind: 'success', text: 'late' })

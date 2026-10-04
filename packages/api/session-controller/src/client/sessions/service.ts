@@ -244,6 +244,7 @@ export class ClientSessions implements ISessions {
   /** The object-layer instance cluster and frame dispatch entry. */
   private readonly manager: SessionManager
   private readonly scopes = new Map<SessionId, ScopeRecord>()
+  private readonly accountControls = new Map<SessionId, import('../contract/session.ts').SessionControls>()
   private readonly external = new Map<SessionId, {
     binding: SessionBinding
     fiber: Fiber
@@ -279,8 +280,11 @@ export class ClientSessions implements ISessions {
       disposeManagerProjection()
       const scopes = [...this.scopes]
       this.scopes.clear()
+      this.accountControls.clear()
+      this.projectList()
       for (const [, record] of scopes) {
         record.live = false
+        if (record.binding.controls) record.session.withdrawAccount()
         record.session.unbindScope()
       }
       const managerDisposal = this.manager.dispose()
@@ -303,7 +307,14 @@ export class ClientSessions implements ISessions {
     const { source, signal } = options
     signal?.throwIfAborted()
     if (this.closed) throw new Error('Session Controller is disposed')
-    if (typeof target !== 'string' && 'kind' in target) return this.retainExternal(target, options)
+    if (typeof target !== 'string' && 'kind' in target) {
+      if (target.kind === 'external') return this.retainExternal(target, options)
+      const record = this.scopes.get(target.sessionId)
+      if (record && record.binding.controls !== target.controls) this.retireScope(target.sessionId, record)
+      this.accountControls.set(target.sessionId, target.controls)
+      this.manager.get(target.sessionId)
+      return this.retain(target.sessionId, options)
+    }
     if (typeof target === 'string') {
       const account = this.external.get(target)
       if (account) return this.retainExternal(account.target, options)
@@ -655,6 +666,8 @@ export class ClientSessions implements ISessions {
     if (!record.live) return
     record.live = false
     if (this.scopes.get(id) === record) this.scopes.delete(id)
+    if (this.accountControls.get(id) === record.binding.controls) this.accountControls.delete(id)
+    if (record.binding.controls) record.session.withdrawAccount()
     record.session.unbindScope()
     const sessionDisposal = this.manager.drop(id, record.session)
     this.projectList()
@@ -669,7 +682,9 @@ export class ClientSessions implements ISessions {
     // The Session owns its scoped dispatch point (host Agent.loopCtx mirror);
     // mint and bind are one step so a live scope record implies a bound actx.
     session.bindScope(ctx)
-    const binding: SessionBinding = { sessionId: id, session, eventSource: session.eventSource, ctx }
+    const controls = this.accountControls.get(id)
+    const binding: SessionBinding = { sessionId: id, session, eventSource: session.eventSource, ctx,
+      ...(controls ? { controls } : {}) }
     const record: ScopeRecord = {
       fiber,
       ctx,
@@ -737,7 +752,7 @@ export class ClientSessions implements ISessions {
     for (const [id, record] of this.scopes) {
       if (byId[id] !== undefined) continue
       const address = this.manager.subagentAddress(id)
-      if (address === undefined) continue
+      if (address === undefined && !this.accountControls.has(id)) continue
       const previous = previousById[id]
       const snapshot = record.session.getSnapshot()
       const projectionValues = this.manager.projectionValues(id)
@@ -748,8 +763,7 @@ export class ClientSessions implements ISessions {
         running: snapshot.running,
         retainedBy: record.retention.retainedBy,
         blank: snapshot.blank,
-        parentId: address.parentSessionId,
-        origin: 'subagent',
+        ...(address ? { parentId: address.parentSessionId, origin: 'subagent' as const } : {}),
         ...(projectionValues === undefined ? {} : { projectionValues }),
         ...(title === undefined ? {} : { title, displayTitle: title }),
       }

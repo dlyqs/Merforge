@@ -11,6 +11,7 @@ import { planningCommandSchema, planningDraftSchema } from '@deepseek-ai/dsh-org
 import { conversationModelSchema } from './model.ts'
 import { checkPlanningMembers } from './proposal.ts'
 import { runConversation } from './runtime.ts'
+import { SharedConversationSessions } from './shared-session.ts'
 import { conversationDomain, conversationStateSchema, conversationInputSchema, conversationBindingSchema,
   navigationDomain, navigationStateSchema, conversationAssessmentSchema, conversationOperationSchema, conversationProposalSchema, type conversationIntentSchema } from './state.ts'
 import { conversationRequestSchema, conversationAuthoritySchema, conversationOwnerSchema, conversationResultSchema,
@@ -38,6 +39,7 @@ export default class OrganizationConversation extends Service {
   static inject = ['storageDomain']
   static Config = conversationConfigSchema
   private readonly isolated = new Context()
+  private shared: SharedConversationSessions | undefined
   private navigation?: DomainGlobal<z.output<typeof navigationStateSchema>>
   private state?: DomainGlobal<State>
   private tail: Promise<void> = Promise.resolve()
@@ -49,13 +51,41 @@ export default class OrganizationConversation extends Service {
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(conversationDomain)
     this.state = domain.global
+    this.ctx.inject(['sessionQuery', 'sessionController', 'personalWorkflow', 'sessionProjections', 'agentDefaultModel', 'sessions', 'sessionPersistence', 'agents', 'tools'], (host) => {
+      this.shared = new SharedConversationSessions(host, () => this.state?.get().bindings ?? [],
+        binding => this.settings(binding.owner), (binding) => {
+          const botId = this.navigation?.get().selections.find(row => ownerKey(row.owner) === ownerKey(binding.owner))?.botId
+          return this.navigation?.get().bots.find(row => row.bot.id === botId
+            && preferenceKey(row.owner) === preferenceKey(binding.owner) && row.owner.projectId === binding.owner.projectId)?.bot
+        }, this.config.recheckMs)
+      host.on('api-session/backend-replaced', async (source, replacement) => {
+        const operation = this.tail.then(async () => {
+          const state = this.state
+          if (!state) throw new Error('organization-conversation: unavailable')
+          const binding = state.get().bindings.find(row => (row.activeSessionId ?? row.sharedSessionId) === source.id)
+          if (!binding) return
+          if (binding.deleted) throw new Error('organization-conversation: deleted')
+          // oxlint-disable-next-line typescript/no-deprecated -- Backend handoff copies task metadata without conversation messages.
+          for (const event of source.snapshotEvents()) {
+            if (event.type === 'organization/conversation-owner') replacement.append(event.type, event.data)
+            if (event.type === 'organization/assignment-context') replacement.append(event.type, event.data)
+            if (event.type === 'organization/task-selection') replacement.append(event.type, event.data)
+          }
+          if (!await host.sessions.flush(replacement)) throw new Error('organization-conversation: log-not-durable')
+          await state.set({ ...state.get(), bindings: state.get().bindings.map(row => row === binding
+            ? { ...row, activeSessionId: replacement.id } : row) })
+        })
+        this.tail = operation.then(() => {}, () => {})
+        await operation
+      })
+    })
     const navigation = await this.ctx.storageDomain.open(navigationDomain).catch(async (error: unknown) => {
       await domain.close(); throw error
     })
     this.navigation = navigation.global
     this.ctx.effect(() => async () => {
       this.closing = true; for (const run of this.running) run.abort()
-      await this.tail; await this.isolated.fiber.dispose(); await navigation.close(); await domain.close()
+      await this.tail; await this.shared?.close(); await this.isolated.fiber.dispose(); await navigation.close(); await domain.close()
     }, 'organization-conversation.close')
     await this.isolated.plugin(Jsonl, { root: this.config.root, compression: 'none', namespace: 'organization-conversation' })
     await this.verifyStoredBindings()
@@ -70,6 +100,7 @@ export default class OrganizationConversation extends Service {
   perform(input: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal): Promise<ConversationResult> {
     const request = conversationRequestSchema.parse(input), cancel = new AbortController()
     if (this.closing) return Promise.reject(new Error('organization-conversation: unavailable'))
+    if (request.kind === 'detach') return this.detach(request, authorize, signal)
     if (request.kind === 'stop' || request.kind === 'delete') return authorize().then((authority) => {
       const key = ownerKey(conversationOwnerSchema.parse({ serverId: authority.serverId, accountId: authority.accountId,
         organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
@@ -78,6 +109,67 @@ export default class OrganizationConversation extends Service {
       return this.enqueue(request.kind === 'stop' ? { ...request, kind: 'read' } : request, authorize, signal, cancel)
     })
     return this.enqueue(request, authorize, signal, cancel)
+  }
+  /**
+   * Attach the common Desktop runtime through a native-owned account lifetime.
+   * @param request - Fixed conversation selector.
+   * @param authorize - Native account authorization.
+   * @param signal - Account and window lifetime.
+   * @param ready - Publishes the ordinary Session identity after authorized import.
+   * @returns Settlement after the ordinary Agent drains on detachment.
+   */
+  async attach(request: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal,
+    ready: (result: ConversationResult) => void): Promise<void> {
+    const shared = this.shared
+    if (!shared || request.kind !== 'attach') throw new Error('organization-conversation: common-runtime-required')
+    const report = await this.perform({ ...request, kind: 'open' }, authorize, signal)
+    const state = this.state
+    if (!state) throw new Error('organization-conversation: unavailable')
+    const reservation = this.tail.then(async () => {
+      signal.throwIfAborted()
+      let binding = state.get().bindings.find(row => row.sessionId === report.sessionId)
+      if (!binding || binding.deleted) throw new Error('organization-conversation: deleted')
+      if (!binding.sharedSessionId) {
+        binding = { ...binding, sharedSessionId: SessionId(`session-${randomUUID()}`) }
+        const next = binding
+        await state.set({ ...state.get(), bindings: state.get().bindings.map(row => row.sessionId === next.sessionId ? next : row) })
+      }
+      return binding
+    })
+    this.tail = reservation.then(() => {}, () => {})
+    const reserved = await reservation
+    const events = await this.events(reserved)
+    let inputText = ''
+    const commonId = reserved.sharedSessionId
+    if (!commonId) throw new Error('organization-conversation: shared-session-required')
+    const importing = !await this.commonHost().persistence.stat(commonId)
+    const history = events.map((event): SessionEvent => {
+      if (event.type === 'organization/planning-input' && event.data.request.kind === 'send') inputText = event.data.request.text
+      return importing && event.type === 'user/message' && event.data.source.kind === 'user'
+        ? { ...event, data: { ...event.data, content: [{ type: 'text', text: inputText }] } } : event
+    })
+    await shared.attach(reserved, history, authorize, request.operationId, signal, async () => {
+      const currentBinding = state.get().bindings.find(row => row.sessionId === reserved.sessionId)
+      if (!currentBinding || currentBinding.deleted) throw new Error('organization-conversation: deleted')
+      const current = await this.report(currentBinding, authorize)
+      ready({ ...current, attachmentId: request.operationId })
+    })
+  }
+  private async detach(request: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal): Promise<ConversationResult> {
+    if (request.kind !== 'detach') throw new Error('organization-conversation: detach-required')
+    const authority = await authorize()
+    signal.throwIfAborted()
+    const binding = this.state?.get().bindings.find(row => row.owner.serverId === authority.serverId
+      && row.owner.accountId === authority.accountId && row.owner.organizationId === request.organizationId
+      && row.owner.projectId === request.projectId && row.owner.conversationId === request.conversationId)
+    if (!binding) throw new Error('organization-conversation: open-required')
+    if (binding.sharedSessionId) await this.shared?.detach(binding.sharedSessionId, request.attachmentId)
+    return this.report(binding, authorize)
+  }
+  private commonHost() {
+    const sessions = this.ctx.get('sessions'), persistence = this.ctx.get('sessionPersistence'), controller = this.ctx.get('sessionController')
+    if (!sessions || !persistence || !controller) throw new Error('organization-conversation: common-runtime-required')
+    return { sessions, persistence, controller }
   }
   private enqueue(request: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal,
     cancel: AbortController): Promise<ConversationResult> {
@@ -160,6 +252,11 @@ export default class OrganizationConversation extends Service {
       if (this.navigation) await this.navigation.set({ ...this.navigation.get(),
         metadata: this.navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)),
         selections: this.navigation.get().selections.filter(row => ownerKey(row.owner) !== ownerKey(owner)) })
+      if (binding.sharedSessionId) {
+        await this.shared?.detach(binding.sharedSessionId)
+        for (const id of this.shared?.identities(binding.sharedSessionId) ?? [binding.sharedSessionId])
+          await this.commonHost().controller.deleteSession(id)
+      }
       if (await this.isolated.sessionPersistence.stat(binding.sessionId)) await this.isolated.sessionPersistence.delete(binding.sessionId)
       await bridge(); check()
       return { sessionId: binding.sessionId, owner, settings: this.settings(owner), entries: [], history: [], goals: [],
@@ -193,6 +290,9 @@ export default class OrganizationConversation extends Service {
       await navigation.set({ ...navigation.get(), metadata: [
         ...navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)), { owner, title: request.title }] })
       await state.set({ ...state.get(), controls: controls() })
+      const activeId = binding.activeSessionId ?? binding.sharedSessionId
+      if (activeId && this.commonHost().sessions.get(activeId))
+        await this.commonHost().controller.rename({ sessionId: activeId, title: request.title })
     }
     if (request.kind === 'select-task' && !control) {
       if (first.assignment && (first.assignment.planId !== request.target.planId || first.assignment.taskId !== request.target.taskId))
@@ -204,11 +304,18 @@ export default class OrganizationConversation extends Service {
       const previous = events.find(event => event.type === 'organization/task-selection' && event.data.operationId === request.operationId)
       if (previous?.type === 'organization/task-selection' && previous.data.digest !== digest) throw new Error('organization-conversation: operation-conflict')
       if (!previous) {
-        const writer = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
-        try {
-          await writer.append([{ type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(),
-            data: { owner, target, operationId: request.operationId, digest } }]); await writer.flush()
-        } finally { await writer.close() }
+        const data = { owner, target, operationId: request.operationId, digest }
+        if (binding.sharedSessionId) {
+          const resolved = await this.commonHost().controller.resolveAgent(binding.activeSessionId ?? binding.sharedSessionId)
+          if ('error' in resolved) throw resolved.error
+          resolved.agent.session.append('organization/task-selection', data)
+          await this.commonHost().sessions.flush(resolved.agent.session)
+        } else {
+          const writer = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+          try {
+            await writer.append([{ type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(), data }]); await writer.flush()
+          } finally { await writer.close() }
+        }
       }
       await state.set({ ...state.get(), controls: controls() })
     }
@@ -232,10 +339,20 @@ export default class OrganizationConversation extends Service {
     const sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
       && candidate.projectId === owner.projectId
     if (request.kind === 'bot-save') {
-      if (!first.view.policy.models.some(model => model.model === request.bot.selection.model
-        && model.endpoint === request.bot.selection.endpoint)
-        || !this.config.models.some(model => model.model === request.bot.selection.model
-        && model.endpoint === request.bot.selection.endpoint))
+      const selection = request.bot.selection
+      if ('provider' in selection) {
+        if (selection.backend === 'codex') {
+          if (selection.provider !== 'codex') throw new Error('organization-conversation: model-route-denied')
+          const agents = this.ctx.get('agents')
+          if (!agents) throw new Error('organization-conversation: common-runtime-required')
+          await agents.driver('codex').resolve(selection.model, selection.reasoningEffort)
+        } else {
+          const llm = this.ctx.get('llm')
+          if (!llm) throw new Error('organization-conversation: common-runtime-required')
+          await llm.resolveModelInfo(selection.provider, selection.model)
+        }
+      } else if (!first.view.policy.models.some(model => model.model === selection.model && model.endpoint === selection.endpoint)
+        || !this.config.models.some(model => model.model === selection.model && model.endpoint === selection.endpoint))
         throw new Error('organization-conversation: local-model-policy-denied')
       const data = navigation.get(), previous = data.operations.find(record => sameOperation(record))
       if (previous && (previous.digest !== digest || ownerKey(previous.owner) !== ownerKey(owner)))
@@ -306,6 +423,7 @@ export default class OrganizationConversation extends Service {
       if (!state.get().controls.some(sameOperation)) await state.set({ ...state.get(), controls: controls() })
     }
     if (request.kind === 'send') {
+      if (binding.sharedSessionId) throw new Error('organization-conversation: use-common-session-prompt')
       if (!this.config.models.some(m => m.model === request.selection.model && m.endpoint === request.selection.endpoint))
         throw new Error('organization-conversation: local-model-policy-denied')
       let intent = state.get().intents.find(i => i.operationId === request.operationId
@@ -382,7 +500,16 @@ export default class OrganizationConversation extends Service {
   }
   private async append<T extends 'organization/planning-operation' | 'organization/planning-proposal'>(binding: Binding, type: T,
     data: import('@deepseek-ai/dsh-session').SessionEventMap[T]): Promise<void> {
-    const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+    const activeId = binding.activeSessionId ?? binding.sharedSessionId
+    const live = activeId ? this.commonHost().sessions.get(activeId) : undefined
+    if (live) {
+      if (type === 'organization/planning-proposal') live.append('organization/planning-proposal', conversationProposalSchema.parse(data))
+      else live.append('organization/planning-operation', conversationOperationSchema.parse(data))
+      if (!await this.commonHost().sessions.flush(live)) throw new Error('organization-conversation: log-not-durable')
+      return
+    }
+    const persistence = binding.sharedSessionId ? this.commonHost().persistence : this.isolated.sessionPersistence
+    const handle = await persistence.open(activeId ?? binding.sessionId, 'write')
     try {
       const read = await handle.read()
       const event = type === 'organization/planning-proposal'
@@ -435,6 +562,19 @@ export default class OrganizationConversation extends Service {
     } finally { await handle.close() }
   }
   private async events(binding: Binding): Promise<readonly SessionEvent[]> {
+    if (binding.sharedSessionId) {
+      const activeId = binding.activeSessionId ?? binding.sharedSessionId
+      const live = this.commonHost().sessions.get(activeId)
+      // oxlint-disable-next-line typescript/no-deprecated -- Native account reports borrow the ordinary live Session prefix.
+      if (live) return live.snapshotEvents()
+      if (await this.commonHost().persistence.stat(activeId)) {
+        const reader = await this.commonHost().persistence.open(activeId, 'read')
+        try { return (await reader.read()).events } finally { await reader.close() }
+      }
+    }
+    return this.legacyEvents(binding)
+  }
+  private async legacyEvents(binding: Binding): Promise<readonly SessionEvent[]> {
     const reader = await this.isolated.sessionPersistence.open(binding.sessionId, 'read')
     try {
       const events = (await reader.read()).events, first = events[0], header = reader.header
@@ -494,8 +634,10 @@ export default class OrganizationConversation extends Service {
   private async report(binding: Binding, bridge: ConversationBridge, navigationOnly = false): Promise<ConversationResult> {
     const events = await this.events(binding), entries: ConversationResult['entries'] = []
     for (const e of events) {
-      if (e.type === 'organization/planning-input' && e.data.request.kind === 'send') entries.push({ role: 'user',
+      if (!binding.sharedSessionId && e.type === 'organization/planning-input' && e.data.request.kind === 'send') entries.push({ role: 'user',
         text: e.data.request.text })
+      if (binding.sharedSessionId && e.type === 'user/message' && e.data.source.kind === 'user') entries.push({ role: 'user',
+        text: e.data.content.filter(part => part.type === 'text').map(part => part.text).join('\n') })
       if (e.type === 'assistant/message') entries.push({ role: 'assistant',
         text: e.data.message.content.filter(b => b.type === 'text').map(b => b.text).join('') })
     }
@@ -503,13 +645,15 @@ export default class OrganizationConversation extends Service {
     let inputText = ''
     const history = events.map((event): SessionEvent => {
       if (event.type === 'organization/planning-input' && event.data.request.kind === 'send') inputText = event.data.request.text
-      if (event.type === 'user/message') return { ...event, data: { ...event.data, content: [{ type: 'text', text: inputText }] } }
+      if (!binding.sharedSessionId && event.type === 'user/message') return { ...event, data: { ...event.data, content: [{ type: 'text', text: inputText }] } }
       return event
     })
     const selection = events.findLast(event => event.type === 'model/selection')
     const title = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(binding.owner))?.title
-    const result: ConversationResult = { history, ...(title ? { title } : {}),
-      ...(selection?.type === 'model/selection' ? { selection: { endpoint: selection.data.provider,
+    const result: ConversationResult = { history,
+      ...(binding.sharedSessionId ? { sharedSessionId: binding.activeSessionId ?? binding.sharedSessionId } : {}),
+      ...(title ? { title } : {}),
+      ...(!binding.sharedSessionId && selection?.type === 'model/selection' ? { selection: { endpoint: selection.data.provider,
         model: selection.data.model } } : {}), sessionId: binding.sessionId, owner: binding.owner, settings: this.settings(binding.owner),
       entries, goals: this.goals(events), truncated: false,
       state: !intent ? 'ready' : intent.state === 'sending' || intent.state === 'received' ? 'unknown' : intent.state }
@@ -626,7 +770,7 @@ export default class OrganizationConversation extends Service {
       if (owners.has(ownerKey(b.owner)) || sessions.has(b.sessionId)) throw new Error('organization-conversation: duplicate-binding')
       owners.add(ownerKey(b.owner)); sessions.add(b.sessionId)
       if (!b.deleted && (b.ready || await this.isolated.sessionPersistence.stat(b.sessionId))) {
-        const events = await this.events(b)
+        const events = await this.legacyEvents(b)
         if (events.filter(e => e.type === 'organization/conversation-owner').length !== 1)
           throw new Error('organization-conversation: binding-log-mismatch')
         for (const event of events) {

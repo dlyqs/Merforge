@@ -68,6 +68,8 @@
     "@deepseek-ai/dsh-session-query": "workspace:*",
     "@deepseek-ai/dsh-credentials-local": "workspace:*",
     "@deepseek-ai/dsh-organization-connection": "workspace:*",
-    "@deepseek-ai/dsh-api-session-controller": "workspace:*"
+    "@deepseek-ai/dsh-api-session-controller": "workspace:*",
+    "@deepseek-ai/dsh-agent-default-model": "workspace:*",
+    "@deepseek-ai/dsh-personal-workflow": "workspace:*"
   }
 }

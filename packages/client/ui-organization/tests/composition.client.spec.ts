@@ -4,14 +4,14 @@ import { expect, vi } from 'vitest'
 import { ok } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { SESSION_FORMAT_VERSION, type SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionFollowFrame } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { SessionFollowFrame, SessionFollowRequest } from '@deepseek-ai/dsh-api-session-controller/types'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { AccountId, MembershipId, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { OrganizationTaskList, OrganizationTasks } from '../src/client/Tasks.tsx'
 import { ConversationPanel } from '../../ui-conversation/src/client/skeleton/ConversationPanel.tsx'
 import { randomUUID } from 'node:crypto'
-import { createAssistantMessage, createSystemMessage } from '@deepseek-ai/dsh-llm'
+import { createAssistantMessage, createSystemMessage, MessageId } from '@deepseek-ai/dsh-llm'
 import { conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationInjected } from '../src/client/contract.ts'
 import { createConversationStore } from '../src/client/conversation-store.ts'
@@ -41,11 +41,6 @@ it('registers organization settings while retaining the personal management fact
 it('routes new and recent conversation navigation to the organization and replaces task readers until identity changes', async ({ mock, start }) => {
   const sessionId = 'organization-initial-personal' as SessionId
   mock.remote.session.create.mockResolvedValue(ok({ sessionId }))
-  mock.stream('session/follow', (_request, stream) => {
-    stream.push({ type: 'snapshot', header: { version: SESSION_FORMAT_VERSION, id: sessionId, createdAt: 1, isSeeded: false },
-      cursor: -1, records: [], hasMore: false, projections: { asOfSeq: -1, values: {} }, assistantStream: { revision: 0 },
-    } satisfies SessionFollowFrame)
-  })
   const globalObject = globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }
   const previous = globalObject.dshDesktop
   const organizationId = brandString<OrganizationId>('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
@@ -54,7 +49,7 @@ it('routes new and recent conversation navigation to the organization and replac
       accountId: brandString<AccountId>('cccccccc-cccc-4ccc-8ccc-cccccccccccc') }, organizationId,
     organizations: [{ id: organizationId, name: 'Team', version: 1, role: 'admin', membershipId: brandString<MembershipId>('dddddddd-dddd-4ddd-8ddd-dddddddddddd') }], members: [] },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
-  const report = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+  const report = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`, sharedSessionId: `session-${randomUUID()}`, attachmentId: randomUUID(),
     owner: { ...snapshot.connection.principal,
       organizationId, projectId: randomUUID(), conversationId: randomUUID() }, settings: { enabled: true,
       granularity: 'balanced', revision: 0 },
@@ -69,6 +64,15 @@ it('routes new and recent conversation navigation to the organization and replac
       { type: 'turn/end', seq: 5, time: 1, data: { turn: 1, reason: { kind: 'completed' } } }],
     goals: [], truncated: false, state: 'ready' })
   const nativeConversation = vi.fn<OrganizationDesktopBridge['conversation']>(async () => ({ generation: 1, result: report }))
+  mock.stream('session/follow', (args, stream) => {
+    const request = args[0] as SessionFollowRequest
+    const id = request.address.kind === 'session' ? request.address.sessionId : sessionId
+    const events = id === report.sharedSessionId ? report.history : []
+    stream.push({ type: 'snapshot', header: { version: SESSION_FORMAT_VERSION, id, createdAt: 1, isSeeded: false },
+      cursor: events.at(-1)?.seq ?? -1, records: events.map(event => ({ type: 'event' as const, event })), hasMore: false,
+      projections: { asOfSeq: events.at(-1)?.seq ?? -1, values: {} }, assistantStream: { revision: 0 },
+    } satisfies SessionFollowFrame)
+  })
   let publish: ((snapshot: OrganizationDesktopSnapshot) => void) | undefined
   const bridge: OrganizationDesktopBridge = { snapshot: async () => snapshot,
     subscribe: (listener) => { publish = listener; return () => { publish = undefined } },
@@ -92,48 +96,76 @@ it('routes new and recent conversation navigation to the organization and replac
     const actions = createConversationStore().create().actions
     const injected = bind(actions)
     await injected.selectConversation!(report.owner)
-    const binding = app.ctx.sessions.binding(report.sessionId)!
-    expect(binding.session.getSnapshot().sessionId).toBe(report.sessionId)
-    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sessionId)
+    const binding = app.ctx.sessions.binding(report.sharedSessionId!)!
+    await vi.waitFor(() => { expect(binding.session.getSnapshot().openError).toBeNull(); expect(binding.session.getSnapshot().openState).toBe('open') })
+    expect(binding.session.getSnapshot().sessionId).toBe(report.sharedSessionId!)
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId!)
     const conversation = app.ctx.uiConversation.binding(binding)
     conversation.activate('chat')
     expect(JSON.stringify(conversation.target('chat').getSnapshot()?.nodes.values())).toContain('ACCOUNT_ASSISTANT')
     expect(app.ctx.slots.entries('main.conversation')[0]?.children).toHaveProperty('conversation.header')
     expect(app.ctx.slots.entries('conversation.composer.bar')[0]?.children).toHaveProperty('conversation.input.left')
-    expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(report.sessionId)
-    const ownerCount = app.ctx.sessions.retainInfo(report.sessionId).getSnapshot().referenceCount
-    const secondReference = app.ctx.sessions.retain(report.sessionId, { source: 'mainView' })
+    expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(report.sharedSessionId!)
+    expect(app.ctx.sessions.list.getSnapshot().byId[report.sharedSessionId!]).toBeDefined()
+    const nativeCalls = nativeConversation.mock.calls.length
+    mock.remote.session.prompt.mockResolvedValue(ok({ accepted: true }))
+    const content = [{ type: 'text' as const, text: 'Image question' }, { type: 'image' as const, mediaType: 'image/png' as const, data: 'image-bytes' }]
+    await binding.session.prompt(content, 'queue')
+    expect(mock.remote.session.prompt).toHaveBeenLastCalledWith(expect.objectContaining({ sessionId: report.sharedSessionId, content, mode: 'queue' }), undefined)
+    mock.remote.commands.execute.mockResolvedValue(ok(undefined))
+    await binding.session.command('/help')
+    expect(mock.remote.commands.execute).toHaveBeenLastCalledWith(report.sharedSessionId, '/help', [])
+    mock.remote.session.updateQueue.mockResolvedValue(ok({ accepted: true }))
+    const itemId = MessageId(randomUUID())
+    await binding.session.updateQueue(itemId, { kind: 'edit', content: [{ type: 'text', text: 'Updated queue item' }] })
+    expect(mock.remote.session.updateQueue).toHaveBeenLastCalledWith({ sessionId: report.sharedSessionId, itemId, action: { kind: 'edit', content: [{ type: 'text', text: 'Updated queue item' }] } })
+    expect(nativeConversation.mock.calls.length).toBe(nativeCalls)
+
+    const ownerCount = app.ctx.sessions.retainInfo(report.sharedSessionId!).getSnapshot().referenceCount
+    const secondReference = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'mainView' })
     expect(secondReference.binding).toBe(binding)
     const cancel = new AbortController()
-    const cancelled = app.ctx.sessions.retain(report.sessionId, { source: 'controllerOperation', signal: cancel.signal })
+    const cancelled = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'controllerOperation', signal: cancel.signal })
     cancel.abort()
     await expect(cancelled.ready).rejects.toThrow()
     cancelled.release()
-    expect(app.ctx.sessions.retainInfo(report.sessionId).getSnapshot().referenceCount).toBe(ownerCount + 1)
+    expect(app.ctx.sessions.retainInfo(report.sharedSessionId!).getSnapshot().referenceCount).toBe(ownerCount + 1)
     secondReference.release()
     expect(() => secondReference.binding).toThrow('released')
-    const priorGeneration = app.ctx.sessions.retain(report.sessionId, { source: 'controllerOperation' })
+    const priorGeneration = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'controllerOperation' })
     await injected.selectConversation!(report.owner)
     expect(() => priorGeneration.binding).toThrow('released')
-    const replacement = app.ctx.sessions.binding(report.sessionId)
+    const replacement = app.ctx.sessions.binding(report.sharedSessionId!)
     expect(replacement).not.toBe(binding)
     priorGeneration.release()
-    expect(app.ctx.sessions.binding(report.sessionId)).toBe(replacement)
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(replacement)
+    const backendId = brandString<SessionId>(`session-${randomUUID()}`)
+    mock.remote.session.selectModel.mockResolvedValue(ok({ selected: { backend: 'codex', provider: 'codex', model: 'native-test' }, sessionId: backendId }))
+    nativeConversation.mockImplementation(async request => ({ generation: 1,
+      result: request.kind === 'attach' ? { ...report, sharedSessionId: backendId, attachmentId: brandString(randomUUID()) } : report }))
+    const openPersonal = vi.spyOn(app.ctx.uiWorkspace, 'openSession')
+    await app.ctx.modelDirectories.directoryFor(report.sharedSessionId!).select({ backend: 'codex', provider: 'codex', model: 'native-test' })
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(backendId)
+    expect(app.ctx.sessions.binding(backendId)?.controls).toBeDefined()
+    expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(backendId)
+    expect(openPersonal).not.toHaveBeenCalled()
+    nativeConversation.mockImplementation(async () => ({ generation: 1, result: report }))
+    await injected.selectConversation!(report.owner)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, mode: 'personal', generation: 2 } })
     await vi.waitFor(() => { expect(app.ctx.slots.entries('sidebar.tasks').some(e => e.component === OrganizationTaskList)).toBe(false) })
     app.ctx.uiWorkspace.showConversation()
     expect(selectPanel).toHaveBeenLastCalledWith(null)
-    expect(app.ctx.sessions.binding(report.sessionId)).toBeUndefined()
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeUndefined()
     expect(binding.eventSource.getSnapshot().entries).toEqual([])
     publish?.(snapshot)
     await injected.selectConversation!(report.owner)
-    const retained = app.ctx.sessions.retain(report.sessionId, { source: 'controllerOperation' })
+    const retained = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'controllerOperation' })
     await retained.ready
     const sessions = app.ctx.sessions
     await app.ctx.fiber.dispose()
     expect(() => retained.binding).toThrow('released')
-    expect(sessions.retainInfo(report.sessionId).getSnapshot().referenceCount).toBe(0)
-    expect(sessions.list.getSnapshot().byId[report.sessionId]).toBeUndefined()
+    expect(sessions.retainInfo(report.sharedSessionId!).getSnapshot().referenceCount).toBe(0)
+    expect(sessions.list.getSnapshot().byId[report.sharedSessionId!]).toBeUndefined()
     retained.release()
     expect(publish).toBeUndefined()
   } finally {
