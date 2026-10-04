@@ -42,7 +42,7 @@ export function apply(ctx: Context): void {
   const desktop = (globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }).dshDesktop?.organization
   const modelCatalogRevision = createSnapshotStore(0)
   ctx.remote.$on('api-session/model-catalog-changed', (revision) => { modelCatalogRevision.set(revision) })
-  const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0, generation: 0,
+  const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0, generation: 0, identityGeneration: 0,
     phase: 'disconnected',
     mode: 'personal',
     organizations: [],
@@ -114,7 +114,11 @@ export function apply(ctx: Context): void {
       ...(selected.assignmentId && selected.planId ? { assignment: { assignmentId: selected.assignmentId,
         planId: selected.planId } } : {}) }
     const reply = await desktop.conversation({ ...query, kind: 'attach', operationId: randomUUID() as ConversationRequest['operationId'] })
-    if (sequence !== openSequence || state.getSnapshot().connection.generation !== reply.generation) {
+    const current = state.getSnapshot().connection
+    if (sequence !== openSequence || current.mode !== 'organization' || !['ready', 'loading'].includes(current.phase)
+      || current.identityGeneration !== c.identityGeneration
+      || current.principal?.serverId !== selected.serverId || current.principal.accountId !== selected.accountId
+      || current.organizationId !== selected.organizationId) {
       if (reply.result.attachmentId) await desktop.conversation({ ...query, kind: 'detach',
         attachmentId: reply.result.attachmentId, operationId: randomUUID() as ConversationRequest['operationId'] })
         .catch((_error: unknown) => { /* A retired native generation already cancels its attachment. */ })
@@ -179,7 +183,7 @@ export function apply(ctx: Context): void {
     ctx.layout.selectPanel(null); return true
   }), 'organization.new-conversation')
   ctx.effect(() => {
-    let stop: (() => void)[] = [], active = false, identity = '', generation = -1
+    let stop: (() => void)[] = [], active = false, identity = '', generation = -1, identityGeneration = -1, phase = ''
     const update = () => {
       const c = state.getSnapshot().connection, organization = c.mode === 'organization'
       const nextIdentity = `${c.mode}:${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`
@@ -195,10 +199,19 @@ export function apply(ctx: Context): void {
         if (changed) ctx.layout.selectPanel(null)
       }
       if (generation !== c.generation) {
-        generation = c.generation; retire()
-        if (organization && c.phase === 'ready' && currentSelection) void selectConversation(currentSelection).catch((_error: unknown) => { /* A revoked selection stays empty until the user chooses another conversation. */ })
+        generation = c.generation
+        conversationActions?.refresh()
       }
-      if (!organization || c.phase !== 'ready') retire()
+      if (identityGeneration !== c.identityGeneration) {
+        identityGeneration = c.identityGeneration
+        retire()
+      }
+      if (!organization || !['ready', 'loading'].includes(c.phase)) retire()
+      if (phase !== c.phase) {
+        phase = c.phase
+        if (organization && c.phase === 'ready' && currentSelection && !accountSession)
+          void selectConversation(currentSelection).catch((_error: unknown) => { /* Reopening history never replays a prompt. */ })
+      }
       if (active === organization) return
       active = organization
       for (const dispose of stop) dispose()

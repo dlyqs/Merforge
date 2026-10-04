@@ -12,6 +12,8 @@
 
 组织覆盖保存在 `organization_conversation` version 1 本机域，按 server/account/organization 保存 enabled、granularity 与 revision。组织会话使用普通 Session Controller、标准 preset、模型提供方和工具；模型选择、附件、逐字输出、斜杠命令、队列编辑及本地执行沿用普通会话链路。native attach 在线授权后将历史一次性导入持久 sharedSessionId，保留原账号归属。detach、窗口关闭、身份或权限失效取消并排空普通 Agent。账号访问策略保护普通 API 的精确读取与操作，并从个人目录隐藏组织会话及派生会话。共享任务写入继续由组织权威服务核验。
 
+组织项目对话也读取本机 `forceDecomposition` 和 testing revision，并随 `organization/planning-input` 与模型上下文保存。未选任务的新目标不能走 simple 路由或直接执行，提案至少包含两个必要子任务；关闭组织规划开关不绕过测试设置。已选或已分配任务继续执行。项目与通知的内容 generation 刷新保留账号 attachment、当前会话与侧栏记录，只有账号生命周期或权限失效才取消；有限目录查询完成最终在线复核后再清理请求。
+
 ## 输入、目标与准确版本
 
 用户消息的既有品牌化 MessageId 是输入身份，不用正文哈希。评估服务生成品牌化 GoalId；调用方在澄清、修改和查询时引用原 GoalId。新消息可提出内容相同的另一个新目标，但同一已接收 MessageId 只能有一份评估回执，重试相同请求恢复原结果、不同请求拒绝。多个目标可以属于同一对话，不能按“最近未完成目标”隐式关联。

@@ -1,6 +1,28 @@
 /** Safe Desktop organization views; bearer tokens and certificates stay in the native owner. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { Principal, OrganizationView, OrganizationProjectPage, MemberView, Receipt, OrganizationId, OperationId } from '@deepseek-ai/dsh-organization/types'
+import type { z } from 'zod'
+import type { accountConversationViewSchema, planningPlanReadSchema, planningPlanViewSchema,
+  planningCandidatesSchema, planningCandidatesPageSchema, planningCommandSchema } from '@deepseek-ai/dsh-organization/planning'
+import type { assignmentReadSchema, preparationSchema } from '@deepseek-ai/dsh-organization/assignment'
+
+/** Native-only account conversation operations that survive content refreshes. */
+export interface OrganizationConversationChannel {
+  generation: number
+  signal: AbortSignal
+  /** @returns Captured principal after checking the current login and organization lifetime. */
+  current(): Principal
+  /** @returns Current membership or project planning permissions for the captured conversation. */
+  read(): Promise<z.output<typeof accountConversationViewSchema>>
+  /** @param input - Exact task selector in this project and conversation. @returns Currently readable task definition. */
+  plan(input: z.input<typeof planningPlanReadSchema>): Promise<z.output<typeof planningPlanViewSchema>>
+  /** @param input - Candidate query in this project. @returns Visible project members. */
+  candidates(input: z.input<typeof planningCandidatesSchema>): Promise<z.output<typeof planningCandidatesPageSchema>>
+  /** @param input - Assignment selector in this project. @returns Current assignment and preparation facts. */
+  assignment(input: z.input<typeof assignmentReadSchema>): Promise<z.output<typeof preparationSchema>>
+  /** @param input - Planning write in this project and conversation. @returns Committed or reconciled authority receipt. */
+  command(input: z.output<typeof planningCommandSchema>): Promise<Receipt>
+}
 
 /** Native request identity, scoped by server, account, organization and generation. */
 export type OrganizationRequestId = Branded<'OrganizationRequestId'>
@@ -30,6 +52,8 @@ export type ConnectionAction =
 export interface ConnectionSnapshot {
   revision: number
   generation: number
+  /** Account cancellation lifetime; content refreshes change only generation. */
+  identityGeneration: number
   phase: 'disconnected' | 'untrusted' | 'signed-out' | 'loading' | 'ready' | 'offline'
   mode: 'personal' | 'organization'
   origin?: string | undefined

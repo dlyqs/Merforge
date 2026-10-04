@@ -13,7 +13,7 @@ afterEach(() => { cleanup(); vi.useRealTimers() })
 it('deduplicates native and operation failures, clears on editing and expires feedback', async () => {
   vi.useFakeTimers()
   const state: OrganizationDesktopSnapshot = {
-    connection: { revision: 1, generation: 1, phase: 'disconnected', mode: 'personal', organizations: [], members: [] },
+    connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'disconnected', mode: 'personal', organizations: [], members: [] },
     server: { phase: 'disabled', settings: { host: '0.0.0.0', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const props: OrganizationProps = { available: true, t: makeTranslate(zh),
@@ -37,7 +37,7 @@ it('deduplicates native and operation failures, clears on editing and expires fe
 
 it('offers connection before registration and requires matching passwords with independent visibility controls', async () => {
   const state: OrganizationDesktopSnapshot = {
-    connection: { revision: 1, generation: 1, phase: 'signed-out', mode: 'personal', organizations: [], members: [] },
+    connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'signed-out', mode: 'personal', organizations: [], members: [] },
     server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const connection = vi.fn<OrganizationProps['connection']>().mockResolvedValue({})

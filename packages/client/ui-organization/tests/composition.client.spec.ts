@@ -44,7 +44,7 @@ it('routes new and recent conversation navigation to the organization and replac
   const globalObject = globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }
   const previous = globalObject.dshDesktop
   const organizationId = brandString<OrganizationId>('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
-  const snapshot: OrganizationDesktopSnapshot = { connection: { mode: 'organization', phase: 'ready', generation: 1, revision: 1,
+  const snapshot: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, mode: 'organization', phase: 'ready', generation: 1, revision: 1,
     principal: { serverId: brandString<ServerId>('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
       accountId: brandString<AccountId>('cccccccc-cccc-4ccc-8ccc-cccccccccccc') }, organizationId,
     organizations: [{ id: organizationId, name: 'Team', version: 1, role: 'admin', membershipId: brandString<MembershipId>('dddddddd-dddd-4ddd-8ddd-dddddddddddd') }], members: [] },
@@ -121,6 +121,13 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(mock.remote.session.updateQueue).toHaveBeenLastCalledWith({ sessionId: report.sharedSessionId, itemId, action: { kind: 'edit', content: [{ type: 'text', text: 'Updated queue item' }] } })
     expect(nativeConversation.mock.calls.length).toBe(nativeCalls)
 
+    publish?.({ ...snapshot, connection: { ...snapshot.connection, phase: 'loading', generation: 2 } })
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId!)
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(binding)
+    publish?.({ ...snapshot, connection: { ...snapshot.connection, phase: 'ready', generation: 2 } })
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(binding)
+    expect(nativeConversation.mock.calls.length).toBe(nativeCalls)
+
     const ownerCount = app.ctx.sessions.retainInfo(report.sharedSessionId!).getSnapshot().referenceCount
     const secondReference = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'mainView' })
     expect(secondReference.binding).toBe(binding)
@@ -151,6 +158,13 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(openPersonal).not.toHaveBeenCalled()
     nativeConversation.mockImplementation(async () => ({ generation: 1, result: report }))
     await injected.selectConversation!(report.owner)
+    const prompts = mock.remote.session.prompt.mock.calls.length
+    publish?.({ ...snapshot, connection: { ...snapshot.connection, phase: 'loading', generation: 3, identityGeneration: 2 } })
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeUndefined()
+    nativeConversation.mockImplementation(async () => ({ generation: 3, result: report }))
+    publish?.({ ...snapshot, connection: { ...snapshot.connection, phase: 'ready', generation: 3, identityGeneration: 2 } })
+    await vi.waitFor(() => { expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeDefined() })
+    expect(mock.remote.session.prompt.mock.calls.length).toBe(prompts)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, mode: 'personal', generation: 2 } })
     await vi.waitFor(() => { expect(app.ctx.slots.entries('sidebar.tasks').some(e => e.component === OrganizationTaskList)).toBe(false) })
     app.ctx.uiWorkspace.showConversation()
@@ -178,7 +192,7 @@ it('synchronizes paginated assignments for the current member without selecting 
   const globalObject = globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }
   const previous = globalObject.dshDesktop
   const organizationId = brandString<OrganizationId>(randomUUID()), membershipId = brandString<MembershipId>(randomUUID())
-  const snapshot: OrganizationDesktopSnapshot = { connection: { mode: 'organization', phase: 'ready', generation: 1, revision: 1,
+  const snapshot: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, mode: 'organization', phase: 'ready', generation: 1, revision: 1,
     principal: { serverId: brandString<ServerId>(randomUUID()), accountId: brandString<AccountId>(randomUUID()) }, organizationId,
     organizations: [{ id: organizationId, name: 'Team', version: 1, role: 'member', membershipId }], members: [] },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }

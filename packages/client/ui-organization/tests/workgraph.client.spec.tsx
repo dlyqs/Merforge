@@ -33,7 +33,7 @@ function fixture() {
       acceptance: ['Review'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
     }] } })
   const page = workgraphPageSchema.parse({ items: [{ ...version.definition.tasks[0], planId: version.planId, revision: 1, phaseTitle: 'Preparation', assignable: false, hasUndisclosedPrerequisite: true }], total: 1, offset: 0, revision: 1, cursor: 'cursor' })
-  let state: OrganizationDesktopSnapshot = { connection: { revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
+  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
     organizations: [{ id: organizationId, membershipId: member, name: 'Team', role: 'member', version: 1 }], members: [],
     projects: { items: [project], offset: 0, total: 1, revision: 1, cursor: page.cursor } },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }

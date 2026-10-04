@@ -14,7 +14,7 @@ export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sid
   const c = props.useOrganization(s => s.connection)
   return <div className={css.sidebar}>
     {c.mode === 'organization'
-      ? <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`} {...props} section={props.section ?? 'recent'} wide={props.wide} expandSidebar={props.expandSidebar} />
+      ? <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${c.identityGeneration}`} {...props} section={props.section ?? 'recent'} wide={props.wide} expandSidebar={props.expandSidebar} />
       : props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })}
   </div>
 }

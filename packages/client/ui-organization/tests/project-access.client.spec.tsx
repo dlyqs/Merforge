@@ -17,7 +17,7 @@ function fixture() {
   const organizationId = brandString<OrganizationId>(randomUUID()), projectId = brandString<OrganizationProjectId>(randomUUID())
   const memberId = brandString<MembershipId>(randomUUID())
   const project = { id: projectId, organizationId, name: 'Design project', version: 1 }
-  let state: OrganizationDesktopSnapshot = { connection: { generation: 1, revision: 1, mode: 'organization', phase: 'ready', organizationId,
+  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, generation: 1, revision: 1, mode: 'organization', phase: 'ready', organizationId,
     organizations: [{ id: organizationId, name: 'Team', role: 'admin', version: 1, membershipId: memberId }],
     members: [{ id: memberId, username: 'Alice', accountId: brandString(randomUUID()), accountVersion: 1, accountEnabled: true, enabled: true, role: 'member', version: 1 }],
     projects: { items: [project], total: 1, offset: 0, revision: 1, cursor: brandString('cursor') } },

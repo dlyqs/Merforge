@@ -61,7 +61,8 @@ export function installProposal(ctx: Context, agent: Agent,
     output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
     execute: async (args) => {
       const input = typeof inputSource === 'function' ? inputSource() : inputSource, request = input.request
-      if (request.kind !== 'send' || !input.settings.enabled) throw new Error('organization-conversation: planning-disabled')
+      if (request.kind !== 'send' || !input.settings.enabled && !input.testing?.forceDecomposition)
+        throw new Error('organization-conversation: planning-disabled')
       const prior = state().proposals.filter(e => e.command.goalId === input.goalId).at(-1)
       const planId = input.authority.plan?.version.planId ?? prior?.command.planId ?? randomUUID()
       signal.throwIfAborted()
@@ -72,6 +73,9 @@ export function installProposal(ctx: Context, agent: Agent,
         goalId: input.goalId, assessmentId: request.operationId, settingsRevision: input.settings.revision })
       if (input.authority.plan && (command.expectedRevision !== input.authority.plan.version.revision
         || command.definition.taskId !== input.authority.plan.version.definition.taskId)) throw new Error('organization-conversation: version-conflict')
+      if (input.testing?.forceDecomposition
+        && command.definition.tasks.filter(task => task.parentTaskId !== null && task.required).length < 2)
+        throw new Error('organization-conversation: testing-requires-two-subtasks')
       const previous = state().proposals.filter(e => e.command.operationId === command.operationId).at(-1)
       if (previous) {
         if (JSON.stringify(previous.command) !== JSON.stringify(command)) throw new Error('organization-conversation: operation-conflict')
@@ -84,6 +88,7 @@ export function installProposal(ctx: Context, agent: Agent,
         taskId: target.version.definition.taskId })).plan : undefined
       await checkPlanningMembers(command, bridge, target?.version.definition)
       signal.throwIfAborted()
+      if (typeof inputSource === 'function') inputSource()
       const writable = target ? current?.canEdit === true : authority.view.canWrite
       const record = async (value: z.input<typeof conversationProposalSchema>) => {
         const parsed = conversationProposalSchema.parse(value)

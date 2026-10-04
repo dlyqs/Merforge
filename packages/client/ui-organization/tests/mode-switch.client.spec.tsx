@@ -13,7 +13,7 @@ afterEach(cleanup)
 it('returns to the previously selected organization after the native personal action clears its id', async () => {
   const organizationId = 'org-selected' as OrganizationId
   let snapshot: OrganizationDesktopSnapshot = {
-    connection: { revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId, members: [], organizations: [
+    connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId, members: [], organizations: [
       { id: 'org-other' as OrganizationId, name: 'Other', version: 1, membershipId: 'member-other' as MembershipId, role: 'member' },
       { id: organizationId, name: 'Selected', version: 1, membershipId: 'member-selected' as MembershipId, role: 'member' },
     ] },
@@ -38,7 +38,7 @@ it('returns to the previously selected organization after the native personal ac
 
 it('keeps failed selections open, traps keyboard focus and restores the avatar on dismissal', async () => {
   const snapshot: OrganizationDesktopSnapshot = {
-    connection: { revision: 0, generation: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] },
+    connection: { identityGeneration: 1, revision: 0, generation: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] },
     server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const connection = vi.fn<OrganizationProps['connection']>().mockRejectedValue(new Error('unavailable'))

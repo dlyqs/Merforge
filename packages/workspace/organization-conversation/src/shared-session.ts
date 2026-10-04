@@ -70,13 +70,22 @@ export class SharedConversationSessions {
       owns: id => this.owns(id),
       allowsTool: (session, tool) => tool === 'workflow_complete' ? false
         : tool === 'workflow_assess' || tool === 'workflow_propose'
-          ? !!this.require(session.id).binding.owner.projectId && this.settings(this.require(session.id).binding).enabled : true,
+          ? !!this.require(session.id).binding.owner.projectId && (this.settings(this.require(session.id).binding).enabled
+            || ctx.personalWorkflow.testingPreferences().forceDecomposition) : true,
       prepare: (agent, decision, signal) => this.prepare(agent, decision, signal),
     }), 'organization-conversation.task-method')
     ctx.on('agent/created', async ({ agent }) => { if (this.owns(agent.id)) await this.installTools(agent) })
     ctx.on('tools/pre-execute', async (request, next) => {
       if (request.agent && this.owns(request.agent.id)) await this.authorize(request.agent.id)
       return next()
+    })
+    ctx.tools.guard((exec) => {
+      if (!exec.agent || !this.owns(exec.agent.id) || !ctx.personalWorkflow.testingPreferences().forceDecomposition) return
+      const attachment = this.require(exec.agent.id)
+      // oxlint-disable-next-line typescript/no-deprecated -- A selected organization task permits ordinary execution.
+      if (attachment.binding.owner.assignment || exec.agent.session.snapshotEvents().some(event => event.type === 'organization/task-selection')) return
+      if (!['workflow_assess', 'workflow_propose', 'planning_members', 'ask_user_question'].includes(exec.name))
+        return 'Temporary workflow testing requires a decomposed plan, user review and explicit task selection before executing work.'
     })
     ctx.effect(() => async () => {
       await this.close()
@@ -240,6 +249,8 @@ export class SharedConversationSessions {
     if (input?.type !== 'organization/planning-input') throw new Error('organization-conversation: input-required')
     if (input.data.settings.revision !== this.settings(this.require(agent.id).binding).revision)
       throw new Error('organization-conversation: settings-conflict')
+    if ((input.data.testing?.revision ?? 0) !== this.ctx.personalWorkflow.testingPreferences().revision)
+      throw new Error('organization-conversation: testing-conflict')
     return input.data
   }
   private async installTools(agent: Agent): Promise<void> {
@@ -255,7 +266,9 @@ export class SharedConversationSessions {
       execute: async (args) => {
         await this.authorize(agent.id)
         const input = this.input(agent)
-        if (!input.settings.enabled) throw new Error('organization-conversation: planning-disabled')
+        if (!input.settings.enabled && !input.testing?.forceDecomposition) throw new Error('organization-conversation: planning-disabled')
+        if (input.testing?.forceDecomposition && args.classification === 'simple')
+          throw new Error('organization-conversation: testing-requires-decomposition')
         const assessment = conversationAssessmentSchema.parse({ ...args, goalId: input.goalId, operationId: input.request.operationId })
         agent.session.append('organization/planning-assessment', assessment)
         if (!await this.ctx.sessions.flush(agent.session)) throw new Error('organization-conversation: log-not-durable')
@@ -279,9 +292,16 @@ export class SharedConversationSessions {
   }
   private async prepare(agent: Agent, decision: PreStepDecision, signal: AbortSignal): Promise<PreStepDecision> {
     const authority = await this.authorize(agent.id), attachment = this.require(agent.id)
-    if (decision.kind === 'reject' || !attachment.binding.owner.projectId) return decision
+    if (decision.kind === 'reject') return decision
     const user = decision.messages.find(message => message.source.kind === 'user')
     if (!user) return decision
+    if (!attachment.binding.owner.projectId) {
+      const testing = this.ctx.personalWorkflow.testingPreferences()
+      if (!testing.forceDecomposition) return decision
+      return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'organization-task-context' },
+        content: [{ type: 'text', text: JSON.stringify({ testing,
+          method: 'Temporary workflow testing is enabled. Ask the user to select an organization project before decomposing this goal. Do not perform the requested work directly; planning requires an explicit project.' }) }] })] }
+    }
     const { binding, bridge } = attachment, owner = binding.owner
     // oxlint-disable-next-line typescript/no-deprecated -- Account routing reads the ordinary live Session prefix.
     const events = agent.session.snapshotEvents()
@@ -295,8 +315,8 @@ export class SharedConversationSessions {
     const prior = events.findLast(event => event.type === 'organization/planning-input')
     const goalId = conversationGoalSchema.parse(authority.assignment?.id ?? target?.taskId
       ?? (prior?.type === 'organization/planning-input' ? prior.data.goalId : randomUUID()))
-    const settings = this.settings(binding), bot = this.bot(binding)
-    const input = conversationInputSchema.parse({ goalId, settings, ...(bot ? { bot } : {}),
+    const settings = this.settings(binding), bot = this.bot(binding), testing = this.ctx.personalWorkflow.testingPreferences()
+    const input = conversationInputSchema.parse({ goalId, settings, testing, ...(bot ? { bot } : {}),
       authority: { ...authority, ...(plan ? { plan } : {}) },
       methodVersion: 'organization-planning/v2', request: { kind: 'send', organizationId: owner.organizationId,
         projectId: conversationProjectId(owner), conversationId: owner.conversationId, operationId: randomUUID(),
@@ -309,10 +329,11 @@ export class SharedConversationSessions {
     if (!await this.ctx.sessions.flush(agent.session)) throw new Error('organization-conversation: log-not-durable')
     const method = target
       ? 'The user selected this organization task for execution. Work on its stated goal, scope and acceptance criteria using the ordinary available capabilities and user permissions. Task selection does not authorize unrelated organization changes, assignment or delivery acceptance. Shared task reads and changes require current organization permissions.'
-      : settings.enabled ? 'Discuss this goal with the user. Assess complexity with workflow_assess; clarify missing requirements and propose an unapproved organization plan with workflow_propose when the goal is complex. Shared task definitions contain task summaries and authorized facts, never private conversation transcripts.'
-        : 'Provide ordinary assistance. Automatic task planning is disabled.'
+      : testing.forceDecomposition ? 'Temporary testing override is ON for this device. For every new goal, including simple goals, clarify only if needed, then assess complex and propose an unapproved organization plan with at least two required subtasks. Do not perform the requested work directly. Await user review and explicit task selection; never approve or start tasks yourself.'
+        : settings.enabled ? 'Discuss this goal with the user. Assess complexity with workflow_assess; clarify missing requirements and propose an unapproved organization plan with workflow_propose when the goal is complex. Shared task definitions contain task summaries and authorized facts, never private conversation transcripts.'
+          : 'Provide ordinary assistance. Automatic task planning is disabled.'
     return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'organization-task-context' },
-      content: [{ type: 'text', text: JSON.stringify({ method, settings, goalId, ...(bot ? { bot: { name: bot.name, instructions: bot.instructions } } : {}),
+      content: [{ type: 'text', text: JSON.stringify({ method, settings, testing, goalId, ...(bot ? { bot: { name: bot.name, instructions: bot.instructions } } : {}),
         project: authority.view.project, ...(plan ? { task: plan } : {}) }) }] })] }
   }
 }

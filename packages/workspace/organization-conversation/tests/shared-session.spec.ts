@@ -10,7 +10,7 @@ import Agents from '@deepseek-ai/dsh-agent'
 import Tools, { defineTool } from '@deepseek-ai/dsh-tools'
 import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import Llm, { createUserMessage } from '@deepseek-ai/dsh-llm'
+import Llm, { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import DefaultModel from '@deepseek-ai/dsh-agent-default-model'
 import Commands from '@deepseek-ai/dsh-commands'
@@ -145,7 +145,6 @@ it('streams, queues, runs ordinary tools and slash commands, and resumes the sam
     await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'detach',
       attachmentId: first.report.attachmentId, operationId: randomUUID() }), h.bridge, h.signal)
     expect(h.ctx.agents.get(id)).toBeDefined()
-    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
     const execute = vi.fn(() => 'local result')
     h.ctx.tools.register(defineTool({ name: 'local_action', description: 'Ordinary local action', parameters: {},
       output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] }, execute }))
@@ -265,6 +264,7 @@ it('executes the selected organization node with ordinary tools and its logged t
           artifacts: ['Report file'], dependsOn: [], required: true, suggestedMembershipId: null }] } },
     canEdit: true, structuralEdit: true, invalidatesQualifications: true, requiresOriginalApproval: true })
     h.setPlan(plan)
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
     await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'select-task',
       operationId: randomUUID(), target: { planId: plan.version.planId, taskId } }), h.bridge, h.signal)
     const execute = vi.fn(() => 'Report file')
@@ -277,6 +277,61 @@ it('executes the selected organization node with ordinary tools and its logged t
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Report contains totals')
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Only the selected report')
     expect(h.ctx.personalWorkflow.list()).toEqual([])
+    attached.lifetime.abort(); await attached.done
+  } finally { await h.close() }
+}, 30000)
+
+it('forces organization goals to decompose with planning disabled and refuses direct work and incomplete proposals', async () => {
+  const taskId = randomUUID(), phaseId = randomUUID(), child = () => randomUUID()
+  const task = (id: string, parentTaskId: string | null) => ({ id, parentTaskId, phaseId,
+    goal: 'Copy the requested files', scope: 'Requested files only', acceptance: ['Files match'], artifacts: ['Copied files'],
+    dependsOn: [], required: true, suggestedMembershipId: null })
+  const definition = { taskId, phases: [{ id: phaseId, title: 'Copy' }], tasks: [task(taskId, null), task(child(), taskId)] }
+  const h = await setup([
+    toolCallResponse('direct', 'local_action', {}),
+    toolCallResponse('simple', 'workflow_assess', { classification: 'simple', rationale: 'One copy' }),
+    toolCallResponse('complex', 'workflow_assess', { classification: 'complex', rationale: 'Decompose the copy' }),
+    toolCallResponse('single-child', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0, definition }),
+    toolCallResponse('two-children', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0,
+      definition: { ...definition, tasks: [...definition.tasks, task(child(), taskId)] } }),
+    textResponse('Review the proposed plan'),
+    toolCallResponse('ordinary', 'local_action', {}), textResponse('Ordinary copy'),
+  ])
+  try {
+    h.authority.view.canWrite = false
+    const attached = await h.attach(), id = attached.report.sharedSessionId!
+    await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'settings',
+      operationId: randomUUID(), expectedRevision: 0, settings: { enabled: false, granularity: 'balanced' } }), h.bridge, h.signal)
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
+    const execute = vi.fn(() => 'Copied files')
+    h.ctx.tools.register(defineTool({ name: 'local_action', description: 'Copy files', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] }, execute }))
+    await h.send(id, 'Copy these files')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors).toEqual([])
+    expect(execute).not.toHaveBeenCalled()
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Temporary testing override is ON')
+    const surface = JSON.stringify(await h.ctx.sessionQuery.readSurface(id))
+    expect(surface).toContain('testing-requires-decomposition')
+    expect(surface).toContain('testing-requires-two-subtasks')
+    await using reader = await h.ctx.sessionPersistence.open(id, 'read')
+    const input = (await reader.read()).events.find(event => event.type === 'organization/planning-input')
+    expect(input?.type === 'organization/planning-input' && input.data.testing).toEqual({ forceDecomposition: true, revision: 1 })
+    const proposals = h.ctx.sessionProjections.stateOf(h.ctx.agents.get(id)!.session, 'organizationPlanning')!.proposals
+    expect(proposals).toHaveLength(1)
+    expect(proposals[0]?.status).toBe('private')
+    expect(proposals[0]?.command.definition.tasks.filter(task => task.required && task.parentTaskId !== null)).toHaveLength(2)
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 1 })
+    const stale = await h.ctx.tools.execute({ name: 'workflow_propose', arguments: { operationId: randomUUID(), expectedRevision: 0,
+      definition: { ...definition, tasks: [...definition.tasks, task(child(), taskId)] } }, agent: h.ctx.agents.get(id)!,
+    callId: ToolCallId('stale-testing'), signal: h.signal })
+    expect(stale.isError).toBe(true)
+    expect(JSON.stringify(stale)).toContain('testing-conflict')
+    expect(h.ctx.sessionProjections.stateOf(h.ctx.agents.get(id)!.session, 'organizationPlanning')!.proposals).toHaveLength(1)
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: false, expectedRevision: 2 })
+    await h.send(id, 'Copy normally')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(execute).toHaveBeenCalledTimes(1)
     attached.lifetime.abort(); await attached.done
   } finally { await h.close() }
 }, 30000)
@@ -309,4 +364,22 @@ it('persists and reopens projectless account chats in Recent without creating ca
     await vi.waitFor(() => { expect(account.ctx.agents.get(id)).toBeUndefined() })
     reopened.lifetime.abort(); await reopened.done
   } finally { await restarted?.close(); await h.close() }
+})
+
+it('asks for an organization project before executing a forced projectless goal', async () => {
+  const h = await setup([toolCallResponse('direct', 'local_action', {}), textResponse('Select a project')], undefined, undefined, true)
+  try {
+    const attached = await h.attach(), id = attached.report.sharedSessionId!
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
+    const execute = vi.fn(() => 'Copied files')
+    h.ctx.tools.register(defineTool({ name: 'local_action', description: 'Copy files', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] }, execute }))
+    await h.send(id, 'Copy these files')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors).toEqual([])
+    expect(execute).not.toHaveBeenCalled()
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('planning requires an explicit project')
+    expect(h.model.requests[0]?.tools?.map(tool => tool.name)).not.toContain('workflow_propose')
+    attached.lifetime.abort(); await attached.done
+  } finally { await h.close() }
 })

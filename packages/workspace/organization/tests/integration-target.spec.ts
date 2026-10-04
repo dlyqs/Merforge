@@ -15,7 +15,7 @@ function nativeConnection(h: Awaited<ReturnType<typeof integrationFixture>>) {
   let generation = 0
   const connection = {
     timeoutMs: 10000,
-    snapshot: (): ConnectionSnapshot => ({ generation, revision: 0, phase: 'ready', mode: 'organization',
+    snapshot: (): ConnectionSnapshot => ({ identityGeneration: 1, generation, revision: 0, phase: 'ready', mode: 'organization',
       principal: h.owner.principal, organizationId: h.query.organizationId, organizations: [], members: [] }),
     perform: async (action: ConnectionAction): Promise<ConnectionResult> => {
       const result: ConnectionResult = { generation }

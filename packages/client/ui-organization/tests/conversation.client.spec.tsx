@@ -28,7 +28,7 @@ function fixture() {
   const planning = planningViewSchema.parse({ project, grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
     policy: { models: [{ model: 'test-model', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000, maxRequests: 10,
       maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } })
-  let state: OrganizationDesktopSnapshot = { connection: { phase: 'ready', mode: 'organization', revision: 1, generation: 1,
+  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, phase: 'ready', mode: 'organization', revision: 1, generation: 1,
     principal: { serverId: brandString<ServerId>(result.owner.serverId), accountId: brandString<AccountId>(result.owner.accountId) },
     organizationId: project.organizationId, organizations: [], members: [] }, server: { phase: 'disabled',
     settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }

@@ -72,6 +72,7 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
 export const conversationInputSchema = z.object({ request: conversationRequestSchema, goalId: conversationGoalSchema,
   settings: conversationSettingsSchema, authority: conversationAuthoritySchema,
   bot: conversationBotSchema.optional(),
+  testing: z.object({ forceDecomposition: z.boolean(), revision: z.number().int().nonnegative() }).strict().optional(),
   methodVersion: z.enum(['organization-planning/v1', 'organization-planning/v2']) }).strict()
 /** Private assessment remains separate from shared WorkGraph definitions. */
 export const conversationAssessmentSchema = z.object({ goalId: conversationGoalSchema,

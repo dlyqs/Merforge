@@ -18,7 +18,8 @@ import { projectCommandSchema, grantCommandSchema } from '@deepseek-ai/dsh-organ
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
-import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId, OrganizationExecutionChannel } from './types.ts'
+import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId, OrganizationExecutionChannel,
+  OrganizationConversationChannel } from './types.ts'
 
 /** Configurable request bounds and reconnection interval for a small LAN client. */
 export type Config = z.input<typeof connectionConfig>
@@ -26,7 +27,8 @@ interface Pending { operationId: OperationId; accountId: AccountId; serverId: Se
 
 /** One native connection; no personal cookie, model credential or filesystem record enters this owner. */
 export class OrganizationConnection {
-  private state: ConnectionSnapshot = { revision: 0, generation: 0, phase: 'disconnected', mode: 'personal', organizations: [], members: [] }
+  private state: ConnectionSnapshot = { revision: 0, generation: 0, identityGeneration: 0,
+    phase: 'disconnected', mode: 'personal', organizations: [], members: [] }
   private trust: OrganizationTrust | undefined
   private offer: (CertificateOffer & { origin: string }) | undefined
   private readonly loginSession: OrganizationLoginSession | undefined
@@ -141,7 +143,7 @@ export class OrganizationConnection {
   private stopExecution(): void {
     this.executionLifetime.abort(); this.executionLifetime = new AbortController()
     clearTimeout(this.renewal)
-    this.state = { ...this.state, renewing: undefined }
+    this.state = { ...this.state, renewing: undefined, identityGeneration: this.state.identityGeneration + 1 }
   }
   private publish(next: Partial<ConnectionSnapshot>): void {
     if (next.phase === 'offline' || next.phase === 'signed-out' || next.phase === 'disconnected'
@@ -211,6 +213,77 @@ export class OrganizationConnection {
     const task = this.performAction(input)
     this.operations.add(task)
     try { return await task } finally { this.operations.delete(task) }
+  }
+  /**
+   * Retain account authorization while project and Inbox snapshots refresh.
+   * @param input - Fixed account conversation selector.
+   * @returns Native-only reads and planning writes, cancelled on identity loss.
+   */
+  conversationChannel(input: z.input<typeof accountConversationReadSchema>): OrganizationConversationChannel {
+    const selector = accountConversationReadSchema.parse(input)
+    this.assertOrganization(selector.organizationId)
+    const trust = this.trust, token = this.token, principal = this.state.principal
+    if (!trust || !token || !principal || this.closed) throw new Error('unavailable')
+    const signal = this.executionLifetime.signal, generation = this.generation
+    const current = () => {
+      signal.throwIfAborted()
+      if (this.closed || this.token !== token || this.trust !== trust
+        || this.state.organizationId !== selector.organizationId || this.state.mode !== 'organization'
+        || !['ready', 'loading'].includes(this.state.phase)) throw new Error('superseded')
+      if (this.loginExpiresAt === undefined || this.loginExpiresAt <= Date.now()) {
+        this.invalidate('unauthenticated'); throw new Error('unauthenticated')
+      }
+      return principal
+    }
+    const request = async (route: '/planning/read' | '/planning/plan' | '/planning/candidates' | '/assignment/preparation', body: unknown) => {
+      current()
+      const operation = (async () => {
+        let response: Awaited<ReturnType<typeof organizationRequest>>
+        try { response = await organizationRequest(trust, 'POST', `/organization/v1${route}`, body, token, signal) }
+        catch (error) {
+          current()
+          const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+          if (/CERT|TLS|SELF_SIGNED/.test(code)) { this.trust = undefined; this.invalidate('certificate-changed') }
+          else this.offline(this.generation)
+          throw new Error('unavailable')
+        }
+        current()
+        if (response.status !== 200) {
+          const code = z.object({ error: z.string() }).parse(response.body).error
+          if (code === 'unauthenticated') this.invalidate(code)
+          else if (response.status >= 500) this.offline(this.generation)
+          throw new Error(code)
+        }
+        return response.body
+      })()
+      this.operations.add(operation)
+      try { return await operation } finally { this.operations.delete(operation) }
+    }
+    const project = (query: { organizationId: OrganizationId; projectId: typeof selector.projectId }) => {
+      if (!selector.projectId || query.organizationId !== selector.organizationId || query.projectId !== selector.projectId)
+        throw new Error('forbidden')
+    }
+    return { generation, signal, current,
+      read: async () => accountConversationViewSchema.parse(await request('/planning/read', selector)),
+      plan: async (input: z.input<typeof planningPlanReadSchema>) => {
+        const query = planningPlanReadSchema.parse(input); project(query)
+        if (query.conversationId !== selector.conversationId) throw new Error('forbidden')
+        return planningPlanViewSchema.parse(await request('/planning/plan', query))
+      },
+      candidates: async (input: z.input<typeof planningCandidatesSchema>) => {
+        const query = planningCandidatesSchema.parse(input); project(query)
+        return planningCandidatesPageSchema.parse(await request('/planning/candidates', query))
+      },
+      assignment: async (input: z.input<typeof assignmentReadSchema>) => {
+        const query = assignmentReadSchema.parse(input); project(query)
+        return preparationSchema.parse(await request('/assignment/preparation', query))
+      },
+      command: async (input: z.output<typeof planningCommandSchema>) => {
+        const command = planningCommandSchema.parse(input); project(command); current()
+        if (command.conversationId !== selector.conversationId) throw new Error('forbidden')
+        return this.planningCommand(command, this.generation)
+      },
+    }
   }
   /**
    * Capture a native-only Run channel whose lifetime survives projection refreshes.

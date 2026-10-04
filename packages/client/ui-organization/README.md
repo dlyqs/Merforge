@@ -5,6 +5,8 @@ kind: "package-client"
 
 # @deepseek-ai/dsh-client-ui-organization
 
+Project and Inbox content refreshes preserve the current ordinary conversation reference and the last authorized sidebar catalog while replacement queries run. Account/organization changes and offline state release the reference; reconnecting can reopen the selected history without replaying a prompt. Newly attached conversations enter the native catalog before execution starts.
+
 ## Summary
 
 Adds organization settings and a personal/organization switch to Desktop. The [organization design](../../../docs/organization-foundation.md) owns the product behavior. A typed native preload capability supplies safe snapshots and fixed operations; renderer code never receives bearer tokens or private certificate keys.

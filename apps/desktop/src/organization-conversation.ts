@@ -28,15 +28,17 @@ export async function organizationConversation(connection: OrganizationConnectio
   assertCurrent: () => void, lifetime: AbortSignal, onClosed?: () => void): Promise<{ generation: number; result: ConversationResult }> {
   assertCurrent()
   const request = conversationRequestSchema.parse(input), initial = connection.snapshot()
-  const cancel = new AbortController(), signal = AbortSignal.any([lifetime, cancel.signal])
+  const selector = { organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId }
+  const channel = request.kind === 'attach' ? connection.conversationChannel(selector) : undefined
+  const cancel = new AbortController(), signal = AbortSignal.any([lifetime, cancel.signal, ...(channel ? [channel.signal] : [])])
   const current = () => {
     signal.throwIfAborted(); assertCurrent()
+    if (channel) return channel.current()
     const state = connection.snapshot()
     if (state.generation !== initial.generation || state.phase !== 'ready' || state.mode !== 'organization'
       || state.organizationId !== request.organizationId || !state.principal) throw new Error('superseded')
     return state.principal
   }
-  const selector = { organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId }
   const draft = { sent: false }
   const bridge: ConversationBridge = async (command) => {
     const principal = current()
@@ -45,11 +47,14 @@ export async function organizationConversation(connection: OrganizationConnectio
     if (command && !request.projectId) throw new Error('forbidden')
     let assignment
     if (request.assignment) {
-      const prepared = await connection.perform({ kind: 'assignment-preparation', request: { organizationId: request.organizationId,
-        projectId: conversationProjectId(request), ...request.assignment } })
+      const query = { organizationId: request.organizationId, projectId: conversationProjectId(request), ...request.assignment }
+      if (channel) assignment = (await channel.assignment(query)).assignment
+      else {
+        const prepared = (await connection.perform({ kind: 'assignment-preparation', request: query })).assignment
+        if (prepared?.result.kind !== 'preparation') throw new Error('forbidden')
+        assignment = prepared.result.value.assignment
+      }
       current()
-      if (prepared.assignment?.result.kind !== 'preparation') throw new Error('forbidden')
-      assignment = prepared.assignment.result.value.assignment
       const member = connection.snapshot().organizations.find(o => o.id === request.organizationId)?.membershipId
       if (assignment.assigneeId !== member) throw new Error('forbidden')
       if (request.kind === 'send' && (assignment.state !== 'pending' && assignment.state !== 'accepted'
@@ -60,25 +65,33 @@ export async function organizationConversation(connection: OrganizationConnectio
         throw new Error('forbidden')
     }
     if (command?.kind === 'save-planning-draft') draft.sent = true
-    const plan = command?.kind === 'read-planning-plan' ? (await connection.perform({ kind: 'planning-plan', request: command })).planningPlan : undefined
-    const candidates = command?.kind === 'read-planning-members' ? (await connection.perform({ kind: 'planning-candidates', request: { organizationId: command.organizationId, projectId: command.projectId, search: command.search, offset: command.offset } })).candidates : undefined
-    const receipt = command && command.kind !== 'read-planning-plan' && command.kind !== 'read-planning-members' ? await connection.planningCommand(command, initial.generation) : undefined
+    const plan = command?.kind === 'read-planning-plan' ? channel ? await channel.plan(command)
+      : (await connection.perform({ kind: 'planning-plan', request: command })).planningPlan : undefined
+    const candidatesQuery = command?.kind === 'read-planning-members' ? { organizationId: command.organizationId,
+      projectId: command.projectId, search: command.search, offset: command.offset } : undefined
+    const candidates = candidatesQuery ? channel ? await channel.candidates(candidatesQuery)
+      : (await connection.perform({ kind: 'planning-candidates', request: candidatesQuery })).candidates : undefined
+    const receipt = command && command.kind !== 'read-planning-plan' && command.kind !== 'read-planning-members'
+      ? channel ? await channel.command(command) : await connection.planningCommand(command, initial.generation) : undefined
     current()
-    const response = await connection.perform({ kind: 'planning-read', request: selector })
+    const view = channel ? await channel.read() : (await connection.perform({ kind: 'planning-read', request: selector })).planning
     current()
-    if (response.generation !== initial.generation || !response.planning) throw new Error('superseded')
+    if (!view) throw new Error('superseded')
     return conversationAuthoritySchema.parse({ serverId: principal.serverId, accountId: principal.accountId,
-      generation: initial.generation, view: response.planning,
+      generation: initial.generation, view,
       ...(assignment ? { assignment } : {}),
       ...(receipt ? { receipt } : {}), ...(plan ? { plan } : {}), ...(candidates ? { candidates } : {}) })
   }
-  const unsubscribe = connection.subscribe(() => { if (connection.snapshot().generation !== initial.generation) cancel.abort() })
+  const unsubscribe = connection.subscribe(() => {
+    if (!channel && connection.snapshot().generation !== initial.generation) cancel.abort()
+  })
   let retained = false
   const close = () => { unsubscribe(); cancel.abort(); onClosed?.() }
   try {
     const first = await bridge()
     const duration = request.kind === 'send' ? first.view.policy.maxDurationMs + connection.timeoutMs : connection.timeoutMs
-    const result = await host.organizationConversation(request, bridge, duration, signal, close)
+    const result = await host.organizationConversation(request, bridge, duration, signal,
+      request.kind === 'attach' ? close : undefined)
     await bridge(); current()
     retained = request.kind === 'attach'
     return { generation: initial.generation, result }

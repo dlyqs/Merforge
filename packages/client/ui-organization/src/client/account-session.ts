@@ -18,7 +18,7 @@ export class AccountSession implements AccountSessionTarget {
   private readonly attachmentId: NonNullable<ConversationResult['attachmentId']>
   private result: ConversationResult
   private active = true
-  private generation: number
+  private readonly identityGeneration: number
   private readonly candidates = new Map<SessionTaskChoiceId, Extract<ConversationRequest, { kind: 'select-task' }>['target']>()
   /**
    * @param initial - Native attachment report with its ordinary Session identity.
@@ -39,7 +39,8 @@ export class AccountSession implements AccountSessionTarget {
     if (!initial.result.sharedSessionId) throw new Error('organization-conversation: common-session-required')
     if (!initial.result.attachmentId) throw new Error('organization-conversation: attachment-required')
     this.attachmentId = initial.result.attachmentId
-    this.sessionId = initial.result.sharedSessionId; this.result = initial.result; this.generation = initial.generation
+    this.identityGeneration = identity.getSnapshot().connection.identityGeneration
+    this.sessionId = initial.result.sharedSessionId; this.result = initial.result
     const catalog = createSnapshotStore<ReturnType<SessionControls['catalog']['store']['getSnapshot']>>({ value: null,
       status: 'idle', error: null })
     const load = async (): Promise<ModelCatalog> => {
@@ -66,7 +67,7 @@ export class AccountSession implements AccountSessionTarget {
           const page = await native.connection({ kind: 'workgraph-tasks', request: { organizationId: query.organizationId,
             projectId: query.projectId, offset, ...(cursor ? { cursor } : {}) } })
           this.assertCurrent()
-          if (page.workgraph?.result.kind !== 'tasks' || page.workgraph.generation !== this.generation) throw new Error('organization-conversation: superseded')
+          if (page.workgraph?.result.kind !== 'tasks' || page.workgraph.generation !== this.identity.getSnapshot().connection.generation) throw new Error('organization-conversation: superseded')
           const value = page.workgraph.result.value
           for (const task of value.items) {
             if (this.result.assignment && task.id !== this.result.assignment.taskId) continue
@@ -96,7 +97,8 @@ export class AccountSession implements AccountSessionTarget {
   }
   private assertCurrent(): void {
     const c = this.identity.getSnapshot().connection
-    if (!this.active || c.phase !== 'ready' || c.mode !== 'organization' || c.generation !== this.generation
+    if (!this.active || !['ready', 'loading'].includes(c.phase) || c.mode !== 'organization'
+      || c.identityGeneration !== this.identityGeneration
       || c.organizationId !== this.result.owner.organizationId || c.principal?.serverId !== this.result.owner.serverId
       || c.principal.accountId !== this.result.owner.accountId) throw new Error('organization-conversation: superseded')
   }
@@ -104,7 +106,7 @@ export class AccountSession implements AccountSessionTarget {
     this.assertCurrent()
     const reply = await this.native.conversation(request)
     this.assertCurrent()
-    if (reply.generation !== this.generation) throw new Error('organization-conversation: superseded')
+    if (reply.generation !== this.identity.getSnapshot().connection.generation) throw new Error('organization-conversation: superseded')
     this.result = { ...reply.result, attachmentId: this.result.attachmentId }; this.changed()
   }
   /** Release native authorization; Controller references own common history and streams. */

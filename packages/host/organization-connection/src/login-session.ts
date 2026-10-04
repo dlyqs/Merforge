@@ -16,7 +16,9 @@ export class OrganizationLoginSession {
    */
   constructor(private readonly path: string, private readonly vault: OrganizationDeviceVault) {}
   private available(): boolean { return this.vault.isEncryptionAvailable() && !['basic_text', 'unknown'].includes(this.vault.getSelectedStorageBackend()) }
-  /** @returns Validated saved credentials, or no session when absent or the vault is locked. */
+  /** Restore the login from the private OS-encrypted file.
+   * @returns Validated saved credentials, or no session when absent or the vault is locked.
+   */
   read(): SavedLogin | undefined {
     if (!this.available()) return undefined
     try {
@@ -27,7 +29,9 @@ export class OrganizationLoginSession {
       return undefined
     }
   }
-  /** @param session - Server-issued credentials and their trusted service identity. */
+  /** Save the login using the available OS encryption adapter.
+   * @param session - Server-issued credentials and their trusted service identity.
+   */
   save(session: SavedLogin): void {
     if (!this.available()) return
     const bytes = this.vault.encryptString(JSON.stringify(savedLoginSchema.parse(session)))

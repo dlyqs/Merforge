@@ -91,7 +91,8 @@ try {
   const taskRequest = { ...request, operationId: randomUUID(), conversationId: assignmentId, assignment: { planId, assignmentId } }
   const taskConversation = await invoke(second, taskRequest)
   assert.notEqual(taskConversation.result.sessionId, opened.result.sessionId)
-  assert.deepEqual(taskConversation.result.entries, [])
+  assert.deepEqual(taskConversation.result.entries, [{ role: 'assistant',
+    text: 'Assigned smoke task\n\nCurrent task only\n\n• Review report' }])
   assert.equal(taskConversation.result.assignment.state, 'pending')
   assert.equal(taskConversation.result.goals[0].proposal.definition.taskId, taskId)
   const preparation = await connection.perform({ kind: 'assignment-preparation', request: { ...taskQuery, assignmentId } })

@@ -73,7 +73,7 @@ function fixture(approved: boolean, admin = false) {
     delegations: [], lease: null })
   const history = taskAssignmentsPageSchema.parse({ items: approved ? [prep.assignment] : [], total: approved ? 1 : 0, offset: 0, revision: 2, cursor: 'cursor' })
   const item = { assignment: prep.assignment, request: prep.request, notificationId: brandString<import('@deepseek-ai/dsh-organization').OrganizationNotificationId>(randomUUID()), readAt: null }
-  let state: OrganizationDesktopSnapshot = { connection: { revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
+  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
     organizations: [{ id: organizationId, membershipId: memberId, name: 'Team', role: admin ? 'admin' : 'member', version: 1 }], members: admin ? [{ id: memberId, username: 'Alice', accountId: brandString(randomUUID()), accountVersion: 1, accountEnabled: true, enabled: true, version: 1, role: 'member' }] : [] },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
   const reply = (result: NonNullable<ConnectionResult['assignment']>['result']): ConnectionResult => ({ assignment: { generation: state.connection.generation, result } })

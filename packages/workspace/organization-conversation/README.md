@@ -6,6 +6,8 @@ The version-1 `organization_conversation` domain retains immutable server/accoun
 
 The Session access policy hides account aliases and descendants from the default catalog, authorizes exact reads and operations, and rejects inactive or revoked task histories. The managed-method adapter logs organization task facts and Bot instructions in the ordinary model history. Organization proposal tools write through the existing native permission checks. Task selection supplies authorized facts to ordinary execution; it starts no isolated Run. Shared assignment, delivery and issuer-acceptance actions retain their own authorization.
 
+Project and Inbox content refreshes retain the native attachment and ordinary Session binding. Logout, identity changes, offline state, window closure and permission loss still cancel and drain the Agent. Catalog and other finite reads finish their final online authorization before request cleanup; closing the private Host query cannot cancel that final check.
+
 The legacy planning runtime serves unattached historical reservations. Once adopted, its `send` operation is refused and the caller must use the ordinary Session API. The invariant compares legacy domain/log evidence, while common adoption checks the alias's durable owner. No private leader transcript is copied into an employee conversation.
 
 ## Model Experience
@@ -15,6 +17,10 @@ The legacy planning runtime serves unattached historical reservations. Once adop
 #### What the model sees
 
 The ordinary conversation history and a logged JSON context message containing the current goal, effective organization settings, authorized project or selected-task facts, and selected Bot instructions. The method version is `organization-planning/v2`.
+
+The device's workflow testing preference and revision are also logged in `organization/planning-input` and the context message. With forced decomposition enabled, an unselected project goal requires a complex assessment and at least two required subtasks, even when account planning is disabled. Ordinary work tools are refused until explicit task selection. Clarification and member queries remain available. Selected and assigned tasks retain ordinary execution. Changing the testing revision rejects an older input's proposal eligibility; historical inputs without testing fields remain readable.
+
+A forced projectless goal instead logs a context message asking the user to select an organization project; ordinary work stays blocked until planning and explicit task selection are possible.
 
 ##### Verbatim enabled method
 

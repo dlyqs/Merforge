@@ -35,13 +35,14 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   useEffect(() => {
     let active = true
     const isActive = () => active, conversation = props.conversation
-    setCatalogs(undefined); setAccountCatalog(undefined); setNotice('')
+    setNotice('')
     if (ready && conversation) void (async () => {
       const items: Catalog[] = []
       const projects = await readNavigationProjects(props.connection, c.generation, () => active)
       if (!projects) return
-      if (isActive()) setCatalogs({ generation: c.generation, complete: false, items:
-        projects.map(project => ({ project, catalog: { bots: [], conversations: [] } })) })
+      if (isActive()) setCatalogs(previous => ({ generation: c.generation, complete: false, items:
+        projects.map(project => ({ project, catalog: previous?.items.find(item => item.project.id === project.id)?.catalog
+          ?? { bots: [], conversations: [] } })) }))
       for (const project of projects) {
         try {
           const result = await conversation({ organizationId: project.organizationId, projectId: project.id,
@@ -71,10 +72,11 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   useEffect(() => {
     setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setExpanded(new Set()); setMenu(null)
   }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
-  const items = ready && catalogs?.generation === c.generation ? catalogs.items : []
+  const readable = c.mode === 'organization' && ['ready', 'loading'].includes(c.phase)
+  const items = readable ? catalogs?.items ?? [] : []
   const open = async (project: OrganizationProjectView | undefined, conversationId: ConversationRequest['conversationId'],
     botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
-    if (!c.principal || !c.organizationId || busy || !props.conversation) return
+    if (!ready || !c.principal || !c.organizationId || busy || !props.conversation) return
     const principal = c.principal
     setBusy(true); setNotice('')
     try {
@@ -102,16 +104,16 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     if (!props.wide) props.expandSidebar()
     setExpanded((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next })
   }
-  const ungrouped = ready && accountCatalog?.generation === c.generation ? accountCatalog.catalog.conversations : []
+  const ungrouped = readable ? accountCatalog?.catalog.conversations ?? [] : []
   const recent: { project: OrganizationProjectView | undefined; conversation: Catalog['catalog']['conversations'][number] }[] = [
     ...conversations, ...ungrouped.map(conversation => ({ project: undefined, conversation })),
   ].sort((a, b) => b.conversation.createdAt - a.conversation.createdAt)
   const row = (project: OrganizationProjectView | undefined, conversation: Catalog['catalog']['conversations'][number]) =>
     <AccountConversationRow key={`${project?.id ?? 'account'}:${conversation.conversationId}`} title={conversation.title || props.t('newConversation')}
-      tag={props.section === 'recent' ? project?.name : undefined} disabled={busy}
+      tag={props.section === 'recent' ? project?.name : undefined} disabled={busy || !ready}
       selected={selected?.conversationId === conversation.conversationId}
       onOpen={() => { void open(project, conversation.conversationId, conversation.botId, conversation.assignment) }}
-      actions={<AccountConversationMenu title={conversation.title || props.t('newConversation')} disabled={busy}
+      actions={<AccountConversationMenu title={conversation.title || props.t('newConversation')} disabled={busy || !ready}
         labels={{ more: props.t('more'), manage: props.t('manageConversation'), delete: props.t('deleteConversation') }}
         onManage={() => { if (c.principal && c.organizationId) props.manageConversation?.({ ...c.principal,
           organizationId: project?.organizationId ?? c.organizationId,
