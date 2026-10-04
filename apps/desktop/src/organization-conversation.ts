@@ -1,13 +1,13 @@
 /** Native project planning and top-frame lifetime checks; no Renderer model proxy. */
-import { conversationAuthoritySchema, conversationRequestSchema, type ConversationRequest, type ConversationBridge,
+import { conversationProjectId, conversationAuthoritySchema, conversationRequestSchema, type ConversationRequest, type ConversationBridge,
   type ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationConnection } from '@deepseek-ai/dsh-organization-connection'
 /** Private Host capability, available only through the owned child process channel. */
 export interface ConversationHost {
   /**
    * Dispatch one fixed local conversation operation and drain its cancellation.
-   * @param request - Strict project-bound input.
-   * @param authorize - Fresh native online planning authorization.
+   * @param request - Strict account input with an optional project.
+   * @param authorize - Fresh native membership or project authorization.
    * @param timeoutMs - Native interval deadline.
    * @param signal - Native identity and owning window lifetime.
    * @returns Bounded private transcript under current project read.
@@ -42,10 +42,11 @@ export async function organizationConversation(connection: OrganizationConnectio
     const principal = current()
     if (command && (command.organizationId !== request.organizationId || command.projectId !== request.projectId
       || command.conversationId !== request.conversationId)) throw new Error('forbidden')
+    if (command && !request.projectId) throw new Error('forbidden')
     let assignment
     if (request.assignment) {
       const prepared = await connection.perform({ kind: 'assignment-preparation', request: { organizationId: request.organizationId,
-        projectId: request.projectId, ...request.assignment } })
+        projectId: conversationProjectId(request), ...request.assignment } })
       current()
       if (prepared.assignment?.result.kind !== 'preparation') throw new Error('forbidden')
       assignment = prepared.assignment.result.value.assignment

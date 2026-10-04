@@ -59,7 +59,7 @@ export function ConversationPlan(props: OrganizationProps & {
     })().catch(() => { if (lifetime.active) setNotice(t('conversationDetailsRestricted')) })
     return () => { lifetime.active = false }
   }, [task?.id, proposal?.revision, proposal?.status, props.generation])
-  if (!proposal) return null
+  if (!proposal || !props.query.projectId) return null
   const status: Record<typeof proposal.status, OrganizationKey> = { shared: 'conversationShared', private: 'conversationSuggestion',
     conflict: 'draftConflict', unknown: 'conversationUnknown', unavailable: 'conversationUnavailable' }
   const tasks = proposal.definition?.tasks ?? []

@@ -6,8 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it, vi } from 'vitest'
 import { openHarness, initialize, addMember } from './harness.ts'
-import { planningPolicySchema, planningReadSchema, type planningViewSchema } from '../src/planning-schema.ts'
-import { openOrganizationDatabase } from '../src/database.ts'
+import { planningPolicySchema, planningReadSchema, planningViewSchema } from '../src/planning-schema.ts'
+import { ORGANIZATION_SCHEMA_VERSION, openOrganizationDatabase } from '../src/database.ts'
 import type { z } from 'zod'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { vi.useRealTimers(); for (const close of cleanup.splice(0).reverse()) await close() })
@@ -30,7 +30,7 @@ async function setup() {
     requestDigest: 'a'.repeat(64), inputBytes: 250, outputBytes: 250 }
   const read = async () => {
     let view: z.output<typeof planningViewSchema> | undefined
-    await h.service.readPlanning(member.token, query, (v) => { view = v })
+    await h.service.readPlanning(member.token, query, (v) => { view = planningViewSchema.parse(v) })
     if (!view) throw new Error('missing planning view')
     return view
   }
@@ -138,10 +138,10 @@ it.each(['member', 'account'] as const)('refuses a pending permit after %s disab
 it('migrates v12 monotonically and rolls back a corrupt migration before changing its stamp', async () => {
   const h = await setup(); await h.close()
   const db = new DatabaseSync(h.path)
-  db.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12'); db.close()
+  db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12'); db.close()
   const upgraded = openOrganizationDatabase(h.path, 5000)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(14)
-  upgraded.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12')
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
+  upgraded.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12')
   upgraded.prepare('UPDATE memberships SET enabled=0 WHERE id=?').run(h.owner.membershipId ?? null); upgraded.close()
   expect(() => openOrganizationDatabase(h.path, 5000)).toThrow('incompatible-store')
   const cold = new DatabaseSync(h.path)
@@ -169,4 +169,27 @@ it('rejects corrupted permit ownership and a missing opening event on cold reope
   db.exec("DELETE FROM planning_events WHERE revision IN (SELECT revision FROM organization_events WHERE kind='open-planning')")
   db.close()
   expect(() => openOrganizationDatabase(h.path, 5000)).toThrow('incompatible-store')
+})
+
+it('authorizes projectless account reads by membership and lets members create their own projects', async () => {
+  const h = await setup()
+  const query = { organizationId: h.query.organizationId, conversationId: randomUUID() }
+  await h.service.readPlanning(h.hidden.token, query, (view) => {
+    expect(view.project).toBeUndefined()
+    expect(view).toMatchObject({ grant: null, eligible: false, canWrite: false, plans: [] })
+  })
+  await expect(h.service.readPlanning(h.hidden.token, { ...query, projectId: h.query.projectId }, () => {}))
+    .rejects.toMatchObject({ code: 'forbidden' })
+  const created = await h.service.projectCommand(h.hidden.token, { kind: 'create-project', organizationId: query.organizationId, operationId: randomUUID(), name: 'Member project' })
+  expect(created.projectId).toBeDefined()
+  await h.service.readPlanning(h.hidden.token, { ...query, projectId: created.projectId }, (view) => {
+    expect(view.project?.name).toBe('Member project'); expect(view.canWrite).toBe(true)
+  })
+  await expect(h.service.grant(h.hidden.token, { kind: 'set-grant', operationId: randomUUID(),
+    organizationId: h.query.organizationId, projectId: created.projectId, membershipId: h.member.membershipId,
+    actions: ['read'], expectedVersion: 0 })).rejects.toMatchObject({ code: 'forbidden' })
+  await h.service.execute(h.owner.token, { kind: 'set-membership', operationId: randomUUID(),
+    organizationId: h.query.organizationId, membershipId: h.hidden.membershipId, expectedVersion: h.hidden.revision,
+    role: 'member', enabled: false })
+  await expect(h.service.readPlanning(h.hidden.token, query, () => {})).rejects.toMatchObject({ code: 'forbidden' })
 })

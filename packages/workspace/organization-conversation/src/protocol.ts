@@ -5,7 +5,7 @@ import { assignmentReadSchema, assignmentSchema } from '@deepseek-ai/dsh-organiz
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { assertV4RowAdmission } from '@deepseek-ai/dsh-session-format-current'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
-import { planningReadSchema, planningViewSchema, planningCommandSchema, planningOpenSchema,
+import { accountConversationReadSchema, accountConversationViewSchema, planningReadSchema, planningCommandSchema, planningOpenSchema,
   planningMutationReceiptSchema, planningPlanReadSchema, planningPlanViewSchema, planningDraftSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 const uuid = <T extends Branded<string>>() => z.uuid().transform(brandString<T>)
 /** Settings belong to this server/account/organization, independently of personal preferences. */
@@ -14,14 +14,14 @@ export const conversationSettingsSchema = z.object({ enabled: z.boolean(), granu
 /** Native identity binds every project read and model admission to its initiating generation. */
 export const conversationAuthoritySchema = z.object({ serverId: uuid<Branded<'OrganizationServerId'>>(),
   accountId: uuid<Branded<'OrganizationAccountId'>>(), generation: z.number().int().nonnegative(),
-  view: planningViewSchema, assignment: assignmentSchema.optional(),
+  view: accountConversationViewSchema, assignment: assignmentSchema.optional(),
   candidates: planningCandidatesPageSchema.optional(), plan: planningPlanViewSchema.optional(),
   receipt: planningMutationReceiptSchema.optional() }).strict()
 /** Exact assignment selector; the native owner derives the task and original participants online. */
 export const conversationAssignmentSchema = assignmentReadSchema.pick({ planId: true, assignmentId: true })
 /** Immutable private owner; no personal Project, preset, path or Run identity is accepted. */
 export const conversationOwnerSchema = conversationAuthoritySchema.pick({ serverId: true, accountId: true })
-  .extend(planningReadSchema.shape).extend({ assignment: conversationAssignmentSchema.optional() }).strict()
+  .extend(accountConversationReadSchema.shape).extend({ assignment: conversationAssignmentSchema.optional() }).strict()
 /** Identity of a private organization Bot; it never refers to a personal preset. */
 export const conversationBotIdSchema = uuid<Branded<'OrganizationConversationBotId'>>()
 const commonModelSelectionSchema = z.object({ backend: z.enum(['harness-api', 'codex']).optional(),
@@ -35,7 +35,7 @@ export const conversationCatalogSchema = z.object({ bots: z.array(conversationBo
   conversations: z.array(z.object({ conversationId: planningReadSchema.shape.conversationId,
     title: z.string().max(120), createdAt: z.number().int().nonnegative(),
     botId: conversationBotIdSchema.optional(), assignment: conversationAssignmentSchema.optional() }).strict()) }).strict()
-const base = planningReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
+const base = accountConversationReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
   assignment: conversationAssignmentSchema.optional(), botId: conversationBotIdSchema.optional() })
 /** Durable goal identity, distinct from the associated WorkGraph task identity. */
 export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoalId'>>()
@@ -53,10 +53,12 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
     membershipId: planningDraftSchema.shape.definition.shape.tasks.element.shape.suggestedMembershipId }).strict(),
   base.extend({ kind: z.literal('settings'), expectedRevision: conversationSettingsSchema.shape.revision,
     settings: conversationSettingsSchema.omit({ revision: true }) }).strict(),
-  base.extend({ kind: z.literal('send'), selection: planningOpenSchema.shape.selection, text: z.string().min(1).max(32768),
+  base.extend({ projectId: planningReadSchema.shape.projectId, kind: z.literal('send'), selection: planningOpenSchema.shape.selection, text: z.string().min(1).max(32768),
     route: z.enum(['new_goal', 'clarification', 'modify', 'query']), goalId: conversationGoalSchema.optional(),
     target: planningPlanReadSchema.pick({ planId: true, taskId: true }).optional() }).strict(),
 ]).superRefine((request, ctx) => {
+  if (!request.projectId && (request.assignment || request.botId || ['bot-save', 'select-task', 'select-model', 'suggest'].includes(request.kind)))
+    ctx.addIssue({ code: 'custom', message: 'Project actions require a project' })
   if (request.assignment && (request.botId || request.kind === 'bot-save' || request.kind === 'catalog'))
     ctx.addIssue({ code: 'custom', message: 'Task conversations cannot manage Bots or project navigation' })
   if (request.assignment && String(request.conversationId) !== String(request.assignment.assignmentId))
@@ -161,4 +163,14 @@ declare module '@deepseek-ai/dsh-session/types' {
     /** Native permission intent and historical receipt, separate from model-visible user input. */
     'organization/planning-operation': z.output<typeof conversationOperationSchema>
   }
+}
+
+/**
+ * Require a project identifier before constructing a planning operation.
+ * @param owner - Account conversation selectors.
+ * @returns Explicit project identifier.
+ */
+export function conversationProjectId(owner: Pick<ConversationRequest, 'projectId'>): NonNullable<ConversationRequest['projectId']> {
+  if (!owner.projectId) throw new Error('organization-conversation: project-required')
+  return owner.projectId
 }

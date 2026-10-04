@@ -6,8 +6,9 @@ import { savePlanningDraft } from './planning-draft.ts'
 import type { WorkgraphLimits } from './workgraph.ts'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
-import { planningGrantSchema, planningPermitSchema, planningViewSchema, planningCandidatesPageSchema, planningReceiptSchema,
-  type planningPolicySchema, type planningCommandSchema, type planningReadSchema,
+import { type accountConversationReadSchema, accountConversationViewSchema, planningReadSchema, planningGrantSchema, planningPermitSchema,
+  planningViewSchema, planningCandidatesPageSchema, planningReceiptSchema,
+  type planningPolicySchema, type planningCommandSchema,
   type planningCandidatesSchema } from './planning-schema.ts'
 import type { Principal } from './types.ts'
 type Policy = z.output<typeof planningPolicySchema>
@@ -47,18 +48,21 @@ function eligible(db: DatabaseSync, principal: Principal, query: Selection, gran
  * Resolve current read authorization separately from permission to dispatch another model request.
  * @param db - Active authority transaction.
  * @param principal - Current enabled member.
- * @param query - Exact project/conversation selection.
+ * @param query - Account conversation selection with an optional project.
  * @param epoch - Active authority lifetime.
  * @param policy - Deployment planning policy.
- * @returns Fresh read facts and current finite qualification.
+ * @returns Membership-authorized account facts, or project facts and finite qualification.
  */
-export function readPlanning(db: DatabaseSync, principal: Principal, query: Selection, epoch: string,
-  policy: Policy): z.output<typeof planningViewSchema> {
-  const project = authorizedProject(db, principal, query.projectId, 'read'), grant = readGrant(db, principal, query)
+export function readPlanning(db: DatabaseSync, principal: Principal, query: z.output<typeof accountConversationReadSchema>, epoch: string,
+  policy: Policy): z.output<typeof accountConversationViewSchema> {
+  if (!query.projectId) return accountConversationViewSchema.parse({ grant: null, eligible: false, canWrite: false,
+    plans: [], serverTime: Date.now(), policy })
+  const selection = planningReadSchema.parse(query)
+  const project = authorizedProject(db, principal, query.projectId, 'read'), grant = readGrant(db, principal, selection)
   return planningViewSchema.parse({ project, grant,
     canWrite: !!db.prepare('SELECT 1 FROM resource_grants WHERE projectId=? AND membershipId=? AND canWrite=1').get(query.projectId, principal.membershipId ?? null),
     plans: db.prepare('SELECT goalId,planId,taskId FROM planning_goals WHERE accountId=? AND conversationId=?').all(principal.accountId, query.conversationId),
-    eligible: eligible(db, principal, query, grant, epoch, policy),
+    eligible: eligible(db, principal, selection, grant, epoch, policy),
     serverTime: Date.now(), policy })
 }
 /**

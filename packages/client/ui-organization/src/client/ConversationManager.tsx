@@ -24,7 +24,7 @@ export function ConversationManager(props: OrganizationProps & InjectFace<Manage
   const valid = selected && c.phase === 'ready' && c.mode === 'organization'
     && c.organizationId === selected.selected.organizationId && c.principal?.accountId === selected.selected.accountId
     && c.principal.serverId === selected.selected.serverId
-  if (!valid || !selected.selected.projectId || !selected.selected.conversationId) return null
+  if (!valid || !selected.selected.conversationId) return null
   return <Manager key={`${selected.selected.conversationId}:${selected.action}:${c.generation}`} {...props} management={selected} projectId={selected.selected.projectId} conversationId={selected.selected.conversationId} />
 }
 /** @param props - One current account management operation. @returns Rename, Bot association or delete confirmation. */

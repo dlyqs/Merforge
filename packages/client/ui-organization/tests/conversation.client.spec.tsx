@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ServerId, AccountId } from '@deepseek-ai/dsh-organization/types'
+import { NewConversation } from '../src/client/NewConversation.tsx'
 import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
 import { AccountSession } from '../src/client/account-session.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -31,7 +32,8 @@ function fixture() {
     principal: { serverId: brandString<ServerId>(result.owner.serverId), accountId: brandString<AccountId>(result.owner.accountId) },
     organizationId: project.organizationId, organizations: [], members: [] }, server: { phase: 'disabled',
     settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
-  const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async () => ({ generation: 1, result }))
+  const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async request => ({ generation: 1,
+    result: request.projectId ? result : { ...result, catalog: { bots: [], conversations: [] } } }))
   const connection = vi.fn<OrganizationProps['connection']>(async () => ({ generation: 1, planning }))
   const props: OrganizationProps = { available: true, conversation, connection, server: vi.fn(), secret: vi.fn(), context: vi.fn(),
     execution: vi.fn(), executionReport: vi.fn(), t: makeTranslate(zh), useModelCatalogRevision: f => f(0), useOrganization: f => f(state) }
@@ -125,4 +127,39 @@ it('keeps the selected organization node on the ordinary Session controls withou
   expect(execute).toHaveBeenCalledWith(selected)
   expect(h.conversation).not.toHaveBeenCalled()
   adapter.dispose()
+})
+
+it('retains project navigation and member creation when a private conversation catalog fails', async () => {
+  const h = fixture(), store = createConversationStore().create()
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1,
+    cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } })
+  h.conversation.mockRejectedValue(new Error('organization-conversation-unavailable'))
+  render(<OrganizationBrowser {...h.props} section="projects" wide expandSidebar={vi.fn()}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  expect(await screen.findByRole('button', { name: h.project.name })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
+  expect(screen.getByRole('dialog', { name: zh.createProject })).toBeTruthy()
+})
+it('opens projectless Recent conversations even when project enumeration fails', async () => {
+  const h = fixture(), store = createConversationStore().create(), selectConversation = vi.fn<NonNullable<OrganizationProps['selectConversation']>>(async () => {})
+  h.connection.mockRejectedValue(new Error('forbidden'))
+  h.conversation.mockResolvedValue({ generation: 1, result: { ...h.result, catalog: { bots: [],
+    conversations: [{ conversationId: h.result.owner.conversationId, title: 'Ungrouped discussion', createdAt: 1 }] } } })
+  render(<OrganizationBrowser {...h.props} section="recent" wide expandSidebar={vi.fn()} selectConversation={selectConversation}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Ungrouped discussion' }))
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledOnce() })
+  expect(selectConversation.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
+})
+
+it('creates a projectless conversation from the global plus without showing a project selector', async () => {
+  const h = fixture(), dismiss = vi.fn()
+  const selectConversation = vi.fn<NonNullable<OrganizationProps['selectConversation']>>(async () => {})
+  render(<NewConversation {...h.props} selectConversation={selectConversation} dismiss={dismiss}
+    useCreating={selector => selector(true)} />)
+  await waitFor(() => { expect(dismiss).toHaveBeenCalledOnce() })
+  expect(selectConversation.mock.calls[0]?.[0]).toMatchObject({ organizationId: h.project.organizationId })
+  expect(selectConversation.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
+  expect(h.connection).not.toHaveBeenCalled()
+  expect(screen.queryByRole('combobox')).toBeNull()
 })

@@ -9,6 +9,7 @@ import { zh, type OrganizationKey } from './locales.ts'
  */
 export function workgraphError(error: unknown): OrganizationKey {
   const message = error instanceof Error ? error.message : ''
+  if (message.endsWith('organization-conversation-unavailable')) return 'conversationServiceUnavailable'
   return (Object.keys(zh) as OrganizationKey[]).find(key => message === key || message.endsWith(`: ${key}`)) ?? 'failure'
 }
 /**

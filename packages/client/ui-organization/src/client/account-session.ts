@@ -59,6 +59,7 @@ export class AccountSession implements AccountSessionTarget {
       get taskId() { const id = current().execution?.target.taskId; return id ? brandString<SessionTaskChoiceId>(id) : undefined },
       listTasks: async () => {
         this.assertCurrent(); this.candidates.clear()
+        if (!query.projectId) return []
         const tasks: Awaited<ReturnType<SessionControls['listTasks']>>[number][] = []
         let offset = 0, cursor: string | undefined
         while (this.active) {

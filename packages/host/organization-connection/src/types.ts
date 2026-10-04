@@ -53,7 +53,7 @@ export interface ConnectionResult {
 
   assignmentBatch?: import('./assignment-batch.ts').AssignmentBatch
   planningPlan?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningPlanViewSchema>
-  planning?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningViewSchema>
+  planning?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').accountConversationViewSchema>
   candidates?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningCandidatesPageSchema>
   integration?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').integrationViewSchema>
   delivery?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').deliveryPageSchema>

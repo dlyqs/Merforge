@@ -1,6 +1,6 @@
 import { setSupervisor } from './hierarchy.ts'
 import { readPlanningPlan } from './planning-draft.ts'
-import { planningCommandSchema, planningReadSchema, planningPlanReadSchema, type planningPlanViewSchema, planningCandidatesSchema, type planningViewSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
+import { accountConversationReadSchema, type accountConversationViewSchema, planningCommandSchema, planningPlanReadSchema, type planningPlanViewSchema, planningCandidatesSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
 import { changePlanning, readPlanning, planningCandidates } from './planning.ts'
 import { integrationReadSchema, integrationCommandSchema, integrationRecordSchema, type integrationViewSchema } from './integration-schema.ts'
 import { integrationView, changeIntegration } from './integration.ts'
@@ -1032,12 +1032,12 @@ export class OrganizationService extends Service {
   /**
    * Read project facts and current planning eligibility under one fresh authority transaction.
    * @param token - Native bearer owner.
-   * @param input - Exact project/conversation selector.
+   * @param input - Account conversation selector with an optional project.
    * @param deliver - Synchronous response writer inside the transaction.
    */
-  readPlanning(token: LoginToken, input: unknown, deliver: (value: z.output<typeof planningViewSchema>) => void): Promise<void> {
+  readPlanning(token: LoginToken, input: unknown, deliver: (value: z.output<typeof accountConversationViewSchema>) => void): Promise<void> {
     return this.enqueue('planning-read', (db) => {
-      const query = parse(planningReadSchema, input)
+      const query = parse(accountConversationReadSchema, input)
       deliver(transaction(db, () => readPlanning(db, this.principal(db, token, query.organizationId),
         query, this.serverEpoch, this.config.planning)))
     })
@@ -1332,7 +1332,7 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Create or rename a project using management or explicit write permission respectively.
+   * Create a project as an enabled member or rename it with explicit write permission.
    * @param token - Current organization bearer credential.
    * @param input - Strict project command with optimistic version and operation identifier.
    * @returns Committed receipt; creation also grants its creating member read/write at the same revision.
@@ -1357,7 +1357,7 @@ export class OrganizationService extends Service {
     return this.enqueue(command.kind, async (db) => {
       const authorize = () => {
         const principal = this.principal(db, token, command.organizationId,
-          command.kind === 'rename-project' ? 'member' : 'manage')
+          command.kind === 'set-grant' ? 'manage' : 'member')
         if (command.kind === 'rename-project') authorizedProject(db, principal, command.projectId, 'write')
         return principal
       }

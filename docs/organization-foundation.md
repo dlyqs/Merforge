@@ -100,7 +100,7 @@ Phase 2 Config 必填专用数据库绝对路径；登录 TTL（默认8小时）
 
 ## 项目授权与同步（Phase 4 已实现）
 
-`POST /projects` 支持 `create-project`（operationId、organizationId、name）和 `rename-project`（另需 projectId、expectedVersion）。创建需要组织管理权，同事务为创建成员写入显式 read/write grant；其他管理员不会自动获得读取权；重命名需要当前 `write` grant。`POST /grants` 的 `set-grant` 命令包含 operationId、organizationId、projectId、membershipId、expectedVersion、actions；actions 只允许 `read`/`write`，空列表撤权，首次 expectedVersion 为 0。成员和项目必须同组织；撤权记录保留版本，旧写入回执重放仍检查当前 grant。
+`POST /projects` 支持 `create-project`（operationId、organizationId、name）和 `rename-project`（另需 projectId、expectedVersion）。创建需要有效组织成员身份，同事务为创建成员写入显式 read/write grant；其他管理员不会自动获得读取权；重命名需要当前 `write` grant。`POST /grants` 的 `set-grant` 命令包含 operationId、organizationId、projectId、membershipId、expectedVersion、actions；actions 只允许 `read`/`write`，空列表撤权，首次 expectedVersion 为 0。成员和项目必须同组织；撤权记录保留版本，旧写入回执重放仍检查当前 grant。
 
 列表/名称搜索返回 `{items,total,offset,revision,cursor}`；页大小由领域 Config 的 `pageSize` 控制（默认50）。详情只含组织项目 ID、组织 ID、名称和版本，不保存或接收个人 cwd、Session 或附件。搜索参数 `q` 为字面子串；SQLite 对 ASCII 忽略大小写。offset>0 必须携带首页 cursor；分页期间数据变化会要求重新获取快照。
 

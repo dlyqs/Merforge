@@ -3,6 +3,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { conversationRequestSchema, conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import { organizationConversation } from '../../../../apps/desktop/src/organization-conversation.ts'
 import { planningCommandSchema } from '@deepseek-ai/dsh-organization/planning'
 import * as transport from '@deepseek-ai/dsh-organization-api/transport'
 import { workgraphHarness, password } from '../../../api/organization-api/tests/workgraph-harness.ts'
@@ -44,3 +46,26 @@ it('restores an unknown charged reserve from the native journal without resubmit
   expect(writes).toBe(1)
   await expect(reopened.perform({ kind: 'planning-command', command })).rejects.toThrow()
 }, 20000)
+
+it('authorizes a projectless catalog through HTTPS and the fixed native conversation consumer', async () => {
+  const h = await workgraphHarness(); cleanup.push(h.close)
+  const connection = new OrganizationConnection(); cleanup.push(() => connection.close())
+  await connection.perform({ kind: 'probe', origin: h.trust.origin })
+  await connection.perform({ kind: 'trust', fingerprint: h.trust.fingerprint })
+  await connection.perform({ kind: 'login', username: 'reader', password })
+  await connection.perform({ kind: 'select', organizationId: h.owner.organizationId })
+  const request = conversationRequestSchema.parse({ kind: 'catalog', organizationId: h.query.organizationId,
+    conversationId: randomUUID(), operationId: randomUUID() })
+  const result = await organizationConversation(connection, { organizationConversation: async (_request, authorize) => {
+    const authority = await authorize()
+    expect(authority.view.project).toBeUndefined()
+    expect(authority.view).toMatchObject({ grant: null, eligible: false, canWrite: false, plans: [] })
+    return conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+      owner: { serverId: authority.serverId, accountId: authority.accountId,
+        organizationId: request.organizationId, conversationId: request.conversationId },
+      settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [], goals: [],
+      state: 'ready', truncated: false, catalog: { bots: [], conversations: [] } })
+  } }, request, () => {}, new AbortController().signal)
+  expect(result.generation).toBe(connection.snapshot().generation)
+  expect(result.result.owner).not.toHaveProperty('projectId')
+})

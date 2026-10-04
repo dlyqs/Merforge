@@ -14,7 +14,7 @@ import { runConversation } from './runtime.ts'
 import { SharedConversationSessions } from './shared-session.ts'
 import { conversationDomain, conversationStateSchema, conversationInputSchema, conversationBindingSchema,
   navigationDomain, navigationStateSchema, conversationAssessmentSchema, conversationOperationSchema, conversationProposalSchema, type conversationIntentSchema } from './state.ts'
-import { conversationRequestSchema, conversationAuthoritySchema, conversationOwnerSchema, conversationResultSchema,
+import { conversationRequestSchema, conversationProjectId, conversationAuthoritySchema, conversationOwnerSchema, conversationResultSchema,
   conversationGoalSchema, type ConversationBridge, type ConversationRequest, type ConversationResult } from './protocol.ts'
 export * from './protocol.ts'
 export { conversationAdapter, conversationModelSchema } from './model.ts'
@@ -103,7 +103,8 @@ export default class OrganizationConversation extends Service {
     if (request.kind === 'detach') return this.detach(request, authorize, signal)
     if (request.kind === 'stop' || request.kind === 'delete') return authorize().then((authority) => {
       const key = ownerKey(conversationOwnerSchema.parse({ serverId: authority.serverId, accountId: authority.accountId,
-        organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
+        organizationId: request.organizationId, ...(request.projectId ? { projectId: request.projectId } : {}),
+        conversationId: request.conversationId,
         ...(request.assignment ? { assignment: request.assignment } : {}) }))
       if (this.activeOwner?.key === key) this.activeOwner.cancel.abort()
       return this.enqueue(request.kind === 'stop' ? { ...request, kind: 'read' } : request, authorize, signal, cancel)
@@ -194,7 +195,8 @@ export default class OrganizationConversation extends Service {
     if (!state) throw new Error('organization-conversation: unavailable')
     const first = conversationAuthoritySchema.parse(await authorize()); check()
     const owner = conversationOwnerSchema.parse({ serverId: first.serverId, accountId: first.accountId,
-      organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId,
+      organizationId: request.organizationId, ...(request.projectId ? { projectId: request.projectId } : {}),
+      conversationId: request.conversationId,
       ...(request.assignment ? { assignment: request.assignment } : {}) })
     const bridge: ConversationBridge = async (command) => {
       check()
@@ -203,7 +205,8 @@ export default class OrganizationConversation extends Service {
         throw new Error('organization-conversation: forbidden')
       const authority = conversationAuthoritySchema.parse(await authorize(command)); check()
       if (authority.serverId !== owner.serverId || authority.accountId !== owner.accountId || authority.generation !== first.generation
-        || authority.view.project.id !== owner.projectId || authority.view.project.organizationId !== owner.organizationId
+        || authority.view.project?.id !== owner.projectId
+        || authority.view.project && authority.view.project.organizationId !== owner.organizationId
         || authority.view.grant && (authority.view.grant.accountId !== owner.accountId
           || authority.view.grant.conversationId !== owner.conversationId
           || authority.view.grant.projectId !== owner.projectId || authority.view.grant.organizationId !== owner.organizationId))
@@ -218,6 +221,8 @@ export default class OrganizationConversation extends Service {
       return authority
     }
     await bridge()
+    if (request.kind === 'catalog') return this.report({ owner,
+      sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }, bridge, true)
     if (owner.assignment && request.kind === 'send' && request.goalId !== conversationGoalSchema.parse(owner.assignment.assignmentId))
       throw new Error('organization-conversation: goal-required')
     this.activeOwner = { key: ownerKey(owner), cancel }
@@ -297,7 +302,7 @@ export default class OrganizationConversation extends Service {
     if (request.kind === 'select-task' && !control) {
       if (first.assignment && (first.assignment.planId !== request.target.planId || first.assignment.taskId !== request.target.taskId))
         throw new Error('organization-conversation: assignment-mismatch')
-      const target = { kind: 'read-planning-plan' as const, organizationId: owner.organizationId, projectId: owner.projectId,
+      const target = { kind: 'read-planning-plan' as const, organizationId: owner.organizationId, projectId: conversationProjectId(owner),
         conversationId: owner.conversationId, ...request.target }
       if (!(await bridge(target)).plan) throw new Error('organization-conversation: task-required')
       const events = await this.events(binding)
@@ -392,12 +397,12 @@ export default class OrganizationConversation extends Service {
       if (!prior && !plan) throw new Error('organization-conversation: goal-required')
       if (!events.some(e => e.type === 'organization/planning-proposal' && e.data.command.operationId === request.operationId)) {
         const source = prior?.data.command ?? planningDraftSchema.parse({ kind: 'save-planning-draft',
-          organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId,
+          organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId,
           goalId: request.goalId, assessmentId: inputEvent?.data.request.operationId, settingsRevision: this.settings(owner).revision,
           planId: plan?.version.planId, definition: plan?.version.definition, expectedRevision: request.expectedRevision,
           operationId: request.operationId })
         const current = prior?.data.status === 'private' ? undefined : (await bridge({ kind: 'read-planning-plan',
-          organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId,
+          organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId,
           planId: source.planId, taskId: source.definition.taskId })).plan
         const definition = current?.version.definition ?? source.definition
         if ((current?.version.revision ?? source.expectedRevision) !== request.expectedRevision) throw new Error('version-conflict')
@@ -459,7 +464,7 @@ export default class OrganizationConversation extends Service {
           if (!authority.view.eligible || authority.view.grant?.selection.model !== request.selection.model
             || authority.view.grant.selection.endpoint !== request.selection.endpoint) {
             const command = planningCommandSchema.parse({ kind: 'open-planning', operationId: randomUUID(), selection: request.selection,
-              organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId })
+              organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId })
             await this.append(binding, 'organization/planning-operation', { command })
             authority = await bridge(command)
             await this.append(binding, 'organization/planning-operation', { command,
@@ -470,7 +475,7 @@ export default class OrganizationConversation extends Service {
           const link = authority.view.plans.find(p => p.goalId === intent.input.goalId)
           const previousInput = (await this.events(binding)).filter(e => e.type === 'organization/planning-input').findLast(e => e.data.goalId === intent.input.goalId)
           const target = authority.assignment ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId } : request.target ?? (link ? { planId: link.planId, taskId: link.taskId } : previousInput?.data.request.kind === 'send' ? previousInput.data.request.target : undefined)
-          if (target) authority = await bridge({ organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId, ...target, kind: 'read-planning-plan' })
+          if (target) authority = await bridge({ organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId, ...target, kind: 'read-planning-plan' })
           const input = { ...intent.input, authority }
           await state.set({ ...state.get(), intents: state.get().intents.map(i => i.operationId === selected.operationId
             && ownerKey(i.owner) === ownerKey(owner) ? { ...i, input } : i) })
@@ -496,7 +501,7 @@ export default class OrganizationConversation extends Service {
       }
     }
     await bridge(); check()
-    return this.report(binding, bridge, request.kind === 'catalog' || request.kind === 'bot-save')
+    return this.report(binding, bridge, request.kind === 'bot-save')
   }
   private async append<T extends 'organization/planning-operation' | 'organization/planning-proposal'>(binding: Binding, type: T,
     data: import('@deepseek-ai/dsh-session').SessionEventMap[T]): Promise<void> {
@@ -537,7 +542,7 @@ export default class OrganizationConversation extends Service {
     const authority = await bridge()
     if (!authority.assignment) throw new Error('organization-conversation: assignment-required')
     const plan = (await bridge({ kind: 'read-planning-plan', organizationId: binding.owner.organizationId,
-      projectId: binding.owner.projectId, conversationId: binding.owner.conversationId,
+      projectId: conversationProjectId(binding.owner), conversationId: binding.owner.conversationId,
       planId: authority.assignment.planId, taskId: authority.assignment.taskId })).plan
     const task = plan?.version.definition.tasks.find(task => task.id === authority.assignment?.taskId)
     if (!task || !plan) throw new Error('organization-conversation: task-required')
@@ -602,7 +607,7 @@ export default class OrganizationConversation extends Service {
       }
     }
     for (const target of targets.values()) await bridge({ kind: 'read-planning-plan',
-      organizationId: binding.owner.organizationId, projectId: binding.owner.projectId,
+      organizationId: binding.owner.organizationId, projectId: conversationProjectId(binding.owner),
       conversationId: binding.owner.conversationId, ...target })
   }
   private goals(events: readonly SessionEvent[]): ConversationResult['goals'] {
@@ -632,7 +637,7 @@ export default class OrganizationConversation extends Service {
     return [...goals.values()]
   }
   private async report(binding: Binding, bridge: ConversationBridge, navigationOnly = false): Promise<ConversationResult> {
-    const events = await this.events(binding), entries: ConversationResult['entries'] = []
+    const events = navigationOnly ? [] : await this.events(binding), entries: ConversationResult['entries'] = []
     for (const e of events) {
       if (!binding.sharedSessionId && e.type === 'organization/planning-input' && e.data.request.kind === 'send') entries.push({ role: 'user',
         text: e.data.request.text })
@@ -677,7 +682,7 @@ export default class OrganizationConversation extends Service {
         : selected?.type === 'organization/task-selection' ? selected.data.target : undefined
       if (target) {
         const plan = (await bridge({ kind: 'read-planning-plan', organizationId: binding.owner.organizationId,
-          projectId: binding.owner.projectId, conversationId: binding.owner.conversationId, ...target })).plan
+          projectId: conversationProjectId(binding.owner), conversationId: binding.owner.conversationId, ...target })).plan
         const task = plan?.version.definition.tasks.find(task => task.id === target.taskId)
         if (task) result.execution = { target: { planId: target.planId, taskId: target.taskId }, title: task.goal }
       }
@@ -688,7 +693,7 @@ export default class OrganizationConversation extends Service {
         ?? (proposal?.status === 'shared' && proposal.definition ? { planId: proposal.planId, taskId: proposal.definition.taskId } : undefined)
         if (!link) continue
         try {
-          const current = await bridge({ organizationId: binding.owner.organizationId, projectId: binding.owner.projectId, conversationId: binding.owner.conversationId, planId: link.planId, taskId: link.taskId, kind: 'read-planning-plan' })
+          const current = await bridge({ organizationId: binding.owner.organizationId, projectId: conversationProjectId(binding.owner), conversationId: binding.owner.conversationId, planId: link.planId, taskId: link.taskId, kind: 'read-planning-plan' })
           if (!current.plan) throw new Error('organization-conversation: missing-plan')
           // Conflicting personal changes remain private and never replace the current shared version.
           if (proposal?.status !== 'conflict' && proposal?.status !== 'private') goal.proposal = { status: 'shared', planId: link.planId,
@@ -711,16 +716,20 @@ export default class OrganizationConversation extends Service {
           const context = rowEvents.find(event => event.type === 'organization/assignment-context')
           if (context?.type !== 'organization/assignment-context') continue
           try {
-            await bridge({ kind: 'read-planning-plan', organizationId: owner.organizationId, projectId: owner.projectId,
+            await bridge({ kind: 'read-planning-plan', organizationId: owner.organizationId, projectId: conversationProjectId(owner),
               conversationId: owner.conversationId, planId: context.data.assignment.planId, taskId: context.data.assignment.taskId })
           } catch (_error: unknown) { await bridge(); continue }
         }
         const input = rowEvents.find(e => e.type === 'organization/planning-input' && e.data.request.kind === 'send')
         const storedTitle = this.navigation.get().metadata.find(meta => ownerKey(meta.owner) === ownerKey(row.owner))?.title
-        const title = storedTitle ?? (input?.type === 'organization/planning-input' && input.data.request.kind === 'send'
+        const sessionTitle = rowEvents.findLast(event => event.type === 'session/title')
+        const firstMessage = rowEvents.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
+        const ordinaryTitle = !row.sharedSessionId ? undefined : sessionTitle?.type === 'session/title' ? sessionTitle.data.title
+          : firstMessage?.type === 'user/message' ? firstMessage.data.content.filter(part => part.type === 'text').map(part => part.text).join('').slice(0, 120) : undefined
+        const title = storedTitle ?? ordinaryTitle?.slice(0, 120) ?? (input?.type === 'organization/planning-input' && input.data.request.kind === 'send'
           ? input.data.request.text.slice(0,
             120) : row.owner.assignment ? (await this.events(row)).find(e => e.type === 'assistant/message')?.data.message.content.filter(b => b.type === 'text').map(b => b.text).join('').slice(0, 120) ?? '' : '')
-        if (!title && String(row.owner.conversationId) === String(row.owner.projectId)) continue
+        if (!title && String(row.owner.conversationId) === String(row.owner.projectId ?? row.owner.organizationId)) continue
         const botId = this.navigation.get().selections.find(link => ownerKey(link.owner) === ownerKey(row.owner))?.botId
         conversations.push({ conversationId: row.owner.conversationId, title, createdAt: row.createdAt,
           ...(botId ? { botId } : {}), ...(row.owner.assignment ? { assignment: row.owner.assignment } : {}) })
@@ -780,8 +789,8 @@ export default class OrganizationConversation extends Service {
               && i.operationId === input.request.operationId)
             if (!intent || JSON.stringify(input) !== JSON.stringify(intent.input)
               || input.authority.serverId !== b.owner.serverId || input.authority.accountId !== b.owner.accountId
-              || input.authority.view.project.id !== b.owner.projectId
-              || input.authority.view.project.organizationId !== b.owner.organizationId)
+              || input.authority.view.project?.id !== b.owner.projectId
+              || input.authority.view.project?.organizationId !== b.owner.organizationId)
               throw new Error('organization-conversation: input-log-mismatch')
           }
           if (event.type === 'organization/planning-proposal') {

@@ -1,6 +1,6 @@
 import { hierarchySchema } from '@deepseek-ai/dsh-organization/protocol'
 import { AssignmentBatches } from './assignment-batch.ts'
-import { planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, planningReadSchema, planningViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
+import { planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, accountConversationReadSchema, accountConversationViewSchema, planningCandidatesSchema, planningCandidatesPageSchema } from '@deepseek-ai/dsh-organization/planning'
 import { integrationReadSchema, integrationCommandSchema, integrationViewSchema } from '@deepseek-ai/dsh-organization/delivery'
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
 import { deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema } from '@deepseek-ai/dsh-organization/delivery'
@@ -504,9 +504,9 @@ export class OrganizationConnection {
           return { generation, planningPlan }
         }
         case 'planning-read': {
-          const query = planningReadSchema.parse(action.request)
+          const query = accountConversationReadSchema.parse(action.request)
           this.assertOrganization(query.organizationId)
-          const planning = planningViewSchema.parse(await this.request('/planning/read', query, generation))
+          const planning = accountConversationViewSchema.parse(await this.request('/planning/read', query, generation))
           return { generation, planning }
         }
         case 'planning-candidates': {

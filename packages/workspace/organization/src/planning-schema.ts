@@ -79,3 +79,8 @@ export const planningCandidatesSchema = planningReadSchema.pick({ organizationId
 export const planningCandidatesPageSchema = z.object({ items: z.array(z.object({ membershipId: id<MembershipId>(),
   username: z.string() }).strict()),
 offset: integer, total: integer }).strict()
+
+/** Account conversation reads authorize membership without requiring a project grant. */
+export const accountConversationReadSchema = planningReadSchema.partial({ projectId: true })
+/** Account reads without a project carry no planning grant, task references or write permission. */
+export const accountConversationViewSchema = planningViewSchema.extend({ project: planningViewSchema.shape.project.optional() })

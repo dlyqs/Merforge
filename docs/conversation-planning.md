@@ -102,3 +102,5 @@ SQLite 当前 v15；v15 保存直属上级关系，planning_goals 保存本人 c
 organization_navigation v1 域保存该账号分区的 Bot、对话关联及保存操作摘要。Bot 模型表单读取普通模型目录，保存 provider/model/backend/effort；旧 endpoint 配置仍按旧策略读取。新对话通过普通 Controller 应用 Bot 默认模型，用户明确选择的模型在重开后继续优先。名称、指令和配置随实际发送写入 organization/planning-input，实际模型由普通 request/header 记录。catalog 只读取当前项目的本人导航，不触发模型，也不让已撤权任务历史阻塞最近列表。导航按每项目 maxCatalogItems（默认 200）及 maxBots（默认 100）限制，并受 maxReportBytes 限制。
 
 Tasks 显示当前授权的节点，选中后复用审核、分配与执行控件。分配必须另行确认；普通成员只可选自己或直属下属，管理员可选任意启用成员，后端叠加现有任务/项目授权校验。组织工作台增加组织架构树及管理员直属上级编辑，变更后的分配权限在线重新计算。
+
+组织侧全局加号直接创建无项目的账号私有普通会话，并归入 Recent；项目行的新建仍绑定所选项目。无项目会话经 `/planning/read` 验证当前有效成员身份，不取得项目正文、规划授权或任务工具。Projects 标题栏向有效成员开放新建项目，服务端同事务授予创建者显式读写权限。目录查询只读，不创建占位会话；单个会话目录失败保留已读取的项目和其他目录，无项目 Recent 查询独立于项目分页。

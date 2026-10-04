@@ -108,7 +108,7 @@ export function apply(ctx: Context): void {
     currentSelection = selected
     retire(); conversationActions?.select(selected); ctx.layout.selectPanel(null)
     const sequence = openSequence
-    if (!selected || !desktop || c.phase !== 'ready' || !selected.conversationId || !selected.projectId) return
+    if (!selected || !desktop || c.phase !== 'ready' || !selected.conversationId) return
     const query = { organizationId: selected.organizationId, projectId: selected.projectId, conversationId: selected.conversationId,
       ...(selected.botId ? { botId: selected.botId } : {}),
       ...(selected.assignmentId && selected.planId ? { assignment: { assignmentId: selected.assignmentId,
@@ -127,7 +127,7 @@ export function apply(ctx: Context): void {
       const a = report.assignment, proposal = report.goals.at(-1)?.proposal
       const taskId = report.execution?.target.taskId ?? a?.taskId ?? proposal?.definition?.taskId,
         planId = report.execution?.target.planId ?? a?.planId ?? proposal?.planId
-      if (taskId && planId) taskActions?.selectTask({ ...selected, projectId, planId, taskId,
+      if (taskId && planId && projectId) taskActions?.selectTask({ ...selected, projectId, planId, taskId,
         ...(a ? { assignmentId: a.id } : {}) })
       ctx.layout.selectPanel('tasks' as MainPanelId)
     }, () => { management.set({ selected, action: 'manage' }) }, loadModels,
@@ -137,6 +137,7 @@ export function apply(ctx: Context): void {
       return result
     })
     accountReference.set(ctx.sessions.retain(accountSession, { source: 'mainView' }))
+    conversationActions?.refresh()
   }
   ctx.effect(() => () => { retire() }, 'organization.account-session')
   ctx.on('api-session/activity', (id) => { if (accountSession?.sessionId === id) conversationActions?.refresh() })

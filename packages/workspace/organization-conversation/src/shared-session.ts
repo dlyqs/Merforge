@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-personal-workflow'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { conversationInputSchema, conversationAssessmentSchema, conversationGoalSchema } from './protocol.ts'
+import { conversationProjectId, conversationInputSchema, conversationAssessmentSchema, conversationGoalSchema } from './protocol.ts'
 import type { ConversationAuthority, ConversationBridge, ConversationResult, conversationBotSchema } from './protocol.ts'
 import type { conversationBindingSchema } from './state.ts'
 import type { z } from 'zod'
@@ -70,7 +70,7 @@ export class SharedConversationSessions {
       owns: id => this.owns(id),
       allowsTool: (session, tool) => tool === 'workflow_complete' ? false
         : tool === 'workflow_assess' || tool === 'workflow_propose'
-          ? this.settings(this.require(session.id).binding).enabled : true,
+          ? !!this.require(session.id).binding.owner.projectId && this.settings(this.require(session.id).binding).enabled : true,
       prepare: (agent, decision, signal) => this.prepare(agent, decision, signal),
     }), 'organization-conversation.task-method')
     ctx.on('agent/created', async ({ agent }) => { if (this.owns(agent.id)) await this.installTools(agent) })
@@ -121,7 +121,8 @@ export class SharedConversationSessions {
     if (this.require(id) !== attachment) throw new Error('organization-conversation: superseded')
     const owner = attachment.binding.owner
     if (authority.accountId !== owner.accountId || authority.serverId !== owner.serverId
-      || authority.view.project.id !== owner.projectId || authority.view.project.organizationId !== owner.organizationId)
+      || authority.view.project?.id !== owner.projectId
+      || authority.view.project && authority.view.project.organizationId !== owner.organizationId)
       throw new Error('organization-conversation: owner-mismatch')
     attachment.cancel.signal.throwIfAborted()
     const session = this.ctx.sessions.get(id)
@@ -139,7 +140,7 @@ export class SharedConversationSessions {
         }
       }
       for (const target of targets.values()) await attachment.bridge({ kind: 'read-planning-plan',
-        organizationId: owner.organizationId, projectId: owner.projectId, conversationId: owner.conversationId, ...target })
+        organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId, ...target })
       attachment.cancel.signal.throwIfAborted()
     }
     return authority
@@ -243,6 +244,7 @@ export class SharedConversationSessions {
   }
   private async installTools(agent: Agent): Promise<void> {
     const attachment = this.require(agent.id), scoped = agent.ctx
+    if (!attachment.binding.owner.projectId) return
     const disposers: (() => void | Promise<void>)[] = []
     attachment.stopTools.set(agent.id, disposers)
     disposers.push(scoped.tools.register(defineTool({ name: 'workflow_assess',
@@ -271,13 +273,13 @@ export class SharedConversationSessions {
       parameters: { search: { type: 'string', required: true }, offset: { type: 'integer', required: true } },
       output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] },
       execute: async args => JSON.stringify((await bridge({ kind: 'read-planning-members',
-        organizationId: attachment.binding.owner.organizationId, projectId: attachment.binding.owner.projectId,
+        organizationId: attachment.binding.owner.organizationId, projectId: conversationProjectId(attachment.binding.owner),
         conversationId: attachment.binding.owner.conversationId, search: args.search, offset: args.offset })).candidates),
     })))
   }
   private async prepare(agent: Agent, decision: PreStepDecision, signal: AbortSignal): Promise<PreStepDecision> {
     const authority = await this.authorize(agent.id), attachment = this.require(agent.id)
-    if (decision.kind === 'reject') return decision
+    if (decision.kind === 'reject' || !attachment.binding.owner.projectId) return decision
     const user = decision.messages.find(message => message.source.kind === 'user')
     if (!user) return decision
     const { binding, bridge } = attachment, owner = binding.owner
@@ -287,7 +289,7 @@ export class SharedConversationSessions {
     const target = authority.assignment ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }
       : selected?.type === 'organization/task-selection' ? { planId: selected.data.target.planId, taskId: selected.data.target.taskId } : undefined
     const plan = target ? (await bridge({ kind: 'read-planning-plan', organizationId: owner.organizationId,
-      projectId: owner.projectId, conversationId: owner.conversationId, ...target })).plan : undefined
+      projectId: conversationProjectId(owner), conversationId: owner.conversationId, ...target })).plan : undefined
     signal.throwIfAborted()
     if (target && !plan) throw new Error('organization-conversation: task-unavailable')
     const prior = events.findLast(event => event.type === 'organization/planning-input')
@@ -297,7 +299,7 @@ export class SharedConversationSessions {
     const input = conversationInputSchema.parse({ goalId, settings, ...(bot ? { bot } : {}),
       authority: { ...authority, ...(plan ? { plan } : {}) },
       methodVersion: 'organization-planning/v2', request: { kind: 'send', organizationId: owner.organizationId,
-        projectId: owner.projectId, conversationId: owner.conversationId, operationId: randomUUID(),
+        projectId: conversationProjectId(owner), conversationId: owner.conversationId, operationId: randomUUID(),
         ...(owner.assignment ? { assignment: owner.assignment } : {}), ...(target || prior ? { goalId } : {}),
         route: target ? 'query' : prior ? 'modify' : 'new_goal',
         ...(target ? { target } : {}), selection: { endpoint: authority.view.policy.models[0]?.endpoint,

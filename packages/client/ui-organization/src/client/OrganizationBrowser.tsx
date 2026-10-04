@@ -21,6 +21,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const c = props.useOrganization(s => s.connection), revision = props.useStore(s => s.revision), selected = props.useStore(s => s.selected)
   const [catalogs, setCatalogs] = useState<{ generation: number; complete: boolean; items: Catalog[] }>()
+  const [accountCatalog, setAccountCatalog] = useState<{ generation: number; catalog: Catalog['catalog'] }>()
   const identity = useRef(c); identity.current = c
   const [newTarget, setNewTarget] = useState<{ project: OrganizationProjectView; bot?: Bot }>()
   const [newBot, setNewBot] = useState('')
@@ -34,7 +35,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   useEffect(() => {
     let active = true
     const isActive = () => active, conversation = props.conversation
-    setCatalogs(undefined); setNotice('')
+    setCatalogs(undefined); setAccountCatalog(undefined); setNotice('')
     if (ready && conversation) void (async () => {
       const items: Catalog[] = []
       const projects = await readNavigationProjects(props.connection, c.generation, () => active)
@@ -42,30 +43,48 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
       if (isActive()) setCatalogs({ generation: c.generation, complete: false, items:
         projects.map(project => ({ project, catalog: { bots: [], conversations: [] } })) })
       for (const project of projects) {
-        const result = await conversation({ organizationId: project.organizationId, projectId: project.id,
-          conversationId: String(project.id) as ConversationRequest['conversationId'], kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'] })
-        if (result.generation !== c.generation) return
-        if (result.result.catalog) items.push({ project, catalog: result.result.catalog })
+        try {
+          const result = await conversation({ organizationId: project.organizationId, projectId: project.id,
+            conversationId: String(project.id) as ConversationRequest['conversationId'], kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'] })
+          if (result.generation !== c.generation) return
+          items.push({ project, catalog: result.result.catalog ?? { bots: [], conversations: [] } })
+        } catch (error: unknown) {
+          items.push({ project, catalog: { bots: [], conversations: [] } })
+          if (isActive()) setNotice(props.t(workgraphError(error)))
+        }
       }
       if (isActive()) setCatalogs({ generation: c.generation, complete: true, items })
     })().catch((error: unknown) => { if (active) setNotice(props.t(workgraphError(error))) })
     return () => { active = false }
   }, [ready, c.generation, revision, props.section])
   useEffect(() => {
+    let active = true
+    if (ready && props.section === 'recent' && c.organizationId && props.conversation) void props.conversation({
+      organizationId: c.organizationId, conversationId: String(c.organizationId) as ConversationRequest['conversationId'],
+      kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'],
+    }).then((result) => {
+      if (active && result.generation === c.generation && result.result.catalog)
+        setAccountCatalog({ generation: c.generation, catalog: result.result.catalog })
+    }, (error: unknown) => { if (active) setNotice(props.t(workgraphError(error))) })
+    return () => { active = false }
+  }, [ready, c.generation, revision, props.section])
+  useEffect(() => {
     setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setExpanded(new Set()); setMenu(null)
   }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   const items = ready && catalogs?.generation === c.generation ? catalogs.items : []
-  const open = async (project: OrganizationProjectView, conversationId: ConversationRequest['conversationId'],
+  const open = async (project: OrganizationProjectView | undefined, conversationId: ConversationRequest['conversationId'],
     botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
-    if (!c.principal || busy || !props.conversation) return
+    if (!c.principal || !c.organizationId || busy || !props.conversation) return
     const principal = c.principal
     setBusy(true); setNotice('')
     try {
-      const chosen = { ...principal, organizationId: project.organizationId, projectId: project.id, conversationId,
+      const chosen = { ...principal, organizationId: project?.organizationId ?? c.organizationId,
+        ...(project ? { projectId: project.id } : {}), conversationId,
         ...(botId ? { botId } : {}), ...(assignment ? { planId: assignment.planId, assignmentId: assignment.assignmentId } : {}) }
       if (props.selectConversation) await props.selectConversation(chosen)
       else {
-        const result = await props.conversation({ organizationId: project.organizationId, projectId: project.id, conversationId,
+        const result = await props.conversation({ organizationId: project?.organizationId ?? c.organizationId,
+          ...(project ? { projectId: project.id } : {}), conversationId,
           kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'], ...(botId ? { botId } : {}),
           ...(assignment ? { assignment } : {}) })
         if (result.generation !== identity.current.generation) return
@@ -83,19 +102,25 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     if (!props.wide) props.expandSidebar()
     setExpanded((previous) => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next })
   }
-  const row = (project: OrganizationProjectView, conversation: Catalog['catalog']['conversations'][number]) =>
-    <AccountConversationRow key={`${project.id}:${conversation.conversationId}`} title={conversation.title || props.t('newConversation')}
-      tag={props.section === 'recent' ? project.name : undefined} disabled={busy}
+  const ungrouped = ready && accountCatalog?.generation === c.generation ? accountCatalog.catalog.conversations : []
+  const recent: { project: OrganizationProjectView | undefined; conversation: Catalog['catalog']['conversations'][number] }[] = [
+    ...conversations, ...ungrouped.map(conversation => ({ project: undefined, conversation })),
+  ].sort((a, b) => b.conversation.createdAt - a.conversation.createdAt)
+  const row = (project: OrganizationProjectView | undefined, conversation: Catalog['catalog']['conversations'][number]) =>
+    <AccountConversationRow key={`${project?.id ?? 'account'}:${conversation.conversationId}`} title={conversation.title || props.t('newConversation')}
+      tag={props.section === 'recent' ? project?.name : undefined} disabled={busy}
       selected={selected?.conversationId === conversation.conversationId}
       onOpen={() => { void open(project, conversation.conversationId, conversation.botId, conversation.assignment) }}
       actions={<AccountConversationMenu title={conversation.title || props.t('newConversation')} disabled={busy}
         labels={{ more: props.t('more'), manage: props.t('manageConversation'), delete: props.t('deleteConversation') }}
-        onManage={() => { if (c.principal) props.manageConversation?.({ ...c.principal, organizationId: project.organizationId,
-          projectId: project.id, conversationId: conversation.conversationId,
+        onManage={() => { if (c.principal && c.organizationId) props.manageConversation?.({ ...c.principal,
+          organizationId: project?.organizationId ?? c.organizationId,
+          ...(project ? { projectId: project.id } : {}), conversationId: conversation.conversationId,
           ...(conversation.assignment ? { planId: conversation.assignment.planId,
             assignmentId: conversation.assignment.assignmentId } : {}) }) }}
-        onDelete={() => { if (c.principal) props.manageConversation?.({ ...c.principal, organizationId: project.organizationId,
-          projectId: project.id, conversationId: conversation.conversationId,
+        onDelete={() => { if (c.principal && c.organizationId) props.manageConversation?.({ ...c.principal,
+          organizationId: project?.organizationId ?? c.organizationId,
+          ...(project ? { projectId: project.id } : {}), conversationId: conversation.conversationId,
           ...(conversation.assignment ? { planId: conversation.assignment.planId,
             assignmentId: conversation.assignment.assignmentId } : {}) }, 'delete') }} />} />
   const newButton = (project: OrganizationProjectView, bot?: Bot) => <Tooltip label={props.t('newConversation')}>
@@ -110,12 +135,12 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         anchor={<button type="button" className={css.headerAction} aria-label={`${props.t('more')} ${props.t(titleKey)}`} aria-expanded={menu === 'sort'} aria-haspopup="menu" onClick={() => { setMenu(menu === 'sort' ? null : 'sort') }}><IconEllipsisOutlineRegular /></button>}
         items={[{ id: 'default', label: props.t('sortDefault') }, { id: 'name', label: props.t('sortName') }]}
         onSelect={(id) => { setSortName(id === 'name'); setMenu(null) }} />
-      {(props.section === 'bots' || c.organizations.find(org => org.id === c.organizationId)?.role === 'admin') && <Tooltip label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')}>
+      <Tooltip label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')}>
         <button type="button" className={css.headerAction} aria-label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')} disabled={!ready || busy}
           onClick={() => { if (props.section === 'bots') setEditing({})
           else { projectOperation.current = undefined
             setProjectDraft({ name: '' }) } }}><IconPlusOutlineRegular /></button>
-      </Tooltip>}
+      </Tooltip>
     </div></div>}
     {notice && <p role="alert">{notice}</p>}
     {props.wide && ready && !catalogs?.complete && !notice && <p role="status">{props.t('loading')}</p>}
@@ -133,7 +158,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         </>}>
         {catalog.conversations.map(conversation => row(project, conversation))}
       </AccountNavigationGroup>)}
-    {props.wide && props.section === 'recent' && conversations.map(({ project, conversation }) => row(project, conversation))}
+    {props.wide && props.section === 'recent' && recent.map(({ project, conversation }) => row(project, conversation))}
     {props.section === 'bots' && ordered(items.flatMap(({ project, catalog }) => catalog.bots.map(bot => ({ project, catalog, bot, name: bot.name })))).map(({ project, catalog, bot }) =>
       <AccountNavigationGroup key={`${project.id}:${bot.id}`} kind="bot" name={bot.name} open={expanded.has(bot.id)} wide={props.wide}
         onToggle={() => { toggle(bot.id) }} actions={<>
@@ -145,9 +170,9 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         </>}>
         {catalog.conversations.filter(conversation => conversation.botId === bot.id).map(conversation => row(project, conversation))}
       </AccountNavigationGroup>)}
-    {props.wide && ready && catalogs?.complete && props.section === 'recent' && !conversations.length && <p>{props.t('noRecentConversations')}</p>}
-    {props.wide && ready && catalogs?.complete && props.section === 'bots' && !items.some(i => i.catalog.bots.length) && <p>{props.t('noBots')}</p>}
-    {props.wide && ready && catalogs?.complete && props.section === 'projects' && !items.length && <p>{props.t('emptyProjects')}</p>}
+    {props.wide && ready && catalogs?.complete && !notice && props.section === 'recent' && accountCatalog?.generation === c.generation && !ungrouped.length && !conversations.length && <p>{props.t('noRecentConversations')}</p>}
+    {props.wide && ready && catalogs?.complete && !notice && props.section === 'bots' && !items.some(i => i.catalog.bots.length) && <p>{props.t('noBots')}</p>}
+    {props.wide && ready && catalogs?.complete && !notice && props.section === 'projects' && !items.length && <p>{props.t('emptyProjects')}</p>}
     {props.wide && !ready && <p>{props.t(c.phase)}</p>}
   </div>
   {newTarget && <Modal open title={props.t('newConversation')} closeLabel={props.t('close')} onClose={() => { if (!busy) setNewTarget(undefined) }}

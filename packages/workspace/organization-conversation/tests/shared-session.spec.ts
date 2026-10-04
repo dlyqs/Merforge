@@ -31,7 +31,7 @@ import * as Codex from '../../../core/agent-codex/src/index.ts'
 import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { fixture as nativeFixture } from '../../../core/agent-codex/tests/harness.ts'
 
-async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved?: { root: string; request: ConversationRequest; authority: ConversationAuthority }, peer?: Awaited<ReturnType<typeof nativeFixture>>['peer']) {
+async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved?: { root: string; request: ConversationRequest; authority: ConversationAuthority }, peer?: Awaited<ReturnType<typeof nativeFixture>>['peer'], projectless = false) {
   const root = saved?.root ?? await mkdtemp(join(tmpdir(), 'organization-common-session-'))
   const model = new MockAdapter(script)
   const extras = [
@@ -57,10 +57,10 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved
   expect(ctx.get('organizationConversation')).toBeDefined()
   const errors: unknown[] = []
   ctx.on('agent/error', ({ error }) => { errors.push(error) })
-  const request = saved?.request ?? conversationRequestSchema.parse({ kind: 'attach', organizationId: randomUUID(), projectId: randomUUID(),
+  const request = saved?.request ?? conversationRequestSchema.parse({ kind: 'attach', organizationId: randomUUID(), ...(projectless ? {} : { projectId: randomUUID() }),
     conversationId: randomUUID(), operationId: randomUUID() })
   const authority = saved?.authority ?? conversationAuthoritySchema.parse({ serverId: randomUUID(), accountId: randomUUID(), generation: 1,
-    view: { project: { id: request.projectId, organizationId: request.organizationId, name: 'Team project', version: 1 },
+    view: { ...(projectless ? {} : { project: { id: request.projectId, organizationId: request.organizationId, name: 'Team project', version: 1 } }),
       grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
       policy: { models: [{ model: 'legacy', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000,
         maxRequests: 10, maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } } })
@@ -280,3 +280,33 @@ it('executes the selected organization node with ordinary tools and its logged t
     attached.lifetime.abort(); await attached.done
   } finally { await h.close() }
 }, 30000)
+
+it('persists and reopens projectless account chats in Recent without creating catalog Sessions or exposing planning tools', async () => {
+  const h = await setup([textResponse('Ordinary account answer')], undefined, undefined, true)
+  let restarted: Awaited<ReturnType<typeof setup>> | undefined
+  try {
+    const first = await h.attach(), id = first.report.sharedSessionId!
+    expect(first.report.owner).not.toHaveProperty('projectId')
+    await h.send(id, 'Independent account discussion')
+    await vi.waitFor(() => { expect(h.model.requests).toHaveLength(1); expect(h.ctx.agents.get(id)?.status).toBe('idle') })
+    expect(h.errors).toEqual([])
+    expect(h.model.requests[0]?.tools?.map(tool => tool.name) ?? []).not.toContain('workflow_propose')
+    const catalog = { ...h.request, kind: 'catalog' as const, operationId: brandString<ConversationRequest['operationId']>(randomUUID()) }
+    const before = await h.ctx.sessionPersistence.list()
+    const report = await h.ctx.organizationConversation.perform(catalog, h.bridge, h.signal)
+    expect(report.catalog?.conversations).toEqual([expect.objectContaining({ conversationId: h.request.conversationId,
+      title: 'Independent account discussion' })])
+    expect(await h.ctx.sessionPersistence.list()).toEqual(before)
+    first.lifetime.abort(); await first.done
+    await h.ctx.organizationConversation.verifyBindings()
+    await h.ctx.fiber.dispose()
+    restarted = await setup([], { root: h.root, request: h.request, authority: h.authority })
+    const reopened = await restarted.attach()
+    expect(reopened.report.sharedSessionId).toBe(id)
+    expect(JSON.stringify(reopened.report.history)).toContain('Ordinary account answer')
+    restarted.revoke()
+    const account = restarted
+    await vi.waitFor(() => { expect(account.ctx.agents.get(id)).toBeUndefined() })
+    reopened.lifetime.abort(); await reopened.done
+  } finally { await restarted?.close(); await h.close() }
+})

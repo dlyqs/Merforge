@@ -184,7 +184,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>
               <form className={css.search} onSubmit={(event) => { event.preventDefault(); if (!busy && c.phase === 'ready') void run(() => connect({ kind: 'search', query: value('search'), offset: 0 })) }}><Input className={css.input ?? ''} icon={<IconSearchOutlineRegular />} aria-label={t('search')} placeholder={t('search')} value={value('search')} onChange={(event) => { set('search', event.target.value) }} /><Button type="submit" variant="outline" disabled={busy || c.phase !== 'ready'}>{t('searchAction')}</Button></form>
-              {admin && <div className={css.actions}>{launch('createProject', !writable)}</div>}
+              <div className={css.actions}>{launch('createProject', !writable)}</div>
               {admin && <details className={css.advanced}><summary>{t('advancedAccess')}</summary>{launch('permissions', !writable)}</details>}
               {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { if (props.openProjectTasks) { props.openProjectTasks(project)
                 props.onClose() } }}>{t('tasks')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions')
@@ -201,7 +201,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
                 name, version: result.receipt.revision }
               if (props.openProjectTasks) { props.openProjectTasks(created); props.onClose() }
             }
-          }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !admin || !writable || !value('projectName').trim())}
+          }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !writable || !value('projectName').trim())}
           {task === 'permissions' && admin && <>
             <label className={css.field}>{t('chooseProject')}<select value={value('projectId')} disabled={busy} onChange={(event) => { set('projectId', event.target.value) }}>
               <option value="">{t('chooseProject')}</option>
