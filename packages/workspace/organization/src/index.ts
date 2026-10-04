@@ -985,7 +985,7 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Commit a finite planning qualification or charged model attempt, without execution authority.
+   * Commit a draft under current edit permission, or a finite model qualification or charged attempt.
    * @param token - Current native login.
    * @param input - Closed planning command; no credentials or private text.
    * @returns Historical receipt. Consumption replay is refused; uncertain consumption is only reconciled.
@@ -1006,8 +1006,8 @@ export class OrganizationService extends Service {
         const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint,
           (revision) => {
             const planning = changePlanning(db, principal, command, revision, this.serverEpoch, this.config.planning, this.config)
-            db.prepare('INSERT INTO planning_events VALUES (?,?,?,?)').run(revision, command.conversationId,
-              principal.accountId, JSON.stringify(planning))
+            db.prepare('INSERT INTO planning_events VALUES (?,?,?,?,?)').run(revision, command.conversationId,
+              principal.accountId, command.projectId, JSON.stringify(planning))
             return { organizationId: command.organizationId, projectId: command.projectId, planning }
           })
         return { receipt, committed: true }

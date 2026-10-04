@@ -1,4 +1,4 @@
-/** Transactional finite planning qualifications and exactly-once attempt consumption. */
+/** Transactional shared drafts, finite model qualifications and exactly-once attempt consumption. */
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
@@ -13,6 +13,11 @@ import { type accountConversationReadSchema, accountConversationViewSchema, plan
 import type { Principal } from './types.ts'
 type Policy = z.output<typeof planningPolicySchema>
 type Selection = z.output<typeof planningReadSchema>
+const planningEventsDdl = `
+CREATE TABLE planning_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision),
+  conversationId TEXT NOT NULL, accountId TEXT NOT NULL REFERENCES accounts(id),
+  projectId TEXT NOT NULL REFERENCES organization_projects(id), result TEXT NOT NULL) STRICT;
+`
 /** Physical planning records are separate from assignments, Runs and private conversation text. */
 export const planningDdl = `
 CREATE TABLE planning_grants (conversationId TEXT NOT NULL, accountId TEXT NOT NULL REFERENCES accounts(id),
@@ -20,10 +25,18 @@ CREATE TABLE planning_grants (conversationId TEXT NOT NULL, accountId TEXT NOT N
   data TEXT NOT NULL, PRIMARY KEY(conversationId,accountId)) STRICT;
 CREATE TABLE planning_permits (id TEXT PRIMARY KEY, conversationId TEXT NOT NULL, accountId TEXT NOT NULL,
   data TEXT NOT NULL, FOREIGN KEY(conversationId,accountId) REFERENCES planning_grants(conversationId,accountId)) STRICT;
-CREATE TABLE planning_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision),
-  conversationId TEXT NOT NULL, accountId TEXT NOT NULL, result TEXT NOT NULL,
-  FOREIGN KEY(conversationId,accountId) REFERENCES planning_grants(conversationId,accountId)) STRICT;
-`
+` + planningEventsDdl
+/**
+ * Retain historical planning events with their project, independently of model qualifications.
+ * @param db - Authority database under its migration transaction.
+ */
+export function migratePlanningV15(db: DatabaseSync): void {
+  db.exec('ALTER TABLE planning_events RENAME TO planning_events_v15')
+  db.exec(planningEventsDdl)
+  db.exec(`INSERT INTO planning_events SELECT revision,conversationId,accountId,
+    (SELECT projectId FROM planning_grants g WHERE g.conversationId=e.conversationId AND g.accountId=e.accountId),result
+    FROM planning_events_v15 e; DROP TABLE planning_events_v15`)
+}
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 function accessDigest(db: DatabaseSync, principal: Principal, query: Selection): string {
   return digest(db.prepare(`SELECT a.version AS accountVersion,m.version AS memberVersion,g.version AS grantVersion
@@ -66,7 +79,7 @@ export function readPlanning(db: DatabaseSync, principal: Principal, query: z.ou
     serverTime: Date.now(), policy })
 }
 /**
- * Mutate planning permission only; reservations charge maximum byte exposure and are never refunded.
+ * Save a draft under current edit permission or mutate finite model qualifications and charged attempts.
  * @param db - Active receipt transaction.
  * @param principal - Fresh enabled organization identity.
  * @param command - Strict fixed planning operation.
@@ -79,6 +92,7 @@ export function readPlanning(db: DatabaseSync, principal: Principal, query: z.ou
 export function changePlanning(db: DatabaseSync, principal: Principal, command: z.output<typeof planningCommandSchema>,
   revision: number, epoch: string, policy: Policy, limits: WorkgraphLimits): z.output<typeof import('./planning-schema.ts').planningReceiptSchema> {
   authorizedProject(db, principal, command.projectId, 'read')
+  if (command.kind === 'save-planning-draft') return savePlanningDraft(db, principal, command, revision, limits)
   const grant = readGrant(db, principal, command)
   if (command.kind === 'open-planning') {
     if (grant && (grant.selection.model !== command.selection.model || grant.selection.endpoint !== command.selection.endpoint)
@@ -97,10 +111,6 @@ export function changePlanning(db: DatabaseSync, principal: Principal, command: 
     db.prepare('INSERT INTO planning_grants VALUES (?,?,?,?,?) ON CONFLICT(conversationId,accountId) DO UPDATE SET data=excluded.data').run(command.conversationId, principal.accountId,
       command.organizationId, command.projectId, JSON.stringify(created))
     return { conversationId: command.conversationId }
-  }
-  if (command.kind === 'save-planning-draft') {
-    if (!grant) throw new OrganizationError('forbidden')
-    return savePlanningDraft(db, principal, command, revision, limits)
   }
   if (!grant || !eligible(db, principal, command, grant, epoch, policy)) throw new OrganizationError('forbidden')
   if (command.kind === 'reserve-planning-request') {
@@ -189,17 +199,26 @@ export function validatePlanningDatabase(db: DatabaseSync): void {
   for (const row of db.prepare(`SELECT e.kind,e.actorId,e.organizationId,x.* FROM planning_events x
     JOIN organization_events e ON e.revision=x.revision`).all()) {
     const receipt = planningReceiptSchema.parse(JSON.parse(String(row.result)))
-    const stored = db.prepare('SELECT data FROM planning_grants WHERE conversationId=? AND accountId=?')
-      .get(String(row.conversationId), String(row.accountId))
-    const grant = stored ? planningGrantSchema.parse(JSON.parse(String(stored.data))) : null
-    if (!grant || row.actorId !== grant.accountId || row.organizationId !== grant.organizationId
-      || receipt.conversationId !== grant.conversationId) throw new OrganizationError('incompatible-store')
-    if (row.kind === 'open-planning') {
-      if (receipt.permitId !== undefined || receipt.permitExpiresAt !== undefined) throw new OrganizationError('incompatible-store')
-    } else if (row.kind === 'save-planning-draft') {
-      const link = db.prepare('SELECT 1 FROM planning_goals WHERE accountId=? AND conversationId=? AND planId=? AND taskId=?').get(grant.accountId, grant.conversationId, receipt.planId ?? null, receipt.taskId ?? null)
-      if (!link || !db.prepare('SELECT 1 FROM plan_revisions WHERE planId=? AND revision=?').get(receipt.planId ?? null, receipt.planRevision ?? null)) throw new OrganizationError('incompatible-store')
+    const project = db.prepare('SELECT organizationId FROM organization_projects WHERE id=?').get(String(row.projectId))
+    if (row.actorId !== row.accountId || row.organizationId !== project?.organizationId
+      || receipt.conversationId !== row.conversationId) throw new OrganizationError('incompatible-store')
+    if (row.kind === 'save-planning-draft') {
+      const link = db.prepare(`SELECT 1 FROM planning_goals g JOIN organization_plans p ON p.id=g.planId
+        JOIN plan_revisions r ON r.planId=p.id WHERE g.accountId=? AND g.conversationId=? AND g.planId=? AND g.taskId=?
+        AND p.projectId=? AND r.revision=? AND r.eventRevision=?`)
+        .get(String(row.accountId), row.conversationId, receipt.planId ?? null, receipt.taskId ?? null,
+          String(row.projectId), receipt.planRevision ?? null, Number(row.revision))
+      if (!link || receipt.permitId !== undefined || receipt.permitExpiresAt !== undefined) throw new OrganizationError('incompatible-store')
     } else {
+      const stored = db.prepare('SELECT data FROM planning_grants WHERE conversationId=? AND accountId=?')
+        .get(row.conversationId, String(row.accountId))
+      const grant = stored ? planningGrantSchema.parse(JSON.parse(String(stored.data))) : null
+      if (!grant || row.projectId !== grant.projectId || row.organizationId !== grant.organizationId)
+        throw new OrganizationError('incompatible-store')
+      if (row.kind === 'open-planning') {
+        if (receipt.permitId !== undefined || receipt.permitExpiresAt !== undefined) throw new OrganizationError('incompatible-store')
+        continue
+      }
       const storedPermit = db.prepare('SELECT data FROM planning_permits WHERE id=?').get(receipt.permitId ?? null)
       const permit = storedPermit ? planningPermitSchema.parse(JSON.parse(String(storedPermit.data))) : null
       const expectedRevision = row.kind === 'reserve-planning-request' ? permit?.createdRevision

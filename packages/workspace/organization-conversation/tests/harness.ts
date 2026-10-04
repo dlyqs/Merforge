@@ -15,7 +15,7 @@ import Credentials from '@deepseek-ai/dsh-credentials-local'
 import Conversation from '../src/index.ts'
 import * as Invariant from '../src/invariant.ts'
 import { installOrganizationConversationControl } from '../../../../apps/desktop-host/src/organization-conversation.ts'
-import { conversationNativeMessageSchema, type ConversationRequest, type ConversationBridge,
+import { conversationNativeMessageSchema, conversationAuthorizationError, type ConversationRequest, type ConversationBridge,
   type ConversationResult } from '../src/protocol.ts'
 
 import { EventEmitter } from 'node:events'
@@ -69,7 +69,7 @@ export async function boot(root: string) {
             { requestId: response.requestId, nonce, authorizationId: response.authorizationId,
               type: 'organization-conversation-authorized', authority }), (error: unknown) => bus.emit('message', {
             type: 'organization-conversation-authorized', requestId: response.requestId, nonce,
-            authorizationId: response.authorizationId, error: error instanceof Error && error.message === 'version-conflict' ? 'version-conflict' : 'denied' }))
+            authorizationId: response.authorizationId, error: conversationAuthorizationError(error) }))
         }
       } })
     const host: ConversationHost = { organizationConversation: async (request: ConversationRequest, authorize: ConversationBridge,

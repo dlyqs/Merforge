@@ -2,6 +2,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CodexSetupOwnerId } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import { randomUUID } from 'node:crypto'
 import { contextRequestSchema, contextAuthoritySchema } from '@deepseek-ai/dsh-organization-context/protocol'
+import { conversationRequestSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -68,6 +69,29 @@ function hostProcess(
 afterEach(async () => {
   await Promise.all(hosts.splice(0).map(host => host.stop()))
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+it.each([
+  ['forbidden', 'forbidden'], ['operation-pending', 'operation-pending'], ['superseded', 'superseded'],
+  ['version-conflict', 'version-conflict'], ['unavailable', 'unavailable'], ['private diagnostic token=fixture-secret', 'unavailable'],
+])('returns the safe conversation authorization outcome for %s over child IPC', async (failure, code) => {
+  const project = projectWithHost(HTTP_HOST.replace("  if (message.type !== 'shutdown') return", `
+  if (message.type === 'organization-conversation-operation') {
+    process.send({ type: 'organization-conversation-authorize', requestId: message.requestId, nonce: message.nonce,
+      authorizationId: '11111111-1111-4111-8111-111111111111' })
+    return
+  }
+  if (message.type === 'organization-conversation-authorized') {
+    process.send({ type: 'organization-conversation-result', requestId: message.requestId, nonce: message.nonce, error: message.error })
+    return
+  }
+  if (message.type !== 'shutdown') return`))
+  const host = hostProcess(project)
+  await host.start()
+  const request = conversationRequestSchema.parse({ kind: 'read', organizationId: randomUUID(), projectId: randomUUID(),
+    conversationId: randomUUID(), operationId: randomUUID() })
+  await expect(host.organizationConversation(request, async () => { throw new Error(failure) }, 2000,
+    new AbortController().signal)).rejects.toThrow(new Error(code))
 })
 
 describe('desktop host process', () => {

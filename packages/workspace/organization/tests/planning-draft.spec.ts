@@ -7,15 +7,17 @@ import { afterEach, expect, it } from 'vitest'
 import { workgraphHarness } from '../../../api/organization-api/tests/workgraph-harness.ts'
 import { planningDraftSchema, planningPlanViewSchema } from '../src/planning-schema.ts'
 import { receiptSchema } from '../src/schema.ts'
-import { openOrganizationDatabase } from '../src/database.ts'
+import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION } from '../src/database.ts'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
-async function setup() {
+async function setup(openGrants = true) {
   const h = await workgraphHarness(); cleanup.push(h.close)
   const query = { organizationId: h.query.organizationId, projectId: h.query.projectId, conversationId: randomUUID() }
   const open = { ...query, kind: 'open-planning', operationId: randomUUID(), selection: { model: 'deepseek-flash', endpoint: 'https://api.deepseek.com/anthropic/v1' } }
-  expect((await h.call('/planning/command', open)).status).toBe(200)
-  expect((await h.call('/planning/command', { ...open, operationId: randomUUID() }, h.member.token)).status).toBe(200)
+  if (openGrants) {
+    expect((await h.call('/planning/command', open)).status).toBe(200)
+    expect((await h.call('/planning/command', { ...open, operationId: randomUUID() }, h.member.token)).status).toBe(200)
+  }
   const phase = randomUUID(), root = randomUUID(), leaf = randomUUID()
   const task = (id: string, parentTaskId: string | null) => ({ id, parentTaskId, phaseId: phase, goal: 'CSV report', scope: 'Revenue only',
     acceptance: ['Validated totals'], artifacts: ['report.csv'], required: true, dependsOn: [], suggestedMembershipId: null })
@@ -42,7 +44,7 @@ it('writes one authoritative tree per goal and operation, refuses changed keys a
   try { expect(db.prepare('SELECT count(*) AS n FROM planning_goals').get()?.n).toBe(1) } finally { db.close() }
 }, 20000)
 it('merges an editable leaf, preserves hidden siblings and invalidates the old approval', async () => {
-  const h = await setup(), target = h.grant.taskId
+  const h = await setup(false), target = h.grant.taskId
   expect((await h.call('/assignment/command', { ...h.save, definition: undefined, expectedRevision: undefined,
     kind: 'approve-assignment' })).status).not.toBe(200)
   const assignment = receiptSchema.parse((await h.call('/assignment/command', { organizationId: h.save.organizationId,
@@ -110,10 +112,10 @@ it('migrates v13 planning grants without resetting charged usage', async () => {
     requestDigest: 'a'.repeat(64), inputBytes: 100, outputBytes: 100 })).status).toBe(200)
   await h.app.close()
   const path = join(h.root, 'service', 'organization.sqlite'), old = new DatabaseSync(path)
-  old.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; PRAGMA user_version=13'); old.close()
+  old.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; PRAGMA user_version=13'); old.close()
   const migrated = openOrganizationDatabase(path, 5000)
   try {
-    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(14)
+    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
     expect(migrated.prepare("SELECT json_extract(data,'$.usedRequests') AS n FROM planning_grants WHERE accountId=?").get(h.owner.accountId)?.n).toBe(1)
   } finally { migrated.close() }
 }, 20000)
@@ -139,5 +141,77 @@ it('retains hidden external prerequisites when the employee splits an authorized
       'SELECT value FROM plan_revisions WHERE planId=? AND revision=3').get(h.save.planId)?.value)))
     expect(version.definition.tasks.find(t => t.id === target)?.dependsOn).toEqual([hidden])
     expect(version.definition.tasks.find(t => t.id === hidden)).toEqual(h.save.definition.tasks[2])
+  } finally { db.close() }
+}, 20000)
+
+it('saves under project write permission without granting legacy model dispatch, and rejects read-only edits', async () => {
+  const h = await setup(false)
+  expect((await h.call('/planning/read', h.query)).body).toMatchObject({ canWrite: true, grant: null, eligible: false })
+  const first = await h.call('/planning/command', h.draft)
+  expect(first.status).toBe(200)
+  expect((await h.call('/planning/command', h.draft)).body).toEqual(first.body)
+  expect((await h.call('/planning/command', { ...h.query, kind: 'reserve-planning-request', operationId: randomUUID(),
+    requestDigest: 'a'.repeat(64), inputBytes: 100, outputBytes: 100 })).status).toBe(403)
+  const snapshot = new DatabaseSync(join(h.root, 'service', 'organization.sqlite'), { readOnly: true })
+  const grantVersion = Number(snapshot.prepare('SELECT version FROM resource_grants WHERE projectId=? AND membershipId=?')
+    .get(h.query.projectId, h.member.membershipId)?.version)
+  snapshot.close()
+  expect((await h.call('/grants', { kind: 'set-grant', organizationId: h.query.organizationId, projectId: h.query.projectId,
+    membershipId: h.member.membershipId, actions: ['read'], expectedVersion: grantVersion, operationId: randomUUID() })).status).toBe(200)
+  const root = randomUUID(), leaf = randomUUID()
+  const denied = await h.call('/planning/command', { ...h.draft, conversationId: randomUUID(), goalId: randomUUID(),
+    planId: randomUUID(), operationId: randomUUID(), definition: { ...h.draft.definition, taskId: root,
+      tasks: h.draft.definition.tasks.map(t => ({ ...t, id: t.parentTaskId ? leaf : root,
+        parentTaskId: t.parentTaskId ? root : null })) } }, h.member.token)
+  expect(denied.status).toBe(403)
+  expect(denied.body).toEqual({ error: 'forbidden' })
+  expect((await h.call('/planning/command', { ...h.draft, operationId: randomUUID(), expectedRevision: 1 }, h.member.token)).body)
+    .toEqual({ error: 'forbidden' })
+  await h.app.close()
+  const db = openOrganizationDatabase(join(h.root, 'service', 'organization.sqlite'), 5000)
+  try {
+    expect(db.prepare('SELECT count(*) AS n FROM planning_goals').get()?.n).toBe(1)
+    expect(db.prepare('SELECT count(*) AS n FROM planning_grants').get()?.n).toBe(0)
+    expect(db.prepare('SELECT projectId FROM planning_events').get()?.projectId).toBe(h.query.projectId)
+  } finally { db.close() }
+}, 20000)
+
+it('migrates v15 event ownership without losing saved drafts, receipts or charged requests', async () => {
+  const h = await setup()
+  const saved = (await h.call('/planning/command', h.draft)).body
+  expect((await h.call('/planning/command', { ...h.query, kind: 'reserve-planning-request', operationId: randomUUID(),
+    requestDigest: 'a'.repeat(64), inputBytes: 100, outputBytes: 100 })).status).toBe(200)
+  await h.app.close()
+  const path = join(h.root, 'service', 'organization.sqlite'), old = new DatabaseSync(path)
+  old.exec(`ALTER TABLE planning_events RENAME TO current_events;
+    CREATE TABLE planning_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision),
+      conversationId TEXT NOT NULL, accountId TEXT NOT NULL, result TEXT NOT NULL,
+      FOREIGN KEY(conversationId,accountId) REFERENCES planning_grants(conversationId,accountId)) STRICT;
+    INSERT INTO planning_events SELECT revision,conversationId,accountId,result FROM current_events;
+    DROP TABLE current_events; PRAGMA user_version=15`)
+  const events = old.prepare('SELECT revision,conversationId,accountId,result FROM planning_events ORDER BY revision').all()
+  old.close()
+  const migrated = openOrganizationDatabase(path, 5000)
+  try {
+    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
+    expect(migrated.prepare('SELECT revision,conversationId,accountId,result FROM planning_events ORDER BY revision').all()).toEqual(events)
+    expect(migrated.prepare("SELECT json_extract(data,'$.usedRequests') AS n FROM planning_grants WHERE accountId=?").get(h.owner.accountId)?.n).toBe(1)
+    expect(JSON.parse(String(migrated.prepare('SELECT response FROM operation_receipts WHERE operationId=?')
+      .get(h.draft.operationId)?.response))).toEqual(saved)
+  } finally { migrated.close() }
+}, 20000)
+
+it('rejects corrupted project and actor evidence for drafts saved without legacy grants', async () => {
+  const h = await setup(false)
+  expect((await h.call('/planning/command', h.draft)).status).toBe(200)
+  const other = receiptSchema.parse((await h.call('/projects', { kind: 'create-project', organizationId: h.query.organizationId,
+    operationId: randomUUID(), name: 'Other project' })).body)
+  await h.app.close()
+  const path = join(h.root, 'service', 'organization.sqlite'), db = new DatabaseSync(path)
+  try {
+    db.prepare('UPDATE planning_events SET projectId=?').run(other.projectId!)
+    expect(() => openOrganizationDatabase(path, 5000)).toThrow('incompatible-store')
+    db.prepare('UPDATE planning_events SET projectId=?,accountId=?').run(h.query.projectId, h.member.accountId)
+    expect(() => openOrganizationDatabase(path, 5000)).toThrow('incompatible-store')
   } finally { db.close() }
 }, 20000)

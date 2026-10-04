@@ -101,13 +101,13 @@ export function validatePlanningDraftDatabase(db: DatabaseSync): void {
   for (const row of db.prepare('SELECT * FROM planning_goals').all()) {
     const goal = planningDraftSchema.shape.goalId.safeParse(row.goalId)
     const plan = db.prepare('SELECT * FROM organization_plans WHERE id=?').get(String(row.planId))
-    const grant = db.prepare('SELECT * FROM planning_grants WHERE accountId=? AND conversationId=?')
-      .get(String(row.accountId), String(row.conversationId))
     const task = db.prepare('SELECT planId FROM plan_tasks WHERE taskId=?').get(String(row.taskId))
-    if (!goal.success || !plan || !grant || plan.organizationId !== grant.organizationId || plan.projectId !== grant.projectId
-      || task?.planId !== plan.id || !db.prepare(`SELECT 1 FROM planning_events WHERE accountId=? AND conversationId=?
-        AND json_extract(result,'$.planId')=? AND json_extract(result,'$.taskId')=?`)
-      .get(String(row.accountId), String(row.conversationId), String(row.planId), String(row.taskId))) throw new OrganizationError('incompatible-store')
+    if (!goal.success || !plan || task?.planId !== plan.id || !db.prepare(`SELECT 1 FROM planning_events x
+        JOIN organization_events e ON e.revision=x.revision WHERE x.accountId=? AND x.conversationId=? AND x.projectId=?
+        AND e.kind='save-planning-draft' AND e.actorId=x.accountId AND e.organizationId=?
+        AND json_extract(x.result,'$.planId')=? AND json_extract(x.result,'$.taskId')=?`)
+      .get(String(row.accountId), String(row.conversationId), String(plan.projectId), String(plan.organizationId),
+        String(row.planId), String(row.taskId))) throw new OrganizationError('incompatible-store')
   }
   if (db.prepare(`SELECT 1 FROM planning_reapprovals r LEFT JOIN organization_plans p ON p.id=r.planId
     LEFT JOIN plan_tasks t ON t.taskId=r.taskId LEFT JOIN memberships m ON m.id=r.membershipId

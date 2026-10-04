@@ -1,7 +1,7 @@
 /** Private Node IPC consumer; public Host remotes cannot mint organization authority. */
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { conversationHostMessageSchema, type ConversationAuthority } from '@deepseek-ai/dsh-organization-conversation'
+import { conversationHostMessageSchema, conversationAuthorizationError, type ConversationAuthority } from '@deepseek-ai/dsh-organization-conversation'
 
 /**
  * Attach organization authorization to the common Session runtime and drain it on disposal.
@@ -32,7 +32,8 @@ export function installOrganizationConversationControl(ctx: Context, channel: {
       if (!authorization) return
       active.authorizations.delete(message.authorizationId)
       if (message.authority && !message.error) authorization.resolve(message.authority)
-      else authorization.reject(new Error(message.error === 'version-conflict' ? 'version-conflict' : 'organization-conversation: denied'))
+      else authorization.reject(new Error(message.error === 'version-conflict' ? 'version-conflict'
+        : `organization-conversation: ${conversationAuthorizationError(new Error(message.error))}`))
       return
     }
     if (pending.has(message.requestId)) return

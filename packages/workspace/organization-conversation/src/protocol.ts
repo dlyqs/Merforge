@@ -124,6 +124,21 @@ export type ConversationBridge = (command?: z.output<typeof conversationBridgeCo
 const correlation = z.object({ requestId: uuid<Branded<'OrganizationConversationRequestId'>>(),
   nonce: uuid<Branded<'OrganizationConversationNonce'>>() })
 const authorizationId = uuid<Branded<'OrganizationConversationAuthorizationId'>>()
+/** Safe authorization outcomes distinguish denied access from temporary or conflicting writes. */
+export const conversationAuthorizationErrorSchema = z.enum(['forbidden', 'unauthenticated', 'version-conflict',
+  'operation-conflict', 'operation-pending', 'invalid-input', 'invalid-operation-journal', 'rate-limited',
+  'superseded', 'unavailable', 'cancelled'])
+/**
+ * Strip exception details before reporting a private authorization outcome.
+ * @param error - Native authorization failure.
+ * @returns A fixed code; unclassified failures never imply missing permission.
+ */
+export function conversationAuthorizationError(error: unknown): z.output<typeof conversationAuthorizationErrorSchema> {
+  if (error instanceof z.ZodError) return 'invalid-input'
+  if (error instanceof Error && error.name === 'AbortError') return 'cancelled'
+  const parsed = conversationAuthorizationErrorSchema.safeParse(error instanceof Error ? error.message : undefined)
+  return parsed.success ? parsed.data : 'unavailable'
+}
 /** Only the owned parent IPC channel can supply authority. */
 export const conversationHostMessageSchema = z.discriminatedUnion('type', [
   correlation.extend({ type: z.literal('organization-conversation-operation'), request: conversationRequestSchema,

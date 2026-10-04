@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { assignmentHarness } from './assignment-harness.ts'
 import { openHarness, operationId } from './harness.ts'
 import { setupExecution } from './execution-harness.ts'
-import { openOrganizationDatabase } from '../src/database.ts'
+import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION } from '../src/database.ts'
 import type { OrganizationExecutionView } from '../src/index.ts'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { vi.restoreAllMocks(); for (const close of cleanup.splice(0).reverse()) await close() })
@@ -78,7 +78,7 @@ it('migrates v6 preparation without execution grants and rolls failed migration 
   expect(h.db.prepare("SELECT name FROM sqlite_master WHERE name='execution_delegations'").get()).toBeUndefined()
   h.db.exec('DROP TABLE execution_runs')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(15)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
   expect(upgraded.prepare('SELECT count(*) AS n FROM execution_delegations').get()?.n).toBe(0)
   upgraded.close()
 })

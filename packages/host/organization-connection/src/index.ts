@@ -235,7 +235,7 @@ export class OrganizationConnection {
       }
       return principal
     }
-    const request = async (route: '/planning/read' | '/planning/plan' | '/planning/candidates' | '/assignment/preparation', body: unknown) => {
+    const request = async (route: '/planning/read' | '/planning/plan' | '/planning/candidates' | '/planning/command' | '/assignment/preparation', body: unknown) => {
       current()
       const operation = (async () => {
         let response: Awaited<ReturnType<typeof organizationRequest>>
@@ -281,7 +281,7 @@ export class OrganizationConnection {
       command: async (input: z.output<typeof planningCommandSchema>) => {
         const command = planningCommandSchema.parse(input); project(command); current()
         if (command.conversationId !== selector.conversationId) throw new Error('forbidden')
-        return this.planningCommand(command, this.generation)
+        return this.commitPlanning(command, current(), () => request('/planning/command', command))
       },
     }
   }
@@ -375,7 +375,7 @@ export class OrganizationConnection {
   /**
    * Commit one private Host planning command with a durable native uncertainty journal.
    * @param input - Closed project-bound planning operation; not exposed through Renderer actions.
-   * @param generation - Captured online identity generation.
+   * @param generation - Captured online snapshot generation for a finite operation.
    * @returns Historical receipt. An uncertain attempt must be reconciled before any new mutation.
    */
   async planningCommand(input: z.output<typeof planningCommandSchema>, generation: number): Promise<import('@deepseek-ai/dsh-organization/types').Receipt> {
@@ -383,6 +383,10 @@ export class OrganizationConnection {
     this.assertOrganization(command.organizationId)
     const principal = this.state.principal
     if (this.closed || !principal || generation !== this.generation || this.state.phase !== 'ready') throw new Error('superseded')
+    return this.commitPlanning(command, principal, () => this.request('/planning/command', command, generation))
+  }
+  private async commitPlanning(command: z.output<typeof planningCommandSchema>, principal: NonNullable<ConnectionSnapshot['principal']>,
+    send: () => Promise<unknown>): Promise<import('@deepseek-ai/dsh-organization/types').Receipt> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     const task = (async () => {
@@ -391,7 +395,7 @@ export class OrganizationConnection {
       try {
         this.pending = { ...principal, operationId: command.operationId, organizationId: command.organizationId }
         this.publish({ pendingOperation: command.operationId })
-        const receipt = receiptSchema.parse(await this.request('/planning/command', command, generation))
+        const receipt = receiptSchema.parse(await send())
         this.uncertain.delete(key); this.savePending(); this.publish({ pendingOperation: undefined })
         return receipt
       } catch (error) {

@@ -1,4 +1,4 @@
-import { conversationRequestSchema, conversationNativeMessageSchema, type ConversationRequest, type ConversationBridge, type ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
+import { conversationRequestSchema, conversationNativeMessageSchema, conversationAuthorizationError, type ConversationRequest, type ConversationBridge, type ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 /** Electron Node-mode child lifecycle for the shared Web application. */
 import { executionReportRequestSchema, executionReportSchema, executionResultSchema, type ExecutionReportRequest, type ExecutionReadAuthority, type ExecutionReport, executionNativeMessageSchema, executionRequestSchema, type ExecutionRequest, type ExecutionAuthority, type ExecutionCommand, type ExecutionResult } from '@deepseek-ai/dsh-organization-execution/protocol'
 
@@ -220,7 +220,7 @@ export class DesktopHostProcess {
           }, (error: unknown) => {
             if (this.conversationQueries.get(response.requestId) === query && child.connected)
               child.send({ type: 'organization-conversation-authorized', requestId: response.requestId, nonce: response.nonce,
-                authorizationId: response.authorizationId, error: error instanceof Error && error.message === 'version-conflict' ? 'version-conflict' : 'denied' })
+                authorizationId: response.authorizationId, error: conversationAuthorizationError(error) })
           }).catch(() => { query.reject(new Error('organization-conversation-unavailable')) })
         }
         return

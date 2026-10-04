@@ -30,8 +30,13 @@ import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent
 import * as Codex from '../../../core/agent-codex/src/index.ts'
 import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import { fixture as nativeFixture } from '../../../core/agent-codex/tests/harness.ts'
+import { OrganizationConnection } from '@deepseek-ai/dsh-organization-connection'
+import { workgraphHarness, password } from '../../../api/organization-api/tests/workgraph-harness.ts'
+import { organizationConversation } from '../../../../apps/desktop/src/organization-conversation.ts'
+import { conversationAuthorizationError } from '../src/protocol.ts'
 
-async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved?: { root: string; request: ConversationRequest; authority: ConversationAuthority }, peer?: Awaited<ReturnType<typeof nativeFixture>>['peer'], projectless = false) {
+async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved?: { root: string; request: ConversationRequest; authority: ConversationAuthority }, peer?: Awaited<ReturnType<typeof nativeFixture>>['peer'], projectless = false,
+  native?: { connection: OrganizationConnection; request: ConversationRequest }) {
   const root = saved?.root ?? await mkdtemp(join(tmpdir(), 'organization-common-session-'))
   const model = new MockAdapter(script)
   const extras = [
@@ -57,20 +62,25 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved
   expect(ctx.get('organizationConversation')).toBeDefined()
   const errors: unknown[] = []
   ctx.on('agent/error', ({ error }) => { errors.push(error) })
-  const request = saved?.request ?? conversationRequestSchema.parse({ kind: 'attach', organizationId: randomUUID(), ...(projectless ? {} : { projectId: randomUUID() }),
+  const request = native?.request ?? saved?.request ?? conversationRequestSchema.parse({ kind: 'attach', organizationId: randomUUID(), ...(projectless ? {} : { projectId: randomUUID() }),
     conversationId: randomUUID(), operationId: randomUUID() })
   const authority = saved?.authority ?? conversationAuthoritySchema.parse({ serverId: randomUUID(), accountId: randomUUID(), generation: 1,
     view: { ...(projectless ? {} : { project: { id: request.projectId, organizationId: request.organizationId, name: 'Team project', version: 1 } }),
       grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
       policy: { models: [{ model: 'legacy', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000,
         maxRequests: 10, maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } } })
-  let readable = true, plan: ConversationAuthority['plan']
+  let readable = true, plan: ConversationAuthority['plan'], nativeBridge: ConversationBridge | undefined
   const bridge: ConversationBridge = async (command) => {
+    if (nativeBridge) return nativeBridge(command)
     if (!readable) throw new Error('revoked')
     return command?.kind === 'read-planning-plan' && plan ? { ...authority, plan } : authority
   }
   const lifetimes: Promise<void>[] = [], bus = new EventEmitter(), nonce = randomUUID()
-  const pending = new Map<string, { ready: PromiseWithResolvers<ConversationResult>; closed: PromiseWithResolvers<undefined> }>()
+  const pending = new Map<string, {
+    ready: PromiseWithResolvers<ConversationResult>
+    closed: PromiseWithResolvers<undefined>
+    onClosed?: (() => void) | undefined
+  }>()
   installOrganizationConversationControl(ctx, { on: (event, listener) => bus.on(event, listener),
     off: (event, listener) => bus.off(event, listener), send: (input) => {
       const message = conversationNativeMessageSchema.parse(input), query = pending.get(message.requestId)
@@ -79,11 +89,12 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved
         if (message.result) query.ready.resolve(message.result)
         else query.ready.reject(new Error(message.error))
       } else if (message.type === 'organization-conversation-closed') {
-        pending.delete(message.requestId); query.closed.resolve(undefined)
+        pending.delete(message.requestId); query.onClosed?.(); query.closed.resolve(undefined)
       } else {
         void bridge(message.command).then(authority => bus.emit('message', { type: 'organization-conversation-authorized',
-          requestId: message.requestId, nonce, authorizationId: message.authorizationId, authority }), () => bus.emit('message', {
-          type: 'organization-conversation-authorized', requestId: message.requestId, nonce, authorizationId: message.authorizationId, error: 'denied' }))
+          requestId: message.requestId, nonce, authorizationId: message.authorizationId, authority }), (error: unknown) => bus.emit('message', {
+          type: 'organization-conversation-authorized', requestId: message.requestId, nonce, authorizationId: message.authorizationId,
+          error: conversationAuthorizationError(error) }))
       }
     } })
   const attach = async () => {
@@ -95,8 +106,20 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved
     lifetime.signal.addEventListener('abort', stop, { once: true })
     const done = closed.promise.finally(() => { lifetime.signal.removeEventListener('abort', stop) })
     lifetimes.push(done)
-    bus.emit('message', { type: 'organization-conversation-operation', requestId, nonce, timeoutMs: 5000, request: selected })
-    return { report: await ready.promise, lifetime, done }
+    const dispatch = () => { bus.emit('message', { type: 'organization-conversation-operation', requestId, nonce, timeoutMs: 5000, request: selected }) }
+    let report: ConversationResult
+    if (native) report = (await organizationConversation(native.connection, {
+      organizationConversation: async (_request, authorize, _timeoutMs, nativeSignal, onClosed) => {
+        nativeBridge = authorize
+        pending.get(requestId)!.onClosed = onClosed
+        nativeSignal.addEventListener('abort', stop, { once: true })
+        void done.then(() => { nativeSignal.removeEventListener('abort', stop) })
+        dispatch()
+        return ready.promise
+      },
+    }, selected, () => {}, lifetime.signal)).result
+    else { dispatch(); report = await ready.promise }
+    return { report, lifetime, done }
   }
   const signal = new AbortController().signal
   const send = (id: SessionId, text: string) => ctx.sessionController.prompt({ sessionId: id,
@@ -383,3 +406,87 @@ it('asks for an organization project before executing a forced projectless goal'
     attached.lifetime.abort(); await attached.done
   } finally { await h.close() }
 })
+
+it('saves a forced common-session plan through native IPC without a legacy grant while its project refreshes', async () => {
+  const remote = await workgraphHarness()
+  const connection = new OrganizationConnection({ trustPath: join(remote.root, 'native.json'), timeoutMs: 5000 })
+  let h: Awaited<ReturnType<typeof setup>> | undefined
+  const release = Promise.withResolvers<undefined>(), committed = Promise.withResolvers<undefined>()
+  try {
+    await connection.perform({ kind: 'probe', origin: remote.trust.origin })
+    await connection.perform({ kind: 'trust', fingerprint: remote.trust.fingerprint })
+    await connection.perform({ kind: 'login', username: 'reader', password })
+    await connection.perform({ kind: 'select', organizationId: remote.owner.organizationId })
+    const taskId = randomUUID(), phaseId = randomUUID(), operationId = randomUUID()
+    const task = (id: string, parentTaskId: string | null) => ({ id, parentTaskId, phaseId, goal: 'Copy the files',
+      scope: 'Requested files', acceptance: ['Files match'], artifacts: ['Copied files'], dependsOn: [],
+      required: true, suggestedMembershipId: null })
+    const definition = { taskId, phases: [{ id: phaseId, title: 'Copy' }],
+      tasks: [task(taskId, null), task(randomUUID(), taskId), task(randomUUID(), taskId)] }
+    const request = conversationRequestSchema.parse({ kind: 'attach', organizationId: remote.query.organizationId,
+      projectId: remote.query.projectId, conversationId: randomUUID(), operationId: randomUUID() })
+    const original = remote.app.authority.planningCommand.bind(remote.app.authority)
+    const save = vi.spyOn(remote.app.authority, 'planningCommand').mockImplementation(async (token, input) => {
+      const receipt = await original(token, input)
+      committed.resolve(undefined)
+      await release.promise
+      return receipt
+    })
+    h = await setup([toolCallResponse('assessment', 'workflow_assess', { classification: 'complex', rationale: 'Two required tasks' }),
+      toolCallResponse('proposal', 'workflow_propose', { operationId, expectedRevision: 0, definition }), textResponse('Review the saved plan')],
+    undefined, undefined, false, { connection, request })
+    const attached = await h.attach(), id = attached.report.sharedSessionId!
+    await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
+    const project = (await connection.perform({ kind: 'project-page', offset: 0 })).projects!.items[0]!
+    const generation = connection.snapshot().generation, identityGeneration = connection.snapshot().identityGeneration
+    await h.send(id, 'Copy these files and split the work')
+    await committed.promise
+    expect((await remote.call('/projects', { kind: 'rename-project', organizationId: project.organizationId,
+      projectId: project.id, expectedVersion: project.version, name: 'Updated during save', operationId: randomUUID() })).status).toBe(200)
+    await vi.waitFor(() => { expect(connection.snapshot().generation).toBeGreaterThan(generation)
+      expect(connection.snapshot().phase).toBe('ready') })
+    expect(connection.snapshot().identityGeneration).toBe(identityGeneration)
+    release.resolve(undefined)
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors).toEqual([])
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(connection.snapshot().pendingOperation).toBeUndefined()
+    const proposals = h.ctx.sessionProjections.stateOf(h.ctx.agents.get(id)!.session, 'organizationPlanning')!.proposals
+    expect(proposals.map(p => p.status)).toEqual(['unknown', 'shared'])
+    expect(proposals[1]?.receipt?.planning.planRevision).toBe(1)
+    expect(proposals[1]?.command.definition).toEqual(definition)
+    const authority = await h.bridge()
+    expect(authority.view).toMatchObject({ canWrite: true, grant: null, eligible: false })
+    expect(authority.view.plans).toContainEqual(expect.objectContaining({ planId: proposals[1]!.command.planId }))
+    attached.lifetime.abort(); await attached.done
+  } finally { release.resolve(undefined); await h?.close(); await connection.close(); await remote.close(); vi.restoreAllMocks() }
+}, 30000)
+
+it.each(['forbidden', 'operation-pending', 'superseded', 'unavailable'])('reports %s through private IPC without misclassifying the save', async (code) => {
+  const remote = await workgraphHarness()
+  const connection = new OrganizationConnection({ timeoutMs: 5000 })
+  let h: Awaited<ReturnType<typeof setup>> | undefined
+  try {
+    await connection.perform({ kind: 'probe', origin: remote.trust.origin })
+    await connection.perform({ kind: 'trust', fingerprint: remote.trust.fingerprint })
+    await connection.perform({ kind: 'login', username: 'reader', password })
+    await connection.perform({ kind: 'select', organizationId: remote.owner.organizationId })
+    const capture = connection.conversationChannel.bind(connection)
+    vi.spyOn(connection, 'conversationChannel').mockImplementation(input => ({ ...capture(input),
+      command: async () => { throw new Error(code) } }))
+    const taskId = randomUUID(), phaseId = randomUUID()
+    const definition = { taskId, phases: [{ id: phaseId, title: 'Draft' }], tasks: [{ id: taskId, parentTaskId: null,
+      phaseId, goal: 'Report', scope: 'Report only', acceptance: ['Totals verified'], artifacts: [], dependsOn: [], required: true,
+      suggestedMembershipId: null }] }
+    const request = conversationRequestSchema.parse({ kind: 'attach', organizationId: remote.query.organizationId,
+      projectId: remote.query.projectId, conversationId: randomUUID(), operationId: randomUUID() })
+    h = await setup([toolCallResponse('assessment', 'workflow_assess', { classification: 'complex', rationale: 'Prepare a plan' }),
+      toolCallResponse('proposal', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0, definition }), textResponse('Save failed')],
+    undefined, undefined, false, { connection, request })
+    const attached = await h.attach(), id = attached.report.sharedSessionId!
+    await h.send(id, 'Prepare the report plan')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(JSON.stringify(h.ctx.agents.get(id)!.session.snapshotEvents())).toContain(`organization-conversation: ${code}`)
+    attached.lifetime.abort(); await attached.done
+  } finally { await h?.close(); await connection.close(); await remote.close(); vi.restoreAllMocks() }
+}, 30000)
