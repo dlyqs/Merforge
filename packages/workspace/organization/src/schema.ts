@@ -34,7 +34,7 @@ export const configSchema = z.object({
   artifactMaxFiles: z.number().int().min(1).max(1000).default(20),
   artifactMaxFileBytes: z.number().int().min(1).max(67108864).default(262144),
   artifactMaxTotalBytes: z.number().int().min(1).max(1073741824).default(1048576),
-  loginTtlMs: z.number().int().min(1000).max(604800000).default(28800000),
+  loginTtlMs: z.number().int().min(1000).max(604800000).default(604800000),
   invitationTtlMs: z.number().int().min(1000).max(2592000000).default(86400000),
   loginWindowMs: z.number().int().min(1000).max(86400000).default(900000),
   loginMaxAttempts: z.number().int().min(1).max(1000).default(5),

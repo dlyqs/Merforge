@@ -120,7 +120,7 @@ Phase 2 使用真实 SQLite 临时目录、重开、写入故障、并发初始�
 
 ## 原生连接与维护（Phase 5–7 已实现）
 
-`OrganizationConnection` 是合并定义与实现的本机连接库，真实消费者为 Electron 主进程；设置与 sidebar 经 `OrganizationDesktopBridge` 调用固定动作。沿用已经存在的 Electron 控制入口，未为个人 Host 添加组织代理。这调整了最初“Client → 本机 Host → LAN”的建议路径，令牌由本机原生连接持有，个人 Host 保持 loopback，组织服务不加载个人组合。信任记录保存在 `organization-client-trust.json`；登录令牌、用户名、服务身份、证书指纹和服务端到期时间通过系统安全存储加密，保存在独立的 `.login` 文件，绝不保存密码。Desktop 启动后在线核验会话和当前权限，再恢复可用状态；临时断网保留未过期凭据并重连。使用服务端配置的有效期（默认 8 小时），重启不续期；本机空闲期间也会自动清除到期会话。系统安全存储不可用或使用明文后端时仅支持内存登录。退出登录、证书失效和身份/组织切换清除可见项目并取消旧代次；断线禁止写入，重连重新验证登录与成员资格。
+`OrganizationConnection` 是合并定义与实现的本机连接库，真实消费者为 Electron 主进程；设置与 sidebar 经 `OrganizationDesktopBridge` 调用固定动作。沿用已经存在的 Electron 控制入口，未为个人 Host 添加组织代理。这调整了最初“Client → 本机 Host → LAN”的建议路径，令牌由本机原生连接持有，个人 Host 保持 loopback，组织服务不加载个人组合。信任记录保存在 `organization-client-trust.json`；登录令牌、用户名、服务身份、证书指纹和服务端到期时间通过系统安全存储加密，保存在独立的 `.login` 文件，绝不保存密码。Desktop 启动后在线核验会话和当前权限，再恢复可用状态；临时断网保留未过期凭据并重连。使用服务端配置的有效期（默认 7 天），重启不续期；本机空闲期间也会自动清除到期会话。系统安全存储不可用或使用明文后端时仅支持内存登录。退出登录、证书失效和身份/组织切换清除可见项目并取消旧代次；断线禁止写入，重连重新验证登录与成员资格。
 
 未确认的写入持久化 server/account/organization/operation ID 和可选设备登记/撤销动作类型，不含令牌或正文。`GET /organization/v1/receipts/:operationId` 检查当前账号及相关管理/资源权限后返回其自己的回执或 null；原生 `reconcile` 只查询，不重发副作用。原生进程仍运行时可以取回暂存的邀请明文；重启后明文已丢弃，管理员在确认旧邀请提交后可另发新邀请。证书与回执日志均为本机 owner-only 文件。
 

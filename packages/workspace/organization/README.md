@@ -21,7 +21,7 @@ The account, organization, membership, invitation, server, operation and credent
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `path` | required | Absolute dedicated database path, supplied only by local configuration |
-| `loginTtlMs` | 28800000 | Eight-hour login lifetime |
+| `loginTtlMs` | 604800000 | Seven-day login lifetime |
 | `invitationTtlMs` | 86400000 | One-day invitation lifetime |
 | `loginWindowMs` | 900000 | Fifteen-minute persistent attempt window |
 | `loginMaxAttempts` | 5 | All login attempts per normalized username per window |
