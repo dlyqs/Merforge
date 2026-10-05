@@ -50,9 +50,14 @@ function runTypeScriptProjects(projects: readonly string[], environment: NodeJS.
   if (result.status !== 0) throw new Error(`build: selected TypeScript projects exited with ${String(result.status ?? result.signal)}`)
 }
 
-/** Run the full build selected by `--profile` or `DSH_BUILD_CLIENT_PROFILE`. */
-function main(): void {
+/**
+ * Build workspace exports before bundling the Electron shell that embeds them.
+ * @param args - Build options, including the Desktop package selection and client profile.
+ * @returns Completion after all artifacts and the client build record are written.
+ */
+export function buildRepository(args: string[]): void {
   const { values } = parseArgs({
+    args,
     options: { profile: { type: 'string' }, desktop: { type: 'boolean' } },
     allowPositionals: false,
   })
@@ -82,10 +87,11 @@ function main(): void {
     runScript('build:lib', buildEnvironment)
   }
   runScript('build:web', values.desktop === true ? { ...buildEnvironment, DSH_DESKTOP_BUILD_ONLY: '1' } : buildEnvironment)
+  runScript('build:desktop', buildEnvironment)
   const record = writeClientBuildRecord(root, clientEnvironment)
   console.log(
     `build: recorded ${String(record.artifacts.fileCount)} client artifact(s) with ${String(Object.keys(record.environment).length)} public value(s)`,
   )
 }
 
-if (import.meta.main) main()
+if (import.meta.main) buildRepository(process.argv.slice(2))

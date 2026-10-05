@@ -91,7 +91,6 @@ async function main(): Promise<void> {
   const { values } = parseArgs({ options: { 'skip-build': { type: 'boolean', default: false } } })
   if (!values['skip-build']) {
     await runPackageScript('build', REPOSITORY_ROOT)
-    await runPackageScript('build', APP_ROOT)
   }
   for (const path of [
     join(APP_ROOT, 'lib', 'main.js'),

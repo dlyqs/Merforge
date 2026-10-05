@@ -77,6 +77,11 @@ async function acceptAssignment(h: Awaited<ReturnType<typeof setup>>) {
 }
 it('accepts assignments through HTTPS without creating device registrations, preparation grants or leases', async () => {
   const h = await setup()
+  const history = await h.worker.perform({ kind: 'assignment-tasks', request: { ...h.query, taskId: h.taskId, offset: 0 } })
+  expect(history.assignment?.result).toMatchObject({ kind: 'tasks', value: { items: [{ id: h.selector.assignmentId, state: 'pending' }], total: 1 } })
+  expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))).toMatchObject({
+    assignment: { state: 'pending' }, request: { state: 'pending' },
+  })
   await acceptAssignment(h)
   expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))).toMatchObject({ assignment: { state: 'accepted' } })
   const db = new DatabaseSync(join(h.root, 'server', 'organization.sqlite'))
