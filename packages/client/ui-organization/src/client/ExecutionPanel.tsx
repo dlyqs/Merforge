@@ -10,7 +10,8 @@ import type { OrganizationKey } from './locales.ts'
 import { DeliveryPanel } from './DeliveryPanel.tsx'
 import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 import { workgraphError } from './workgraph-view.ts'
-import css from './Organization.module.css'
+import css from './TaskInspector.module.css'
+import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
 
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
 
@@ -33,8 +34,11 @@ function executionError(error: unknown): OrganizationKey {
 export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTaskView
   projectId: OrganizationProjectId
   current: boolean
+  section?: 'execution' | 'delivery'
   assignmentId?: OrganizationAssignmentId }) {
   const { t, task } = props, c = props.useOrganization(s => s.connection)
+  const [selectedRun, setSelectedRun] = useState('')
+  const operationLock = useRef(false)
   const [preparation, setPreparation] = useState<Preparation>()
   const [views, setViews] = useState<{ generation: number; items: OrganizationExecutionView[]; total: number; offset: number }>()
   const [pages, setPages] = useState([0])
@@ -67,10 +71,17 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     if (!alive.current || seq !== sequence.current || history.assignment?.result.kind !== 'tasks') return
     const assignment = props.assignmentId ? { id: props.assignmentId, organizationId: c.organizationId }
       : history.assignment.result.value.items.find(a => a.planRevision === task.revision)
+        ?? (props.section === 'delivery' ? history.assignment.result.value.items[0] : undefined)
     if (!assignment) { setPreparation(undefined); setViews(undefined); return }
     const selector = { organizationId: assignment.organizationId, projectId: props.projectId,
       planId: task.planId, assignmentId: assignment.id }
     const p = await props.connection({ kind: 'assignment-preparation', request: selector })
+    if (!isAlive() || seq !== sequence.current || p.assignment?.result.kind !== 'preparation') return
+    if (props.section === 'delivery' && p.assignment.result.value.assignment.assigneeId !== memberId) {
+      setPreparation(p.assignment.result.value)
+      setViews({ generation: p.assignment.generation, items: [], total: 0, offset: 0 })
+      return
+    }
     const runs = await props.connection({ kind: 'execution-list', request: { ...selector, offset } })
     if (p.assignment?.result.kind !== 'preparation' || !runs.executions || runs.generation === undefined) return
     const items: OrganizationExecutionView[] = []
@@ -105,7 +116,8 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     return () => { ++modelSequence.current }
   }, [modelCatalogRevision, backend])
   const start = async () => {
-    if (!preparation || !confirmed) return
+    if (!preparation || !confirmed || operationLock.current) return
+    operationLock.current = true
     setBusy(true); setNotice('')
     const current = () => { if (!isAlive()) throw new Error('superseded') }
     try {
@@ -148,6 +160,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       current(); setNotice(t('executionFinished'))
     } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
     finally {
+      operationLock.current = false
       if (isAlive()) {
         setBusy(false); setConfirmed(false)
         void load().catch((error: unknown) => { if (isAlive()) setNotice(t(executionError(error))) })
@@ -186,10 +199,33 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
     finally { if (isAlive()) setStopping(false) }
   }
+  const currentViews = ready && views?.generation === c.generation ? views : undefined
+  if (props.section === 'delivery') {
+    const selected = currentViews?.items.find(item => item.run.id === selectedRun) ?? currentViews?.items[0]
+    return <section className={css.panel}>
+      <h4>{t('deliveryTitle')}</h4>
+      {!ready && <p role="status">{t('qualificationRecheck')}</p>}
+      {notice && <p className={css.notice} role="status">{notice}</p>}
+      {currentViews && preparation ? <>
+        {currentViews.items.length > 1 && <label className={css.form}>{t('executionRun')}<select value={selected?.run.id ?? ''}
+          onChange={(event) => { setSelectedRun(event.target.value) }}>
+          {currentViews.items.map(item => <option key={item.run.id} value={item.run.id}>{t(`run-${item.run.state}`)} · {item.run.id.slice(0, 8)}</option>)}
+        </select></label>}
+        <DeliveryPanel key={selected?.run.id ?? preparation.assignment.id} {...props} assignment={preparation.assignment}
+          {...(selected ? { run: selected.run, submissionReady: !selected.actions.some(action => ['reserved', 'unknown'].includes(action.state))
+            && !selected.humanRequests.some(request => request.state === 'pending') } : {})} />
+        {currentViews.total > currentViews.items.length && <div className={css.actions}>
+          <Button disabled={pages.length === 1} onClick={() => { setPages(value => value.slice(0, -1)) }}>{t('previous')}</Button>
+          <Button disabled={!currentViews.items.length || currentViews.offset + currentViews.items.length >= currentViews.total}
+            onClick={() => { setPages(value => [...value, currentViews.offset + currentViews.items.length]) }}>{t('next')}</Button>
+        </div>}
+      </> : ready && <div className={css.empty}><strong>{t('taskDeliveryEmpty')}</strong><p>{t('taskDeliveryEmptyHint')}</p></div>}
+    </section>
+  }
   return <><p hidden={ready} role="status">{t('qualificationRecheck')}</p>
-    <section hidden={!ready} className={css.card} aria-busy={busy}>
+    <section hidden={!ready} className={css.panel} aria-busy={busy}>
       <h4>{t('executionTitle')}</h4><p>{t(backend === 'codex' ? 'executionCodexHint' : 'executionHint')}</p>
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p className={css.notice} role="status">{notice}</p>}
       {mine && preparation && preparation.assignment.state === 'accepted' && <form className={css.form} onSubmit={(event) => { event.preventDefault(); void start() }}>
         <label>{t('executionBackend')}<select value={backend} disabled={busy || !!c.pendingOperation} onChange={(event) => {
           setBackend(event.target.value === 'codex' ? 'codex' : 'harness-api'); setModel(''); setEffort(undefined); setConfirmed(false); setCatalog(undefined)
@@ -211,61 +247,66 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
         </> : <label>{t('executionModel')}<Input required value={model} disabled={busy} onChange={(e) => { setModel(e.target.value); setConfirmed(false) }} /></label>}
         {backend === 'harness-api' && <label>{t('executionEndpoint')}<Input required type="url" value={endpoint} disabled={busy} onChange={(e) => { setEndpoint(e.target.value); setConfirmed(false) }} /></label>}
         <label>{t('executionDirectory')}<Input required value={directory} disabled={busy} onChange={(e) => { setDirectory(e.target.value); setConfirmed(false) }} /></label>
-        <label>{t(backend === 'codex' ? 'executionTurns' : 'executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
-        {backend === 'harness-api' && <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>}
-        <label>{t('executionMinutes')}<Input required type="number" min={1} step={1} value={minutes} disabled={busy} onChange={(e) => { setMinutes(e.target.value); setConfirmed(false) }} /></label>
-        <label>{t('executionMessage')}<Input required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
-        {backend === 'harness-api' && <><Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
+        <fieldset className={css.step}><legend>{t('taskRunSettings')}</legend><div className={css.grid}><label>{t(backend === 'codex' ? 'executionTurns' : 'executionActions')}<Input required type="number" min={1} step={1} value={actions} disabled={busy} onChange={(e) => { setActions(e.target.value); setConfirmed(false) }} /></label>
+          {backend === 'harness-api' && <label>{t('executionSteps')}<Input required type="number" min={1} step={1} value={steps} disabled={busy} onChange={(e) => { setSteps(e.target.value); setConfirmed(false) }} /></label>}
+          <label>{t('executionMinutes')}<Input required type="number" min={1} step={1} value={minutes} disabled={busy} onChange={(e) => { setMinutes(e.target.value); setConfirmed(false) }} /></label>
+        </div></fieldset>
+        <label>{t('executionMessage')}<textarea required value={message} disabled={busy} onChange={(e) => { setMessage(e.target.value); setConfirmed(false) }} /></label>
+        {backend === 'harness-api' && <fieldset className={css.step}><legend>{t('taskRunPermissions')}</legend><Checkbox label={t('executionRead')} checked={read} disabled={busy} onChange={(e) => { setRead(e); setConfirmed(false) }} />
           <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
-          <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} /></>}
+          <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} /></fieldset>}
         <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
-        <Button type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button>
+        <div className={css.footer}><Button variant="primary" type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button></div>
       </form>}
-      {views?.items.map(view => <div key={view.run.id} hidden={views.generation !== c.generation}>
+      {currentViews?.items.length === 0 && <div className={css.empty}><strong>{t('taskRunEmpty')}</strong><p>{t('taskRunEmptyHint')}</p></div>}
+      {currentViews && currentViews.items.length > 0 && <h4>{t('taskRunHistory')}</h4>}
+      {views?.items.map(view => <div className={css.record} key={view.run.id} hidden={views.generation !== c.generation}>
         <p>{t('taskVersion', { revision: view.run.planRevision })} · {t(`run-${view.run.state}`)}</p>
-        <p>{t('assignee')}: {preparation?.assignment.assigneeId} · {t('deviceId')}: {view.run.deviceId}</p>
-        <p>{t('executionBackend')}: {t(view.run.backend ? 'executionCodex' : 'executionApi')} · {view.run.backend?.model ?? report?.report.recovery?.inputs.model} {view.run.backend?.effort}</p>
-        <p>{t('executionRun')}: {view.run.id}</p>
+        <p>{t('assignee')}: {c.members.find(member => member.id === view.assigneeId)?.username ?? t('selectedMember')}</p>
+        <p>{t('executionBackend')}: {t(view.run.backend ? 'executionCodex' : 'executionApi')}
+          {view.run.backend ? ` · ${view.run.backend.model} ${view.run.backend.effort}`
+            : report?.report.runId === view.run.id && report.report.recovery ? ` · ${report.report.recovery.inputs.model}` : ''}</p>
+        <details className={css.advanced}><summary>{t('technicalDetails')}</summary><p>{t('executionRun')}: {view.run.id}</p><p>{t('deviceId')}: {view.run.deviceId}</p></details>
         {view.run.backend && <p>{t('executionCodexHint')}</p>}
         <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
         {!view.eligible && <p>{t('qualificationRecheck')}</p>}
         {view.actions.some(a => a.state === 'unknown') && <p role="alert">{t('executionUnknown')}</p>}
         {preparation && view.humanRequests.map(request => <ExecutionHumanRequest key={`${c.generation}:${request.id}`} {...props} request={request} assignment={preparation.assignment} refresh={load} />)}
-        {preparation && <DeliveryPanel {...props} assignment={preparation.assignment} run={view.run} />}
         {mine && <Button onClick={() => { void readReport(view) }}>{t('executionTranscript')}</Button>}
-        {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section>
+        {mine && report?.generation === c.generation && report.report.runId === view.run.id && report.report.recovery && ['running', 'paused', 'waiting-human', 'cancelled'].includes(view.run.state) && <section className={css.step}>
           <h5>{t('executionRecovery')}</h5><p>{t(view.run.backend ? 'executionNativeRecoveryHint' : 'executionRecoveryHint')}</p>
           {report.report.native && <p>{t(`native-${report.report.native.status}`)}</p>}
           {report.report.native?.cleanupFailed && <p role="alert">{t('executionNativeCleanupFailed')}</p>}
           <p>{t('executionDirectory')}: {report.report.recovery.inputs.execution?.directory}</p>
-          <code>{report.report.recovery.baselineDigest}</code>
           {!report.report.recovery.baselineDigest && <p role="alert">{t('executionBaselineUnavailable')}</p>}
-          {report.report.recovery.actions.map(action => <p key={action.actionId}>{action.actionId} · {t(`recovery-${action.reason}`)}</p>)}
+          <details className={css.advanced}><summary>{t('technicalDetails')}</summary><code>{report.report.recovery.baselineDigest}</code>
+            {report.report.recovery.actions.map(action => <p key={action.actionId}>{action.actionId} · {t(`recovery-${action.reason}`)}</p>)}
+          </details>
           {!view.eligible && <p role="alert">{t('executionRenewRequired')}</p>}
           <Checkbox label={t('executionResumeConfirm')} checked={resumeConfirmed} onChange={setResumeConfirmed} />
-          <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !report.report.recovery.baselineDigest}
+          <div className={css.footer}><Button variant="outline" disabled={busy || !!c.pendingOperation || !resumeConfirmed || !report.report.recovery.baselineDigest}
             onClick={() => { void resume(view, true) }}>{t('executionReconcile')}</Button>
-          <Button disabled={busy || !!c.pendingOperation || !resumeConfirmed || !view.eligible || !report.report.recovery.baselineDigest
+          <Button variant="primary" disabled={busy || !!c.pendingOperation || !resumeConfirmed || !view.eligible || !report.report.recovery.baselineDigest
           || report.report.recovery.actions.some(a => a.status === 'unknown') || view.humanRequests.some(h => !['answered', 'approved', 'denied'].includes(h.state))}
-          onClick={() => { void resume(view) }}>{t('executionResume')}</Button>
+          onClick={() => { void resume(view) }}>{t('executionResume')}</Button></div>
         </section>}
         {mine && ['prepared' , 'running', 'paused', 'waiting-human'].includes(view.run.state) && <div className={css.actions}>
-          <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'paused') }}>{t('executionPause')}</Button>
-          <Button disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'cancelled') }}>{t('executionCancel')}</Button>
+          <Button variant="outline" disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'paused') }}>{t('executionPause')}</Button>
+          <Button className={css.danger} disabled={stopping || !!c.pendingOperation} onClick={() => { void stop(view, 'cancelled') }}>{t('executionCancel')}</Button>
         </div>}
       </div>)}
-      {views?.generation === c.generation && <div className={css.actions}>
+      {views?.generation === c.generation && views.total > views.items.length && <div className={css.actions}>
         <Button disabled={pages.length === 1} onClick={() => { setPages(value => value.slice(0, -1)) }}>{t('previous')}</Button>
         <Button disabled={!views.items.length || views.offset + views.items.length >= views.total}
           onClick={() => { setPages(value => [...value, views.offset + views.items.length]) }}>{t('next')}</Button>
       </div>}
-      {report?.generation === c.generation && <section>
-        <h4>{t('executionTranscript')}</h4><p>{t('executionTranscriptPrivate')}</p>
+      {report?.generation === c.generation && <details className={css.advanced} open>
+        <summary>{t('executionTranscript')}</summary><p>{t('executionTranscriptPrivate')}</p>
         {report.report.native?.cleanupFailed && <p role="alert">{t('executionNativeCleanupFailed')}</p>}
         {report.report.truncated && <p>{t('executionTranscriptTruncated')}</p>}
-        {report.report.entries.map((entry, index) => <div key={index}>
-          <h5>{t(`executionRole-${entry.role}`)}</h5><pre className={css.transcript}>{entry.text}</pre>
-        </div>)}
-      </section>}
+        <div className={css.transcriptLog}>{report.report.entries.map((entry, index) => <div key={index}>
+          <h5>{t(`executionRole-${entry.role}`)}</h5><pre className={taskWorkspaceStyles.prose}>{entry.text}</pre>
+        </div>)}</div>
+      </details>}
     </section></>
 }

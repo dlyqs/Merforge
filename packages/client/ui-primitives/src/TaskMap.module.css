@@ -14,7 +14,7 @@
 .fullscreen:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .separator { height: 16px; width: 0.5px; margin: 0 6px; background: var(--dsw-alias-border-l3); }
 .canvas { position: relative; }
-.overlay { position: absolute; z-index: 2; top: 16px; right: 16px; bottom: 16px; width: min(340px, calc(100% - 32px)); pointer-events: none; display: flex; align-items: flex-start; }
+.overlay { position: absolute; z-index: 2; top: 16px; right: 16px; bottom: 16px; width: min(520px, calc(100% - 32px)); pointer-events: none; display: flex; align-items: flex-start; }
 .overlay > * { pointer-events: auto; }
 .viewport { position: relative; height: clamp(460px, 65vh, 820px); overflow: auto; overscroll-behavior: contain; cursor: grab; background-color: var(--dsw-alias-bg-module-platform); background-image: radial-gradient(var(--dsw-alias-border-l3) 0.75px, transparent 0.75px); background-size: 20px 20px; }
 .viewport[data-dragging='true'] { cursor: grabbing; user-select: none; }
@@ -51,4 +51,8 @@
 .map :is(button, [tabindex]):focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
 @media (hover: hover) { .nodeButton:hover { --dsw-elevation-stroke-color: var(--branch-color); } }
 @media (prefers-reduced-motion: no-preference) { .nodeButton { transition: background-color 150ms ease, box-shadow 150ms ease; } }
-@media (max-width: 600px) { .toolbar { padding: 12px; } .controls { flex-wrap: wrap; } .viewport { height: 520px; } .overlay { top: 12px; right: 12px; bottom: 12px; width: min(300px, calc(100% - 24px)); } }
+@media (max-width: 600px) { .toolbar { padding: 12px; } .controls { flex-wrap: wrap; } .viewport { height: 560px; } .overlay { top: 12px; right: 12px; bottom: 12px; width: min(520px, calc(100% - 24px)); } }
+
+.node[data-assigned='true'] .nodeButton { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+.assignment { color: var(--dsw-alias-brand-primary); font-weight: 600; }
+.node[data-root='true'] .assignment { color: inherit; }

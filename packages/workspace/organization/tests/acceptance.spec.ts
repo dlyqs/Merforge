@@ -152,7 +152,7 @@ it('migrates v9 without manufacturing acceptances and rolls back failed schema u
   const h = await fixture(); await h.close()
   h.db.exec('DROP TABLE organization_hierarchy; DROP TABLE organization_project_lifecycle')
   h.db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal')
-  h.db.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; PRAGMA user_version=9; CREATE TABLE organization_acceptances (sentinel TEXT)')
+  h.db.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=9; CREATE TABLE organization_acceptances (sentinel TEXT)')
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow()
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(9)
   h.db.exec('DROP TABLE organization_acceptances')

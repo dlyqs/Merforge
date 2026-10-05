@@ -35,7 +35,7 @@ export type ConnectionAction =
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
   | { kind: 'device-read' }
-  | { kind: 'remove-plan' | 'workgraph-delete' | 'workgraph-removal' | 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
+  | { kind: 'workgraph-sharing' | 'workgraph-share' | 'remove-plan' | 'workgraph-delete' | 'workgraph-removal' | 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
   | { kind: 'login'; username: string; password: string }
@@ -77,6 +77,7 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  sharing?: z.output<typeof import('@deepseek-ai/dsh-organization/workgraph').workgraphSharingViewSchema>
   planRemoval?: z.output<typeof import('@deepseek-ai/dsh-organization/workgraph').workgraphRemovalSchema>
   projects?: OrganizationProjectPage
   hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema>

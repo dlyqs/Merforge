@@ -15,10 +15,13 @@ import { MemberSelect } from '../src/client/MemberSelect.tsx'
 import { readNavigationProjects } from '../src/client/projects.ts'
 import { ProjectDetails } from '../src/client/Project.tsx'
 import { Workbench } from '../src/client/Workbench.tsx'
+import { TaskSharing } from '../src/client/TaskSharing.tsx'
+import { TaskCanvas } from '../src/client/TaskCanvas.tsx'
 import { OrganizationDialog } from '../src/client/OrganizationDialog.tsx'
 import { zh } from '../src/client/locales.ts'
 import { taskRows } from '../src/client/workgraph-view.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import { workgraphSharingViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 
 afterEach(cleanup)
 function fixture() {
@@ -287,4 +290,82 @@ it.each([true, false])('confirms task removal outside the canvas using current c
   expect(h.connection).toHaveBeenCalledWith({ kind: creator ? 'workgraph-delete' : 'remove-plan', request: {
     organizationId: h.project.organizationId, projectId: h.project.id, planId: h.version.planId,
     ...(creator ? { expectedRevision: h.version.revision, operationId: expect.any(String) } : {}) } })
+})
+
+it('lets the creator edit shared background independently of the task definition', async () => {
+  const h = fixture()
+  let sharing = workgraphSharingViewSchema.parse({ sharedContext: 'Creator decisions and constraints', version: 1,
+    canEdit: true, fullTreeVisible: true, canRequest: false, requests: [] })
+  h.connection.mockImplementation(async action => {
+    if (action.kind === 'workgraph-sharing') return { generation: 1, sharing }
+    if (action.kind === 'workgraph-share') {
+      sharing = { ...sharing, sharedContext: 'Updated constraints', version: 2 }
+      return { generation: 1 }
+    }
+    return {}
+  })
+  render(<TaskSharing {...h.props} projectId={h.project.id} planId={h.version.planId} />)
+  await screen.findByText(sharing.sharedContext)
+  fireEvent.click(screen.getByRole('button', { name: zh.editSharedContext }))
+  fireEvent.change(screen.getByRole('textbox', { name: zh.sharedTaskContext }), { target: { value: 'Updated constraints' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.save }))
+  await screen.findByText('Updated constraints')
+  expect(h.connection).toHaveBeenCalledWith({ kind: 'workgraph-share', request: {
+    organizationId: h.project.organizationId, projectId: h.project.id, planId: h.version.planId,
+    kind: 'edit-context', expectedVersion: 1, sharedContext: 'Updated constraints', operationId: expect.any(String),
+  } })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-save')).toBe(false)
+})
+
+it('shows employee request state and keeps background editing creator-only', async () => {
+  const h = fixture(), member = h.props.useOrganization(s => s.connection.organizations[0]!.membershipId)
+  let sharing = workgraphSharingViewSchema.parse({ sharedContext: 'Shared task purpose', version: 1,
+    canEdit: false, fullTreeVisible: false, canRequest: true, requests: [] })
+  h.connection.mockImplementation(async action => {
+    if (action.kind === 'workgraph-sharing') return { generation: 1, sharing }
+    if (action.kind === 'workgraph-share') {
+      sharing = { ...sharing, requests: [{ id: brandString(randomUUID()), planId: h.version.planId, membershipId: member,
+        state: 'pending', structureVersion: 1, version: 2, username: 'Employee' }] }
+      return { generation: 1 }
+    }
+    return {}
+  })
+  render(<TaskSharing {...h.props} projectId={h.project.id} planId={h.version.planId} />)
+  fireEvent.click(await screen.findByRole('button', { name: zh.requestFullTree }))
+  await screen.findByText(zh.treeRequestPending)
+  expect(screen.getByRole('button', { name: zh.requestFullTree }).disabled).toBe(true)
+  expect(screen.queryByRole('button', { name: zh.editSharedContext })).toBeNull()
+  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-share')?.[0])
+    .toMatchObject({ request: { kind: 'request-tree', planId: h.version.planId } })
+})
+
+it('retains creator request decisions and marks the employee node in the task map', async () => {
+  const h = fixture(), member = h.props.useOrganization(s => s.connection.organizations[0]!.membershipId)
+  const request = { id: brandString<import('@deepseek-ai/dsh-brand').Branded<'OrganizationTreeRequestId'>>(randomUUID()),
+    planId: h.version.planId, membershipId: member, state: 'pending' as const, structureVersion: 1, version: 3, username: 'Employee' }
+  const sharing = workgraphSharingViewSchema.parse({ sharedContext: 'Shared context', version: 1,
+    canEdit: true, fullTreeVisible: true, canRequest: false, requests: [request] })
+  h.connection.mockImplementation(async action => action.kind === 'workgraph-sharing' ? { generation: 1, sharing } : {})
+  render(<TaskCanvas tasks={[{ ...h.page.items[0]!, assignedToMe: true }]} selected={h.page.items[0]!.id}
+    onSelect={vi.fn()} t={h.props.t} introduction={<TaskSharing {...h.props} projectId={h.project.id} planId={h.version.planId} />} />)
+  expect(screen.getByText(zh.assignedToMe)).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button', { name: zh.approveTreeRequest }))
+  await waitFor(() => { expect(h.connection).toHaveBeenCalledWith({ kind: 'workgraph-share', request: {
+    organizationId: h.project.organizationId, projectId: h.project.id, planId: h.version.planId,
+    kind: 'decide-tree', requestId: request.id, expectedVersion: 3, answer: 'approved', operationId: expect.any(String),
+  } }) })
+  expect(screen.getByRole('button', { name: zh.approveTreeRequest }).closest('[data-fullscreen]')).toBeTruthy()
+})
+
+it('discards delayed shared background after the native identity generation retires', async () => {
+  const h = fixture(), late = Promise.withResolvers<ConnectionResult>()
+  h.connection.mockReturnValue(late.promise)
+  const view = render(<TaskSharing {...h.props} projectId={h.project.id} planId={h.version.planId} />)
+  h.setState({ phase: 'offline', generation: 2 })
+  view.rerender(<TaskSharing {...h.props} projectId={h.project.id} planId={h.version.planId} />)
+  await act(async () => { late.resolve({ generation: 1, sharing: workgraphSharingViewSchema.parse({
+    sharedContext: 'Retired account context', version: 1, canEdit: true, fullTreeVisible: true, canRequest: false, requests: [],
+  }) }) })
+  expect(screen.queryByText('Retired account context')).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.editSharedContext })).toBeNull()
 })

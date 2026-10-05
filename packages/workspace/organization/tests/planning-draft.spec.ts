@@ -110,7 +110,7 @@ it('migrates v13 planning grants without resetting charged usage', async () => {
     requestDigest: 'a'.repeat(64), inputBytes: 100, outputBytes: 100 })).status).toBe(200)
   await h.app.close()
   const path = join(h.root, 'service', 'organization.sqlite'), old = new DatabaseSync(path)
-  old.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; PRAGMA user_version=13'); old.close()
+  old.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts; DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; PRAGMA user_version=13'); old.close()
   const migrated = openOrganizationDatabase(path, 5000)
   try {
     expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
@@ -186,7 +186,7 @@ it('migrates v15 event ownership without losing saved drafts, receipts or charge
       conversationId TEXT NOT NULL, accountId TEXT NOT NULL, result TEXT NOT NULL,
       FOREIGN KEY(conversationId,accountId) REFERENCES planning_grants(conversationId,accountId)) STRICT;
     INSERT INTO planning_events SELECT revision,conversationId,accountId,result FROM current_events;
-    DROP TABLE current_events; PRAGMA user_version=15`)
+    DROP TABLE current_events; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=15`)
   const events = old.prepare('SELECT revision,conversationId,accountId,result FROM planning_events ORDER BY revision').all()
   old.close()
   const migrated = openOrganizationDatabase(path, 5000)
@@ -210,7 +210,7 @@ it('upgrades v16 grantless drafts while preserving their project ownership, hist
   try {
     expect(events).toHaveLength(1)
     expect(old.prepare('SELECT count(*) AS n FROM planning_grants').get()?.n).toBe(0)
-    old.exec('DROP TABLE organization_project_lifecycle; PRAGMA user_version=16')
+    old.exec('DROP TABLE organization_project_lifecycle; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=16')
   } finally { old.close() }
   const migrated = openOrganizationDatabase(path, 5000)
   try {

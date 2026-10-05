@@ -1,3 +1,4 @@
+import { workgraphSharingDdl } from './workgraph-sharing.ts'
 import { hierarchyDdl, validateHierarchy } from './hierarchy.ts'
 import { planningDraftDdl, validatePlanningDraftDatabase } from './planning-draft.ts'
 import { planningDdl, migratePlanningV15, validatePlanningDatabase } from './planning.ts'
@@ -19,7 +20,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 19
+export const ORGANIZATION_SCHEMA_VERSION = 20
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -98,13 +99,14 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
           + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl
-          + planningDdl + planningDraftDdl + hierarchyDdl + projectLifecycleDdl + projectContentDdl + workgraphDeletionDdl)
+          + planningDdl + planningDraftDdl + hierarchyDdl + projectLifecycleDdl + projectContentDdl
+          + workgraphDeletionDdl + workgraphSharingDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
         stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9
         || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13 || stamp === 14
-        || stamp === 15 || stamp === 16 || stamp === 17 || stamp === 18) && app === applicationId) {
+        || stamp === 15 || stamp === 16 || stamp === 17 || stamp === 18 || stamp === 19) && app === applicationId) {
         db.exec(workgraphDeletionDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
@@ -127,6 +129,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
           SELECT p.id,e.actorId FROM organization_projects p JOIN resource_events r ON r.projectId=p.id
           JOIN organization_events e ON e.revision=r.revision WHERE e.kind='create-project'`)
         if (!db.prepare('PRAGMA table_info(organization_projects)').all().some(row => row.name === 'background')) db.exec(projectContentDdl)
+        db.exec(workgraphSharingDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -249,7 +252,8 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
       }
       if (receipt.planId !== undefined || receipt.planRevision !== undefined) {
         const event = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
-        const valid = ['set-task-grant', 'delete-plan'].includes(String(event?.kind)) && receipt.planRevision === undefined
+        const valid = ['set-task-grant', 'delete-plan', 'edit-context', 'request-tree', 'decide-tree'].includes(String(event?.kind))
+          && receipt.planRevision === undefined
           ? db.prepare(`SELECT 1 FROM workgraph_events w JOIN organization_plans p ON p.id=w.planId
             WHERE w.planId=? AND w.revision=? AND p.organizationId=? AND p.projectId=?`)
             .get(receipt.planId ?? null, receipt.revision, receipt.organizationId ?? null, receipt.projectId ?? null)

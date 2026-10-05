@@ -53,7 +53,7 @@ export function OrganizationTaskList(props: TaskProps) {
           planId: task.planId, taskId: task.id })
         props.openTasks()
       }}><IconBranchOutlineRegular /><span><strong>{task.goal}</strong><small>{task.phaseTitle} · {props.t('taskVersion', { revision: task.revision })}</small>
-          {page?.pending.some(item => item.assignment.planId === task.planId) && <small className={css.pendingAction}>{props.t('taskActionNeeded')}</small>}
+          {(task.hasTreeRequests || page?.pending.some(item => item.assignment.planId === task.planId)) && <small className={css.pendingAction}>{props.t('taskActionNeeded')}</small>}
         </span></button>,
       )}</nav></section>)}
     {c.phase === 'ready' && page?.generation !== c.generation && !notice && <p role="status">{props.t('loading')}</p>}

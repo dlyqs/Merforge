@@ -85,7 +85,7 @@ it('upgrades v14 without changing assignments and rejects persisted reporting cy
   const h = await assignmentHarness(cleanup)
   const receipt = await h.service.assignmentCommand(h.owner.token, h.approve)
   await h.close()
-  h.db.exec('DROP TABLE organization_hierarchy; PRAGMA user_version=14')
+  h.db.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts; DROP TABLE organization_hierarchy; PRAGMA user_version=14')
   const migrated = openOrganizationDatabase(h.path, 5000)
   try {
     expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)

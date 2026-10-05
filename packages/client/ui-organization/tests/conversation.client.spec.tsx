@@ -127,9 +127,29 @@ it('contributes task controls while leaving message and model operations to the 
   await adapter.controls.selectModel({ provider: 'ordinary', model: 'vision' })
   expect(selectModel).toHaveBeenCalledWith({ provider: 'ordinary', model: 'vision' })
   expect(h.conversation).not.toHaveBeenCalled()
-  adapter.dispose()
+  await adapter.dispose()
   expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'detach' }))
   await expect(adapter.controls.catalog.load()).rejects.toThrow('superseded')
+})
+
+it('waits for native attachment cleanup and detaches only once', async () => {
+  const h = fixture()
+  let complete: ((reply: Awaited<ReturnType<NonNullable<OrganizationProps['conversation']>>>) => void) | undefined
+  h.conversation.mockImplementation(() => new Promise((resolve) => { complete = resolve }))
+  const adapter = new AccountSession({ generation: 1, result: h.result }, h.result.owner,
+    { conversation: h.conversation, connection: h.connection }, h.identity, vi.fn(), vi.fn(), vi.fn(),
+    async () => ({ groups: [], failures: [], routableProviders: [], default: { provider: 'ordinary', model: 'default' } }),
+    async selection => ({ ok: true, value: { selected: selection } }))
+  const disposal = adapter.dispose()
+  expect(adapter.dispose()).toBe(disposal)
+  let settled = false
+  void disposal.then(() => { settled = true })
+  await Promise.resolve()
+  expect(settled).toBe(false)
+  expect(h.conversation).toHaveBeenCalledOnce()
+  complete?.({ generation: 1, result: h.result })
+  await disposal
+  expect(settled).toBe(true)
 })
 it('uses the same conversation hover menu for account management and deletion', async () => {
   const h = fixture(), store = createConversationStore().create(), manageConversation = vi.fn()
@@ -146,7 +166,7 @@ it('uses the same conversation hover menu for account management and deletion', 
   expect(manageConversation).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: h.result.owner.conversationId }), 'delete')
 })
 
-it('keeps the selected organization node on the ordinary Session controls without another send pipeline', () => {
+it('keeps the selected organization node on the ordinary Session controls without another send pipeline', async () => {
   const h = fixture(), taskId = randomUUID(), planId = randomUUID()
   const selected = conversationResultSchema.parse({ ...h.result,
     goals: [{ id: taskId, classification: 'unassessed' }], execution: { target: { planId, taskId }, title: 'Selected node' } })
@@ -160,7 +180,7 @@ it('keeps the selected organization node on the ordinary Session controls withou
   adapter.controls.openExecution()
   expect(execute).toHaveBeenCalledWith(selected)
   expect(h.conversation).not.toHaveBeenCalled()
-  adapter.dispose()
+  await adapter.dispose()
 })
 
 it('retains project navigation and member creation when a private conversation catalog fails', async () => {
@@ -224,4 +244,59 @@ it('shows a working new conversation entry for an empty first project instead of
     actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
   await waitFor(() => { expect(showConversationStart).toHaveBeenCalledWith(h.project, undefined) })
   expect(selectConversation).not.toHaveBeenCalled()
+})
+
+it('reuses loaded catalogs when switching Projects, Bots and Recent', async () => {
+  const h = fixture(), store = createConversationStore().create(), selectConversation = vi.fn(async () => {})
+  const botId = brandString<NonNullable<typeof h.result.catalog>['bots'][number]['id']>(randomUUID())
+  h.result.catalog = { bots: [{ id: botId, name: 'First Bot', instructions: '', createdAt: 1, revision: 1 }],
+    conversations: [{ conversationId: h.result.owner.conversationId, title: 'First conversation', botId, createdAt: 2 }] }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  h.conversation.mockResolvedValue({ generation: 1, result: h.result })
+  const props = { ...h.props, wide: true, expandSidebar: vi.fn(), selectConversation, beginConversationNavigation: vi.fn(),
+    actions: store.actions, useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) => selector(store.getSnapshot()) }
+  const view = render(<OrganizationBrowser {...props} section="projects" navigationRevision={1} />)
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledOnce() })
+  const reads = h.conversation.mock.calls.length
+  view.rerender(<OrganizationBrowser {...props} section="bots" navigationRevision={2} />)
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledTimes(2) })
+  view.rerender(<OrganizationBrowser {...props} section="recent" navigationRevision={3} />)
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledTimes(3) })
+  expect(h.connection).toHaveBeenCalledOnce()
+  expect(h.conversation).toHaveBeenCalledTimes(reads)
+  expect(props.beginConversationNavigation).toHaveBeenCalledTimes(3)
+})
+
+it('starts all project catalog reads without waiting for the first project', async () => {
+  const h = fixture(), store = createConversationStore().create()
+  const second = { ...h.project, id: brandString<typeof h.project.id>(randomUUID()), name: 'Second project' }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project, second], total: 2, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  h.conversation.mockImplementation(request => request.projectId === h.project.id
+    ? new Promise(() => {}) : Promise.resolve({ generation: 1, result: h.result }))
+  render(<OrganizationBrowser {...h.props} section="projects" wide expandSidebar={vi.fn()}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  await waitFor(() => { expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ projectId: second.id, kind: 'catalog' })) })
+  expect(h.conversation).toHaveBeenCalledWith(expect.objectContaining({ projectId: h.project.id, kind: 'catalog' }))
+})
+
+it('continues the latest navigation when an earlier conversation open is superseded', async () => {
+  const h = fixture(), store = createConversationStore().create()
+  const botId = brandString<NonNullable<typeof h.result.catalog>['bots'][number]['id']>(randomUUID())
+  const botConversationId = brandString<typeof h.result.owner.conversationId>(randomUUID())
+  h.result.catalog = { bots: [{ id: botId, name: 'First Bot', instructions: '', createdAt: 1, revision: 1 }], conversations: [
+    { conversationId: h.result.owner.conversationId, title: 'Project conversation', createdAt: 1 },
+    { conversationId: botConversationId, title: 'Bot conversation', botId, createdAt: 2 },
+  ] }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  h.conversation.mockResolvedValue({ generation: 1, result: h.result })
+  const opening = Promise.withResolvers<undefined>()
+  const selectConversation = vi.fn(async () => {}).mockImplementationOnce(() => opening.promise)
+  const props = { ...h.props, wide: true, expandSidebar: vi.fn(), selectConversation, beginConversationNavigation: vi.fn(),
+    actions: store.actions, useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) => selector(store.getSnapshot()) }
+  const view = render(<OrganizationBrowser {...props} section="projects" navigationRevision={1} />)
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledOnce() })
+  view.rerender(<OrganizationBrowser {...props} section="bots" navigationRevision={2} />)
+  await act(async () => { opening.reject(new Error('organization-conversation: superseded')) })
+  await waitFor(() => { expect(selectConversation).toHaveBeenCalledWith(expect.objectContaining({ conversationId: botConversationId })) })
+  expect(screen.queryByRole('alert')).toBeNull()
 })

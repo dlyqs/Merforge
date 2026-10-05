@@ -2,6 +2,14 @@
 
 本文定稿[施工计划](organization-workgraph-plan.md)的协议与权限设计。Phase 1–8 已实现完整定义/版本、WorkGraph 表、纯图规则、任务授权投影、HTTPS/原生动作、本机预执行上下文隔离与持久绑定、任务工作台和无页面集成。批准、下发、Run、领取、提交、完成及实际产物访问不属于本期。
 
+## 共享任务背景与完整树申请
+
+当前组织数据库版本为 v20。自动提案通过 `sharedContext` 提炼创建者对话中的任务动机、整体目标、已有决策、约束和资源，初次保存任务时写入独立的共享背景记录。背景对每个当前任务读者可见，即使其只获分配一个节点；只有原创建者可凭准确背景版本修改。修改背景不产生新的任务定义 revision，不撤销已有分配资格。旧库升级以原始根节点 scope 初始化背景。
+
+任务导图展示共享背景、创建者编辑入口、员工「申请查看完整任务树」入口及申请状态。当前 pending/accepted 分配的员工才能申请；创建者通过持久请求批准或拒绝，其他管理员和根节点编辑者无代批权。批准在同一事务重新校验员工身份、分配及当前读取权限，并增加根子树 read；编辑、执行、接受和交付仍遵循各自授权。批准后保留真实父子关系，并在员工获分配的节点显示「分配给我」。拒绝保留原节点视图，员工可重新申请。结构变化后需重新申请。
+
+固定接口为 `POST /workgraph/sharing`（读取）和 `POST /workgraph/share`（`edit-context` / `request-tree` / `decide-tree`）。任务列表只包含节点事实和本人分配、待审批标记，共享背景按计划单独读取，避免长背景在每个节点重复传输。写入使用 operationId 回放与准确版本冲突检查；授权读取和命令/响应的完整字节数受现有 workgraphMaxBytes 约束，保留申请记录受 workgraphMaxGrants 约束。背景和请求变化经 WorkGraph 流通知当前任务读者，创建者任务导航及根节点标记待处理申请。后台重启和备份验证背景作者、请求动作与获批 read grant 的关联。
+
 ## 定义及版本
 
 `OrganizationPlanId`、`OrganizationTaskId`、`OrganizationPhaseId` 使用独立 UUID 品牌；`OrganizationPlanRevision` 是每个计划从 1 开始的品牌整数。`OperationId` 沿用组织账号作用域。数据库 `revision` 是全局事件序列；`structureVersion` 是最近结构变化的事件位置；grant 的 `version` 是最近授权变化位置，均不能用定义 revision 代替。

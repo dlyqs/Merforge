@@ -46,6 +46,10 @@ export interface OrganizationTaskView extends OrganizationTask {
   phaseTitle: string
   assignable: boolean
   hasUndisclosedPrerequisite: boolean
+  /** Active assignment for the authenticated reader. */
+  assignedToMe?: boolean | undefined
+  /** Pending full-tree requests requiring the original creator's decision. */
+  hasTreeRequests?: boolean | undefined
 }
 /** Current-authority page; total counts only matching visible tasks. */
 export interface OrganizationTaskPage {

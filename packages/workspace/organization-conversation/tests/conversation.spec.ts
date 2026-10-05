@@ -228,7 +228,7 @@ it.each(['shared', 'private', 'conflict', 'lost'] as const)('saves a %s proposal
     acceptance: ['Totals checked'], artifacts: ['report.csv'], required: true, dependsOn: [], suggestedMembershipId: null })
   const definition = { taskId: root, phases: [{ id: phase, title: 'Report' }], tasks: [task(root, null), task(child, root)] }
   const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(reply('complex'))
-    .mockResolvedValueOnce(reply(undefined, '', { name: 'workflow_propose', args: { operationId: randomUUID(), expectedRevision: 0, definition } }))
+    .mockResolvedValueOnce(reply(undefined, '', { name: 'workflow_propose', args: { sharedContext: 'Creator discussion: task goals and constraints', operationId: randomUUID(), expectedRevision: 0, definition } }))
     .mockResolvedValue(reply())
   const send = conversationRequestSchema.parse({ ...h.request, kind: 'send', operationId: randomUUID(), selection,
     route: 'new_goal', text: 'Create a validated monthly revenue CSV' })

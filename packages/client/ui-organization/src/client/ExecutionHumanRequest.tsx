@@ -1,10 +1,11 @@
 /** Designated human answers are separate from execution continuation and task acceptance. */
 import { useRef, useState } from 'react'
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationInboxItem } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProps } from './contract.ts'
 import { workgraphError } from './workgraph-view.ts'
+import css from './TaskInspector.module.css'
 
 type Request = Exclude<OrganizationInboxItem['request'], { kind: 'accept-assignment' | 'accept-delivery' }>
 /**
@@ -34,28 +35,34 @@ export function ExecutionHumanRequest(props: OrganizationProps & { request: Requ
     } catch (error) { setNotice(t(workgraphError(error))) }
     finally { setBusy(false) }
   }
-  return <section>
-    <p>{t(request.kind === 'work-question' ? 'executionQuestion' : 'executionToolApproval')}</p>
-    <p>{t('executionHandler')}: {request.handlerId} · {t(`human-${request.state}`)}</p>
-    <p>{request.prompt}</p>
+  return <section className={css.record} aria-busy={busy}>
+    <div className={css.heading}><h5>{t(request.kind === 'work-question' ? 'executionQuestion' : 'executionToolApproval')}</h5>
+      <span className={css.status}>{t(`human-${request.state}`)}</span>
+    </div>
+    <p className={css.hint}>{t('executionHandler')}: {c.members.find(item => item.id === request.handlerId)?.username
+      ?? t(member === request.handlerId ? 'me' : 'selectedMember')}</p>
+    <p className={css.prose}>{request.prompt}</p>
     {request.requestDigest && <>
-      <code>{request.requestDigest}</code>
+      <details className={css.advanced}><summary>{t('technicalDetails')}</summary><code>{request.requestDigest}</code></details>
       <Button onClick={() => { void props.executionReport({ organizationId: a.organizationId, projectId: a.projectId,
         planId: a.planId, assignmentId: a.id, runId: request.runId }).then(setPreview).catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('executionTranscript')}</Button>
       {preview?.generation === c.generation && preview.report.native && <p>{t('executionNativeApprovalHint')}</p>}
-      {preview?.generation === c.generation && preview.report.entries.filter(entry => entry.role === 'tool').map((entry, index) => <pre key={index}>{entry.text}</pre>)}
+      {preview?.generation === c.generation && preview.report.entries.filter(entry => entry.role === 'tool')
+        .map((entry, index) => <pre className={css.transcript} key={index}>{entry.text}</pre>)}
     </>}
     {request.answer && <p>{request.answer}</p>}
-    <p>{t('executionAnswerHint')}</p>
-    {notice && <p role="status">{notice}</p>}
+    <p className={css.hint}>{t('executionAnswerHint')}</p>
+    {notice && <p className={css.notice} role="status">{notice}</p>}
     {member === request.handlerId && request.state === 'pending' && c.phase === 'ready' && <>
-      {request.kind === 'work-question' ? <form onSubmit={(event) => { event.preventDefault(); void submit() }}>
-        <label>{t('executionAnswer')}<Input required value={answer} onChange={(event) => { setAnswer(event.target.value) }} /></label>
-        <Button type="submit" disabled={busy || !!c.pendingOperation}>{t('executionSendAnswer')}</Button>
-      </form> : <>
-        <Button disabled={busy || !!c.pendingOperation || preview?.generation !== c.generation} onClick={() => { void submit(true) }}>{t('executionApproveTool')}</Button>
-        <Button disabled={busy || !!c.pendingOperation} onClick={() => { void submit(false) }}>{t('executionDenyTool')}</Button>
-      </>}
+      {request.kind === 'work-question' ? <form className={css.form} onSubmit={(event) => { event.preventDefault(); void submit() }}>
+        <label>{t('executionAnswer')}<textarea required disabled={busy} value={answer} onChange={(event) => { setAnswer(event.target.value) }} /></label>
+        <div className={css.footer}><Button variant="primary" type="submit" disabled={busy || !!c.pendingOperation || !answer.trim()}>{t('executionSendAnswer')}</Button></div>
+      </form> : <div className={css.actions}>
+        <Button variant="primary" disabled={busy || !!c.pendingOperation || preview?.generation !== c.generation}
+          onClick={() => { void submit(true) }}>{t('executionApproveTool')}</Button>
+        <Button variant="outline" className={css.danger} disabled={busy || !!c.pendingOperation}
+          onClick={() => { void submit(false) }}>{t('executionDenyTool')}</Button>
+      </div>}
     </>}
   </section>
 }

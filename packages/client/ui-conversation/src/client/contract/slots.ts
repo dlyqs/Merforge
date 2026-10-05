@@ -125,12 +125,18 @@ export type UseConversation = SnapshotSelectorHook<ConversationSnapshot>
 /** Selector hook over the registered Conversation View roster. */
 export type UseConversationViews = SnapshotSelectorHook<readonly ViewTab[]>
 
+/** Standard Session presentation available to an account loading entry. */
+export interface ConversationEntryOwnerProps {
+  /** Ordinary conversation subtree rendered by the main panel. */
+  readonly conversationContent: ReactNode
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Conversation shell beneath its root-scoped main-panel entry. */
     'main.conversation': { kind: 'single'; scope: 'session-maybe' }
-    /** Optional account-owned entry shown without a selected conversation. */
-    'main.conversation.entry': { kind: 'single'; scope: 'root' }
+    /** Account loading presentation with the ordinary conversation supplied by its parent. */
+    'main.conversation.entry': { kind: 'single'; scope: 'root'; owner: ConversationEntryOwnerProps }
     /** Strict per-Session Conversation body. */
     'conversation.session': {
       kind: 'single'

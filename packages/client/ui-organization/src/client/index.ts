@@ -33,6 +33,13 @@ import { OrganizationSettings, OrganizationSidebar } from './Organization.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { zh, en } from './locales.ts'
 
+declare module '@deepseek-ai/dsh-api-session-controller/client' {
+  interface SessionReferenceSourceMap {
+    /** Retain an attached conversation until its account lifetime ends. */
+    organizationConversation: unknown
+  }
+}
+
 /** Required UI services; the Desktop preload owns the native IPC capability. */
 export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout', 'uiWorkspace',
   'sessions', 'uiSession', 'uiConversation']
@@ -80,7 +87,11 @@ export function apply(ctx: Context): void {
         projectId: project.id, planId: task.planId, taskId: task.id })
       ctx.layout.selectPanel('tasks' as MainPanelId)
     },
-    beginConversationNavigation: () => { navigationLoading = true; void selectConversation(null) },
+    beginConversationNavigation: () => {
+      navigationLoading = true; openSequence++
+      if (draft) clearView()
+      ctx.layout.selectPanel(null)
+    },
     showConversationStart: (project, botId) => {
       navigationLoading = false
       conversationStartTarget.set({ ...(project ? { project } : {}), ...(botId ? { botId } : {}) })
@@ -135,6 +146,11 @@ export function apply(ctx: Context): void {
   let draft: ReturnType<ISessions['createDraft']> | undefined
   let accountSession: AccountSession | undefined, openSequence = 0
   let currentSelection: ConversationSelection | null = null, navigationLoading = false
+  const retainedConversations = new Map<string, { selected: ConversationSelection; account: AccountSession; reference: SessionReference }>()
+  const detachments = new Set<Promise<void>>()
+  const conversationKey = (selected: ConversationSelection) => JSON.stringify([
+    selected.serverId, selected.accountId, selected.organizationId, selected.projectId, selected.conversationId,
+  ])
   const projectCleanup = new Map<string, Promise<void>>(), cleanedProjects = new Set<string>()
   const cleanupProject = (projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId,
     c: OrganizationDesktopSnapshot['connection']): Promise<void> => {
@@ -150,23 +166,50 @@ export function apply(ctx: Context): void {
     projectCleanup.set(key, task)
     return task
   }
-  const retire = () => {
+  const clearView = () => {
     openSequence++
     const reference = accountReference.getSnapshot()
-    accountReference.set(undefined); draft?.dispose(); draft = undefined
-    accountSession?.dispose(); accountSession = undefined; reference?.release()
+    accountReference.set(undefined)
+    draft?.dispose(); draft = undefined; reference?.release()
+    accountSession = undefined
   }
-  const selectConversation = async (selected: ConversationSelection | null, publish = true) => {
+  const detach = (account: AccountSession) => {
+    const detachment = account.dispose()
+    detachments.add(detachment)
+    void detachment.then(() => { detachments.delete(detachment) })
+  }
+  const forgetConversation = (key: string) => {
+    const retained = retainedConversations.get(key)
+    if (!retained) return
+    retainedConversations.delete(key); detach(retained.account)
+    retained.reference.release()
+  }
+  const retire = () => {
+    clearView()
+    for (const key of retainedConversations.keys()) forgetConversation(key)
+    return Promise.all(detachments)
+  }
+  const selectConversation = async (selected: ConversationSelection | null, publish = true, reload = false) => {
     const c = state.getSnapshot().connection
     if (selected && (c.mode !== 'organization' || c.principal?.serverId !== selected.serverId
       || c.principal.accountId !== selected.accountId || c.organizationId !== selected.organizationId)) throw new Error('organization-conversation: superseded')
     if (publish) {
       if (selected) navigationLoading = false
       currentSelection = selected
-      retire(); conversationActions?.select(selected); ctx.layout.selectPanel(null)
+      openSequence++; conversationActions?.select(selected); ctx.layout.selectPanel(null)
+      if (!selected || draft) clearView()
     }
     const sequence = openSequence
     if (!selected || !desktop || c.phase !== 'ready' || !selected.conversationId) return
+    const key = conversationKey(selected), retained = retainedConversations.get(key)
+    if (publish && retained && !reload) {
+      if (accountSession === retained.account) return
+      const previous = accountReference.getSnapshot()
+      accountSession = retained.account
+      accountReference.set(ctx.sessions.retain(retained.account.sessionId, { source: 'mainView' }))
+      previous?.release()
+      return
+    }
     const query = { organizationId: selected.organizationId, projectId: selected.projectId, conversationId: selected.conversationId,
       ...(selected.botId ? { botId: selected.botId } : {}),
       ...(selected.assignmentId && selected.planId ? { assignment: { assignmentId: selected.assignmentId,
@@ -195,26 +238,35 @@ export function apply(ctx: Context): void {
     }, () => { management.set({ selected, action: 'manage' }) }, loadModels,
     async (selection) => {
       const result = await ctx.remote.session.selectModel({ sessionId: sharedSessionId, ...selection })
-      if (publish && 'value' in result && result.value.sessionId !== undefined) await selectConversation(selected)
+      if (publish && 'value' in result && result.value.sessionId !== undefined) await selectConversation(selected, true, true)
       return result
     })
-    const reference = ctx.sessions.retain(attached, { source: 'mainView' })
+    const reference = ctx.sessions.retain(attached, { source: 'organizationConversation' })
     const commit = () => {
-      if (accountReference.getSnapshot() === reference) return
+      if (retainedConversations.get(key)?.reference === reference) return
       if (sequence !== openSequence) throw new Error('organization-conversation: superseded')
       const previous = accountReference.getSnapshot()
-      draft?.dispose(); draft = undefined
+      const previousDraft = draft; draft = undefined
+      forgetConversation(key)
+      retainedConversations.set(key, { selected, account: attached, reference })
       accountSession = attached; currentSelection = selected; navigationLoading = false
-      conversationActions?.select(selected); accountReference.set(reference); previous?.release()
-      conversationActions?.refresh()
+      conversationActions?.select(selected)
+      accountReference.set(ctx.sessions.retain(sharedSessionId, { source: 'mainView' }))
+      previousDraft?.dispose(); previous?.release()
+      if (!publish) conversationActions?.refresh()
     }
-    if (publish) commit()
-    return { reference, commit, dispose: () => { attached.dispose(); reference.release() } }
+    if (publish) {
+      try { await reference.ready; commit() }
+      catch (error: unknown) { detach(attached); reference.release(); throw error }
+    }
+    return { reference, commit, dispose: () => { detach(attached); reference.release() } }
   }
-  ctx.effect(() => () => { retire() }, 'organization.account-session')
-  ctx.on('api-session/activity', (id) => { if (accountSession?.sessionId === id) conversationActions?.refresh() })
+  ctx.effect(() => () => retire(), 'organization.account-session')
+  ctx.on('api-session/activity', (id) => {
+    if ([...retainedConversations.values()].some(retained => retained.account.sessionId === id)) conversationActions?.refresh()
+  })
   ctx.on('api-session/status', (id, running) => {
-    if (!running && accountSession?.sessionId === id) { conversationActions?.refresh() }
+    if (!running && [...retainedConversations.values()].some(retained => retained.account.sessionId === id)) conversationActions?.refresh()
   })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'organization-conversation-manager',
     locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, conversationManagement: management },
@@ -222,10 +274,11 @@ export function apply(ctx: Context): void {
         const c = state.getSnapshot().connection
         if (c.mode !== 'organization' || c.principal?.accountId !== selected.accountId || c.principal.serverId !== selected.serverId
           || c.organizationId !== selected.organizationId) return
+        if (deleted) forgetConversation(conversationKey(selected))
         if (conversationActions && currentSelection && currentSelection.conversationId === selected.conversationId
           && currentSelection.projectId === selected.projectId) {
-          if (deleted) { currentSelection = null; retire(); conversationActions.select(null) }
-          else { const { botId: _previousBot, ...updated } = selected; void selectConversation(updated) }
+          if (deleted) { currentSelection = null; clearView(); conversationActions.select(null) }
+          else { const { botId: _previousBot, ...updated } = selected; void selectConversation(updated, true, true) }
         }
         conversationActions?.refresh()
       } }) }, ConversationManager))
@@ -243,7 +296,7 @@ export function apply(ctx: Context): void {
   const showDraft = () => {
     const c = state.getSnapshot().connection, target = conversationStartTarget.getSnapshot()
     if (c.mode !== 'organization' || c.phase !== 'ready' || !c.principal || !c.organizationId) return
-    retire(); currentSelection = null; conversationActions?.select(null)
+    clearView(); currentSelection = null; conversationActions?.select(null)
     const selected: ConversationSelection = { ...c.principal, organizationId: c.organizationId,
       conversationId: randomUUID() as ConversationRequest['conversationId'],
       ...(target.project ? { projectId: target.project.id } : {}), ...(target.botId ? { botId: target.botId } : {}) }
@@ -301,7 +354,7 @@ export function apply(ctx: Context): void {
       if (identity !== nextIdentity) {
         const changed = identity !== ''
         identity = nextIdentity
-        retire()
+        void retire()
         management.set(null)
         projectDetails.set(null); conversationStartTarget.set({})
         currentSelection = null; navigationLoading = false
@@ -316,11 +369,14 @@ export function apply(ctx: Context): void {
       const identityGenerationChanged = identityGeneration !== c.identityGeneration
       if (identityGenerationChanged) {
         identityGeneration = c.identityGeneration
-        retire()
+        void retire()
       }
-      if (!organization || !['ready', 'loading'].includes(c.phase)) retire()
+      if (!organization || !['ready', 'loading'].includes(c.phase)) void retire()
       if (currentSelection?.projectId && c.removedProjects?.includes(currentSelection.projectId)) {
-        retire(); currentSelection = null; conversationActions?.select(null)
+        clearView(); currentSelection = null; conversationActions?.select(null)
+      }
+      for (const [key, retained] of retainedConversations) {
+        if (retained.selected.projectId && c.removedProjects?.includes(retained.selected.projectId)) forgetConversation(key)
       }
       for (const projectId of c.removedProjects ?? []) taskActions?.removeProject(projectId)
       const viewedProject = projectDetails.getSnapshot()
@@ -337,6 +393,8 @@ export function apply(ctx: Context): void {
       for (const dispose of stop) dispose()
       stop = organization ? [
         ctx.uiSession.registerMainSource(accountReference),
+        ctx.slots.inject('main.conversation.entry', () => ctx.slots.register({ name: 'main.conversation.entry',
+          locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, conversationReference: accountReference } }) }, OrganizationConversationEntry)),
         ctx.slots.inject('sidebar.tasks', () => ctx.slots.register({ name: 'sidebar.tasks', priority: -10,
           locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTaskList)),
         ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'tasks', priority: -10,
@@ -348,19 +406,6 @@ export function apply(ctx: Context): void {
     const unsubscribe = state.subscribe(update); update()
     return () => { unsubscribe(); for (const dispose of stop) dispose() }
   }, 'organization.task-navigation')
-  ctx.effect(() => {
-    let visible = false, stop: (() => void) | undefined
-    const update = () => {
-      const empty = state.getSnapshot().connection.mode === 'organization' && !accountReference.getSnapshot()
-      if (empty === visible) return
-      visible = empty; stop?.()
-      stop = empty ? ctx.slots.inject('main.conversation.entry', () => ctx.slots.register({ name: 'main.conversation.entry',
-        locale: 'organization', inject: bind }, OrganizationConversationEntry)) : undefined
-    }
-    const unsubscribeState = state.subscribe(update), unsubscribeReference = accountReference.subscribe(update)
-    update()
-    return () => { unsubscribeState(); unsubscribeReference(); stop?.() }
-  }, 'organization.conversation-entry')
   ctx.effect(() => {
     let closed = false, tail = Promise.resolve()
     const isClosed = () => closed

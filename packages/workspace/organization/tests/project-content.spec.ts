@@ -36,7 +36,7 @@ it('migrates a v17 project to empty context fields without changing its identity
   const h = await assignmentHarness(cleanup)
   const before = h.db.prepare('SELECT id,name,version FROM organization_projects WHERE id=?').get(h.query.projectId!)
   await h.close()
-  h.db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal; PRAGMA user_version=17')
+  h.db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=17')
   const db = openOrganizationDatabase(h.path, 5000)
   try {
     expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)

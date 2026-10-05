@@ -27,9 +27,10 @@ export const workgraphDefinitionSchema = z.object({
 export const workgraphSaveSchema = z.object({
   operationId: id<OperationId>(), organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>(),
   planId: id<OrganizationPlanId>(), expectedRevision: z.number().int().nonnegative(), definition: workgraphDefinitionSchema,
+  sharedContext: z.string().trim().min(1).optional(),
 }).strict()
 /** Creator-only deletion of the complete task plan at its observed revision. */
-export const workgraphDeleteSchema = workgraphSaveSchema.omit({ definition: true })
+export const workgraphDeleteSchema = workgraphSaveSchema.omit({ definition: true, sharedContext: true })
 /** Current creator and assignment eligibility without task text. */
 export const workgraphRemovalSchema = z.object({ global: z.boolean(), local: z.boolean(), revision: planRevisionSchema }).strict()
 /** Exact historical or latest full-definition read; always rechecks current root permission. */
@@ -76,6 +77,7 @@ export const workgraphTasksSchema = z.object({
 export const workgraphTaskViewSchema = workgraphDefinitionSchema.shape.tasks.element.extend({
   planId: id<OrganizationPlanId>(), revision: planRevisionSchema, phaseTitle: text,
   assignable: z.boolean(), hasUndisclosedPrerequisite: z.boolean(),
+  assignedToMe: z.boolean().optional(), hasTreeRequests: z.boolean().optional(),
 }).strict()
 /** Bounded transport page; the service applies byte and entry ceilings before delivery. */
 export const workgraphPageSchema = z.object({
@@ -92,4 +94,27 @@ export const workgraphBatchSchema = z.object({
   from: workgraphPageSchema.shape.cursor, cursor: workgraphPageSchema.shape.cursor,
   revision: z.number().int().nonnegative(),
   events: z.array(z.object({ revision: z.number().int().positive(), planId: id<OrganizationPlanId>() }).strict()),
+}).strict()
+
+/** Shared context and whole-tree requests select an already readable plan. */
+export const workgraphSharingReadSchema = workgraphGrantsSchema
+/** Durable request identity and optimistic decision version. */
+export const treeRequestSchema = z.object({
+  id: id<Branded<'OrganizationTreeRequestId'>>(), planId: id<OrganizationPlanId>(), membershipId: id<MembershipId>(),
+  state: z.enum(['pending', 'approved', 'rejected']), structureVersion: z.number().int().positive(),
+  version: z.number().int().positive(),
+}).strict()
+/** Creator decisions and context edits remain separate from execution authorization. */
+export const workgraphSharingCommandSchema = z.discriminatedUnion('kind', [
+  workgraphSharingReadSchema.extend({ kind: z.literal('edit-context'), operationId: id<OperationId>(),
+    expectedVersion: z.number().int().nonnegative(), sharedContext: z.string() }).strict(),
+  workgraphSharingReadSchema.extend({ kind: z.literal('request-tree'), operationId: id<OperationId>() }).strict(),
+  workgraphSharingReadSchema.extend({ kind: z.literal('decide-tree'), operationId: id<OperationId>(),
+    requestId: treeRequestSchema.shape.id, expectedVersion: z.number().int().positive(),
+    answer: z.enum(['approved', 'rejected']) }).strict(),
+])
+/** Latest shared background and requests visible to the creator or requesting employee. */
+export const workgraphSharingViewSchema = z.object({ sharedContext: z.string(), version: z.number().int().positive(),
+  canEdit: z.boolean(), fullTreeVisible: z.boolean(), canRequest: z.boolean(),
+  requests: z.array(treeRequestSchema.extend({ username: z.string() }).strict()),
 }).strict()

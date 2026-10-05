@@ -44,6 +44,7 @@ export function installProposal(ctx: Context, agent: Agent,
   ctx.effect(() => ctx.tools.register(defineTool({ name: 'workflow_propose',
     description: `Save the current clarified complex goal as an unapproved plan. ${planningInstructions} Keep the exact current revision when modifying. A subtree replacement keeps its root goal, scope, acceptance and resources unchanged. Saving invalidates previous approvals and execution qualifications; original approvers must approve new leaves. No task is assigned or started. Without edit access this saves a private suggestion only.`,
     parameters: {
+      sharedContext: { type: 'string', required: true, description: 'Shared task background distilled from the creator’s conversation, including goals, decisions, constraints and relevant resources. Used when the plan is first created; later edits belong to the creator.' },
       operationId: { type: 'string', required: true }, expectedRevision: { type: 'integer', required: true },
       definition: { type: 'object', required: true, additionalProperties: false, properties: {
         taskId: { type: 'string', required: true },

@@ -65,6 +65,37 @@ export function Workflow(props: WorkflowProps) {
     ...(view.snapshot.sessionId === null ? [] : [view.snapshot.sessionId]),
     ...(view.runs ?? []).filter(run => run.taskId === task.id).flatMap(run => run.sessions),
   ])]
+  const taskContent = task && definition && view && <>
+    {status !== undefined && <div className={css.taskProgress}>
+      <p>{t('blockers')}: {names(status.blockers)}</p>
+      {status.requiredChildren > 0 && <><p>{t('progress', { done: status.completedChildren, total: status.requiredChildren })}</p>
+        <progress className={css.progress} aria-label={t('progress', { done: status.completedChildren, total: status.requiredChildren })} value={status.completedChildren} max={status.requiredChildren} /></>}
+    </div>}
+    {draft === null ? <dl>
+      <dt>{t('scope')}</dt><dd>{task.scope}</dd><dt>{t('phase')}</dt><dd>{definition.phases.find(phase => phase.id === task.phaseId)?.title}</dd>
+      <dt>{t('prerequisites')}</dt><dd>{names(task.dependsOn)}</dd>
+      <dt>{t('acceptanceTitle')}</dt><dd><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul></dd>
+      <dt>{t('artifactsTitle')}</dt><dd>{task.artifacts.length === 0 && <span className={css.muted}>{t('none')}</span>}<ul className={css.fileList}>{task.artifacts.map((text, index) => <li key={index}>{text}</li>)}</ul></dd>
+      <dt>{t('cwd')}</dt><dd>{task.cwd ?? t('none')}</dd>
+    </dl> : <fieldset disabled={busy} className={css.editor}>
+      <label>{t('goal')}<input value={task.goal} onChange={(event) => { update({ goal: event.target.value }) }} /></label>
+      <label>{t('scope')}<textarea value={task.scope} onChange={(event) => { update({ scope: event.target.value }) }} /></label>
+      <label>{t('acceptance')}<textarea value={task.acceptance.join('\n')} onChange={(event) => { update({ acceptance: event.target.value.split('\n') }) }} /></label>
+      <label>{t('artifacts')}<textarea value={task.artifacts.join('\n')} onChange={(event) => { update({ artifacts: event.target.value === '' ? [] : event.target.value.split('\n') }) }} /></label>
+      <label>{t('cwd')}<input value={task.cwd ?? ''} onChange={(event) => { update({ cwd: event.target.value || null }) }} /></label>
+      <label>{t('phase')}<select value={task.phaseId} onChange={(event) => { update({ phaseId: event.target.value as PhaseId }) }}>
+        {definition.phases.map(phase => <option key={phase.id} value={phase.id}>{phase.title}</option>)}
+      </select></label>
+      {task.parentTaskId !== null && <label>{t('parent')}<select value={task.parentTaskId} onChange={(event) => { update({ parentTaskId: event.target.value as TaskId }) }}>
+        {definition.tasks.filter(item => item.id !== task.id).map(item =>
+          <option key={item.id} value={item.id}>{item.goal}</option>)}
+      </select></label>}
+      <label className={css.checkRow}><input type="checkbox" checked={task.required} disabled={task.parentTaskId === null} onChange={(event) => { update({ required: event.target.checked }) }} />{t('required')}</label>
+      <fieldset><legend>{t('prerequisites')}</legend>{definition.tasks.filter(item => item.id !== task.id).map(item => <label className={css.checkRow} key={item.id}>
+        <input type="checkbox" checked={task.dependsOn.includes(item.id)} onChange={(event) => { update({ dependsOn: event.target.checked ? [...task.dependsOn, item.id] : task.dependsOn.filter(id => id !== item.id) }) }} />{item.goal}
+      </label>)}</fieldset>
+    </fieldset>}
+  </>
   return <section className={css.taskPage} aria-label={t('plans')}>
     <div className={css.body}>
       <div className={css.toolbar}>
@@ -110,51 +141,35 @@ export function Workflow(props: WorkflowProps) {
             selected={taskId} onSelect={showTask} t={t}>
             {task !== undefined && detailsOpen && <TaskDetail taskId={task.id} title={task.goal}
               labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}
-              {...(status ? { status: { value: status.status, label: t(status.status) } } : {})}>
-              {status !== undefined && <div className={css.taskProgress}>
-                <p>{t('blockers')}: {names(status.blockers)}</p>
-                {status.requiredChildren > 0 && <><p>{t('progress', { done: status.completedChildren, total: status.requiredChildren })}</p>
-                  <progress className={css.progress} aria-label={t('progress', { done: status.completedChildren, total: status.requiredChildren })} value={status.completedChildren} max={status.requiredChildren} /></>}
-              </div>}
-              {draft === null ? <dl>
-                <dt>{t('scope')}</dt><dd>{task.scope}</dd><dt>{t('phase')}</dt><dd>{definition.phases.find(phase => phase.id === task.phaseId)?.title}</dd>
-                <dt>{t('prerequisites')}</dt><dd>{names(task.dependsOn)}</dd>
-                <dt>{t('acceptanceTitle')}</dt><dd><ul>{task.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul></dd>
-                <dt>{t('artifactsTitle')}</dt><dd>{task.artifacts.length === 0 && <span className={css.muted}>{t('none')}</span>}<ul className={css.fileList}>{task.artifacts.map((text, index) => <li key={index}>{text}</li>)}</ul></dd>
-                <dt>{t('cwd')}</dt><dd>{task.cwd ?? t('none')}</dd>
-              </dl> : <fieldset disabled={busy} className={css.editor}>
-                <label>{t('goal')}<input value={task.goal} onChange={(event) => { update({ goal: event.target.value }) }} /></label>
-                <label>{t('scope')}<textarea value={task.scope} onChange={(event) => { update({ scope: event.target.value }) }} /></label>
-                <label>{t('acceptance')}<textarea value={task.acceptance.join('\n')} onChange={(event) => { update({ acceptance: event.target.value.split('\n') }) }} /></label>
-                <label>{t('artifacts')}<textarea value={task.artifacts.join('\n')} onChange={(event) => { update({ artifacts: event.target.value === '' ? [] : event.target.value.split('\n') }) }} /></label>
-                <label>{t('cwd')}<input value={task.cwd ?? ''} onChange={(event) => { update({ cwd: event.target.value || null }) }} /></label>
-                <label>{t('phase')}<select value={task.phaseId} onChange={(event) => { update({ phaseId: event.target.value as PhaseId }) }}>
-                  {definition.phases.map(phase => <option key={phase.id} value={phase.id}>{phase.title}</option>)}
-                </select></label>
-                {task.parentTaskId !== null && <label>{t('parent')}<select value={task.parentTaskId} onChange={(event) => { update({ parentTaskId: event.target.value as TaskId }) }}>
-                  {definition.tasks.filter(item => item.id !== task.id).map(item =>
-                    <option key={item.id} value={item.id}>{item.goal}</option>)}
-                </select></label>}
-                <label className={css.checkRow}><input type="checkbox" checked={task.required} disabled={task.parentTaskId === null} onChange={(event) => { update({ required: event.target.checked }) }} />{t('required')}</label>
-                <fieldset><legend>{t('prerequisites')}</legend>{definition.tasks.filter(item => item.id !== task.id).map(item => <label className={css.checkRow} key={item.id}>
-                  <input type="checkbox" checked={task.dependsOn.includes(item.id)} onChange={(event) => { update({ dependsOn: event.target.checked ? [...task.dependsOn, item.id] : task.dependsOn.filter(id => id !== item.id) }) }} />{item.goal}
-                </label>)}</fieldset>
-              </fieldset>}
-              <section className={css.detailSection}><h4>{t('evidenceTitle')}</h4>
-                {(view.runs ?? []).filter(run => run.taskId === task.id).map(run => <div className={css.evidence} key={run.id}>
-                  <p>{t('revision', { revision: run.planRevision })} · {t(run.status)}</p>
-                  {run.evidence.map((evidence, index) => <div key={index}><p>{evidence.summary}</p>
-                    <ul>{evidence.files.map(file => <li key={file.path}>{file.path}: {file.sha256}</li>)}</ul>
-                  </div>)}
-                </div>)}
-                {!(view.runs ?? []).some(run => run.taskId === task.id && run.evidence.length) && <p className={css.hint}>{t('noEvidence')}</p>}
-                {overlappingArtifacts(definition.tasks, task).length > 0 && <p className={css.notice}>{t('overlap', { paths: overlappingArtifacts(definition.tasks, task).join(', ') })}</p>}
-              </section>
-              <section className={css.detailSection}><h4>{t('sessions')}</h4>
-                <div className={css.sessionLinks}>{linkedSessions.map(id => <Button key={id} variant="ghost" size="sm" icon={<IconNewChatOutlineRegular />} onClick={() => { props.openSession(id) }}>{sessions.byId[id]?.displayTitle ?? id}</Button>)}</div>
-                {linkedSessions.length === 0 && <p className={css.hint}>{t('noSessions')}</p>}
-              </section>
-            </TaskDetail>}
+              {...(status ? { status: { value: status.status, label: t(status.status) } } : {})}
+              metadata={[definition.phases.find(phase => phase.id === task.phaseId)?.title, t('revision', { revision: view.snapshot.revision })].filter(Boolean).join(' · ')}
+              sections={draft === null ? [
+                { id: 'overview', label: t('taskOverview'), content: <>
+                  {taskContent}
+                </> },
+                { id: 'evidence', label: t('evidenceTitle'), content: <>
+                  <section className={css.detailSection}><h4>{t('evidenceTitle')}</h4>
+                    {(view.runs ?? []).filter(run => run.taskId === task.id).map(run => <div className={css.evidence} key={run.id}>
+                      <p>{t('revision', { revision: run.planRevision })} · {t(run.status)}</p>
+                      {run.evidence.map((evidence, index) => <div key={index}><p className={css.prose}>{evidence.summary}</p>
+                        {evidence.files.map(file => <details className={css.evidenceFile} key={file.path}>
+                          <summary>{file.path}</summary><code>{file.sha256}</code>
+                        </details>)}
+                      </div>)}
+                    </div>)}
+                    {!(view.runs ?? []).some(run => run.taskId === task.id && run.evidence.length) && <p className={css.hint}>{t('noEvidence')}</p>}
+                    {overlappingArtifacts(definition.tasks, task).length > 0 && <p className={css.notice}>{t('overlap', { paths: overlappingArtifacts(definition.tasks, task).join(', ') })}</p>}
+                  </section>
+                </> },
+                { id: 'sessions', label: t('sessions'), content: <>
+                  <section className={css.detailSection}><h4>{t('sessions')}</h4>
+                    <div className={css.sessionLinks}>{linkedSessions.map(id => <Button key={id} variant="ghost" size="sm" icon={<IconNewChatOutlineRegular />} onClick={() => { props.openSession(id) }}>{sessions.byId[id]?.displayTitle ?? id}</Button>)}</div>
+                    {linkedSessions.length === 0 && <p className={css.hint}>{t('noSessions')}</p>}
+                  </section>
+                </> },
+              ] : [{ id: 'edit', label: t('edit'), content: <>
+                {taskContent}
+              </> }]} />}
           </TaskMindMap>
           <TaskStages phases={definition.phases.map((phase) => {
             const members = definition.tasks.filter(item => item.phaseId === phase.id)

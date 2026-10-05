@@ -1,19 +1,19 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
-import { IntegrationPanel } from './IntegrationPanel.tsx'
+import { TaskInspector } from './TaskInspector.tsx'
 import { Button, Modal, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OperationId, OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
-import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { TaskEditor } from './TaskEditor.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
 import { TaskCanvas } from './TaskCanvas.tsx'
+import { TaskSharing } from './TaskSharing.tsx'
 import { readTaskRequests } from './task-requests.ts'
 import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 
@@ -207,11 +207,15 @@ export function Workbench(props: OrganizationProps & {
     {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
-    {(currentPage?.items.length || draft) && <div className={taskWorkspaceStyles.body}><div className={taskWorkspaceStyles.workspace}>
-      <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}>
-        {detailTask && detailsOpen && <TaskDetail taskId={detailTask.id} title={detailTask.goal}
-          labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
-          {task && !draft && <>
+    {(page?.value.items.length || draft) && <div className={taskWorkspaceStyles.body}><div className={taskWorkspaceStyles.workspace}>
+      <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}
+        introduction={page?.value.items[0] && <TaskSharing key={`${c.principal?.accountId}:${page.value.items[0].planId}`} {...props}
+          projectId={props.project.id} planId={props.planId ?? page.value.items[0].planId} />}>
+        {task && !draft && detailsOpen && <TaskInspector key={task.id} {...props} task={task}
+          projectId={props.project.id} current={!!retainedTask}
+          onClose={() => { setDetailsOpen(false) }} onAssignmentRevision={setAssignmentRevision}
+          onExecute={() => { void run(() => openConversation(task)) }} executeDisabled={!writable || !props.selectConversation}
+          overview={<>
             <dl><dt>{t('taskScope')}</dt><dd>{task.scope}</dd>
               <dt>{t('phase')}</dt><dd>{task.phaseTitle}</dd>
               <dt>{t('dependencies')}</dt><dd>{names(task.dependsOn)}{task.hasUndisclosedPrerequisite && <p className={taskWorkspaceStyles.hint}>{t('hiddenPrerequisite')}</p>}</dd>
@@ -225,22 +229,26 @@ export function Workbench(props: OrganizationProps & {
                 {c.members.find(member => member.id === task.suggestedMembershipId)?.username ?? (task.suggestedMembershipId ? t('selectedMember') : t('noSuggestion'))} · {t(task.assignable ? 'activeMember' : 'unassignable')}</p>
               <p>{t(task.required ? 'requiredTask' : 'optionalTask')}</p>
               <details><summary>{t('taskIdentifiers')}</summary><p>{t('planId')}: {task.planId}</p><p>{t('taskId')}: {task.id}</p></details>
-              <div className={css.actions}><Button disabled={!writable || !props.selectConversation} onClick={() => { void run(() => openConversation(task)) }}>{t('executeInConversation')}</Button>
-                <Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
+              <div className={css.actions}><Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
                 <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
               </div>
             </section>
-          </>}
-          {task && !draft && <section className={taskWorkspaceStyles.detailSection}><IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} /></section>}
-          {task && !draft && pending.filter(item => item.assignment.taskId === task.id).map(item =>
-            <section key={item.request.id} className={taskWorkspaceStyles.detailSection}>
-              <p role="status">{t(item.request.kind === 'accept-delivery' ? 'review-pending' : 'taskActionNeeded')}</p>
-              {item.request.kind !== 'accept-delivery' && item.request.kind !== 'accept-assignment'
+            {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
+              <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
+              {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
+              <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
+              <ul>{context.result.snapshot.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
+            </section>}
+          </>} requests={<>
+            {pending.filter(item => item.assignment.taskId === task.id).map(item =>
+              <section key={item.request.id} className={taskWorkspaceStyles.detailSection}>
+                <p role="status">{t(item.request.kind === 'accept-delivery' ? 'review-pending' : 'taskActionNeeded')}</p>
+                {item.request.kind !== 'accept-delivery' && item.request.kind !== 'accept-assignment'
               && <ExecutionHumanRequest {...props} request={item.request} assignment={item.assignment} refresh={loadRequests} />}
-            </section>)}
-          {retainedTask && !draft && <section className={taskWorkspaceStyles.detailSection}><AssignmentPanel key={selected} {...props}
-            task={retainedTask} projectId={props.project.id} current={!!task}
-            {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} onAssignmentRevision={setAssignmentRevision} /></section>}
+              </section>)}
+          </>} />}
+        {draft && detailTask && detailsOpen && <TaskDetail taskId={detailTask.id} title={detailTask.goal}
+          labels={{ taskDetail: t('taskDraft'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
           {draft && <section className={css.card}>
             <h4>{t('taskDraft')}</h4>
             {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}
@@ -253,12 +261,6 @@ export function Workbench(props: OrganizationProps & {
                 save={() => { void run(save) }} />
             </>}
             <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('discardDraft')}</Button>
-          </section>}
-          {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
-            <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
-            {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
-            <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
-            <ul>{context.result.snapshot.acceptance.map((text, index) => <li key={index}>{text}</li>)}</ul>
           </section>}
         </TaskDetail>}
       </TaskCanvas>

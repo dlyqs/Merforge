@@ -9,5 +9,5 @@ import type {} from '../contract/slots.ts'
  */
 export function ConversationPanel({ renderSlot }: PropsRuntime<'main'> & PropsRenderSlots<'main.conversation' | 'main.conversation.entry'>) {
   const conversation = renderSlot('main.conversation', {})
-  return renderSlot('main.conversation.entry', {}, { fallback: conversation })
+  return renderSlot('main.conversation.entry', { conversationContent: conversation }, { fallback: conversation })
 }

@@ -1,13 +1,13 @@
 /** Explicit per-leaf review and batch confirmation over the native durable approval journal. */
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
 import { workgraphError } from './workgraph-view.ts'
-import css from './Organization.module.css'
+import css from './TaskInspector.module.css'
 
 type Proposal = NonNullable<ConversationResult['goals'][number]['proposal']>
 /**
@@ -61,26 +61,33 @@ export function AssignmentBatch(props: OrganizationProps & { proposal: Proposal;
     } catch (e) { if (alive.current && currentIdentity.current === identity) setNotice(t(workgraphError(e))) }
     finally { lock.current = false; if (alive.current) { setBusy(false); setConfirmed(false); setReviews(undefined) } }
   }
-  return <section className={css.card} aria-busy={busy}>
-    <h4>{t('conversationBatchTitle')}</h4><p>{t('conversationBatchHint')}</p>
+  return <section className={css.panel} aria-busy={busy}>
+    <h4>{t('conversationBatchTitle')}</h4><p className={css.hint}>{t('conversationBatchHint')}</p>
     {leaves.map((task) => {
       const outcome = batch?.items.find(i => i.command.taskId === task.id)
-      return <article key={task.id}>
-        <label><input type="checkbox" disabled={!ready || busy || !task.suggestedMembershipId
-          || !!outcome && ['confirmed', 'unknown'].includes(outcome.state)} checked={selected.includes(task.id)} onChange={(e) => {
-          setSelected(e.target.checked ? [...selected, task.id] : selected.filter(id => id !== task.id))
+      return <article className={css.record} key={task.id}>
+        <Checkbox label={task.goal} disabled={!ready || busy || !task.suggestedMembershipId
+          || !!outcome && ['confirmed', 'unknown'].includes(outcome.state)} checked={selected.includes(task.id)} onChange={(checked) => {
+          setSelected(checked ? [...selected, task.id] : selected.filter(id => id !== task.id))
           setReviews(undefined); setConfirmed(false)
-        }} />{task.goal}</label>
-        <p>{t('taskVersion', { revision: proposal.revision })} · {t('assignee')}: {task.suggestedMembershipId ?? t('chooseMember')}</p>
-        <p>{task.scope}</p><ul>{task.acceptance.map((a, i) => <li key={i}>{a}</li>)}</ul>
-        <p>{t('taskArtifacts')}: {task.artifacts.join(', ')}</p><p>{t('conversationBatchNoExecution')}</p>
-        {outcome && <p role="status">{t(`conversationBatch-${outcome.state}`)}</p>}
+        }} />
+        <div className={css.heading}><p className={css.hint}>{t('assignee')}: {c.members.find(member => member.id === task.suggestedMembershipId)?.username
+          ?? t(task.suggestedMembershipId ? 'selectedMember' : 'chooseMember')}</p>
+        {outcome && <span className={css.status} data-ready={outcome.state === 'confirmed'} role="status">{t(`conversationBatch-${outcome.state}`)}</span>}</div>
+        <details className={css.advanced}><summary>{t('taskAcceptance')}</summary><dl>
+          <dt>{t('taskScope')}</dt><dd>{task.scope}</dd>
+          <dt>{t('taskAcceptance')}</dt><dd><ul>{task.acceptance.map((a, i) => <li key={i}>{a}</li>)}</ul></dd>
+          <dt>{t('taskArtifacts')}</dt><dd>{task.artifacts.join(' · ') || t('none')}</dd>
+        </dl></details>
       </article>
     })}
-    {notice && <p role="status">{notice}</p>}
-    <Button disabled={!ready || busy || !selected.length || !!c.pendingOperation} onClick={() => { void review() }}>{t('reviewApprovalAccess')}</Button>
-    <label><input type="checkbox" disabled={!ready || busy || reviews?.generation !== c.generation || !reviews.tasks.length}
-      checked={confirmed} onChange={(e) => { setConfirmed(e.target.checked) }} />{t('confirmApproval', { revision: proposal.revision })}</label>
-    <Button disabled={!ready || busy || !confirmed || !!c.pendingOperation} onClick={() => { void approve() }}>{t('conversationBatchConfirm')}</Button>
+    <p className={css.hint}>{t('conversationBatchNoExecution')}</p>
+    {notice && <p className={css.notice} role="status">{notice}</p>}
+    <div className={css.actions}><Button variant="outline" disabled={!ready || busy || !selected.length || !!c.pendingOperation}
+      onClick={() => { void review() }}>{t('reviewApprovalAccess')}</Button></div>
+    <Checkbox label={t('confirmApproval', { revision: proposal.revision })} disabled={!ready || busy || reviews?.generation !== c.generation || !reviews.tasks.length}
+      checked={confirmed} onChange={setConfirmed} />
+    <div className={css.footer}><Button variant="primary" disabled={!ready || busy || !confirmed || !!c.pendingOperation}
+      onClick={() => { void approve() }}>{t('conversationBatchConfirm')}</Button></div>
   </section>
 }

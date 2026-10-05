@@ -35,6 +35,8 @@ import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema, deletedProjectsSchema } from './resource-schema.ts'
+import { authorizeSharing, readSharing, changeSharing } from './workgraph-sharing.ts'
+import { workgraphSharingReadSchema, workgraphSharingCommandSchema, workgraphSharingViewSchema } from './workgraph-schema.ts'
 import { workgraphDeleteSchema, workgraphRemovalSchema, workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
 import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
 import { visibleTasks, setTaskGrant, taskGrants, selectedPlan, visibleWorkgraphEvents } from './workgraph-access.ts'
@@ -161,6 +163,9 @@ export class OrganizationService extends Service {
         if (event?.kind === 'delete-plan' && receipt.planId
           && db.prepare('SELECT createdBy FROM organization_plans WHERE id=?').get(receipt.planId)?.createdBy !== current.membershipId) throw new OrganizationError('forbidden')
         if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
+        if ((event?.kind === 'edit-context' || event?.kind === 'request-tree' || event?.kind === 'decide-tree') && receipt.projectId && receipt.planId)
+          authorizeSharing(db, current, { organizationId: receipt.organizationId, projectId: receipt.projectId, planId: receipt.planId,
+            ...(event.kind === 'request-tree' ? {} : { kind: event.kind }) })
         if (receipt.integration) {
           const r = integrationRecordSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM organization_integrations WHERE id=?').get(receipt.integration.integrationId)?.data)))
           const view = integrationView(db, current, integrationReadSchema.parse({ organizationId: r.organizationId, projectId: r.projectId,
@@ -1082,7 +1087,7 @@ export class OrganizationService extends Service {
   readPlanningPlan(token: LoginToken, input: unknown, deliver: (value: z.output<typeof planningPlanViewSchema>) => void): Promise<void> {
     return this.enqueue('planning-plan', (db) => {
       const query = parse(planningPlanReadSchema, input)
-      deliver(transaction(db, () => readPlanningPlan(db, this.principal(db, token, query.organizationId), query)))
+      deliver(transaction(db, () => this.boundedWorkgraph(readPlanningPlan(db, this.principal(db, token, query.organizationId), query))))
     })
   }
 
@@ -1286,6 +1291,51 @@ export class OrganizationService extends Service {
           lease: row ? leaseSchema.parse(row) : null })
       })
       deliver(value)
+    })
+  }
+
+  /**
+   * Read shared background and current whole-tree requests under task visibility.
+   * @param token - Current organization credential.
+   * @param input - Exact project and plan selector.
+   * @param deliver - Synchronous authorized delivery.
+   * @returns Completion after bounded current-authority delivery.
+   */
+  readPlanSharing(token: LoginToken, input: unknown, deliver: (view: import('zod').z.output<typeof workgraphSharingViewSchema>) => void): Promise<void> {
+    const query = parse(workgraphSharingReadSchema, input)
+    return this.enqueue('read-plan-sharing', (db) => {
+      const view = transaction(db, () => this.boundedWorkgraph(readSharing(db, this.principal(db, token, query.organizationId), query)))
+      deliver(view)
+    })
+  }
+
+  /**
+   * Edit creator background or request and decide read-only access to the full tree.
+   * @param token - Current human actor credential.
+   * @param input - Fixed sharing command with optimistic version and operation identity.
+   * @returns Atomic metadata receipt; replay requires current task access.
+   */
+  sharePlan(token: LoginToken, input: unknown): Promise<Receipt> {
+    const command = parse(workgraphSharingCommandSchema, input)
+    this.boundedWorkgraph(command)
+    return this.enqueue('share-plan', async (db) => {
+      const principal = this.principal(db, token, command.organizationId)
+      const scope = `account:${principal.accountId}`
+      const fingerprint = await requestFingerprint(scope, command, false)
+      const result = transaction(db, () => {
+        const current = this.principal(db, token, command.organizationId)
+        authorizeSharing(db, current, command)
+        const previous = this.previous(db, scope, command.operationId, fingerprint)
+        if (previous) return { receipt: previous, committed: false }
+        const receipt = this.mutate(db, scope, command, command.kind, current.accountId, command.organizationId,
+          fingerprint, (revision) => {
+            changeSharing(db, current, command, revision, this.config.workgraphMaxGrants)
+            this.boundedWorkgraph(readSharing(db, current, command))
+            return { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId }
+          })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
     })
   }
 

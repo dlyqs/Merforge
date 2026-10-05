@@ -42,7 +42,7 @@ it('refuses non-creators and stale versions, revokes all readers and reconciles 
 it('backfills v16 creators from immutable creation events and refuses corrupted deletion ownership', async () => {
   const h = await assignmentHarness(cleanup)
   await h.close()
-  h.db.exec('DROP TABLE organization_project_lifecycle; PRAGMA user_version=16')
+  h.db.exec('DROP TABLE organization_project_lifecycle; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=16')
   const migrated = openOrganizationDatabase(h.path, 5000)
   try {
     expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)

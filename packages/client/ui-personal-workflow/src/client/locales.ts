@@ -1,5 +1,6 @@
 /** Task plan labels owned by the Client locale. */
 export const zh = {
+  taskOverview: '概览',
   hideDetails: '收起任务详情',
   fullscreen: '全屏查看', exitFullscreen: '退出全屏',
   mindMap: '任务导图', mapCount: '{count} 个节点', mapControls: '导图视图控制',
@@ -51,6 +52,7 @@ export const zh = {
 export type WorkflowKey = keyof typeof zh
 /** Complete English task plan copy. */
 export const en = {
+  taskOverview: 'Overview',
   hideDetails: 'Hide task details',
   fullscreen: 'Full screen', exitFullscreen: 'Exit full screen',
   mindMap: 'Task map', mapCount: '{count} nodes', mapControls: 'Map view controls',

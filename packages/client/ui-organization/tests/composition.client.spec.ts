@@ -91,14 +91,14 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(mock.remote.session.create).not.toHaveBeenCalled()
     expect(selectPanel).toHaveBeenLastCalledWith(null)
     expect(app.ctx.slots.entries('main').filter(e => e.options.key === 'conversation')[0]?.component).toBe(ConversationPanel)
-    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
+    expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toMatch(/^conversation-draft:/)
     const sidebar = app.ctx.slots.entries('sidebar.personal').find(entry => entry.component === OrganizationSidebar)!
     const bind = sidebar.inject as (actions: BoundActions<ReturnType<typeof createConversationStore>>) => OrganizationInjected
     const actions = createConversationStore().create().actions
     const injected = bind(actions)
     await injected.selectConversation!(report.owner)
-    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(1)
     const binding = app.ctx.sessions.binding(report.sharedSessionId!)!
     await vi.waitFor(() => { expect(binding.session.getSnapshot().openError).toBeNull(); expect(binding.session.getSnapshot().openState).toBe('open') })
     expect(binding.session.getSnapshot().sessionId).toBe(report.sharedSessionId!)
@@ -144,11 +144,46 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(() => secondReference.binding).toThrow('released')
     const priorGeneration = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'controllerOperation' })
     await injected.selectConversation!(report.owner)
-    expect(() => priorGeneration.binding).toThrow('released')
+    expect(priorGeneration.binding).toBe(binding)
     const replacement = app.ctx.sessions.binding(report.sharedSessionId!)
-    expect(replacement).not.toBe(binding)
+    expect(replacement).toBe(binding)
     priorGeneration.release()
     expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(replacement)
+    app.ctx.layout.selectPanel(brandString('tasks'))
+    injected.beginConversationNavigation?.()
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId)
+    injected.showConversationStart?.()
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(binding)
+    await injected.selectConversation!(report.owner)
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId)
+    expect(nativeConversation.mock.calls.length).toBe(nativeCalls)
+    const other = { ...report, sharedSessionId: brandString<SessionId>(`session-${randomUUID()}`),
+      attachmentId: brandString<NonNullable<typeof report.attachmentId>>(randomUUID()),
+      owner: { ...report.owner, conversationId: brandString<typeof report.owner.conversationId>(randomUUID()) } }
+    nativeConversation.mockImplementation(async request => ({ generation: 2,
+      result: request.conversationId === other.owner.conversationId ? other : report }))
+    await injected.selectConversation!(other.owner)
+    expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBe(binding)
+    expect(app.ctx.sessions.retainInfo(report.sharedSessionId!).getSnapshot().retainedBy.mainView).toBeUndefined()
+    expect(app.ctx.sessions.retainInfo(report.sharedSessionId!).getSnapshot().retainedBy.organizationConversation).toBe(1)
+    expect(app.ctx.sessions.binding(other.sharedSessionId)).toBeDefined()
+    await injected.selectConversation!(report.owner)
+    expect(app.ctx.sessions.binding(other.sharedSessionId)).toBeDefined()
+    expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'detach')).toHaveLength(0)
+    const delayed = { ...other, sharedSessionId: brandString<SessionId>(`session-${randomUUID()}`),
+      attachmentId: brandString<NonNullable<typeof report.attachmentId>>(randomUUID()),
+      owner: { ...report.owner, conversationId: brandString<typeof report.owner.conversationId>(randomUUID()) } }
+    let resolveAttachment: ((reply: Awaited<ReturnType<OrganizationDesktopBridge['conversation']>>) => void) | undefined
+    nativeConversation.mockImplementation(request => request.kind === 'attach' && request.conversationId === delayed.owner.conversationId
+      ? new Promise((resolve) => { resolveAttachment = resolve }) : Promise.resolve({ generation: 2, result: report }))
+    const opening = injected.selectConversation!(delayed.owner)
+    await injected.selectConversation!(other.owner)
+    resolveAttachment?.({ generation: 2, result: delayed })
+    await expect(opening).rejects.toThrow('superseded')
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(other.sharedSessionId)
+    expect(app.ctx.sessions.binding(delayed.sharedSessionId)).toBeUndefined()
+    expect(nativeConversation).toHaveBeenCalledWith(expect.objectContaining({ kind: 'detach', attachmentId: delayed.attachmentId }))
+    await injected.selectConversation!(report.owner)
     const backendId = brandString<SessionId>(`session-${randomUUID()}`)
     mock.remote.session.selectModel.mockResolvedValue(ok({ selected: { backend: 'codex', provider: 'codex', model: 'native-test' }, sessionId: backendId }))
     nativeConversation.mockImplementation(async request => ({ generation: 1,
@@ -169,7 +204,7 @@ it('routes new and recent conversation navigation to the organization and replac
     await vi.waitFor(() => { expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeDefined() })
     expect(mock.remote.session.prompt.mock.calls.length).toBe(prompts)
     injected.showConversationStart?.()
-    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(1)
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toMatch(/^conversation-draft:/)
     const beforeDraft = nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open').length
     for (let index = 0; index < 3; index++) {
@@ -183,9 +218,9 @@ it('routes new and recent conversation navigation to the organization and replac
     mock.remote.commands.list.mockResolvedValue(ok([]))
     mock.remote.skills.list.mockResolvedValue(ok({ skills: [] }))
     const input = app.ctx.conversation.input.for(draftBinding.ctx)
-    input.actions.setDraft('First submitted message')
+    input.setDraft('First submitted message')
     expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open')).toHaveLength(beforeDraft)
-    input.actions.submit()
+    input.submit()
     await vi.waitFor(() => { expect(mock.remote.session.prompt.mock.calls.at(-1)?.[0]).toMatchObject({
       sessionId: report.sharedSessionId, content: [{ type: 'text', text: 'First submitted message' }],
     }) })

@@ -17,6 +17,7 @@ import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-o
 import { projectCommandSchema, grantCommandSchema, projectViewSchema, deletedProjectsSchema } from '@deepseek-ai/dsh-organization/resources'
 import { PlanRemovals } from './plan-removals.ts'
 import { ProjectRemovals } from './project-removals.ts'
+import { workgraphSharingCommandSchema, workgraphSharingReadSchema, workgraphSharingViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import { workgraphDeleteSchema, workgraphRemovalSchema, workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
@@ -691,6 +692,14 @@ export class OrganizationConnection {
           return { generation: this.generation }
         }
         case 'workgraph-delete': return await this.mutate(workgraphDeleteSchema.parse(action.request), undefined, 'delete')
+        case 'workgraph-share': return await this.mutate(workgraphSharingCommandSchema.parse(action.request), undefined, 'share')
+        case 'workgraph-sharing': {
+          const query = workgraphSharingReadSchema.parse(action.request)
+          this.assertOrganization(query.organizationId)
+          this.assertProjectVisible(query.projectId)
+          const sharing = workgraphSharingViewSchema.parse(await this.request('/workgraph/sharing', query, generation))
+          return { generation, sharing }
+        }
         case 'workgraph-save': return await this.mutate(workgraphSaveSchema.parse(action.request), undefined, 'save')
         case 'workgraph-grant': return await this.mutate(workgraphGrantSchema.parse(action.request), undefined, 'grant')
         case 'workgraph-read':
@@ -818,11 +827,11 @@ export class OrganizationConnection {
     return this.mutate(input, undefined, 'integration')
   }
 
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'delete' | 'integration' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'share' | 'delete' | 'integration' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = workgraph === 'integration' ? integrationCommandSchema.parse(input) : workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
+    const command = workgraph === 'share' ? workgraphSharingCommandSchema.parse(input) : workgraph === 'integration' ? integrationCommandSchema.parse(input) : workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
       : workgraph === 'participant' ? participantCommandSchema.parse(input)
         : workgraph === 'device' ? deviceCommandSchema.parse(input)
           : workgraph === 'delete' ? workgraphDeleteSchema.parse(input) : workgraph === 'save' ? workgraphSaveSchema.parse(input)

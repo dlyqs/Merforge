@@ -40,7 +40,9 @@ export function readPlanningPlan(db: DatabaseSync, principal: Principal,
     .get(plan.id, query.taskId, principal.membershipId ?? null, plan.structureVersion)
   const projectWrite = !!db.prepare('SELECT 1 FROM resource_grants WHERE projectId=? AND membershipId=? AND canWrite=1')
     .get(query.projectId, principal.membershipId ?? null)
-  return planningPlanViewSchema.parse({ version: { ...version, definition: { taskId: query.taskId, tasks,
+  const sharedContext = db.prepare('SELECT sharedContext FROM plan_contexts WHERE planId=?').get(plan.id)?.sharedContext
+  if (typeof sharedContext !== 'string') throw new OrganizationError('incompatible-store')
+  return planningPlanViewSchema.parse({ sharedContext, version: { ...version, definition: { taskId: query.taskId, tasks,
     phases: version.definition.phases.filter(p => tasks.some(t => t.phaseId === p.id)) } },
   canEdit: canEdit && (query.taskId !== plan.rootTaskId || projectWrite), structuralEdit: true,
   invalidatesQualifications: true, requiresOriginalApproval: true })

@@ -10,7 +10,7 @@
 
 模型配置引用来自当前 Agent 的显式 backend/provider/model/effort；工具与方法引用来自当前 Bot 的 allowedTools/allowedSkills 和托管方法版本。方法文本、有效设置与引用随每次实际用户输入进入普通 user/message 日志；不保存密钥。粒度仅影响建议。执行方式和停止位置仍由现有 ClaimTaskRequest 的 `authorization.mode` / `stopPhaseId`、预算和准确任务版本提供，缺少真人授权不产生执行 Spec。规划默认停止于未批准计划；选择自动识别不选择自动执行。
 
-组织覆盖保存在 `organization_conversation` version 1 本机域，按 server/account/organization 保存 enabled、granularity 与 revision。组织会话使用普通 Session Controller、标准 preset、模型提供方和工具；模型选择、附件、逐字输出、斜杠命令、队列编辑及本地执行沿用普通会话链路。native attach 在线授权后将历史一次性导入持久 sharedSessionId，保留原账号归属。detach、窗口关闭、身份或权限失效取消并排空普通 Agent。账号访问策略保护普通 API 的精确读取与操作，并从个人目录隐藏组织会话及派生会话。共享任务写入继续由组织权威服务核验。
+组织覆盖保存在 `organization_conversation` version 1 本机域，按 server/account/organization 保存 enabled、granularity 与 revision。组织会话使用普通 Session Controller、标准 preset、模型提供方和工具；模型选择、附件、逐字输出、斜杠命令、队列编辑及本地执行沿用普通会话链路。native attach 在线授权后将历史一次性导入持久 sharedSessionId，保留原账号归属。已打开对话的 attachment 与 Controller binding 由账号生命周期持有；切换任务、项目或其它对话不停止 Agent，返回时复用同一绑定。detach、窗口关闭、身份或权限失效取消并排空普通 Agent。账号访问策略保护普通 API 的精确读取与操作，并从个人目录隐藏组织会话及派生会话。共享任务写入继续由组织权威服务核验。
 
 组织项目对话也读取本机 `forceDecomposition` 和 testing revision，并随 `organization/planning-input` 与模型上下文保存。未选任务的新目标不能走 simple 路由或直接执行，提案至少包含两个必要子任务；关闭组织规划开关不绕过测试设置。已选或已分配任务继续执行。项目与通知的内容 generation 刷新保留账号 attachment、当前会话与侧栏记录，只有账号生命周期或权限失效才取消；有限目录查询完成最终在线复核后再清理请求。
 
@@ -46,6 +46,10 @@
 旧式未接入普通会话的有限规划服务只允许澄清、授权查询、评估与草案工具。其 `organization.Config.planning` 验证模型目的地、许可寿命、请求/字节/时长限额；SQLite 的 planning_grants、planning_permits、planning_events 保存资格、累积用量及事件。该服务的每次 HTTP 请求及重试独立核算许可，未知已发调用先查回执，取消或失权拒绝新增请求并排空已拥有调用。普通 Desktop 组织对话直接复用普通 API/Codex 提供方和执行能力；组织草案写入、分配、验收仍由当前组织权限校验，不通过这条旧规划传输发送用户消息。`save-planning-draft` 不要求旧模型 grant 或 eligible；新计划仍要求 project write，已有计划及子树仍要求对应 edit。SQLite v16 将 planning_events 的账号和项目直接关联到账号、项目及审计事件，升级保留原资格、累计用量、计划关联和回执。
 
 组织对话保存本机输入意图与绑定，组织权威保存共享业务操作回执，两者分步恢复。批量确认逐项使用原子固定动作，各项发送前保存 operationId，呈现成功/冲突/未确认；不承诺跨项事务。未知分配只核对回执。缺目标负责人 read 时单独明确补 grant，且必须有 grant 管理权；人员建议不自动授权、下发或委托。
+
+## 共享任务背景
+
+组织自动提案要求 `sharedContext` 总结创建者对话中的动机、整体目标、决策、约束与资源，供没有原对话记录的执行人使用。背景初次随提案保存，后续仅原创建者编辑；当前节点读者都能查看。选择节点执行时，普通 pre-step 重新读取最新背景，随 `organization/planning-input` 和 user/message 记录并传给模型，员工无需查看完整树即可获取背景。背景版本独立于任务定义，编辑背景不会让分配重新审批。完整树申请、创建者审批和只读授权由 [WorkGraph](organization-workgraph.md) 拥有。
 
 ## 子树修改与资格失效
 

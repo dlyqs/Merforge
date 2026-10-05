@@ -1,33 +1,51 @@
 /** Shared task details and phase navigation with caller-owned data and localized labels. */
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './Button.tsx'
+import { SegmentedTabs } from './SegmentedTabs.tsx'
 import { IconCloseOutlineRegular } from './icons/index.tsx'
 import css from './TaskWorkspace.module.css'
 
 /**
- * Render dismissible details inside a task canvas and reset scrolling when selection changes.
- * @param props - Selected task, optional status, localized chrome and account-owned controls.
+ * Keep task identity and optional section navigation above an independently scrolling body.
+ * Sections remain mounted when hidden so switching views preserves unfinished forms.
+ * @param props - Selected task, localized chrome, optional sections and account-owned controls.
  * @returns Task detail surface.
  */
 export function TaskDetail(props: {
   taskId: string
   title: string
   status?: { value: string; label: string }
+  metadata?: string
   labels: { taskDetail: string; hideDetails: string }
   onClose: () => void
-  children: ReactNode
+  children?: ReactNode
+  sections?: readonly [{ id: string; label: string; content: ReactNode }, ...{ id: string; label: string; content: ReactNode }[]]
 }) {
-  const detail = useRef<HTMLElement>(null)
-  useEffect(() => { if (detail.current) detail.current.scrollTop = 0 }, [props.taskId])
-  return <section ref={detail} className={css.detail} aria-label={props.labels.taskDetail}>
-    <div className={css.detailToolbar}><span className={css.eyebrow}>{props.labels.taskDetail}</span>
+  const detail = useRef<HTMLDivElement>(null), id = useId()
+  const [selection, setSelection] = useState<{ taskId: string; section: string }>()
+  const section = selection?.taskId === props.taskId && props.sections?.some(item => item.id === selection.section)
+    ? selection.section : props.sections?.[0].id
+  useEffect(() => { if (detail.current) detail.current.scrollTop = 0 }, [props.taskId, section])
+  return <section className={css.detail} aria-label={props.labels.taskDetail}>
+    <header className={css.detailHeader}><div className={css.detailToolbar}><span className={css.eyebrow}>{props.labels.taskDetail}</span>
       <Button size="sm" icon={<IconCloseOutlineRegular />} aria-label={props.labels.hideDetails} onClick={props.onClose} />
     </div>
     <div className={css.detailHeading}><h3>{props.title}</h3>
       {props.status && <span className={css.status} data-status={props.status.value}>{props.status.label}</span>}
+      {props.metadata && <p className={css.hint}>{props.metadata}</p>}
     </div>
-    {props.children}
+    {props.sections && section && <SegmentedTabs className={css.detailTabs} label={props.labels.taskDetail} value={section}
+      items={props.sections.map(item => ({ value: item.id, label: item.label, id: `${id}-${item.id}-tab`, panelId: `${id}-${item.id}-panel` })) as [
+        { value: string; label: string; id: string; panelId: string }, ...{ value: string; label: string; id: string; panelId: string }[],
+      ]}
+      onChange={(value) => { setSelection({ taskId: props.taskId, section: value }) }} />}
+    </header>
+    <div ref={detail} className={css.detailContent}>
+      {props.children}
+      {props.sections?.map(item => <div key={item.id} id={`${id}-${item.id}-panel`} role="tabpanel"
+        aria-labelledby={`${id}-${item.id}-tab`} tabIndex={0} hidden={section !== item.id}>{item.content}</div>)}
+    </div>
   </section>
 }
 

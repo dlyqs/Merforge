@@ -33,12 +33,14 @@ export const planningDraftSchema = base.extend({ kind: z.literal('save-planning-
   goalId: id<Branded<'OrganizationConversationGoalId'>>(), assessmentId: id<OperationId>(), settingsRevision: integer,
   planId: workgraphSaveSchema.shape.planId, expectedRevision: workgraphSaveSchema.shape.expectedRevision,
   definition: workgraphDefinitionSchema,
+  sharedContext: workgraphSaveSchema.shape.sharedContext,
 }).strict()
 /** Current subtree read is separately authorized and carries no mutation intent. */
 export const planningPlanReadSchema = planningReadSchema.extend({ kind: z.literal('read-planning-plan'),
   planId: workgraphSaveSchema.shape.planId, taskId: workgraphDefinitionSchema.shape.taskId }).strict()
 /** Authorized subtree plus impact information, without hidden sibling identifiers or content. */
 export const planningPlanViewSchema = z.object({ version: workgraphVersionSchema, canEdit: z.boolean(),
+  sharedContext: z.string().default(''),
   structuralEdit: z.boolean(), invalidatesQualifications: z.literal(true),
   requiresOriginalApproval: z.literal(true) }).strict()
 /** Closed planning command set used only by the private native planning channel. */

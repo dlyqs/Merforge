@@ -54,6 +54,8 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
   const now = covered(current.definition, access)
   const then = covered(version.definition, access)
   const visible = new Set([...now].filter(id => then.has(id)))
+  const hasTreeRequests = principal.membershipId === plan.createdBy && !!db.prepare("SELECT 1 FROM tree_requests WHERE planId=? AND structureVersion=? AND state='pending'").get(plan.id, plan.structureVersion)
+  const assigned = new Set(db.prepare("SELECT taskId FROM task_assignments WHERE planId=? AND assigneeId=? AND planRevision=? AND state IN ('pending','accepted')").all(plan.id, principal.membershipId ?? null, plan.currentRevision).map(row => String(row.taskId)))
   const phases = new Map(version.definition.phases.map(phase => [phase.id, phase.title]))
   return version.definition.tasks.filter(task => visible.has(task.id)).map((task) => {
     const phaseTitle = phases.get(task.phaseId)
@@ -61,7 +63,8 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
     const member = task.suggestedMembershipId === null ? undefined : db.prepare(`SELECT m.enabled,a.enabled AS accountEnabled
       FROM memberships m JOIN accounts a ON a.id=m.accountId WHERE m.id=? AND m.organizationId=?`)
       .get(task.suggestedMembershipId, principal.organizationId ?? null)
-    return { ...task, parentTaskId: task.parentTaskId !== null && visible.has(task.parentTaskId) ? task.parentTaskId : null,
+    return { ...task, assignedToMe: assigned.has(task.id), hasTreeRequests: hasTreeRequests && task.id === plan.rootTaskId,
+      parentTaskId: task.parentTaskId !== null && visible.has(task.parentTaskId) ? task.parentTaskId : null,
       dependsOn: task.dependsOn.filter(id => visible.has(id)),
       hasUndisclosedPrerequisite: task.dependsOn.some(id => !visible.has(id)),
       phaseTitle,
@@ -156,6 +159,8 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
     const { eventRevision, ...head } = row
     const plan = workgraphPlanSchema.parse(head)
     const stored = db.prepare('SELECT revision FROM plan_revisions WHERE planId=? AND eventRevision=?').get(plan.id, Number(eventRevision))
+    if (!stored && ['edit-context', 'request-tree', 'decide-tree'].includes(String(db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(Number(eventRevision))?.kind)))
+      return project(db, principal, plan, plan.currentRevision).length ? [{ revision: Number(eventRevision), planId: plan.id }] : []
     if (!stored) return db.prepare('SELECT 1 FROM deleted_plans WHERE planId=? AND revision=?').get(plan.id, Number(eventRevision))
       && grants(db, principal, plan).length ? [{ revision: Number(eventRevision), planId: plan.id }] : []
     const revision = Number(stored.revision)

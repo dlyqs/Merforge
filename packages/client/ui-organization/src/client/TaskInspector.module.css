@@ -1,0 +1,55 @@
+.container { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.container[hidden] { display: none; }
+.pane { display: flex; flex-direction: column; gap: 20px; min-width: 0; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 1.65; }
+.pane :is(p, h3, h4, h5, dl, dd) { margin: 0; }
+.pane h4, .pane h5 { font-size: 14px; line-height: 22px; font-weight: 600; }
+.pane [hidden] { display: none !important; }
+.hint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.65; }
+.panel { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.panel > p { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.65; }
+.heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.heading h4, .heading h5 { margin: 0; font-size: 14px; line-height: 22px; font-weight: 600; }
+.step { display: grid; gap: 14px; min-width: 0; padding-block: 18px; border-top: 0.5px solid var(--dsw-alias-border-l3); }
+.stepHeading { display: flex; align-items: center; gap: 10px; }
+.stepHeading > span[aria-hidden='true'] { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.stepHeading h4, .stepHeading h5 { flex: 1; }
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 14px; border-radius: 10px; background: var(--dsw-alias-bg-layer-1); }
+.facts > div { display: grid; gap: 4px; min-width: 0; }
+.panel dl.facts { gap: 14px; }
+.facts dt { font-size: 11px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.facts dd { font-size: 13px; line-height: 21px; overflow-wrap: anywhere; }
+.form { display: grid; gap: 14px; min-width: 0; }
+.form fieldset { margin: 0; border: 0; border-top: 0.5px solid var(--dsw-alias-border-l3); padding: 16px 0 0; }
+.form legend { padding-inline: 0 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.form label:has(input[type='checkbox']) { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 21px; }
+.form input[type='checkbox'] { flex: none; margin: 3px 0 0; accent-color: var(--dsw-alias-state-business-primary); }
+.form label:not(:has(input[type='checkbox'])) { display: grid; gap: 7px; min-width: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 20px; }
+.form :is(input:not([type='checkbox']), select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 8px 11px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; line-height: 20px; }
+.form textarea { min-height: 84px; resize: vertical; }
+.form :is(input, select, textarea):disabled { opacity: 0.55; cursor: not-allowed; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.actions button { max-width: 100%; height: auto; min-height: 34px; white-space: normal; }
+.footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 16px; border-top: 0.5px solid var(--dsw-alias-border-l3); }
+.notice { padding: 12px 14px; border-radius: 9px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.notice[data-tone='warn'] { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent); color: var(--dsw-alias-label-primary); }
+.status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 18px; }
+.status[data-ready='true'] { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
+.record { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 10px; overflow-wrap: anywhere; }
+.record + .record { margin-top: 4px; }
+.record dd, .panel > pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.advanced { padding-top: 12px; border-top: 0.5px solid var(--dsw-alias-border-l3); min-width: 0; font-size: 12px; line-height: 20px; color: var(--dsw-alias-label-secondary); }
+.advanced > summary { cursor: pointer; padding-block: 4px; }
+.advanced[open] > summary { margin-bottom: 12px; }
+.advanced :is(p, code) { overflow-wrap: anywhere; }
+.advanced .actions { margin-top: 12px; }
+.danger { color: var(--dsw-alias-state-error-primary); }
+.empty { display: grid; gap: 8px; padding: 24px 16px; border-radius: 10px; background: var(--dsw-alias-bg-layer-1); text-align: center; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 21px; }
+.file { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 8px; overflow-wrap: anywhere; }
+.file > div { display: grid; gap: 4px; min-width: 0; }
+.file small { color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 18px; }
+.prose { white-space: pre-wrap; overflow-wrap: anywhere; }
+.transcript { max-height: 20rem; overflow: auto; white-space: pre; padding: 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); font-size: 12px; line-height: 20px; }
+.transcriptLog { display: grid; gap: 16px; max-height: 24rem; min-width: 0; overflow: auto; overscroll-behavior: contain; padding: 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); }
+.panel :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
+@media (max-width: 480px) { .grid { grid-template-columns: minmax(0, 1fr); } .record { padding: 12px; } }

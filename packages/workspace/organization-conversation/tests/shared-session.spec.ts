@@ -327,7 +327,8 @@ it('executes the selected organization node with ordinary tools and its logged t
         phases: [{ id: phaseId, title: 'Implementation' }], tasks: [{ id: taskId, parentTaskId: null, phaseId,
           goal: 'Write the selected report', scope: 'Only the selected report', acceptance: ['Report contains totals'],
           artifacts: ['Report file'], dependsOn: [], required: true, suggestedMembershipId: null }] } },
-    canEdit: true, structuralEdit: true, invalidatesQualifications: true, requiresOriginalApproval: true })
+    canEdit: true, sharedContext: 'The finance team needs regional totals while preserving existing CSV columns.',
+    structuralEdit: true, invalidatesQualifications: true, requiresOriginalApproval: true })
     h.setPlan(plan)
     await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
     await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'select-task',
@@ -341,6 +342,9 @@ it('executes the selected organization node with ordinary tools and its logged t
     expect(execute).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Report contains totals')
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Only the selected report')
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain(plan.sharedContext)
+    expect(h.ctx.agents.get(id)!.session.snapshotEvents().some(event => event.type === 'organization/planning-input'
+      && event.data.authority.plan?.sharedContext === plan.sharedContext)).toBe(true)
     expect(h.ctx.personalWorkflow.list()).toEqual([])
     attached.lifetime.abort(); await attached.done
   } finally { await h.close() }
@@ -356,8 +360,8 @@ it('forces organization goals to decompose with planning disabled and refuses di
     toolCallResponse('direct', 'local_action', {}),
     toolCallResponse('simple', 'workflow_assess', { classification: 'simple', rationale: 'One copy' }),
     toolCallResponse('complex', 'workflow_assess', { classification: 'complex', rationale: 'Decompose the copy' }),
-    toolCallResponse('single-child', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0, definition }),
-    toolCallResponse('two-children', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0,
+    toolCallResponse('single-child', 'workflow_propose', { sharedContext: 'Creator discussion: report goals, decisions and constraints', operationId: randomUUID(), expectedRevision: 0, definition }),
+    toolCallResponse('two-children', 'workflow_propose', { sharedContext: 'Creator discussion: report goals, decisions and constraints', operationId: randomUUID(), expectedRevision: 0,
       definition: { ...definition, tasks: [...definition.tasks, task(child(), taskId)] } }),
     textResponse('Review the proposed plan'),
     toolCallResponse('ordinary', 'local_action', {}), textResponse('Ordinary copy'),
@@ -389,7 +393,7 @@ it('forces organization goals to decompose with planning disabled and refuses di
     expect(proposals[0]?.status).toBe('private')
     expect(proposals[0]?.command.definition.tasks.filter(task => task.required && task.parentTaskId !== null)).toHaveLength(2)
     await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 1 })
-    const stale = await h.ctx.tools.execute({ name: 'workflow_propose', arguments: { operationId: randomUUID(), expectedRevision: 0,
+    const stale = await h.ctx.tools.execute({ name: 'workflow_propose', arguments: { sharedContext: 'Creator discussion', operationId: randomUUID(), expectedRevision: 0,
       definition: { ...definition, tasks: [...definition.tasks, task(child(), taskId)] } }, agent: h.ctx.agents.get(id)!,
     callId: ToolCallId('stale-testing'), signal: h.signal })
     expect(stale.isError).toBe(true)
@@ -477,7 +481,7 @@ it('saves a forced common-session plan through native IPC without a legacy grant
       return receipt
     })
     h = await setup([toolCallResponse('assessment', 'workflow_assess', { classification: 'complex', rationale: 'Two required tasks' }),
-      toolCallResponse('proposal', 'workflow_propose', { operationId, expectedRevision: 0, definition }), textResponse('Review the saved plan')],
+      toolCallResponse('proposal', 'workflow_propose', { sharedContext: 'Creator discussion: report goals, decisions and constraints', operationId, expectedRevision: 0, definition }), textResponse('Review the saved plan')],
     undefined, undefined, false, { connection, request })
     const attached = await h.attach(), id = attached.report.sharedSessionId!
     await h.ctx.personalWorkflow.setTestingPreferences({ forceDecomposition: true, expectedRevision: 0 })
@@ -499,6 +503,8 @@ it('saves a forced common-session plan through native IPC without a legacy grant
     expect(proposals.map(p => p.status)).toEqual(['unknown', 'shared'])
     expect(proposals[1]?.receipt?.planning.planRevision).toBe(1)
     expect(proposals[1]?.command.definition).toEqual(definition)
+    const sharing = await connection.perform({ kind: 'workgraph-sharing', request: { ...remote.query, planId: proposals[1]!.command.planId } })
+    expect(sharing.sharing?.sharedContext).toBe('Creator discussion: report goals, decisions and constraints')
     const authority = await h.bridge()
     expect(authority.view).toMatchObject({ canWrite: true, grant: null, eligible: false })
     expect(authority.view.plans).toContainEqual(expect.objectContaining({ planId: proposals[1]!.command.planId }))
@@ -525,7 +531,7 @@ it.each(['forbidden', 'operation-pending', 'superseded', 'unavailable'])('report
     const request = conversationRequestSchema.parse({ kind: 'attach', organizationId: remote.query.organizationId,
       projectId: remote.query.projectId, conversationId: randomUUID(), operationId: randomUUID() })
     h = await setup([toolCallResponse('assessment', 'workflow_assess', { classification: 'complex', rationale: 'Prepare a plan' }),
-      toolCallResponse('proposal', 'workflow_propose', { operationId: randomUUID(), expectedRevision: 0, definition }), textResponse('Save failed')],
+      toolCallResponse('proposal', 'workflow_propose', { sharedContext: 'Creator discussion: report goals, decisions and constraints', operationId: randomUUID(), expectedRevision: 0, definition }), textResponse('Save failed')],
     undefined, undefined, false, { connection, request })
     const attached = await h.attach(), id = attached.report.sharedSessionId!
     await h.send(id, 'Prepare the report plan')

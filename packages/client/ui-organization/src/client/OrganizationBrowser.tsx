@@ -35,35 +35,40 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   const projectOperation = useRef<string>()
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const ready = c.phase === 'ready' && c.mode === 'organization'
+  const navigationBegun = useRef<number>()
+  useEffect(() => {
+    const request = props.navigationRevision
+    if (!ready || request === undefined || navigationBegun.current === request) return
+    navigationBegun.current = request; props.beginConversationNavigation?.()
+  }, [ready, props.navigationRevision])
   useEffect(() => {
     let active = true
     const isActive = () => active, conversation = props.conversation
     setNotice('')
     if (ready && conversation) void (async () => {
-      const items: Catalog[] = []
       const projects = await readNavigationProjects(props.connection, c.generation, () => active)
       if (!projects) return
       if (isActive()) setCatalogs(previous => ({ generation: c.generation, complete: false, items:
         projects.map(project => ({ project, catalog: previous?.items.find(item => item.project.id === project.id)?.catalog
           ?? { bots: [], conversations: [] } })) }))
-      for (const project of projects) {
+      const items = await Promise.all(projects.map(async (project): Promise<Catalog> => {
         try {
           const result = await conversation({ organizationId: project.organizationId, projectId: project.id,
             conversationId: String(project.id) as ConversationRequest['conversationId'], kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'] })
-          if (result.generation !== c.generation) return
-          items.push({ project, catalog: result.result.catalog ?? { bots: [], conversations: [] } })
+          if (result.generation !== c.generation) { active = false; return { project, catalog: { bots: [], conversations: [] } } }
+          return { project, catalog: result.result.catalog ?? { bots: [], conversations: [] } }
         } catch (error: unknown) {
-          items.push({ project, catalog: { bots: [], conversations: [] } })
           if (isActive()) setNotice(props.t(workgraphError(error)))
+          return { project, catalog: { bots: [], conversations: [] } }
         }
-      }
+      }))
       if (isActive()) setCatalogs({ generation: c.generation, complete: true, items })
     })().catch((error: unknown) => { if (active) setNotice(props.t(workgraphError(error))) })
     return () => { active = false }
-  }, [ready, c.generation, revision, props.section])
+  }, [ready, c.generation, revision])
   useEffect(() => {
     let active = true
-    if (ready && props.section === 'recent' && c.organizationId && props.conversation) void props.conversation({
+    if (ready && c.organizationId && props.conversation) void props.conversation({
       organizationId: c.organizationId, conversationId: String(c.organizationId) as ConversationRequest['conversationId'],
       kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'],
     }).then((result) => {
@@ -71,7 +76,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         setAccountCatalog({ generation: c.generation, catalog: result.result.catalog })
     }, (error: unknown) => { if (active) setNotice(props.t(workgraphError(error))) })
     return () => { active = false }
-  }, [ready, c.generation, revision, props.section])
+  }, [ready, c.generation, revision])
   useEffect(() => {
     setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setDeleting(undefined)
     setExpanded(new Set()); setMenu(null)
@@ -82,6 +87,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
     if (!ready || !c.principal || !c.organizationId || busy || !props.conversation) return
     const principal = c.principal
+    const navigationRequest = navigationBegun.current
     setBusy(true); setNotice('')
     try {
       const chosen = { ...principal, organizationId: project?.organizationId ?? c.organizationId,
@@ -95,11 +101,15 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
           ...(assignment ? { assignment } : {}) })
         if (result.generation !== identity.current.generation) return
       }
-      if (!alive.current || c.generation !== identity.current.generation || identity.current.mode !== 'organization') return
+      if (!alive.current || c.generation !== identity.current.generation || identity.current.mode !== 'organization'
+        || navigationRequest !== navigationBegun.current) return
       if (!props.selectConversation) props.actions.select(chosen)
-      setNewTarget(undefined); props.actions.refresh(); props.openConversation?.()
-    } catch (error) { setNotice(props.t(workgraphError(error))) }
-    finally { setBusy(false) }
+      setNewTarget(undefined); props.openConversation?.()
+    } catch (error) {
+      if (alive.current && c.generation === identity.current.generation && navigationRequest === navigationBegun.current)
+        setNotice(props.t(workgraphError(error)))
+    }
+    finally { if (alive.current) setBusy(false) }
   }
   const titleKey = props.section === 'bots' ? 'bots' : props.section === 'projects' ? 'projects' : 'recentConversations'
   const conversations = items.flatMap(({ project, catalog }) => catalog.conversations.map(conversation => ({ project, conversation })))

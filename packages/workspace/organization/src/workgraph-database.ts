@@ -1,5 +1,6 @@
 /** WorkGraph physical tables and cross-record validation used by open and offline maintenance. */
 import type { DatabaseSync } from 'node:sqlite'
+import { validateSharingDatabase } from './workgraph-sharing.ts'
 import { OrganizationError } from './error.ts'
 import { taskGrantRowSchema, workgraphPlanSchema } from './workgraph-schema.ts'
 import { readWorkgraphVersion, workgraphStructureKey } from './workgraph.ts'
@@ -35,6 +36,7 @@ export const workgraphDeletionDdl = `CREATE TABLE deleted_plans (
  * @param db - Open connection under its startup or maintenance transaction.
  */
 export function validateWorkgraphDatabase(db: DatabaseSync): void {
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE name='plan_contexts'").get()) validateSharingDatabase(db)
   const fail = () => { throw new OrganizationError('incompatible-store') }
   if (db.prepare(`SELECT 1 FROM deleted_plans d JOIN organization_plans p ON p.id=d.planId
     JOIN memberships m ON m.id=p.createdBy JOIN organization_events e ON e.revision=d.revision
@@ -91,7 +93,7 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
   }
   if (db.prepare(`SELECT 1 FROM workgraph_events w LEFT JOIN plan_revisions r ON r.eventRevision=w.revision AND r.planId=w.planId
     JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
-    WHERE (r.planId IS NULL AND e.kind NOT IN ('delete-plan','set-task-grant','approve-assignment','verify-integration','confirm-integration')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
+    WHERE (r.planId IS NULL AND e.kind NOT IN ('delete-plan','set-task-grant','approve-assignment','verify-integration','confirm-integration','edit-context','request-tree','decide-tree')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind IN ('delete-plan','save-plan','save-planning-draft','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('delete-plan','save-plan','save-planning-draft','set-task-grant','reject-delivery','verify-integration','confirm-integration','edit-context','request-tree','decide-tree') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

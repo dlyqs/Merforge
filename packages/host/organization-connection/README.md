@@ -81,3 +81,5 @@ Each operation ID is durable before its existing atomic approval transaction. Su
 ## Navigation and reporting reads
 
 Safe connection snapshots include the current organization hierarchy. The fixed `hierarchy` action returns generation-scoped reporting data; `set-supervisor` uses the existing administrator command journal and receipt reconciliation. `project-page` returns a generation-scoped authorized page with an optional consistent cursor, without replacing workspace search or creating another subscription. Identity resets clear hierarchy and project facts. Hierarchy revisions participate in authority invalidations, refreshing named assignment choices after reporting edits.
+
+Fixed workgraph-sharing and workgraph-share actions carry shared-background reads and creator-reviewed tree requests through the same authenticated HTTPS transport and uncertain-receipt journal. Reads return sharing with a captured generation; consumers hide prior-generation content. Shared text and request bodies never enter the connection snapshot or pending journal.

@@ -140,6 +140,11 @@ function commitWorkgraph(db: DatabaseSync, principal: Principal, request: Save, 
   } else {
     db.prepare('UPDATE organization_plans SET currentRevision=?,structureVersion=? WHERE id=?').run(version.revision, structureVersion, plan.id)
   }
+  if (!plan) {
+    const sharedContext = request.sharedContext ?? version.definition.tasks.find(task => task.id === version.definition.taskId)?.scope ?? ''
+    if (Buffer.byteLength(JSON.stringify({ version, sharedContext })) > limits.workgraphMaxBytes) throw new OrganizationError('invalid-input')
+    db.prepare('INSERT INTO plan_contexts VALUES (?,?,?)').run(request.planId, sharedContext, eventRevision)
+  }
   db.prepare('INSERT INTO plan_revisions VALUES (?,?,?,?)').run(request.planId, version.revision, eventRevision, JSON.stringify(version))
   db.prepare('UPDATE plan_tasks SET active=0 WHERE planId=?').run(request.planId)
   for (const task of version.definition.tasks) {

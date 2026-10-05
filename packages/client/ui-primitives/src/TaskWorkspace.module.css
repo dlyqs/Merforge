@@ -138,22 +138,34 @@
 .branch { display: grid; gap: 4px; min-width: 0; padding: 10px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 8px; background: transparent; color: inherit; text-align: left; overflow-wrap: anywhere; }
 .branch small { color: var(--dsw-alias-label-secondary); font-size: 11px; }
 
-.detail { box-sizing: border-box; width: 100%; min-width: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px 20px; border: 0; border-radius: 16px; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); }
+.detail { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; max-height: 100%; overflow: hidden; border: 0; border-radius: 16px; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); }
+.detailHeader { flex: none; padding: 12px 20px 16px; border-bottom: 0.5px solid var(--dsw-alias-border-l3); }
+.detailContent { flex: 1; min-height: 0; min-width: 0; padding: 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.detailContent > [role='tabpanel']:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: -2px; }
+.detailContent [hidden] { display: none !important; }
+.detailTabs { margin-top: 16px; }
+.detailTabs [role='tab'] { height: auto; min-height: 34px; padding: 6px 4px; white-space: normal; font-size: 12px; line-height: 18px; }
 .detailToolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.detailHeading { margin-bottom: 18px; }
-.detailHeading h3 { margin: 7px 0 12px; font-size: 21px; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
+.detailHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.detailHeading h3 { flex: 1 1 100%; margin: 6px 0 2px; font-size: 20px; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
 .taskProgress { display: grid; gap: 8px; margin-bottom: 24px; color: var(--dsw-alias-label-secondary); font-size: 12px; overflow-wrap: anywhere; }
 .progress { display: block; appearance: none; width: 100%; height: 4px; overflow: hidden; border: 0; border-radius: 4px; background: var(--dsw-alias-border-l3); accent-color: var(--dsw-alias-state-business-primary); }
 .progress::-webkit-progress-bar { background: var(--dsw-alias-border-l3); }
 .progress::-webkit-progress-value { background: var(--dsw-alias-state-business-primary); border-radius: 4px; }
 .progress::-moz-progress-bar { background: var(--dsw-alias-state-business-primary); border-radius: 4px; }
-.detail > dl { display: grid; gap: 6px; }
+.detailContent dl { display: grid; gap: 6px; margin: 0; }
+.detailContent dd { margin: 0; }
 .detail dt, .facts dt { color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .detail dd + dt { margin-top: 16px; }
 .detailSection { margin-top: 22px; padding-top: 18px; border-top: 0.5px solid var(--dsw-alias-border-l3); min-width: 0; }
 .detailSection h4 { margin-bottom: 10px; }
 .detailSection p + p { margin-top: 8px; }
-.evidence { padding: 12px 0; }
+.detailContent :is(input:not([type='checkbox']), select, textarea) { max-width: 100%; }
+.evidence { display: grid; gap: 12px; margin-top: 14px; padding: 16px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 10px; }
+.evidenceFile { padding-top: 10px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.evidenceFile > summary { cursor: pointer; color: var(--dsw-alias-label-primary); overflow-wrap: anywhere; }
+.evidenceFile code { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+.evidenceFile > summary:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
 .body .fileList { list-style: none; padding: 0; }
 .fileList li { padding: 7px 10px; border-radius: 6px; background: var(--dsw-alias-bg-layer-1); overflow-wrap: anywhere; }
 .path { overflow-wrap: anywhere; font-size: 12px; }
@@ -245,6 +257,6 @@
 .taskBrowser .empty { min-height: 160px; padding: 16px 8px; font-size: 12px; line-height: 20px; }
 .taskPage { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 22px 28px 32px; box-sizing: border-box; color: var(--dsw-alias-label-primary); }
 .taskPage h2 { margin: 0 0 6px; font-size: 20px; line-height: 28px; font-weight: 600; }
-.taskPage .body { max-width: 1600px; margin: 0 auto; }
+.taskPage > .body { width: 100%; }
 .taskPage .toolbar { min-height: 40px; padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 16px)); }
 @media (max-width: 800px) { .taskPage { padding: 18px 16px 24px; } }

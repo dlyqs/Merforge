@@ -138,10 +138,10 @@ it.each(['member', 'account'] as const)('refuses a pending permit after %s disab
 it('migrates v12 monotonically and rolls back a corrupt migration before changing its stamp', async () => {
   const h = await setup(); await h.close()
   const db = new DatabaseSync(h.path)
-  db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12'); db.close()
+  db.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts; DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12'); db.close()
   const upgraded = openOrganizationDatabase(h.path, 5000)
   expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
-  upgraded.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12')
+  upgraded.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts; DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; PRAGMA user_version=12')
   upgraded.prepare('UPDATE memberships SET enabled=0 WHERE id=?').run(h.owner.membershipId ?? null); upgraded.close()
   expect(() => openOrganizationDatabase(h.path, 5000)).toThrow('incompatible-store')
   const cold = new DatabaseSync(h.path)

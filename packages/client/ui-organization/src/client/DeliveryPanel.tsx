@@ -7,7 +7,8 @@ import type { OrganizationAssignment, OrganizationRun } from '@deepseek-ai/dsh-o
 import type { OrganizationProps } from './contract.ts'
 import { AcceptanceReview } from './AcceptanceReview.tsx'
 import { workgraphError } from './workgraph-view.ts'
-import css from './Organization.module.css'
+import css from './TaskInspector.module.css'
+import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
 
 type Page = NonNullable<ConnectionResult['delivery']>
 type Artifact = Page['artifacts'][number]
@@ -16,22 +17,28 @@ type Selection = { operationId: string; file: File; kind: Artifact['kind']; desc
  * @param props - Authorized assignment, optional employee Run and native fixed actions.
  * @returns Explicit sharing form and durable submissions.
  */
-export function DeliveryPanel(props: OrganizationProps & { assignment: OrganizationAssignment; run?: OrganizationRun }) {
+export function DeliveryPanel(props: OrganizationProps & {
+  assignment: OrganizationAssignment
+  run?: OrganizationRun
+  submissionReady?: boolean
+}) {
   const { t, assignment: a, run } = props
   const c = props.useOrganization(s => s.connection)
   const [page, setPage] = useState<{ generation: number; value: Page }>()
   const [selected, setSelected] = useState<Selection[]>([])
   const [summary, setSummary] = useState(''), [target, setTarget] = useState('')
+  const [uploadConfirmed, setUploadConfirmed] = useState(false)
+  const operationLock = useRef(false)
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState('')
   const [chosen, setChosen] = useState<Artifact['id'][]>([])
   const [preview, setPreview] = useState<{ generation: number; text: string }>()
-  const alive = useRef(true), identity = `${c.principal?.accountId}:${c.organizationId}`
+  const alive = useRef(true), identity = `${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}`
   const currentIdentity = useRef(identity); currentIdentity.current = identity
   const generation = useRef(c.generation); generation.current = c.generation
   const submissionIntent = useRef<{ fingerprint: string; operationId: string }>()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
-    setSelected([]); setChosen([]); setSummary(''); setTarget(''); setConfirmed(false); setPreview(undefined)
+    setSelected([]); setChosen([]); setSummary(''); setTarget(''); setConfirmed(false); setUploadConfirmed(false); setPreview(undefined)
     submissionIntent.current = undefined
   }, [identity])
   const current = () => { if (!alive.current || currentIdentity.current !== identity) throw new Error('superseded') }
@@ -43,10 +50,11 @@ export function DeliveryPanel(props: OrganizationProps & { assignment: Organizat
   useEffect(() => {
     if (c.phase === 'ready') void load().catch((error: unknown) => { if (alive.current) setNotice(t(workgraphError(error))) })
   }, [c.generation, c.phase])
-  const value = page?.generation === c.generation ? page.value : undefined
+  const value = c.phase === 'ready' && c.mode === 'organization' && page?.generation === c.generation ? page.value : undefined
   const mine = c.organizations.find(o => o.id === c.organizationId)?.membershipId === a.assigneeId
   const share = async () => {
-    if (!value || !run || !confirmed) return
+    if (!value || !run || !uploadConfirmed || operationLock.current) return
+    operationLock.current = true
     setBusy(true); setNotice('')
     try {
       const limits = value.limits
@@ -67,10 +75,12 @@ export function DeliveryPanel(props: OrganizationProps & { assignment: Organizat
       }
       setSelected([]); setNotice(t('deliveryUploaded')); await load()
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
-    finally { if (alive.current) { setBusy(false); setConfirmed(false) } }
+    finally { operationLock.current = false; if (alive.current) { setBusy(false); setUploadConfirmed(false) } }
   }
   const submit = async () => {
-    if (!confirmed || !run || !chosen.length) return
+    if (!confirmed || !run || !chosen.length || operationLock.current) return
+    operationLock.current = true
+    setNotice('')
     setBusy(true)
     try {
       const fingerprint = JSON.stringify({ chosen, summary, target, runId: run.id })
@@ -79,7 +89,7 @@ export function DeliveryPanel(props: OrganizationProps & { assignment: Organizat
         operationId: submissionIntent.current.operationId, kind: 'submit-delivery', artifactIds: chosen, summary, target, confirmed: true } }); current()
       setChosen([]); setNotice(t('deliverySubmitted')); await load()
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
-    finally { if (alive.current) { setBusy(false); setConfirmed(false) } }
+    finally { operationLock.current = false; if (alive.current) { setBusy(false); setConfirmed(false) } }
   }
   const download = async (artifactId: Artifact['id']) => {
     try {
@@ -96,48 +106,89 @@ export function DeliveryPanel(props: OrganizationProps & { assignment: Organizat
       link.click(); URL.revokeObjectURL(url)
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
   }
-  return <section className={css.card} aria-busy={busy}>
-    <h5>{t('deliveryTitle')}</h5><p>{t('deliveryHint')}</p>
-    {notice && <p role="status">{notice}</p>}
+  const stopped = !!run && ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false
+  const runArtifacts = value?.artifacts.filter(file => !run || file.runId === run.id) ?? []
+  const submissions = value?.submissions.filter(submission => !run || submission.runId === run.id) ?? []
+  const uploadValid = !!value && selected.length > 0 && selected.length <= value.limits.artifactMaxFiles
+    && selected.every(item => item.file.size <= value.limits.artifactMaxFileBytes && item.description.trim())
+    && selected.reduce((total, item) => total + item.file.size, 0) <= value.limits.artifactMaxTotalBytes
+  return <section className={css.panel} aria-busy={busy}>
+    <p className={css.hint}>{t('deliveryHint')}</p>
+    {notice && <p className={css.notice} role="status">{notice}</p>}
     {mine && run && a.state === 'accepted' && value && <>
-      <p>{t('deliveryLimits', { count: value.limits.artifactMaxFiles, bytes: value.limits.artifactMaxFileBytes, total: value.limits.artifactMaxTotalBytes })}</p>
-      <label>{t('deliveryFiles')}<input type="file" multiple disabled={busy} onChange={(e) => {
-        setSelected(Array.from(e.target.files ?? [], file => ({ operationId: randomUUID(), file, kind: 'file', description: file.name }))); setConfirmed(false)
-      }} /></label>
-      {selected.map((s, index) => <div key={`${s.file.name}:${index}`}>
-        <p>{s.file.name} · {s.file.size}</p>
-        <label>{t('deliveryKind')}<select value={s.kind} disabled={busy} onChange={(e) => {
-          const kind = e.target.value as Artifact['kind']; setSelected(items => items.map((v, i) => i === index ? { ...v, operationId: randomUUID(), kind } : v)); setConfirmed(false)
-        }}>{(['file', 'test-report', 'git-change'] as const).map(kind => <option key={kind} value={kind}>{t(`delivery-${kind}`)}</option>)}</select></label>
-        <label>{t('deliveryDescription')}<Input value={s.description} disabled={busy} onChange={(e) => {
-          setSelected(items => items.map((v, i) => i === index
-            ? { ...v, operationId: randomUUID(), description: e.target.value } : v)); setConfirmed(false)
-        }} /></label>
-      </div>)}
-      <p>{t('deliveryGitHint')}</p>
-      <Button disabled={busy || !!c.pendingOperation || !confirmed || !selected.length} onClick={() => { void share() }}>{t('deliveryUpload')}</Button>
-      {value.artifacts.filter(f => f.runId === run.id).map(f => <div key={f.id}>
-        <Checkbox label={`${f.path} · ${f.size} · ${f.sha256}`} checked={chosen.includes(f.id)} disabled={busy}
-          onChange={(checked) => { setChosen(ids => checked ? [...ids, f.id] : ids.filter(id => id !== f.id)); setConfirmed(false) }} />
-        <p>{f.description}</p>
-      </div>)}
-      <label>{t('deliverySummary')}<Input value={summary} disabled={busy} onChange={(e) => { setSummary(e.target.value); setConfirmed(false) }} /></label>
-      <label>{t('deliveryTarget')}<Input value={target} disabled={busy} onChange={(e) => { setTarget(e.target.value); setConfirmed(false) }} /></label>
-      <Checkbox label={t('deliveryConfirm')} checked={confirmed} disabled={busy} onChange={setConfirmed} />
-      <Button disabled={busy || !!c.pendingOperation || !confirmed || !chosen.length || !summary.trim() || !target.trim()
-        || !['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state)} onClick={() => { void submit() }}>{t('deliverySubmit')}</Button>
+      <section className={css.step}>
+        <div className={css.stepHeading}><span aria-hidden="true">1</span><h5>{t('taskUploadStep')}</h5></div>
+        <p className={css.hint}>{t('deliveryLimits', { count: value.limits.artifactMaxFiles, bytes: value.limits.artifactMaxFileBytes, total: value.limits.artifactMaxTotalBytes })}</p>
+        <div className={css.form}>
+          <label>{t('deliveryFiles')}<input type="file" multiple disabled={busy || !!c.pendingOperation} onChange={(event) => {
+            setSelected(Array.from(event.target.files ?? [], file => ({ operationId: randomUUID(), file, kind: 'file', description: file.name })))
+            setUploadConfirmed(false)
+          }} /></label>
+          {selected.map((selection, index) => <div className={css.record} key={`${selection.file.name}:${index}`}>
+            <div className={css.heading}><strong>{selection.file.name}</strong>
+              <Button size="sm" disabled={busy} aria-label={t('taskRemoveFile')} onClick={() => {
+                setSelected(items => items.filter((_, i) => i !== index)); setUploadConfirmed(false)
+              }}>{t('taskRemoveFile')}</Button>
+            </div>
+            <p className={css.hint}>{t('taskFileSize', { bytes: selection.file.size })}</p>
+            <div className={css.grid}>
+              <label>{t('deliveryKind')}<select value={selection.kind} disabled={busy} onChange={(event) => {
+                const kind = event.target.value as Artifact['kind']
+                setSelected(items => items.map((item, i) => i === index ? { ...item, operationId: randomUUID(), kind } : item))
+                setUploadConfirmed(false)
+              }}>{(['file', 'test-report', 'git-change'] as const).map(kind => <option key={kind} value={kind}>{t(`delivery-${kind}`)}</option>)}</select></label>
+              <label>{t('deliveryDescription')}<Input value={selection.description} disabled={busy} onChange={(event) => {
+                setSelected(items => items.map((item, i) => i === index
+                  ? { ...item, operationId: randomUUID(), description: event.target.value } : item))
+                setUploadConfirmed(false)
+              }} /></label>
+            </div>
+          </div>)}
+          {selected.some(item => item.kind === 'git-change') && <p className={css.notice}>{t('deliveryGitHint')}</p>}
+          {selected.length > 0 && <>
+            <Checkbox label={t('taskUploadConfirm')} checked={uploadConfirmed} disabled={busy || !uploadValid} onChange={setUploadConfirmed} />
+            <div className={css.footer}><Button variant="primary" disabled={busy || !!c.pendingOperation || !uploadConfirmed || !uploadValid} onClick={() => { void share() }}>{t(busy ? 'working' : 'deliveryUpload')}</Button></div>
+          </>}
+        </div>
+      </section>
+      <section className={css.step}>
+        <div className={css.stepHeading}><span aria-hidden="true">2</span><h5>{t('taskSubmitStep')}</h5></div>
+        <p className={css.notice} data-tone={stopped ? undefined : 'warn'}>{t(stopped ? 'taskSubmissionReady' : 'taskSubmissionBlocked')}</p>
+        <div className={css.form}>
+          {runArtifacts.length === 0 && <p className={css.hint}>{t('taskDeliveryEmptyHint')}</p>}
+          {runArtifacts.map(file => <div className={css.record} key={file.id}>
+            <Checkbox label={file.path} checked={chosen.includes(file.id)} disabled={busy}
+              onChange={(checked) => {
+                setChosen(ids => checked ? [...ids, file.id] : ids.filter(id => id !== file.id)); setConfirmed(false)
+              }} />
+            <p className={css.hint}>{file.description} · {t('taskFileSize', { bytes: file.size })}</p>
+            <details className={css.advanced}><summary>{t('taskEvidenceDetails')}</summary><code>{file.sha256}</code></details>
+          </div>)}
+          <label>{t('deliverySummary')}<textarea value={summary} disabled={busy} onChange={(event) => { setSummary(event.target.value); setConfirmed(false) }} /></label>
+          <label>{t('deliveryTarget')}<textarea value={target} disabled={busy} onChange={(event) => { setTarget(event.target.value); setConfirmed(false) }} /></label>
+          <Checkbox label={t('taskSubmitConfirm')} checked={confirmed} disabled={busy || !stopped || !chosen.length || !summary.trim() || !target.trim()} onChange={setConfirmed} />
+          <div className={css.footer}><Button variant="primary" disabled={busy || !!c.pendingOperation || !confirmed || !chosen.length || !summary.trim() || !target.trim() || !stopped}
+            onClick={() => { void submit() }}>{t('deliverySubmit')}</Button></div>
+        </div>
+      </section>
     </>}
-    {value?.submissions.map(s => <div key={s.id}>
-      <p>{t('taskVersion', { revision: s.planRevision })}</p><p>{s.summary}</p><p>{s.target}</p>
-      {s.artifactIds.map(id => <Button key={id} onClick={() => { void download(id) }}>{value.artifacts.find(f => f.id === id)?.path ?? t('deliveryDownload')}</Button>)}
-      <AcceptanceReview key={`${c.generation}:${s.id}`} {...props} submission={s} artifacts={value.artifacts} refresh={load} />
-    </div>)}
-    {value && <div className={css.actions}>
-      <Button disabled={!value.offset} onClick={() => { void load().catch((e: unknown) =>{  setNotice(t(workgraphError(e))) }) }}>{t('firstPage')}</Button>
-      <Button disabled={value.offset + value.submissions.length >= value.total} onClick={() => {
-        void load(value.offset + value.submissions.length).catch((e: unknown) =>{  setNotice(t(workgraphError(e))) })
+    <section className={css.step}>
+      <h5>{t('taskSubmissionHistory')}</h5>
+      {value && !submissions.length && <div className={css.empty}><strong>{t('taskDeliveryEmpty')}</strong><p>{t('taskDeliveryEmptyHint')}</p></div>}
+      {submissions.map(submission => <article className={css.record} key={submission.id}>
+        <div className={css.heading}><span className={css.status}>{t(`review-${submission.reviewState}`)}</span><span className={css.hint}>{t('taskVersion', { revision: submission.planRevision })}</span></div>
+        <dl><dt>{t('deliverySummary')}</dt><dd>{submission.summary}</dd><dt>{t('deliveryTarget')}</dt><dd>{submission.target}</dd></dl>
+        <div className={css.actions}>{submission.artifactIds.map(artifactId => <Button key={artifactId} variant="outline" disabled={busy || !!c.pendingOperation}
+          onClick={() => { void download(artifactId) }}>{value?.artifacts.find(file => file.id === artifactId)?.path ?? t('deliveryDownload')}</Button>)}</div>
+        <AcceptanceReview key={`${c.generation}:${submission.id}`} {...props} submission={submission} artifacts={value?.artifacts ?? []} refresh={load} />
+      </article>)}
+    </section>
+    {value && value.total > value.submissions.length && <div className={css.actions}>
+      <Button disabled={busy || !value.offset} onClick={() => { void load().catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('firstPage')}</Button>
+      <Button disabled={busy || value.offset + value.submissions.length >= value.total} onClick={() => {
+        void load(value.offset + value.submissions.length).catch((error: unknown) => { setNotice(t(workgraphError(error))) })
       }}>{t('next')}</Button>
     </div>}
-    {preview?.generation === c.generation && <pre className={css.transcript}>{preview.text}</pre>}
+    {preview?.generation === c.generation && <details className={css.advanced} open><summary>{t('delivery-test-report')}</summary><pre className={taskWorkspaceStyles.prose}>{preview.text}</pre></details>}
   </section>
 }

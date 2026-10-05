@@ -14,6 +14,8 @@ export interface TaskMapNode {
   required: boolean
   status: string
   statusLabel: string
+  /** Optional localized badge for the viewer's assigned node. */
+  assignmentLabel?: string
 }
 
 /** Localized canvas controls and task-card text. */
@@ -46,13 +48,14 @@ import css from './TaskMap.module.css'
  * @param props - Current draft, Host statuses and the existing task selection callback.
  * @returns Pan-and-zoom canvas with accessible task and collapse buttons.
  */
-export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }: {
+export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, introduction }: {
   tasks: readonly TaskMapNode[]
   rootId: string
   selected: TaskId | null
   onSelect: (id: TaskId) => void
   labels: TaskMapLabels
   children?: ReactNode
+  introduction?: ReactNode
 }) {
   const viewport = useRef<HTMLDivElement>(null)
   const fullscreenButton = useRef<HTMLButtonElement>(null)
@@ -153,6 +156,7 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
           onClick={() => { setFullscreen(value => !value) }}><IconFullscreenOutlineRegular /></button>
       </div>
     </header>
+    {introduction}
     {layout.invalidHierarchy && <p className={css.warning} role="status">{labels.invalidHierarchy}</p>}
     <div className={css.canvas}>
       <div ref={viewport} className={css.viewport} data-dragging={dragging} tabIndex={0} role="region" aria-label={labels.mapHint}
@@ -189,12 +193,13 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
               const state = node.task.status
               const folded = visibleCollapsed.has(node.task.id)
               return <div key={node.task.id} className={css.node} data-root={node.task.id === rootId}
-                data-branch={node.branch} data-selected={selected === node.task.id}
+                data-branch={node.branch} data-selected={selected === node.task.id} data-assigned={!!node.task.assignmentLabel}
                 style={{ '--node-x': `${node.x}px`, '--node-y': `${node.y}px` } as CSSProperties}>
                 <button type="button" className={css.nodeButton} aria-pressed={selected === node.task.id} aria-label={node.task.goal} title={node.task.goal} onClick={() => { onSelect(node.task.id) }}>
                   <span className={css.nodeStage}>{node.task.id === rootId ? labels.rootTask : node.task.phaseTitle}</span>
                   <strong className={css.goal}>{node.task.goal}</strong>
                   <span className={css.nodeFooter}>
+                    {node.task.assignmentLabel && <span className={css.assignment}>{node.task.assignmentLabel}</span>}
                     {node.task.statusLabel && <span className={css.status} data-status={state}>{node.task.statusLabel}</span>}
                     <span>{node.task.required ? labels.requiredNode : labels.optionalNode}</span>
                   </span>

@@ -10,8 +10,9 @@ import { workgraphPageSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { ConnectionResult, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from '../src/client/contract.ts'
 import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
+import { DeliveryPanel } from '../src/client/DeliveryPanel.tsx'
 import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
-import { executionViewSchema, executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
+import { executionViewSchema, executionCommandSchema, executionRunSchema } from '@deepseek-ai/dsh-organization/execution'
 import { ConversationTask } from '../src/client/ConversationTask.tsx'
 import { AssignmentBatch } from '../src/client/AssignmentBatch.tsx'
 import { assignmentBatchRequestSchema } from '../../../host/organization-connection/src/assignment-batch.ts'
@@ -38,12 +39,16 @@ it.each(['accept-delivery', 'reject-delivery'] as const)('offers %s in the selec
     if (action.kind === 'delivery-read') return { generation: 1, delivery: page }
     return base(action)
   })
-  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
-  const button = await screen.findByRole('button', { name: kind === 'accept-delivery' ? zh.reviewAccept : zh.reviewReject })
+  render(<DeliveryPanel {...h.props} assignment={a} />)
+  await screen.findByRole('button', { name: zh.reviewAccept })
+  if (kind === 'reject-delivery') fireEvent.click(screen.getByRole('button', { name: zh.taskRejectToggle }))
+  const button = screen.getByRole('button', { name: kind === 'accept-delivery' ? zh.reviewAccept : zh.reviewReject })
   expect(button.disabled).toBe(true)
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-command')).toBe(false)
-  fireEvent.change(screen.getByLabelText(zh.reviewReason), { target: { value: 'Missing result' } })
-  fireEvent.change(screen.getByLabelText(zh.reviewRequirements), { target: { value: 'Add result' } })
+  if (kind === 'reject-delivery') {
+    fireEvent.change(screen.getByLabelText(zh.reviewReason), { target: { value: 'Missing result' } })
+    fireEvent.change(screen.getByLabelText(zh.reviewRequirements), { target: { value: 'Add result' } })
+  } else expect(screen.queryByLabelText(zh.reviewReason)).toBeNull()
   fireEvent.click(screen.getByLabelText(zh.reviewConfirm))
   fireEvent.click(button)
   await waitFor(() => {
@@ -94,6 +99,116 @@ it('reports a failed execution history read instead of silently hiding the failu
   await screen.findByText(zh.forbidden)
 })
 
+it('keeps execution drafts and the selected section when task authority refreshes', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.prep.assignment.state = 'accepted'
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks') return { workgraph: { generation: h.generation(),
+      result: { kind: 'tasks', value: { items: [h.task], total: 1, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
+    if (action.kind === 'execution-list') return { generation: h.generation(), executions: { items: [], total: 0, offset: 0 } }
+    return base(action)
+  })
+  const props = { ...h.props, projectId: h.projectId, planId: h.task.planId, taskId: h.task.id, onClose: () => {} }
+  const view = render(<ConversationTask {...props} />)
+  fireEvent.click(await screen.findByRole('tab', { name: zh.taskExecutionTab }))
+  const message = await screen.findByLabelText<HTMLTextAreaElement>(zh.executionMessage)
+  fireEvent.change(message, { target: { value: 'Keep this unfinished instruction' } })
+  h.refresh(); view.rerender(<ConversationTask {...props} />)
+  await waitFor(() => {
+    expect(screen.getByRole('tab', { name: zh.taskExecutionTab }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByLabelText<HTMLTextAreaElement>(zh.executionMessage).value).toBe('Keep this unfinished instruction')
+  })
+  expect(h.props.execution).not.toHaveBeenCalled()
+})
+
+it('requires a separate completion confirmation after artifact upload', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment
+  a.state = 'accepted'
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, planRevision: a.planRevision }
+  const run = executionRunSchema.parse({ ...selector, id: randomUUID(), deviceId: randomUUID(),
+    executionDelegationId: randomUUID(), serverEpoch: randomUUID(), fencingEpoch: 1,
+    configDigest: 'a'.repeat(64), state: 'succeeded', createdRevision: 3, version: 3 })
+  const page = deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+    limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'delivery-read') return { generation: 1, delivery: { ...page } }
+    if (action.kind === 'delivery-command') {
+      const command = deliveryCommandSchema.parse(action.request)
+      if (command.kind === 'publish-artifact') page.artifacts.push({ ...selector, runId: run.id,
+        id: brandString(randomUUID()), employeeId: a.assigneeId, kind: command.artifactKind,
+        path: command.path, mediaType: command.mediaType, description: command.description,
+        size: command.size, sha256: command.sha256, createdRevision: 4 })
+      return {}
+    }
+    return base(action)
+  })
+  render(<DeliveryPanel {...h.props} assignment={a} run={run} submissionReady />)
+  const input = await screen.findByLabelText(zh.deliveryFiles)
+  const file = new File(['Task result'], 'report.txt', { type: 'text/plain' })
+  Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('Task result').buffer })
+  fireEvent.change(input, { target: { files: [file] } })
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliveryUpload }).disabled).toBe(true)
+  fireEvent.click(screen.getByLabelText(zh.taskUploadConfirm))
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: zh.deliveryUpload }))
+  const artifact = await screen.findByRole('checkbox', { name: 'report.txt' })
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command')).toHaveLength(1)
+  fireEvent.click(artifact)
+  fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
+  fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
+  fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
+  fireEvent.click(screen.getByRole('button', { name: zh.deliverySubmit }))
+  await waitFor(() => {
+    const writes = h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command').map(([action]) => action.request)
+    expect(writes).toHaveLength(2)
+    expect(writes[1]).toMatchObject({ kind: 'submit-delivery', runId: run.id, artifactIds: [page.artifacts[0]?.id],
+      summary: 'Completed and checked', target: 'Project report', confirmed: true })
+  })
+})
+
+it.each(['pending', 'cancelled', 'expired'] as const)('gates submission for a stopped Run with a %s human request', async (state) => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment
+  a.state = 'accepted'
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, planRevision: a.planRevision, deviceId: randomUUID() }
+  const runId = randomUUID(), executionDelegationId = randomUUID()
+  const view = executionViewSchema.parse({
+    run: { ...selector, id: runId, executionDelegationId, serverEpoch: randomUUID(), fencingEpoch: 1,
+      configDigest: 'a'.repeat(64), state: 'paused', createdRevision: 3, version: 3 },
+    delegation: { ...selector, id: executionDelegationId, delegationId: randomUUID(), capabilities: ['model'],
+      configDigest: 'a'.repeat(64), state: 'active', budget: 10, used: 1, expiresAt: Date.now() + 60000,
+      createdRevision: 3, version: 3 }, actions: [], serverTime: Date.now(), eligible: false, modelPolicy: [],
+    assigneeId: a.assigneeId, approvedBy: a.approvedBy, humanRequests: [{ id: randomUUID(), assignmentId: a.id,
+      runId, planRevision: a.planRevision, handlerId: a.assigneeId, kind: 'work-question', prompt: 'Check this result',
+      actionId: null, requestDigest: null, state, expiresAt: Date.now() + 60000, answer: null,
+      createdRevision: 3, version: 3, answeredRevision: null }],
+  })
+  const page = deliveryPageSchema.parse({ artifacts: [{ organizationId: a.organizationId, projectId: a.projectId,
+    planId: a.planId, assignmentId: a.id, planRevision: a.planRevision, runId, id: randomUUID(), employeeId: a.assigneeId,
+    kind: 'file', path: 'report.txt', mediaType: 'text/plain', description: 'Result', size: 5,
+    sha256: 'a'.repeat(64), createdRevision: 4 }], submissions: [], total: 0, offset: 0,
+  limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'execution-list') return { generation: 1, executions: { items: [view.run], total: 1, offset: 0 } }
+    if (action.kind === 'execution-read') return { generation: 1, execution: view }
+    if (action.kind === 'delivery-read') return { generation: 1, delivery: page }
+    return base(action)
+  })
+  render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current section="delivery" />)
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'report.txt' }))
+  fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
+  fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
+  const confirm = screen.getByRole<HTMLInputElement>('checkbox', { name: zh.taskSubmitConfirm })
+  expect(confirm.disabled).toBe(state === 'pending')
+  fireEvent.click(confirm)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(state === 'pending')
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-command')).toBe(false)
+})
+
 function fixture(approved: boolean, admin = false) {
   const organizationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationId>(randomUUID())
   const projectId = brandString<import('@deepseek-ai/dsh-organization').OrganizationProjectId>(randomUUID())
@@ -131,7 +246,8 @@ function fixture(approved: boolean, admin = false) {
   const props: OrganizationProps = { connection, context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
     available: true, server: vi.fn(), secret: vi.fn(),
     t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state) }
-  return { props, task, projectId, connection, prep,
+  return { props, task, projectId, connection, prep, generation: () => state.connection.generation,
+    refresh: () => { state = { ...state, connection: { ...state.connection, generation: state.connection.generation + 1 } } },
     offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }
 }
 it('requires version confirmation before approval and preserves the assignee draft after a refusal', async () => {
@@ -271,10 +387,12 @@ it('uses the same explicit acceptance and execution controls inside a conversati
     return base(action)
   })
   render(<ConversationTask {...h.props} projectId={h.projectId} planId={h.task.planId}
-    taskId={h.task.id} assignmentId={h.prep.assignment.id} />)
+    taskId={h.task.id} assignmentId={h.prep.assignment.id} onClose={() => {}} />)
+  fireEvent.click(await screen.findByRole('tab', { name: zh.taskPreparationTab }))
   const accept = await screen.findByRole('button', { name: zh.acceptAssignment })
-  expect(screen.getByText(zh.executionTitle)).toBeTruthy()
-  expect(screen.getByText(zh.integrationTitle)).toBeTruthy()
+  expect(screen.getByRole('tab', { name: zh.taskExecutionTab })).toBeTruthy()
+  expect(screen.getByRole('tab', { name: zh.taskDeliveryTab })).toBeTruthy()
+  expect(screen.getByRole('tab', { name: zh.taskIntegrationTab })).toBeTruthy()
   expect(h.connection.mock.calls.every(([a]) => !['assignment-participant', 'execution-command', 'lease-claim', 'assignment-delegate'].includes(a.kind))).toBe(true)
   fireEvent.click(accept)
   await screen.findByRole('button', { name: zh.registerDevice })

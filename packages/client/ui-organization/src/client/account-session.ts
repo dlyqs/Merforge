@@ -18,6 +18,7 @@ export class AccountSession implements AccountSessionTarget {
   private readonly attachmentId: NonNullable<ConversationResult['attachmentId']>
   private result: ConversationResult
   private active = true
+  private disposal: Promise<void> | undefined
   private readonly identityGeneration: number
   private readonly candidates = new Map<SessionTaskChoiceId, Extract<ConversationRequest, { kind: 'select-task' }>['target']>()
   /**
@@ -109,11 +110,15 @@ export class AccountSession implements AccountSessionTarget {
     if (reply.generation !== this.identity.getSnapshot().connection.generation) throw new Error('organization-conversation: superseded')
     this.result = { ...reply.result, attachmentId: this.result.attachmentId }; this.changed()
   }
-  /** Release native authorization; Controller references own common history and streams. */
-  dispose(): void {
-    if (!this.active) return
+  /** Release native authorization after its Agent stops; Controller references own history and streams.
+   * @returns Settlement after the native attachment drains or its identity has already retired.
+   */
+  dispose(): Promise<void> {
+    if (this.disposal) return this.disposal
     this.active = false
-    void this.native.conversation({ ...this.query, kind: 'detach', attachmentId: this.attachmentId, operationId: randomUUID() as ConversationRequest['operationId'] })
+    this.disposal = this.native.conversation({ ...this.query, kind: 'detach', attachmentId: this.attachmentId, operationId: randomUUID() as ConversationRequest['operationId'] })
+      .then(() => {})
       .catch((_error: unknown) => { /* Identity changes already retire the native attachment. */ })
+    return this.disposal
   }
 }
