@@ -14,6 +14,7 @@ import type { ConversationAuthority, ConversationBridge, ConversationResult, con
 import type { conversationBindingSchema } from './state.ts'
 import type { z } from 'zod'
 import { installProposal, planningProjection } from './proposal.ts'
+import { planningInstructions } from './planning-instructions.ts'
 
 type Binding = z.output<typeof conversationBindingSchema>
 type Settings = ConversationResult['settings']
@@ -333,7 +334,8 @@ export class SharedConversationSessions {
         : settings.enabled ? 'Discuss this goal with the user. Assess complexity with workflow_assess; clarify missing requirements and propose an unapproved organization plan with workflow_propose when the goal is complex. Shared task definitions contain task summaries and authorized facts, never private conversation transcripts.'
           : 'Provide ordinary assistance. Automatic task planning is disabled.'
     return { ...decision, messages: [...decision.messages, createUserMessage({ source: { kind: 'organization-task-context' },
-      content: [{ type: 'text', text: JSON.stringify({ method, settings, testing, goalId, ...(bot ? { bot: { name: bot.name, instructions: bot.instructions } } : {}),
+      content: [{ type: 'text', text: JSON.stringify({ method: !target && (testing.forceDecomposition || settings.enabled) ? `${method}\n${planningInstructions}` : method,
+        settings, testing, goalId, ...(bot ? { bot: { name: bot.name, instructions: bot.instructions } } : {}),
         project: authority.view.project, ...(plan ? { task: plan } : {}) }) }] })] }
   }
 }

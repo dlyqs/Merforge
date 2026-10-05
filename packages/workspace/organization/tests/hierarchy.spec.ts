@@ -5,6 +5,30 @@ import { addMember, operationId } from './harness.ts'
 import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION } from '../src/database.ts'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
+it('restricts employee charts to descendants, immediate peers and ancestors while administrators retain the complete tree', async () => {
+  const h = await assignmentHarness(cleanup)
+  const manager = await addMember(h.service, h.owner.token, h.owner.organizationId, 'manager')
+  const peer = await addMember(h.service, h.owner.token, h.owner.organizationId, 'peer')
+  const peerReport = await addMember(h.service, h.owner.token, h.owner.organizationId, 'peer-report')
+  const grandReport = await addMember(h.service, h.owner.token, h.owner.organizationId, 'grand-report')
+  const unrelated = await addMember(h.service, h.owner.token, h.owner.organizationId, 'unrelated-root')
+  const link = async (child: typeof manager, parent: typeof manager['membershipId']) => h.service.execute(h.owner.token,
+    { kind: 'set-supervisor', organizationId: h.owner.organizationId, membershipId: child.membershipId,
+      supervisorId: parent, expectedVersion: 0, operationId: operationId() })
+  await link(manager, h.owner.membershipId)
+  await link(peer, h.owner.membershipId)
+  await link(h.other, manager.membershipId)
+  await link(grandReport, h.other.membershipId)
+  await link(peerReport, peer.membershipId)
+  const ids = (chart: Awaited<ReturnType<typeof h.service.hierarchy>>) => chart.map(node => node.id).sort()
+  const chart = await h.service.hierarchy(manager.token, h.owner.organizationId)
+  expect(ids(chart)).toEqual([h.owner.membershipId, manager.membershipId, peer.membershipId, h.other.membershipId, grandReport.membershipId].sort())
+  expect(ids(await h.service.hierarchy(h.other.token, h.owner.organizationId)))
+    .toEqual([h.owner.membershipId, manager.membershipId, h.other.membershipId, grandReport.membershipId].sort())
+  expect(ids(await h.service.hierarchy(unrelated.token, h.owner.organizationId))).toEqual([unrelated.membershipId])
+  expect(await h.service.hierarchy(h.owner.token, h.owner.organizationId)).toHaveLength(7)
+  expect(chart.every(node => !node.supervisorId || chart.some(parent => parent.id === node.supervisorId))).toBe(true)
+}, 20000)
 it('allows self and direct reports, refuses peers and indirect reports, and retires approvals when reporting changes', async () => {
   const h = await assignmentHarness(cleanup)
   const manager = await addMember(h.service, h.owner.token, h.owner.organizationId, 'manager')
@@ -40,7 +64,7 @@ it('allows self and direct reports, refuses peers and indirect reports, and reti
     operationId: operationId() })
   expect((await h.read(own.assignmentId!)).assigneeId).toBe(manager.membershipId)
   const chart = await h.service.hierarchy(h.other.token, h.owner.organizationId)
-  expect(chart.find(n => n.id === manager.membershipId)?.supervisorId).toBe(lead.membershipId)
+  expect(chart.map(n => n.id)).toEqual([h.other.membershipId])
   expect(chart.some(n => 'accountId' in n || 'passwordHash' in n)).toBe(false)
 })
 it('rejects cycles, cross-organization parents and stale versions without changing the chart', async () => {

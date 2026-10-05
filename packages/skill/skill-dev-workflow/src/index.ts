@@ -92,7 +92,7 @@ export function apply(ctx: Context): void {
       ctx.logger.info(`personal-workflow sessionId=${agent.session.id} decisionCode=method-loaded result=ready`)
     }
     return { ...decision, messages: [...decision.messages, createUserMessage({
-      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 2, policy },
+      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 3, policy },
       content: [{ type: 'text', text }],
     })] }
   })
@@ -119,7 +119,7 @@ export function apply(ctx: Context): void {
   }))
   ctx.tools.register(defineTool({
     name: 'workflow_propose',
-    description: 'Save a feasible, clarified complex goal as an unapproved plan. Parent-child relationships and prerequisites are independent. This never approves or starts tasks. Retry uncertain writes with the identical operationId and proposal.',
+    description: 'Save a feasible, clarified complex goal as an unapproved plan. Summarize its root goal as a short task name. Normally keep at most 5 direct children per node by adding meaningful intermediate groups; explain necessary exceptions in the parent scope. Parent-child relationships and prerequisites are independent. This never approves or starts tasks. Retry uncertain writes with the identical operationId and proposal.',
     parameters: {
       modeRevision: { type: 'integer', required: true },
       operationId: { type: 'string', required: true, description: 'UUID retry identity.' },
@@ -135,7 +135,7 @@ export function apply(ctx: Context): void {
           } } },
           tasks: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: {
             id: { type: 'string', required: true }, parentTaskId: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true },
-            phaseId: { type: 'string', required: true }, goal: { type: 'string', required: true }, scope: { type: 'string', required: true },
+            phaseId: { type: 'string', required: true }, goal: { type: 'string', required: true, description: 'Concise task name; the root summarizes the overall goal. Keep detailed requirements in scope and acceptance.' }, scope: { type: 'string', required: true },
             acceptance: { type: 'array', items: { type: 'string' }, required: true }, artifacts: { type: 'array', items: { type: 'string' }, required: true },
             cwd: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true }, dependsOn: { type: 'array', items: { type: 'string' }, required: true }, required: { type: 'boolean', required: true },
           } } },

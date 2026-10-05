@@ -1,7 +1,7 @@
 /** Main task workspace; all execution state comes from the Host projection. */
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { useEffect, useRef, useState } from 'react'
-import { Button, IconBranchOutlineRegular, IconRefreshOutlineRegular, IconEditOutlineRegular, IconDownloadOutlineRegular, IconCheckOutlineRegular, IconNewChatOutlineRegular, IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, TaskDetail, TaskStages, IconBranchOutlineRegular, IconRefreshOutlineRegular, IconEditOutlineRegular, IconDownloadOutlineRegular, IconCheckOutlineRegular, IconNewChatOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OperationId, PlanDefinition, PlanView, TaskDefinition, TaskId, PhaseId } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { WorkflowProps } from './contract.ts'
 import { overlappingArtifacts } from './view.ts'
@@ -21,8 +21,6 @@ export function Workflow(props: WorkflowProps) {
   const [draft, setDraft] = useState<PlanDefinition | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const detail = useRef<HTMLElement>(null)
-  useEffect(() => { if (detail.current) detail.current.scrollTop = 0 }, [taskId, detailsOpen])
   const lock = useRef(false)
   const receipt = useRef<{ fingerprint: string; operationId: OperationId } | null>(null)
   const sessions = props.useSessions(value => value)
@@ -110,13 +108,9 @@ export function Workflow(props: WorkflowProps) {
         <div className={css.workspace}>
           <TaskMindMap key={definition.taskId} definition={definition} statuses={view.tasks}
             selected={taskId} onSelect={showTask} t={t}>
-            {task !== undefined && detailsOpen && <section ref={detail} className={css.detail} aria-label={t('taskDetail')}>
-              <div className={css.detailToolbar}><span className={css.eyebrow}>{t('taskDetail')}</span>
-                <Button size="sm" icon={<IconCloseOutlineRegular />} aria-label={t('hideDetails')} onClick={() => { setDetailsOpen(false) }} />
-              </div>
-              <div className={css.detailHeading}><h3>{task.goal}</h3>
-                {status !== undefined && <span className={css.status} data-status={status.status}>{t(status.status)}</span>}
-              </div>
+            {task !== undefined && detailsOpen && <TaskDetail taskId={task.id} title={task.goal}
+              labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}
+              {...(status ? { status: { value: status.status, label: t(status.status) } } : {})}>
               {status !== undefined && <div className={css.taskProgress}>
                 <p>{t('blockers')}: {names(status.blockers)}</p>
                 {status.requiredChildren > 0 && <><p>{t('progress', { done: status.completedChildren, total: status.requiredChildren })}</p>
@@ -160,24 +154,17 @@ export function Workflow(props: WorkflowProps) {
                 <div className={css.sessionLinks}>{linkedSessions.map(id => <Button key={id} variant="ghost" size="sm" icon={<IconNewChatOutlineRegular />} onClick={() => { props.openSession(id) }}>{sessions.byId[id]?.displayTitle ?? id}</Button>)}</div>
                 {linkedSessions.length === 0 && <p className={css.hint}>{t('noSessions')}</p>}
               </section>
-            </section>}
+            </TaskDetail>}
           </TaskMindMap>
-          <details className={css.stages} open><summary>{t('dependencies')}</summary><p className={css.hint}>{t('parallel')}</p>
-            {definition.phases.map((phase) => {
-              const members = definition.tasks.filter(item => item.phaseId === phase.id)
-              return <section className={css.stage} key={phase.id}>
-                {draft === null ? <h4>{phase.title}</h4> : <label>{t('phase')}<input value={phase.title} disabled={busy} onChange={(event) => {
-                  setDraft({ ...draft, phases: draft.phases.map(item =>
-                    item.id === phase.id ? { ...item, title: event.target.value } : item) })
-                }} /></label>}
-                <p className={css.hint}>{t('phaseProgress', { done: view.tasks.filter(item => item.status === 'completed' && members.some(member => member.id === item.taskId)).length, total: members.length })}</p>
-                <div className={css.branches}>{members.map(item => <button type="button" key={item.id} className={css.branch} aria-pressed={taskId === item.id} onClick={() => { showTask(item.id) }}>
-                  <span>{item.goal}</span>
-                  <small>{t('prerequisites')}: {names(item.dependsOn)}</small>
-                </button>)}</div>
-              </section>
-            })}
-          </details>
+          <TaskStages phases={definition.phases.map((phase) => {
+            const members = definition.tasks.filter(item => item.phaseId === phase.id)
+            return { ...phase, progressLabel: t('phaseProgress', { done: view.tasks.filter(item => item.status === 'completed' && members.some(member => member.id === item.taskId)).length, total: members.length }) }
+          })} tasks={definition.tasks} selected={taskId} disabled={busy}
+          labels={{ dependencies: t('dependencies'), parallel: t('parallel'), phase: t('phase'), prerequisites: t('prerequisites'), none: t('none') }}
+          onSelect={(id) => { const item = definition.tasks.find(item => item.id === id); if (item) showTask(item.id) }}
+          {...(draft ? { onPhaseTitleChange: (id: string, title: string) => {
+            setDraft({ ...draft, phases: draft.phases.map(phase => phase.id === id ? { ...phase, title } : phase) })
+          } } : {})} />
         </div>
       </>}
     </div>

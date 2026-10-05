@@ -31,6 +31,8 @@ One connection coordinates renewal for one explicitly claimed task at a time. Th
 
 Current-authority inbox snapshots and three ordered SSE streams clear stale facts and refetch on gaps. Assignment read results and mutation receipts carry generations checked again by Electron at the owning top-frame handoff. Real Loader/SQLite/HTTPS tests substitute only the OS vault and deliberate transport faults. The Desktop integration built smoke also exercises two device owners, lease invalidation across a private-process restart, native material reopening and revoked registrations after restore under Node and Electron Node mode. Actual OS unlock and cross-machine behavior still require the [assignment acceptance](../../../docs/organization-assignment-acceptance.md).
 
+The fixed `remove-project` action removes a non-creator's installation-local project copy. It checks current project read access, stores server/account/organization/project identifiers in the owner-only `.removed-projects` journal, and excludes those projects from navigation counts and pages across refreshes and restarts. It neither deletes the shared project nor revokes other participants' permissions. Creators use the versioned shared `delete-project` command. Refresh reads authority deletion pages after the project snapshot and publishes `removedProjects` for private Host cleanup. Account conversation channels refuse removed projects; existing assignment notifications cannot rematerialize them. Only removal identifiers are retained locally after conversation and Bot cleanup.
+
 ## Model Experience
 
 No model tools, prompts, token use or KV-cache changes. Organization facts do not enter personal Sessions.

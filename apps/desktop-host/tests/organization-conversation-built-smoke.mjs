@@ -106,7 +106,19 @@ try {
   const logs = (await readdir(join(root, 'conversations'), { recursive: true })).filter(p => p.endsWith('.jsonl'))
   assert.equal(logs.length, 2)
   assert(!(await readFile(join(root, 'conversations', logs[0]), 'utf8')).includes('local-only-smoke-key'))
-  console.log(`organization conversation built smoke: ${process.argv.includes('--electron') ? 'Electron Node' : 'Node'} private IPC/HTTPS/Agent/JSONL/reopen/duplicate/assignment passed`)
+  await connection.perform({ kind: 'command', command: { kind: 'delete-project', organizationId: request.organizationId,
+    projectId: request.projectId, expectedVersion: project.revision, operationId: randomUUID() } })
+  assert.deepEqual(connection.snapshot().removedProjects, [request.projectId])
+  const cleanupHost = await child()
+  const removal = { ...request, kind: 'project-remove', operationId: randomUUID() }
+  await invoke(cleanupHost, removal)
+  assert.equal((await readdir(join(root, 'conversations'), { recursive: true })).filter(p => p.endsWith('.jsonl')).length, 0)
+  await cleanupHost.close()
+  const reopenedHost = await child()
+  await invoke(reopenedHost, removal)
+  await assert.rejects(invoke(reopenedHost, taskRequest))
+  await reopenedHost.close()
+  console.log(`organization conversation built smoke: ${process.argv.includes('--electron') ? 'Electron Node' : 'Node'} private IPC/HTTPS/Agent/JSONL/reopen/duplicate/assignment/project deletion passed`)
 } finally {
   for (const close of [...children]) await close()
   await connection.close(); await app.close(); await rm(root, { recursive: true, force: true })

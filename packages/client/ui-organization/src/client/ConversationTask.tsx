@@ -7,7 +7,10 @@ import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { ExecutionPanel } from './ExecutionPanel.tsx'
 import { IntegrationPanel } from './IntegrationPanel.tsx'
 
-/** @param props - Selected authorized task and optional immutable assignment. @returns Existing human controls with current task facts. */
+/**
+ * @param props - Selected authorized task and optional immutable assignment.
+ * @returns Human controls for the task already summarized in the shared detail panel.
+ */
 export function ConversationTask(props: OrganizationProps & { projectId: OrganizationProjectId
   planId: OrganizationPlanId
   taskId: OrganizationTaskId
@@ -29,9 +32,7 @@ export function ConversationTask(props: OrganizationProps & { projectId: Organiz
   const current = c.phase === 'ready' && c.mode === 'organization' && detail?.generation === c.generation
   if (!detail) return null
   return <div hidden={!current}>
-    <h3>{detail.task.goal}</h3><p>{detail.task.scope}</p>
     <p>{props.t('taskVersion', { revision: detail.task.revision })}</p>
-    <ul>{detail.task.acceptance.map((text, i) => <li key={i}>{text}</li>)}</ul>
     <AssignmentPanel key={`${props.taskId}:${props.assignmentId ?? ''}`} {...props} task={detail.task} current={current} />
     <ExecutionPanel key={`${props.taskId}:${props.assignmentId ?? ''}:${detail.task.revision}`} {...props} task={detail.task} current={current} />
     {current && <IntegrationPanel {...props} task={detail.task} />}

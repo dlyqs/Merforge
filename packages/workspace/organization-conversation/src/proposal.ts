@@ -8,6 +8,7 @@ import { z } from 'zod'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import type { ConversationBridge } from './protocol.ts'
 import { conversationProposalSchema, conversationAssessmentSchema, type conversationInputSchema } from './state.ts'
+import { planningInstructions } from './planning-instructions.ts'
 
 const projectionSchema = z.object({ assessments: z.array(conversationAssessmentSchema), proposals: z.array(conversationProposalSchema) })
 type Projection = z.output<typeof projectionSchema>
@@ -41,7 +42,7 @@ export function installProposal(ctx: Context, agent: Agent,
     return value
   }
   ctx.effect(() => ctx.tools.register(defineTool({ name: 'workflow_propose',
-    description: 'Save the current clarified complex goal as an unapproved plan. Use UUID task and phase IDs. Keep existing IDs and the exact current revision when modifying. A subtree replacement keeps its root goal, scope, acceptance and resources unchanged. Saving invalidates previous approvals and execution qualifications; original approvers must approve new leaves. No task is assigned or started. Without edit access this saves a private suggestion only.',
+    description: `Save the current clarified complex goal as an unapproved plan. ${planningInstructions} Keep the exact current revision when modifying. A subtree replacement keeps its root goal, scope, acceptance and resources unchanged. Saving invalidates previous approvals and execution qualifications; original approvers must approve new leaves. No task is assigned or started. Without edit access this saves a private suggestion only.`,
     parameters: {
       operationId: { type: 'string', required: true }, expectedRevision: { type: 'integer', required: true },
       definition: { type: 'object', required: true, additionalProperties: false, properties: {
@@ -51,7 +52,7 @@ export function installProposal(ctx: Context, agent: Agent,
         } } },
         tasks: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: {
           id: { type: 'string', required: true }, parentTaskId: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true },
-          phaseId: { type: 'string', required: true }, goal: { type: 'string', required: true }, scope: { type: 'string', required: true },
+          phaseId: { type: 'string', required: true }, goal: { type: 'string', required: true, description: 'Concise task name; the root summarizes the overall goal. Keep detailed requirements in scope and acceptance.' }, scope: { type: 'string', required: true },
           acceptance: { type: 'array', items: { type: 'string' }, required: true }, artifacts: { type: 'array', items: { type: 'string' }, required: true },
           dependsOn: { type: 'array', items: { type: 'string' }, required: true }, required: { type: 'boolean', required: true },
           suggestedMembershipId: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true },

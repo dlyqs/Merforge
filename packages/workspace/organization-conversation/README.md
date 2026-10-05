@@ -10,13 +10,15 @@ Project and Inbox content refreshes retain the native attachment and ordinary Se
 
 The legacy planning runtime serves unattached historical reservations. Once adopted, its `send` operation is refused and the caller must use the ordinary Session API. The invariant compares legacy domain/log evidence, while common adoption checks the alias's durable owner. No private leader transcript is copied into an employee conversation.
 
+The fixed `project-remove` operation uses fresh organization membership authorization so cleanup remains available after shared project read permission is revoked. It tombstones all matching server/account/organization/project conversation bindings, drains attached ordinary Agents, deletes their private logs and known Session successors, and removes local Bots, titles, associations and input/control records. Other projects and accounts are unaffected. Retained binding identifiers prevent old assignment notifications from reopening deleted conversations. Native removal identifiers trigger cleanup again after restart or interrupted cleanup; this operation does not invoke a model or a shared organization mutation.
+
 ## Model Experience
 
 ### Explicit project message
 
 #### What the model sees
 
-The ordinary conversation history and a logged JSON context message containing the current goal, effective organization settings, authorized project or selected-task facts, and selected Bot instructions. The method version is `organization-planning/v2`.
+The ordinary conversation history and a logged JSON context message containing the current goal, effective organization settings, authorized project or selected-task facts, and selected Bot instructions. The method version is `organization-planning/v2`. Ordinary and private planning share concise naming and recursive grouping instructions. They guide new proposals without imposing a storage limit on existing or manually edited plans.
 
 The device's workflow testing preference and revision are also logged in `organization/planning-input` and the context message. With forced decomposition enabled, an unselected project goal requires a complex assessment and at least two required subtasks, even when account planning is disabled. Ordinary work tools are refused until explicit task selection. Clarification and member queries remain available. Selected and assigned tasks retain ordinary execution. Changing the testing revision rejects an older input's proposal eligibility; historical inputs without testing fields remain readable.
 
@@ -26,6 +28,7 @@ A forced projectless goal instead logs a context message asking the user to sele
 
 ```markdown
 Discuss this goal with the user. Assess complexity with workflow_assess; clarify missing requirements and propose an unapproved organization plan with workflow_propose when the goal is complex. Shared task definitions contain task summaries and authorized facts, never private conversation transcripts.
+Before proposing, summarize the overall goal into a short task name in the user’s language. Use that name as the root task’s goal, aiming for at most 20 Chinese characters or 8 words. Do not copy the full request or enumerate subtasks in the name; retain complete requirements in scope and acceptance. Give other nodes concise names too. Normally every node has at most 5 direct children. If more are needed, insert meaningful deliverable or workstream groups and apply the same rule recursively; for example, place 10 subtasks under 2–3 groups instead of directly under the root. Do not invent filler work or unnecessary levels. Exceed 5 only when grouping would obscure an inseparable set, and explain that exception in the parent’s scope. Granularity changes leaf detail, not this branching rule. Parent-child relationships and prerequisites are independent; siblings have no implicit execution order. Preserve explicit dependencies when grouping, and never make a child depend on an ancestor that waits for it. Allocate phases in progression order, placing parents no earlier than required children and consumers no earlier than prerequisites. Every task belongs to one phase. Preserve existing task and phase identities when modifying a plan, and use new UUIDs for new nodes.
 ```
 
 ##### Verbatim disabled method

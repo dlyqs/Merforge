@@ -28,7 +28,8 @@ export async function organizationConversation(connection: OrganizationConnectio
   assertCurrent: () => void, lifetime: AbortSignal, onClosed?: () => void): Promise<{ generation: number; result: ConversationResult }> {
   assertCurrent()
   const request = conversationRequestSchema.parse(input), initial = connection.snapshot()
-  const selector = { organizationId: request.organizationId, projectId: request.projectId, conversationId: request.conversationId }
+  const selector = { organizationId: request.organizationId,
+    ...(request.kind === 'project-remove' ? {} : { projectId: request.projectId }), conversationId: request.conversationId }
   const channel = request.kind === 'attach' ? connection.conversationChannel(selector) : undefined
   const cancel = new AbortController(), signal = AbortSignal.any([lifetime, cancel.signal, ...(channel ? [channel.signal] : [])])
   const current = () => {
@@ -42,6 +43,7 @@ export async function organizationConversation(connection: OrganizationConnectio
   const draft = { sent: false }
   const bridge: ConversationBridge = async (command) => {
     const principal = current()
+    if (request.kind === 'project-remove' && command) throw new Error('forbidden')
     if (command && (command.organizationId !== request.organizationId || command.projectId !== request.projectId
       || command.conversationId !== request.conversationId)) throw new Error('forbidden')
     if (command && !request.projectId) throw new Error('forbidden')

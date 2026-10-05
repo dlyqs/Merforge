@@ -29,6 +29,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [menu, setMenu] = useState<string | null>(null), [sortName, setSortName] = useState(false)
   const [projectDraft, setProjectDraft] = useState<{ project?: OrganizationProjectView; name: string }>()
+  const [deleting, setDeleting] = useState<OrganizationProjectView>()
   const projectOperation = useRef<string>()
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const ready = c.phase === 'ready' && c.mode === 'organization'
@@ -70,10 +71,11 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     return () => { active = false }
   }, [ready, c.generation, revision, props.section])
   useEffect(() => {
-    setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setExpanded(new Set()); setMenu(null)
+    setEditing(undefined); setProjectDraft(undefined); setNewTarget(undefined); setDeleting(undefined)
+    setExpanded(new Set()); setMenu(null)
   }, [c.principal?.accountId, c.principal?.serverId, c.organizationId])
   const readable = c.mode === 'organization' && ['ready', 'loading'].includes(c.phase)
-  const items = readable ? catalogs?.items ?? [] : []
+  const items = readable ? (catalogs?.items ?? []).filter(item => !c.removedProjects?.includes(item.project.id)) : []
   const open = async (project: OrganizationProjectView | undefined, conversationId: ConversationRequest['conversationId'],
     botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
     if (!ready || !c.principal || !c.organizationId || busy || !props.conversation) return
@@ -145,15 +147,17 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
       </Tooltip>
     </div></div>}
     {notice && <p role="alert">{notice}</p>}
-    {props.wide && ready && !catalogs?.complete && !notice && <p role="status">{props.t('loading')}</p>}
     {props.section === 'projects' && ordered(items.map(item => ({ ...item, name: item.project.name }))).map(({ project, catalog }) =>
       <AccountNavigationGroup key={project.id} kind="project" name={project.name} open={expanded.has(project.id)} wide={props.wide}
         onToggle={() => { toggle(project.id) }} actions={<>
           <Menu open={menu === project.id} portal align="end" onClose={() => { setMenu(null) }}
             anchor={<button type="button" className={css.rowAction} aria-label={`${props.t('more')} ${project.name}`} aria-haspopup="menu" aria-expanded={menu === project.id} onClick={() => { setMenu(menu === project.id ? null : project.id) }}><IconEllipsisOutlineRegular /></button>}
-            items={[{ id: 'tasks', label: props.t('tasks') }, { id: 'edit', label: props.t('editProject'), icon: <IconEditOutlineRegular /> }]}
+            items={[{ id: 'tasks', label: props.t('tasks') }, { id: 'edit', label: props.t('editProject'), icon: <IconEditOutlineRegular /> },
+              { id: 'delete', label: props.t(project.createdBy === c.principal?.accountId ? 'deleteProject' : 'removeLocalProject'),
+                disabled: busy || !ready || !props.removeProject }]}
             onSelect={(id) => { setMenu(null)
               if (id === 'tasks') props.openProjectTasks?.(project)
+              else if (id === 'delete') setDeleting(project)
               else { projectOperation.current = undefined
                 setProjectDraft({ project, name: project.name }) } }} />
           {newButton(project)}
@@ -175,8 +179,21 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     {props.wide && ready && catalogs?.complete && !notice && props.section === 'recent' && accountCatalog?.generation === c.generation && !ungrouped.length && !conversations.length && <p>{props.t('noRecentConversations')}</p>}
     {props.wide && ready && catalogs?.complete && !notice && props.section === 'bots' && !items.some(i => i.catalog.bots.length) && <p>{props.t('noBots')}</p>}
     {props.wide && ready && catalogs?.complete && !notice && props.section === 'projects' && !items.length && <p>{props.t('emptyProjects')}</p>}
-    {props.wide && !ready && <p>{props.t(c.phase)}</p>}
+    {props.wide && !ready && c.phase !== 'loading' && <p>{props.t(c.phase)}</p>}
   </div>
+  {deleting && <Modal open title={props.t(deleting.createdBy === c.principal?.accountId ? 'deleteProject' : 'removeLocalProject')}
+    closeLabel={props.t('close')} onClose={() => { if (!busy) setDeleting(undefined) }}
+    footer={<><Button disabled={busy} onClick={() => { setDeleting(undefined) }}>{props.t('cancel')}</Button>
+      <Button variant="primary" disabled={!ready || busy} onClick={() => {
+        if (!props.removeProject) return
+        setBusy(true); setNotice('')
+        void props.removeProject(deleting).then(() => { if (alive.current) { setDeleting(undefined); props.actions.refresh() } },
+          (error: unknown) => { if (alive.current) setNotice(props.t(workgraphError(error))) })
+          .finally(() => { if (alive.current) setBusy(false) })
+      }}>{props.t(deleting.createdBy === c.principal?.accountId ? 'deleteProject' : 'removeLocalProject')}</Button></>}>
+    <p>{deleting.name}</p><p>{props.t(deleting.createdBy === c.principal?.accountId ? 'deleteSharedProjectHint' : 'removeLocalProjectHint')}</p>
+    {notice && <p role="alert">{notice}</p>}
+  </Modal>}
   {newTarget && <Modal open title={props.t('newConversation')} closeLabel={props.t('close')} onClose={() => { if (!busy) setNewTarget(undefined) }}
     footer={<><Button disabled={busy} onClick={() => { setNewTarget(undefined) }}>{props.t('cancel')}</Button>
       <Button variant="primary" disabled={!ready || busy} onClick={() => {

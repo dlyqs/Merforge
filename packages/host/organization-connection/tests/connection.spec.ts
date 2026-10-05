@@ -76,6 +76,45 @@ it('refreshes expired subscriptions without going offline and still detects a st
   } finally { for (const follower of followers) follower.mockRestore() }
 }, 15000)
 
+it('removes participant projects only on one installation and propagates creator deletion to every current client', async () => {
+  const h = await setup()
+  const invite = await h.owner.perform({ kind: 'invite', role: 'admin' })
+  const first = await h.connect()
+  await first.perform({ kind: 'register', username: 'participant', password, invitationToken: invite.invitationToken! })
+  await first.perform({ kind: 'select', organizationId: h.initialized.organizationId! })
+  const second = await h.connect()
+  await second.perform({ kind: 'login', username: 'participant', password })
+  await second.perform({ kind: 'select', organizationId: h.initialized.organizationId! })
+  const created = (await h.owner.perform({ kind: 'command', command: { kind: 'create-project',
+    operationId: randomUUID(), organizationId: h.initialized.organizationId, name: 'Shared project' } })).receipt!
+  await h.owner.perform({ kind: 'command', command: { kind: 'set-grant', operationId: randomUUID(),
+    organizationId: h.initialized.organizationId, projectId: created.projectId,
+    membershipId: first.snapshot().organizations[0]!.membershipId, expectedVersion: 0, actions: ['read', 'write'] } })
+  await expect.poll(() => first.snapshot().projects?.items.length).toBe(1)
+  await expect.poll(() => second.snapshot().projects?.items.length).toBe(1)
+  expect(first.snapshot().projects?.items[0]?.createdBy).toBe(h.owner.snapshot().principal?.accountId)
+  await expect(first.perform({ kind: 'command', command: { kind: 'delete-project', operationId: randomUUID(),
+    organizationId: h.initialized.organizationId, projectId: created.projectId, expectedVersion: created.revision } })).rejects.toThrow('forbidden')
+  await expect.poll(() => first.snapshot().phase).toBe('ready')
+  await first.perform({ kind: 'remove-project', projectId: created.projectId! })
+  expect(first.snapshot().projects?.total).toBe(0)
+  expect(first.snapshot().removedProjects).toEqual([created.projectId])
+  expect(second.snapshot().projects?.items.map(project => project.id)).toEqual([created.projectId])
+  expect(h.owner.snapshot().projects?.items.map(project => project.id)).toEqual([created.projectId])
+  await first.close()
+  const restarted = new OrganizationConnection({ trustPath: join(h.root, 'client-1.json'), reconnectMs: 100 })
+  cleanup.push(() => restarted.close())
+  await restarted.perform({ kind: 'login', username: 'participant', password })
+  await restarted.perform({ kind: 'select', organizationId: h.initialized.organizationId! })
+  expect(restarted.snapshot().projects?.total).toBe(0)
+  expect(restarted.snapshot().removedProjects).toEqual([created.projectId])
+  await h.owner.perform({ kind: 'command', command: { kind: 'delete-project', operationId: randomUUID(),
+    organizationId: h.initialized.organizationId, projectId: created.projectId, expectedVersion: created.revision } })
+  await expect.poll(() => second.snapshot().projects?.total).toBe(0)
+  await expect.poll(() => second.snapshot().removedProjects).toEqual([created.projectId])
+  expect(h.owner.snapshot().removedProjects).toEqual([created.projectId])
+}, 30000)
+
 it('isolates two real identities, filters search/counts, clears revoked views and preserves personal files', async () => {
   const h = await setup()
   for (const machine of ['B', 'C']) {
@@ -292,7 +331,7 @@ it.each(['pending', 'held'])('preserves WorkGraph history and permanently retire
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 16 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 17 })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)

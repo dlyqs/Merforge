@@ -110,6 +110,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const launch = (next: Task, disabled = false) => <Button variant="outline" disabled={busy || disabled} onClick={() => { navigate(next) }}>{t(next)}</Button>
   const writable = c.phase === 'ready' && !c.pendingOperation
   const admin = org?.role === 'admin'
+  useEffect(() => { if (!admin && section === 'members') { setSection('projects'); navigate(null) } }, [admin, section])
   const form = (submit: () => Promise<unknown>, children: ReactNode, disabled = false) => <form onSubmit={(event) => {
     event.preventDefault()
     if (!busy && !disabled) void run(submit)
@@ -142,7 +143,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['projects', 'inbox', 'hierarchy', 'members', 'connection', 'server'] as const).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item)
+        {(['projects', 'inbox', 'hierarchy', 'members', 'connection', 'server'] as const).filter(item => item !== 'members' || admin).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item)
           navigate(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
@@ -195,9 +196,9 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             const name = value('projectName').trim()
             const result = await command({ kind: 'create-project', organizationId: c.organizationId, name })
             navigate(null)
-            if (result.receipt?.projectId && result.receipt.organizationId) {
+            if (result.receipt?.projectId && result.receipt.organizationId && c.principal) {
               const created = { id: result.receipt.projectId, organizationId: result.receipt.organizationId,
-                name, version: result.receipt.revision }
+                name, version: result.receipt.revision, createdBy: c.principal.accountId }
               if (props.openProjectTasks) { props.openProjectTasks(created); props.onClose() }
             }
           }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !writable || !value('projectName').trim())}

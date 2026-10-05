@@ -19,7 +19,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 16
+export const ORGANIZATION_SCHEMA_VERSION = 17
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -48,6 +48,11 @@ CREATE TABLE resource_grants (projectId TEXT NOT NULL REFERENCES organization_pr
   PRIMARY KEY(projectId,membershipId)) STRICT;
 CREATE TABLE resource_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision), projectId TEXT NOT NULL REFERENCES organization_projects(id)) STRICT;
 `
+const projectLifecycleDdl = `CREATE TABLE organization_project_lifecycle (
+  projectId TEXT PRIMARY KEY REFERENCES organization_projects(id),
+  createdBy TEXT NOT NULL REFERENCES accounts(id),
+  deletedRevision INTEGER REFERENCES organization_events(revision)
+) STRICT;`
 
 /**
  * Run one synchronous transaction; no partially committed records escape on failure.
@@ -90,12 +95,13 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       if (stamp === 0 && app === 0 && db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().length === 0) {
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
           + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl
-          + planningDdl + planningDraftDdl + hierarchyDdl)
+          + planningDdl + planningDraftDdl + hierarchyDdl + projectLifecycleDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
         stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9
-        || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13 || stamp === 14 || stamp === 15) && app === applicationId) {
+        || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13 || stamp === 14
+        || stamp === 15 || stamp === 16) && app === applicationId) {
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
         if (stamp < 3) db.exec(workgraphDdl)
@@ -112,6 +118,10 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 14) db.exec(planningDraftDdl)
         if (stamp < 15) db.exec(hierarchyDdl)
         if (stamp >= 13) migratePlanningV15(db)
+        db.exec(projectLifecycleDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
+        db.exec(`INSERT OR IGNORE INTO organization_project_lifecycle (projectId,createdBy)
+          SELECT p.id,e.actorId FROM organization_projects p JOIN resource_events r ON r.projectId=p.id
+          JOIN organization_events e ON e.revision=r.revision WHERE e.kind='create-project'`)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -141,7 +151,16 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
       for (const row of db.prepare('SELECT * FROM resource_events').all()) resourceEventSchema.parse(row)
       if (db.prepare(`SELECT 1 FROM resource_events r JOIN organization_events e ON e.revision=r.revision
         JOIN organization_projects p ON p.id=r.projectId WHERE e.organizationId<>p.organizationId
-        OR e.kind NOT IN ('create-project','rename-project','set-grant','approve-assignment') LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
+        OR e.kind NOT IN ('create-project','rename-project','delete-project','set-grant','approve-assignment') LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
+      if (assignments && db.prepare(`SELECT 1 FROM organization_projects p
+        LEFT JOIN organization_project_lifecycle l ON l.projectId=p.id
+        LEFT JOIN organization_events d ON d.revision=l.deletedRevision
+        WHERE l.projectId IS NULL OR NOT EXISTS (SELECT 1 FROM resource_events r
+          JOIN organization_events e ON e.revision=r.revision WHERE r.projectId=p.id
+          AND e.kind='create-project' AND e.actorId=l.createdBy)
+        OR l.deletedRevision IS NOT NULL AND (d.kind<>'delete-project' OR d.actorId<>l.createdBy
+          OR d.organizationId<>p.organizationId OR p.version<>l.deletedRevision)
+        LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
       if (db.prepare(`SELECT 1 FROM resource_grants g JOIN organization_projects p ON p.id=g.projectId
         JOIN memberships m ON m.id=g.membershipId WHERE p.organizationId<>m.organizationId LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
     }

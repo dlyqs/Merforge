@@ -14,7 +14,8 @@ import { OrganizationLoginSession } from './login-session.ts'
 import { OrganizationDeviceMaterial, type OrganizationDeviceVault } from './device-material.ts'
 import { approvalReviewSchema, approvalReviewResultSchema, assignmentCommandSchema, participantCommandSchema, delegateSchema, assignmentReadSchema, taskAssignmentsQuerySchema, taskAssignmentsPageSchema, inboxQuerySchema, inboxPageSchema, preparationSchema, deviceCommandSchema, devicesSchema, claimSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-organization/protocol'
-import { projectCommandSchema, grantCommandSchema } from '@deepseek-ai/dsh-organization/resources'
+import { projectCommandSchema, grantCommandSchema, projectViewSchema, deletedProjectsSchema } from '@deepseek-ai/dsh-organization/resources'
+import { ProjectRemovals } from './project-removals.ts'
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
@@ -58,6 +59,7 @@ export class OrganizationConnection {
   private readonly operations = new Set<Promise<unknown>>()
   private renewingMutation = false
   private readonly assignmentBatches: AssignmentBatches
+  private readonly projectRemovals: ProjectRemovals
   private journalError = false
   private readonly config: z.output<typeof connectionConfig>
   private readonly listeners = new Set<() => void>()
@@ -67,6 +69,8 @@ export class OrganizationConnection {
    */
   constructor(config: Config = {}, private readonly device?: { directory: string; vault: OrganizationDeviceVault }) {
     this.config = connectionConfig.parse(config)
+    this.projectRemovals = new ProjectRemovals(this.config.trustPath ? `${this.config.trustPath}.removed-projects` : undefined,
+      (path, rows) => { this.save(path, rows) })
     this.assignmentBatches = new AssignmentBatches(this.config.trustPath ? `${this.config.trustPath}.assignments` : undefined,
       (path, data) =>{  this.save(path, data) }, this.config.maxAssignmentBatchItems)
     this.loginSession = this.config.trustPath && device ? new OrganizationLoginSession(`${this.config.trustPath}.login`, device.vault) : undefined
@@ -161,10 +165,12 @@ export class OrganizationConnection {
     this.generation++
     this.denialRefreshed = denialRefreshed
     this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
-      members: [], hierarchy: undefined, error: undefined, ...next })
+      members: [], hierarchy: undefined, removedProjects: undefined, error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
+    if (typeof body === 'object' && body !== null && 'projectId' in body && typeof body.projectId === 'string')
+      this.assertProjectVisible(body.projectId)
     if (this.loginExpiresAt !== undefined && this.loginExpiresAt <= Date.now()) { this.invalidate('unauthenticated'); throw new Error('unauthenticated') }
     if (!this.trust) throw new Error('untrusted')
     let response: Awaited<ReturnType<typeof organizationRequest>>
@@ -188,7 +194,7 @@ export class OrganizationConnection {
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
         if (route.startsWith('/planning/') || route.startsWith('/integration/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
-          || route.startsWith('/assignment/') || route.startsWith('/device/')) {
+          || route.startsWith('/assignment/') || route.startsWith('/device/') || route === '/projects' || route.startsWith('/projects/')) {
           // Automatic detail readers retry after refresh; repeated denials must settle in that generation.
           if (!this.denialRefreshed) {
             const next = this.reset({ phase: 'loading', error: code }, true)
@@ -233,6 +239,7 @@ export class OrganizationConnection {
       if (this.loginExpiresAt === undefined || this.loginExpiresAt <= Date.now()) {
         this.invalidate('unauthenticated'); throw new Error('unauthenticated')
       }
+      if (selector.projectId) this.assertProjectVisible(selector.projectId)
       return principal
     }
     const request = async (route: '/planning/read' | '/planning/plan' | '/planning/candidates' | '/planning/command' | '/assignment/preparation', body: unknown) => {
@@ -524,8 +531,20 @@ export class OrganizationConnection {
         }
         case 'project-page': {
           const id = this.currentOrganization()
-          const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=&offset=${action.offset}${action.cursor ? `&cursor=${encodeURIComponent(action.cursor)}` : ''}`, undefined, generation))
+          const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=&offset=${action.offset}${this.projectExclusions(id)}${action.cursor ? `&cursor=${encodeURIComponent(action.cursor)}` : ''}`, undefined, generation))
           return { generation, projects }
+        }
+        case 'remove-project': {
+          const id = this.currentOrganization(), principal = this.state.principal
+          if (!principal || !this.config.trustPath) throw new Error('unavailable')
+          if (this.projectRemovals.list(principal, id).includes(action.projectId)) {
+            await this.refresh(this.reset({ phase: 'loading' })); return { generation: this.generation }
+          }
+          const project = projectViewSchema.parse(await this.request(`/projects/${action.projectId}?organizationId=${id}`, undefined, generation))
+          if (project.createdBy === principal.accountId) throw new Error('forbidden')
+          this.projectRemovals.remember(principal, id, [project.id])
+          await this.refresh(this.reset({ phase: 'loading' }))
+          return { generation: this.generation }
         }
         case 'hierarchy': {
           const id = this.currentOrganization()
@@ -793,7 +812,7 @@ export class OrganizationConnection {
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
     const route = workgraph === 'integration' ? '/integration/command' : workgraph === 'delivery' ? '/delivery/command' : workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
       : workgraph === 'device' ? '/device/command' : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
-        : kind === 'create-project' || kind === 'rename-project' ? '/projects' : '/commands'
+        : kind === 'create-project' || kind === 'rename-project' || kind === 'delete-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,
       accountId: this.state.principal.accountId,
       serverId: this.state.principal.serverId, ...('organizationId' in command ? { organizationId: command.organizationId } : {}),
@@ -857,15 +876,33 @@ export class OrganizationConnection {
     if (!id) { this.publish({ organizations, phase: 'ready' }); return }
     const selected = organizations.find(org => org.id === id)
     if (!selected) { this.reset({ organizations, organizationId: undefined, phase: 'ready', error: 'forbidden' }); return }
-    const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=${encodeURIComponent(query)}&offset=${offset}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, undefined, generation))
+    const principal = this.state.principal
+    if (!principal) throw new Error('unauthenticated')
+    const projects = pageSchema.parse(await this.request(`/organizations/${id}/search?q=${encodeURIComponent(query)}&offset=${offset}${this.projectExclusions(id)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, undefined, generation))
+    let deletedOffset = 0
+    for (;;) {
+      const deleted = deletedProjectsSchema.parse(await this.request(`/organizations/${id}/deleted-projects?offset=${deletedOffset}`, undefined, generation))
+      this.projectRemovals.remember(principal, id, deleted.items)
+      deletedOffset += deleted.items.length
+      if (!deleted.items.length || deletedOffset >= deleted.total) break
+    }
     const inbox = inboxPageSchema.parse(await this.request('/assignment/inbox', { organizationId: id }, generation))
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
     if (generation !== this.generation) return
-    this.publish({ organizations, projects, members, hierarchy, inbox, phase: 'ready', error: undefined })
+    this.publish({ organizations, projects, members, hierarchy, inbox, removedProjects: this.projectRemovals.list(principal, id), phase: 'ready', error: undefined })
     this.follow(generation, id, projects, 'projects')
     this.follow(generation, id, projects, 'workgraph')
     this.follow(generation, id, inbox, 'inbox')
+  }
+  private projectExclusions(id: OrganizationId): string {
+    const principal = this.state.principal
+    return principal ? `&excluded=${this.projectRemovals.list(principal, id).join(',')}` : ''
+  }
+  private assertProjectVisible(projectId: string): void {
+    const principal = this.state.principal, id = this.state.organizationId
+    if (principal && id && this.projectRemovals.list(principal, id).some(removed => removed === projectId))
+      throw new Error('forbidden')
   }
   private follow(generation: number,
     id: OrganizationId,

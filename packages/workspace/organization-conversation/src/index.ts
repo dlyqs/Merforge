@@ -45,7 +45,7 @@ export default class OrganizationConversation extends Service {
   private tail: Promise<void> = Promise.resolve()
   private closing = false
   private readonly running = new Set<AbortController>()
-  private activeOwner: { key: string; cancel: AbortController } | undefined
+  private activeOwner: { key: string; owner: Binding['owner']; cancel: AbortController } | undefined
   private readonly config: z.output<typeof conversationConfigSchema>
   constructor(ctx: Context, config: Config) { super(ctx, 'organizationConversation'); this.config = conversationConfigSchema.parse(config) }
   protected async [Service.init](): Promise<void> {
@@ -101,12 +101,16 @@ export default class OrganizationConversation extends Service {
     const request = conversationRequestSchema.parse(input), cancel = new AbortController()
     if (this.closing) return Promise.reject(new Error('organization-conversation: unavailable'))
     if (request.kind === 'detach') return this.detach(request, authorize, signal)
-    if (request.kind === 'stop' || request.kind === 'delete') return authorize().then((authority) => {
+    if (request.kind === 'stop' || request.kind === 'delete' || request.kind === 'project-remove') return authorize().then((authority) => {
       const key = ownerKey(conversationOwnerSchema.parse({ serverId: authority.serverId, accountId: authority.accountId,
         organizationId: request.organizationId, ...(request.projectId ? { projectId: request.projectId } : {}),
         conversationId: request.conversationId,
         ...(request.assignment ? { assignment: request.assignment } : {}) }))
       if (this.activeOwner?.key === key) this.activeOwner.cancel.abort()
+      const active = this.activeOwner
+      if (request.kind === 'project-remove' && active && active.owner.serverId === authority.serverId
+        && active.owner.accountId === authority.accountId && active.owner.organizationId === request.organizationId
+        && active.owner.projectId === request.projectId) active.cancel.abort()
       return this.enqueue(request.kind === 'stop' ? { ...request, kind: 'read' } : request, authorize, signal, cancel)
     })
     return this.enqueue(request, authorize, signal, cancel)
@@ -198,6 +202,15 @@ export default class OrganizationConversation extends Service {
       organizationId: request.organizationId, ...(request.projectId ? { projectId: request.projectId } : {}),
       conversationId: request.conversationId,
       ...(request.assignment ? { assignment: request.assignment } : {}) })
+    if (request.kind === 'project-remove') {
+      if (first.view.project || first.view.grant || first.assignment) throw new Error('organization-conversation: membership-required')
+      await this.removeProject(owner)
+      const current = conversationAuthoritySchema.parse(await authorize()); check()
+      if (current.serverId !== owner.serverId || current.accountId !== owner.accountId || current.generation !== first.generation)
+        throw new Error('organization-conversation: superseded')
+      return { owner, sessionId: SessionId(`organization-conversation:${randomUUID()}`), settings: this.settings(owner),
+        entries: [], history: [], goals: [], truncated: false, state: 'ready' }
+    }
     const bridge: ConversationBridge = async (command) => {
       check()
       if (command && (command.organizationId !== owner.organizationId || command.projectId !== owner.projectId
@@ -225,7 +238,7 @@ export default class OrganizationConversation extends Service {
       sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }, bridge, true)
     if (owner.assignment && request.kind === 'send' && request.goalId !== conversationGoalSchema.parse(owner.assignment.assignmentId))
       throw new Error('organization-conversation: goal-required')
-    this.activeOwner = { key: ownerKey(owner), cancel }
+    this.activeOwner = { key: ownerKey(owner), owner, cancel }
     const digest = createHash('sha256').update(JSON.stringify(request)).digest('hex')
     const sameOperation = (record: { owner: Binding['owner']; operationId: string }) => record.operationId === request.operationId
       && record.owner.serverId === owner.serverId && record.owner.accountId === owner.accountId
@@ -502,6 +515,29 @@ export default class OrganizationConversation extends Service {
     }
     await bridge(); check()
     return this.report(binding, bridge, request.kind === 'bot-save')
+  }
+  private async removeProject(owner: Binding['owner']): Promise<void> {
+    const state = this.state, navigation = this.navigation
+    if (!state || !navigation) throw new Error('organization-conversation: unavailable')
+    const matches = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
+      && candidate.projectId === owner.projectId
+    const bindings = state.get().bindings.filter(row => matches(row.owner))
+    await state.set({ ...state.get(), bindings: state.get().bindings.map(row => matches(row.owner) ? { ...row, deleted: true } : row),
+      intents: state.get().intents.filter(row => !matches(row.owner)), controls: state.get().controls.filter(row => !matches(row.owner)) })
+    await navigation.set({ ...navigation.get(), bots: navigation.get().bots.filter(row => !matches(row.owner)),
+      metadata: navigation.get().metadata.filter(row => !matches(row.owner)),
+      selections: navigation.get().selections.filter(row => !matches(row.owner)),
+      operations: navigation.get().operations.filter(row => !matches(row.owner)) })
+    for (const binding of bindings) await this.deleteBindingFiles(binding)
+  }
+  private async deleteBindingFiles(binding: Binding): Promise<void> {
+    if (binding.sharedSessionId) {
+      await this.shared?.detach(binding.sharedSessionId)
+      const ids = new Set([binding.sharedSessionId, ...(binding.activeSessionId ? [binding.activeSessionId] : []),
+        ...(this.shared?.identities(binding.sharedSessionId) ?? [])])
+      for (const id of ids) await this.commonHost().controller.deleteSession(id)
+    }
+    if (await this.isolated.sessionPersistence.stat(binding.sessionId)) await this.isolated.sessionPersistence.delete(binding.sessionId)
   }
   private async append<T extends 'organization/planning-operation' | 'organization/planning-proposal'>(binding: Binding, type: T,
     data: import('@deepseek-ai/dsh-session').SessionEventMap[T]): Promise<void> {

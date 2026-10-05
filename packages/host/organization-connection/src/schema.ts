@@ -2,6 +2,7 @@
 import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import { projectViewSchema } from '@deepseek-ai/dsh-organization/resources'
 import type { AccountId, ServerId, MembershipId, OrganizationId, OrganizationCursor, LoginToken, OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 const version = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const org = z.uuid().transform(v => brandString<OrganizationId>(v))
@@ -34,15 +35,14 @@ export const membersSchema = z.array(z.object({ id: member,
   accountVersion: version, role,
   enabled: z.boolean(), version }).strict())
 /** Complete authorized page including its event handoff cursor. */
-export const pageSchema = z.object({ items: z.array(z.object({ id: z.uuid().transform(v => brandString<OrganizationProjectId>(v)),
-  organizationId: org,
-  name: z.string(), version }).strict()),
-total: version,
-offset: version,
-revision: version,
-cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
+export const pageSchema = z.object({ items: z.array(projectViewSchema),
+  total: version,
+  offset: version,
+  revision: version,
+  cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('remove-project'), projectId: projectViewSchema.shape.id }).strict(),
   z.object({ kind: z.literal('project-page'), offset: z.number().int().nonnegative(), cursor: z.string().optional() }).strict(),
   z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
   z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),

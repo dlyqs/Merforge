@@ -7,8 +7,31 @@ import type { OrganizationProps } from '../src/client/contract.ts'
 import type { OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import { OrganizationDialog } from '../src/client/OrganizationDialog.tsx'
 import { zh } from '../src/client/locales.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { OrganizationId, MembershipId } from '@deepseek-ai/dsh-organization/types'
 
 afterEach(() => { cleanup(); vi.useRealTimers() })
+
+it('shows member management only for administrators and leaves that section when administrator access is lost', () => {
+  const organizationId = brandString<OrganizationId>('org'), membershipId = brandString<MembershipId>('member')
+  const state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1,
+    mode: 'organization', phase: 'ready', organizationId, members: [], organizations: [
+      { id: organizationId, membershipId, name: 'Team', version: 1, role: 'member' },
+    ] }, server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
+  const props: OrganizationProps = { available: true, t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0),
+    useOrganization: selector => selector(state), connection: vi.fn(), context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
+    secret: vi.fn(), server: vi.fn() }
+  const view = render(<OrganizationDialog {...props} onClose={vi.fn()} />)
+  expect(screen.queryByRole('button', { name: zh.members })).toBeNull()
+  state.connection.organizations[0]!.role = 'admin'
+  view.rerender(<OrganizationDialog {...props} onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.members }))
+  expect(screen.getByRole('heading', { name: zh.members })).toBeTruthy()
+  state.connection.organizations[0]!.role = 'member'
+  view.rerender(<OrganizationDialog {...props} onClose={vi.fn()} />)
+  expect(screen.queryByRole('button', { name: zh.members })).toBeNull()
+  expect(screen.queryByRole('heading', { name: zh.members })).toBeNull()
+})
 
 it('deduplicates native and operation failures, clears on editing and expires feedback', async () => {
   vi.useFakeTimers()

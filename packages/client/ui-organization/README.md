@@ -13,6 +13,8 @@ Adds organization settings and a personal/organization switch to Desktop. The [o
 
 ## Use this package
 
+The task workspace and inline conversation plans use the shared `TaskMap`, `TaskDetail` and `TaskStages` primitives with personal mode. Task details have a close control in the upper right; selecting a canvas node or stage entry reopens them. Scope, phase, prerequisites, acceptance and artifacts share the personal detail layout, followed by organization assignment and execution controls. Initially expanded stages and dependencies appear below the canvas. Workspace groups use only readable task projections; hidden prerequisites remain an access hint, and unavailable completion totals are not inferred.
+
 Native model setup actions open Settings → Models → Codex through the shell-owned settingsNavigation service. Opening setup does not select a model, save a Bot, create a Session, or start an organization Run. Pushed catalog invalidations refresh availability; callers retain their current draft and explicitly choose the model and effort after setup.
 
 
@@ -73,6 +75,8 @@ Switching to an organization fills the existing Projects, Bots and Recent browse
 The Tasks browser uses the shared task-row presentation and lists readable roots. Selecting a row opens the same task canvas used by personal plans. Selecting a canvas node opens its scope, acceptance and current version in the right detail area, alongside assignment, editing and the action to execute in a common conversation. All pages of the selected authorized plan are read before drawing it; unreadable ancestors remain absent. To distribute work, choose a node, select a named eligible member, review the exact task version and confirm approval. Assignment supplies employee project and selected-task read/write access atomically. Ordinary members may assign to themselves and direct reports; administrators may assign any member, while project/task permissions remain mandatory.
 
 The organization workspace's Hierarchy tab draws current reporting relationships. Administrators select a member, choose their direct supervisor (or a root), and explicitly save using the displayed version. The server refuses cycles and cross-organization supervisors and recomputes existing assignment eligibility. Chart visibility confers no project/task permission.
+
+The project-row menu confirms shared deletion for the original creator and installation-local removal for other participants. Shared deletion removes participant copies after their next online refresh; local removal preserves the shared project and every other installation. Both remove the selected installation's private project conversations and Bots. Removal identifiers survive restart and prevent automatic assignment imports from recreating the project. Background navigation refreshes render no status row, so refresh text does not move the navigation or task content. Member management appears only for organization administrators. The authority restricts employee charts to all descendants, colleagues sharing their immediate supervisor and the ancestor reporting chain; administrators receive the full chart, including disabled members.
 
 ## Shared account presentation
 

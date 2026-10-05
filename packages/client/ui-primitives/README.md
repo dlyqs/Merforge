@@ -35,6 +35,7 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | Export | What it is |
 |---|---|
 | `Button` | Clickable action; `variant` selects `primary`, `ghost`, `outline`, or `toolbar`. |
+| `TaskDetail`, `TaskStages` | Shared dismissible task details and initially expanded phase/prerequisite navigation. Callers supply localized labels, visible task data and selection callbacks; phase progress and title editing are optional. Selecting a task resets detail scrolling. |
 | `Switch` | Two-state toggle, 36×20. `label` is required, so the control cannot ship unnamed. |
 | `SegmentedControl` | Tablist of two or more equal-width segments with one sliding indicator, for switching a card or panel between a few modes; the owner holds the selection and `label` names the list. `id` seeds each tab's id (`<id>-<value>`) and the panel it controls (`<id>-<value>-panel`), which the owner renders and points back at the tab with `aria-labelledby`; a segment may be `disabled` with a `title`, and `disabled` on the control locks every segment while the shown panel has work in flight. |
 | `Checkbox` | Labeled native checkbox with controlled state, keyboard interaction, and disabled styling; the caller supplies localized `label` text. |
@@ -194,6 +195,6 @@ None.
 
 `AccountNavigationGroup` and `AccountConversationRow` render the shared Project, Bot and conversation rows. Callers own group expansion, selection, drag actions and localized controls. `accountNavigationStyles` supplies the corresponding section, action and editor classes.
 
-`TaskMap` draws task cards, parent connectors and a right-side detail overlay with scrolling, panning, zooming and branch collapse. Callers supply readable node fields, localized status text and `TaskMapLabels`; the component changes selection only. `layoutMindMap`, `taskAncestors` and `mapGeometry` supply the same deterministic geometry to both account adapters. `taskWorkspaceStyles` supplies task-browser rows and detail/editor styling.
+`TaskMap` draws task cards, parent connectors and a right-side detail overlay with scrolling, panning, zooming and branch collapse. Callers supply readable node fields, localized status text and `TaskMapLabels`; the component changes selection only. `layoutMindMap`, `taskAncestors` and `mapGeometry` supply the same deterministic geometry to both account adapters. `TaskDetail` supplies the shared title, optional status and localized close control; the caller retains selection and owns dismissal. `TaskStages` renders supplied phase order and visible prerequisite names, with optional localized progress and phase-title editing. Selecting a stage entry uses the same callback as a map node. `taskWorkspaceStyles` supplies task-browser rows and detail/editor styling.
 
 `ConversationFrame` renders the common main-conversation root. `conversationFrameStyles` and `conversationComposerStyles` supply the existing header, transcript, composer seat and input card styling to personal and organization consumers. All these components contain no account authority, Session storage or transport operations.

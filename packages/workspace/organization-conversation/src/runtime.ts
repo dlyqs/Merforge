@@ -1,4 +1,5 @@
 import { installProposal, planningProjection } from './proposal.ts'
+import { planningInstructions } from './planning-instructions.ts'
 /** One explicit planning interval in a fresh isolated standard Agent/Session composition. */
 import { Context } from '@deepseek-ai/cordis'
 import Sessions from '@deepseek-ai/dsh-session'
@@ -125,7 +126,7 @@ export async function runConversation(owner: Context, root: string, sessionId: S
         await bridge(); combined.throwIfAborted()
         agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: JSON.stringify({
           method: { version: 'organization-planning/v2', text: input.settings.enabled
-            ? 'Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. For a clarified complex goal, call workflow_propose to save an unapproved plan. For modifications preserve task identities and exact version; progress queries only read the current plan. Shared plan changes invalidate approvals, grants on structure changes, Runs and delivery eligibility. Subtree edits preserve the original root scope, acceptance and resources. Name suggestions require current visible membership IDs; never guess identities. Shared definitions contain task summaries and authorized project facts only; never copy chat transcripts, credentials or private context. Never claim assignment, approval or execution. Respect the requested granularity.'
+            ? `Discuss the current organization project goal. Assess complexity with workflow_assess. Ask specific missing requirements when clarification is needed. Use only this private conversation and the authorized project facts. For a clarified complex goal, call workflow_propose to save an unapproved plan. For modifications preserve task identities and exact version; progress queries only read the current plan. Shared plan changes invalidate approvals, grants on structure changes, Runs and delivery eligibility. Subtree edits preserve the original root scope, acceptance and resources. Name suggestions require current visible membership IDs; never guess identities. Shared definitions contain task summaries and authorized project facts only; never copy chat transcripts, credentials or private context. Never claim assignment, approval or execution. Respect the requested granularity. ${planningInstructions}`
             : 'Answer within the current organization project. Automatic goal assessment is disabled. Shared plan saving, assignment and execution are unavailable.' },
           input,
         }) }] }))

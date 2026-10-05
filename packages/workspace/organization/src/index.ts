@@ -1,4 +1,4 @@
-import { setSupervisor } from './hierarchy.ts'
+import { setSupervisor, visibleHierarchy } from './hierarchy.ts'
 import { readPlanningPlan } from './planning-draft.ts'
 import { accountConversationReadSchema, type accountConversationViewSchema, planningCommandSchema, planningPlanReadSchema, type planningPlanViewSchema, planningCandidatesSchema, type planningCandidatesPageSchema } from './planning-schema.ts'
 import { changePlanning, readPlanning, planningCandidates } from './planning.ts'
@@ -34,12 +34,12 @@ import { openOrganizationDatabase, transaction } from './database.ts'
 import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
-import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema } from './resource-schema.ts'
+import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema, deletedProjectsSchema } from './resource-schema.ts'
 import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
 import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
 import { visibleTasks, setTaskGrant, taskGrants, selectedPlan, visibleWorkgraphEvents } from './workgraph-access.ts'
 import type { OrganizationTaskPage, OrganizationTaskGrant, OrganizationWorkgraphBatch, OrganizationPlanVersion } from './workgraph-types.ts'
-import { authorizedProject, visibleProjects, visibleEvents, accessVersion, createCursor, readCursor } from './resources.ts'
+import { authorizedProject, authorizeProjectCreator, visibleProjects, visibleEvents, accessVersion, createCursor, readCursor } from './resources.ts'
 import type { OrganizationProjectPage, OrganizationProjectView, OrganizationEventBatch, ResourceGrantView, ProjectAction } from './types.ts'
 import type { AccountId, LoginResult, LoginToken, MemberView, OperationId, OrganizationAction, OrganizationId, OrganizationView, Principal, Receipt } from './types.ts'
 
@@ -172,6 +172,7 @@ export class OrganizationService extends Service {
             projectId: receipt.projectId, planId: receipt.planId, assignmentId: receipt.assignmentId }))
         }
         if (event?.kind === 'rename-project' && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'write')
+        if (event?.kind === 'delete-project' && receipt.projectId) authorizeProjectCreator(db, current, receipt.projectId)
       }
       if (event?.kind === 'set-account' && principal.accountId !== this.metadata(db).rootAccountId) throw new OrganizationError('forbidden')
       return receipt
@@ -465,17 +466,18 @@ export class OrganizationService extends Service {
    * Read the organization chart under current membership without granting project or task access.
    * @param token - Current login credential.
    * @param organizationId - Selected organization.
-   * @returns Reporting nodes and independent reporting versions.
+   * @returns The administrator's full chart or the employee's descendants, direct peers and ancestor reporting chain.
    */
   hierarchy(token: LoginToken, organizationId: OrganizationId): Promise<z.output<typeof hierarchySchema>> {
     return this.enqueue('hierarchy', db => transaction(db, () => {
       const principal = this.principal(db, token, organizationId, 'member')
-      return hierarchySchema.parse(db.prepare(`SELECT m.id,a.username,m.role,
+      const nodes = hierarchySchema.parse(db.prepare(`SELECT m.id,a.username,m.role,
         (m.enabled=1 AND a.enabled=1) AS enabled,h.supervisorId,COALESCE(h.version,0) AS version
         FROM memberships m JOIN accounts a ON a.id=m.accountId
         LEFT JOIN organization_hierarchy h ON h.membershipId=m.id
-        WHERE m.organizationId=? AND (?='admin' OR (m.enabled=1 AND a.enabled=1)) ORDER BY a.username`)
-        .all(organizationId, principal.role ?? 'member').map(row => ({ ...row, enabled: row.enabled === 1 })))
+        WHERE m.organizationId=? ORDER BY a.username`)
+        .all(organizationId).map(row => ({ ...row, enabled: row.enabled === 1 })))
+      return visibleHierarchy(nodes, principal)
     }))
   }
 
@@ -1332,7 +1334,7 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Create a project as an enabled member or rename it with explicit write permission.
+   * Create a project, rename it with write permission, or delete it as its original creator.
    * @param token - Current organization bearer credential.
    * @param input - Strict project command with optimistic version and operation identifier.
    * @returns Committed receipt; creation also grants its creating member read/write at the same revision.
@@ -1359,6 +1361,7 @@ export class OrganizationService extends Service {
         const principal = this.principal(db, token, command.organizationId,
           command.kind === 'set-grant' ? 'manage' : 'member')
         if (command.kind === 'rename-project') authorizedProject(db, principal, command.projectId, 'write')
+        if (command.kind === 'delete-project') authorizeProjectCreator(db, principal, command.projectId)
         return principal
       }
       const principal = authorize()
@@ -1374,6 +1377,7 @@ export class OrganizationService extends Service {
             case 'create-project':
               projectId = projectSchema.shape.id.parse(randomUUID())
               db.prepare('INSERT INTO organization_projects VALUES (?,?,?,?)').run(projectId, command.organizationId, command.name, revision)
+              db.prepare('INSERT INTO organization_project_lifecycle VALUES (?,?,NULL)').run(projectId, current.accountId)
               db.prepare('INSERT INTO resource_grants VALUES (?,?,1,1,?)').run(projectId, this.member(db, current.accountId, command.organizationId).id, revision)
               break
             case 'rename-project': {
@@ -1383,8 +1387,20 @@ export class OrganizationService extends Service {
               db.prepare('UPDATE organization_projects SET name=?,version=? WHERE id=?').run(command.name, revision, projectId)
               break
             }
+            case 'delete-project': {
+              const project = projectSchema.parse(db.prepare('SELECT * FROM organization_projects WHERE id=?').get(command.projectId))
+              if (project.version !== command.expectedVersion
+                || db.prepare('SELECT deletedRevision FROM organization_project_lifecycle WHERE projectId=?').get(project.id)?.deletedRevision !== null)
+                throw new OrganizationError('version-conflict')
+              projectId = project.id
+              db.prepare('UPDATE organization_project_lifecycle SET deletedRevision=? WHERE projectId=?').run(revision, projectId)
+              db.prepare('UPDATE organization_projects SET version=? WHERE id=?').run(revision, projectId)
+              db.prepare('UPDATE resource_grants SET canRead=0,canWrite=0,version=? WHERE projectId=?').run(revision, projectId)
+              break
+            }
             case 'set-grant': {
-              const project = db.prepare('SELECT id FROM organization_projects WHERE id=? AND organizationId=?').get(command.projectId, command.organizationId)
+              const project = db.prepare(`SELECT p.id FROM organization_projects p JOIN organization_project_lifecycle l ON l.projectId=p.id
+                WHERE p.id=? AND p.organizationId=? AND l.deletedRevision IS NULL`).get(command.projectId, command.organizationId)
               const member = db.prepare('SELECT id FROM memberships WHERE id=? AND organizationId=?').get(command.membershipId, command.organizationId)
               if (!project || !member) throw new OrganizationError('forbidden')
               const row = db.prepare('SELECT * FROM resource_grants WHERE projectId=? AND membershipId=?').get(command.projectId, command.membershipId)
@@ -1424,7 +1440,8 @@ export class OrganizationService extends Service {
           && readCursor(this.cursorSecret, query.cursor, principal, version, revision, this.config.eventReplayWindow) !== revision) {
           throw new OrganizationError('snapshot-required')
         }
-        return { ...visibleProjects(db, principal, query.search, query.offset, this.config.pageSize), offset: query.offset, revision,
+        return { ...visibleProjects(db, principal, query.search, query.offset, this.config.pageSize, query.excluded),
+          offset: query.offset, revision,
           cursor: createCursor(this.cursorSecret, principal, version, revision) }
       })
       deliver(page)
@@ -1443,6 +1460,29 @@ export class OrganizationService extends Service {
       const query = parse(projectReadSchema, input)
       const project = transaction(db, () => authorizedProject(db, this.principal(db, token, query.organizationId), query.projectId, 'read'))
       deliver(project)
+    })
+  }
+
+  /**
+   * List deleted projects previously granted to this member, without names or content.
+   * @param token - Current organization bearer credential.
+   * @param input - Organization and bounded page offset.
+   * @param deliver - Synchronous handoff for local cleanup.
+   * @returns Completion after current membership and deletion identifiers are checked.
+   */
+  readDeletedProjects(token: LoginToken, input: unknown, deliver: (page: z.output<typeof deletedProjectsSchema>) => void): Promise<void> {
+    return this.enqueue('deleted-projects', (db) => {
+      const query = parse(projectQuerySchema.pick({ organizationId: true, offset: true }), input)
+      const page = transaction(db, () => {
+        const principal = this.principal(db, token, query.organizationId)
+        const sql = `FROM organization_project_lifecycle l JOIN organization_projects p ON p.id=l.projectId
+          JOIN resource_grants g ON g.projectId=p.id WHERE p.organizationId=? AND g.membershipId=? AND l.deletedRevision IS NOT NULL`
+        const args = [query.organizationId, principal.membershipId ?? null]
+        return deletedProjectsSchema.parse({ items: db.prepare(`SELECT p.id ${sql} ORDER BY l.deletedRevision,p.id LIMIT ? OFFSET ?`)
+          .all(...args, this.config.pageSize, query.offset).map(row => row.id),
+        total: Number(db.prepare(`SELECT count(*) AS total ${sql}`).get(...args)?.total), offset: query.offset })
+      })
+      deliver(page)
     })
   }
 

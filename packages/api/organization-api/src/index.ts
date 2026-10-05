@@ -150,7 +150,7 @@ export class OrganizationApiService extends Service {
       const url = new URL(req.url, 'https://organization.invalid')
       const path = url.pathname.slice('/organization/v1'.length)
       const authority: OrganizationService = this.ctx.organization
-      const resourceRoute = /^\/organizations\/([a-f0-9-]+)\/(projects|search|events)$/.exec(path)
+      const resourceRoute = /^\/organizations\/([a-f0-9-]+)\/(projects|search|events|deleted-projects)$/.exec(path)
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/(members|hierarchy)$/.exec(path)
@@ -229,11 +229,16 @@ export class OrganizationApiService extends Service {
           if (query.stream === 'true') await this.streams.open(token, organizationId, query.cursor, res)
           else await authority.readProjectEvents(token, { organizationId, cursor: query.cursor },
             (batch) => { this.respond(res, 200, batch) })
+        } else if (resourceRoute[2] === 'deleted-projects') {
+          const query = parameters(url, ['offset'])
+          if (query.offset !== undefined && !/^\d+$/.test(query.offset)) throw new OrganizationError('invalid-input')
+          await authority.readDeletedProjects(token, { organizationId, offset: Number(query.offset ?? 0) },
+            (page) => { this.respond(res, 200, page) })
         } else {
-          const query = parameters(url, resourceRoute[2] === 'search' ? ['q', 'offset', 'cursor'] : ['offset', 'cursor'])
+          const query = parameters(url, resourceRoute[2] === 'search' ? ['q', 'offset', 'cursor', 'excluded'] : ['offset', 'cursor', 'excluded'])
           if (query.offset !== undefined && !/^\d+$/.test(query.offset)) throw new OrganizationError('invalid-input')
           await authority.readProjects(token, { organizationId, search: query.q ?? '', offset: Number(query.offset ?? 0),
-            ...(query.cursor === undefined ? {} : { cursor: query.cursor }) }, (page) =>{  this.respond(res, 200, page) })
+            ...(query.cursor === undefined ? {} : { cursor: query.cursor }), excluded: query.excluded ? query.excluded.split(',') : [] }, (page) =>{  this.respond(res, 200, page) })
         }
       } else if (detailRoute?.[1]) {
         const query = parameters(url, ['organizationId'])

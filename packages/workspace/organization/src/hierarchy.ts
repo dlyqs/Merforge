@@ -1,7 +1,8 @@
 /** Organization reporting relationships and current assignment authority. */
 import type { DatabaseSync } from 'node:sqlite'
 import type { MembershipId, OrganizationId, Principal } from './types.ts'
-import { membershipSchema } from './schema.ts'
+import { membershipSchema, type hierarchySchema } from './schema.ts'
+import type { z } from 'zod'
 import { OrganizationError } from './error.ts'
 
 /** Separate reporting records preserve membership identity and membership versions. */
@@ -9,6 +10,34 @@ export const hierarchyDdl = `CREATE TABLE organization_hierarchy (
   membershipId TEXT PRIMARY KEY REFERENCES memberships(id),
   supervisorId TEXT REFERENCES memberships(id), version INTEGER NOT NULL CHECK(version>=0)
 ) STRICT;`
+
+/**
+ * Limit employees to their descendants, immediate peers and ancestor reporting chain.
+ * @param nodes - Organization reporting records, with disabled members retained for administrators.
+ * @param principal - Currently enabled organization member.
+ * @returns Visible nodes with no references to hidden supervisors.
+ */
+export function visibleHierarchy(nodes: z.output<typeof hierarchySchema>, principal: Principal): z.output<typeof hierarchySchema> {
+  if (principal.role === 'admin') return nodes
+  const byId = new Map(nodes.map(node => [node.id, node]))
+  const own = nodes.find(node => node.id === principal.membershipId)
+  if (!own) return []
+  const visible = new Set<MembershipId>([own.id])
+  const descendants = [own.id]
+  for (const id of descendants) for (const node of nodes) {
+    if (node.supervisorId === id && !visible.has(node.id)) { visible.add(node.id); descendants.push(node.id) }
+  }
+  if (own.supervisorId) for (const node of nodes) if (node.supervisorId === own.supervisorId) visible.add(node.id)
+  let parent = own.supervisorId
+  while (parent && !visible.has(parent)) {
+    const node = byId.get(parent)
+    if (!node) break
+    visible.add(parent); parent = node.supervisorId
+  }
+  const readable = nodes.filter(node => node.enabled && visible.has(node.id)), readableIds = new Set(readable.map(node => node.id))
+  return readable.map(node => ({ ...node,
+    supervisorId: node.supervisorId && readableIds.has(node.supervisorId) ? node.supervisorId : null }))
+}
 
 /**
  * Require an enabled administrator, the employee themselves, or their enabled direct supervisor.

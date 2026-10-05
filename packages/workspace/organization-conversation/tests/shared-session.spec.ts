@@ -151,6 +151,9 @@ it('streams, queues, runs ordinary tools and slash commands, and resumes the sam
     expect(agent.options.provider).toBe('ordinary')
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Use the ordinary Agent')
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('organization-task-context')
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Use that name as the root task’s goal')
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Normally every node has at most 5 direct children.')
+    expect(JSON.stringify(h.model.requests[0]?.tools?.find(tool => tool.name === 'workflow_propose'))).toContain('insert meaningful deliverable or workstream groups')
     expect(JSON.stringify(h.model.requests[0]?.tools?.find(tool => tool.name === 'workflow_assess'))).toContain('classification')
     expect(JSON.stringify(h.model.requests[0]?.tools?.find(tool => tool.name === 'workflow_assess'))).not.toContain('modeRevision')
     const pending = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'pending' }] })
@@ -181,6 +184,45 @@ it('streams, queues, runs ordinary tools and slash commands, and resumes the sam
     await expect(h.ctx.sessionQuery.readSurface(id)).rejects.toThrow()
     await vi.waitFor(() => { expect(h.ctx.agents.get(id)).toBeUndefined() })
     await second.done
+  } finally { await h.close() }
+}, 30000)
+
+it('drains project conversations and removes local logs and Bots under membership authorization without deleting other projects or accounts', async () => {
+  const h = await setup(['hang'])
+  try {
+    await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'bot-save',
+      operationId: randomUUID(), expectedVersion: 0, bot: { id: randomUUID(), name: 'Private Bot', instructions: 'Local instructions',
+        selection: { provider: 'ordinary', model: 'vision' }, version: 0 } }), h.bridge, h.signal)
+    const otherRequest = conversationRequestSchema.parse({ ...h.request, projectId: randomUUID(), conversationId: randomUUID(),
+      kind: 'open', operationId: randomUUID() })
+    const otherAuthority = conversationAuthoritySchema.parse({ ...h.authority, view: { ...h.authority.view,
+      project: { ...h.authority.view.project!, id: otherRequest.projectId } } })
+    const other = await h.ctx.organizationConversation.perform(otherRequest, async () => otherAuthority, h.signal)
+    const otherAccount = conversationAuthoritySchema.parse({ ...h.authority, accountId: randomUUID() })
+    const peer = await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'open', operationId: randomUUID() }),
+      async () => otherAccount, h.signal)
+    const attached = await h.attach(), id = attached.report.sharedSessionId!
+    await h.send(id, 'Private project input')
+    await expect.poll(() => h.model.requests.length).toBe(1)
+    const membership = conversationAuthoritySchema.parse({ ...h.authority, view: { ...h.authority.view, project: undefined,
+      grant: null, canWrite: false, eligible: false, plans: [] } })
+    const removal = conversationRequestSchema.parse({ ...h.request, kind: 'project-remove', operationId: randomUUID() })
+    await h.ctx.organizationConversation.perform(removal, async () => membership, h.signal)
+    await attached.done
+    expect(h.ctx.agents.get(id)).toBeUndefined()
+    expect(await h.ctx.sessionPersistence.stat(id)).toBeUndefined()
+    const catalog = await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'catalog', operationId: randomUUID() }),
+      h.bridge, h.signal)
+    expect(catalog.catalog).toEqual({ bots: [], conversations: [] })
+    await expect(h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'open', operationId: randomUUID() }),
+      h.bridge, h.signal)).rejects.toThrow('deleted')
+    const otherRead = await h.ctx.organizationConversation.perform({ ...otherRequest, kind: 'read' }, async () => otherAuthority, h.signal)
+    expect(otherRead.sessionId).toBe(other.sessionId)
+    const peerRead = await h.ctx.organizationConversation.perform({ ...h.request, kind: 'read' }, async () => otherAccount, h.signal)
+    expect(peerRead.sessionId).toBe(peer.sessionId)
+    await h.ctx.organizationConversation.perform(removal, async () => membership, h.signal)
+    await h.ctx.organizationConversation.verifyBindings()
+    expect(h.model.requests).toHaveLength(1)
   } finally { await h.close() }
 }, 30000)
 
@@ -334,6 +376,8 @@ it('forces organization goals to decompose with planning disabled and refuses di
     expect(h.errors).toEqual([])
     expect(execute).not.toHaveBeenCalled()
     expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Temporary testing override is ON')
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Normally every node has at most 5 direct children.')
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('aiming for at most 20 Chinese characters or 8 words')
     const surface = JSON.stringify(await h.ctx.sessionQuery.readSurface(id))
     expect(surface).toContain('testing-requires-decomposition')
     expect(surface).toContain('testing-requires-two-subtasks')

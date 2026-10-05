@@ -15,6 +15,12 @@ export interface OrganizationInjected {
   selectConversation?: (selection: import('./conversation-store.ts').ConversationSelection | null) => Promise<void>
   /** Open the selected project's tasks in the shared main task destination. */
   openProjectTasks?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => void
+  /**
+   * Delete the creator's shared project or remove a participant's installation-local copy.
+   * @param project - Currently authorized project and immutable creator identity.
+   * @returns Settlement after the shared decision and private Host cleanup.
+   */
+  removeProject?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => Promise<void>
   /** Show the shared conversation management or delete dialog. */
   manageConversation?: (selection: import('./conversation-store.ts').ConversationSelection, action?: 'manage' | 'delete') => void
   available: boolean

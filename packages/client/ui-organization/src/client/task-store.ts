@@ -10,6 +10,7 @@ type Selection = Principal & Pick<OrganizationTaskView, 'planId'> & { organizati
 type ProjectSelection = Principal & { project: OrganizationProjectView }
 type State = { selected: Selection | null; project: ProjectSelection | null }
 type Actions = {
+  removeProject: (state: State, projectId: OrganizationProjectId) => void
   selectTask: (state: State, selected: Selection | null) => void
   selectProject: (state: State, project: ProjectSelection) => void
 }
@@ -18,6 +19,10 @@ type Actions = {
  */
 export function createOrganizationTaskStore(): EngineStoreHandle<State, Actions> {
   return defineStore({ init: (): State => ({ selected: null, project: null }), actions: {
+    removeProject: (state, projectId) => {
+      if (state.project?.project.id === projectId) state.project = null
+      if (state.selected?.projectId === projectId) state.selected = null
+    },
     selectProject: (state, project) => { state.project = project; state.selected = null },
     selectTask: (state, selected: Selection | null) => { state.selected = selected; state.project = null },
   } })

@@ -66,6 +66,23 @@ export function apply(ctx: Context): void {
       if (c.mode !== 'organization' || c.organizationId !== project.organizationId || !c.principal) return
       taskActions?.selectProject({ ...c.principal, project }); ctx.layout.selectPanel('tasks' as MainPanelId)
     },
+    removeProject: async (project) => {
+      const bridge = desktop
+      if (!bridge) return unavailable()
+      const c = state.getSnapshot().connection
+      if (!c.principal || c.organizationId !== project.organizationId || c.phase !== 'ready') throw new Error('superseded')
+      if (!c.removedProjects?.includes(project.id)) {
+        if (project.createdBy === c.principal.accountId) await bridge.connection({ kind: 'command', command: {
+          kind: 'delete-project', organizationId: project.organizationId, projectId: project.id,
+          expectedVersion: project.version, operationId: randomUUID() } })
+        else await bridge.connection({ kind: 'remove-project', projectId: project.id })
+      }
+      const current = state.getSnapshot().connection
+      if (current.principal?.serverId !== c.principal.serverId || current.principal.accountId !== c.principal.accountId
+        || current.organizationId !== project.organizationId) throw new Error('superseded')
+      await cleanupProject(project.id, current)
+      conversationActions?.refresh()
+    },
     manageConversation: (selected, action = 'manage') => { management.set({ selected, action }) },
     selectConversation: selectConversation,
     openConversation: () => { ctx.layout.selectPanel(null) }, available: !!desktop,
@@ -96,6 +113,21 @@ export function apply(ctx: Context): void {
   const management = createSnapshotStore<{ selected: ConversationSelection; action: 'manage' | 'delete' } | null>(null)
   let accountSession: AccountSession | undefined, openSequence = 0
   let currentSelection: ConversationSelection | null = null
+  const projectCleanup = new Map<string, Promise<void>>(), cleanedProjects = new Set<string>()
+  const cleanupProject = (projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId,
+    c: OrganizationDesktopSnapshot['connection']): Promise<void> => {
+    if (!desktop || !c.principal || !c.organizationId) return Promise.reject(new Error('superseded'))
+    const key = JSON.stringify([c.principal.serverId, c.principal.accountId, c.organizationId, projectId])
+    if (cleanedProjects.has(key)) return Promise.resolve()
+    const pending = projectCleanup.get(key)
+    if (pending) return pending
+    const task = desktop.conversation({ kind: 'project-remove', organizationId: c.organizationId, projectId,
+      conversationId: String(projectId) as ConversationRequest['conversationId'],
+      operationId: randomUUID() as ConversationRequest['operationId'] }).then(() => { cleanedProjects.add(key) })
+      .finally(() => { projectCleanup.delete(key) })
+    projectCleanup.set(key, task)
+    return task
+  }
   const retire = () => {
     openSequence++
     const reference = accountReference.getSnapshot()
@@ -207,6 +239,10 @@ export function apply(ctx: Context): void {
         retire()
       }
       if (!organization || !['ready', 'loading'].includes(c.phase)) retire()
+      if (currentSelection?.projectId && c.removedProjects?.includes(currentSelection.projectId)) {
+        retire(); currentSelection = null; conversationActions?.select(null)
+      }
+      for (const projectId of c.removedProjects ?? []) taskActions?.removeProject(projectId)
       if (phase !== c.phase) {
         phase = c.phase
         if (organization && c.phase === 'ready' && currentSelection && !accountSession)
@@ -227,6 +263,24 @@ export function apply(ctx: Context): void {
     return () => { unsubscribe(); for (const dispose of stop) dispose() }
   }, 'organization.task-navigation')
   ctx.effect(() => {
+    let closed = false, tail = Promise.resolve()
+    const isClosed = () => closed
+    const update = () => {
+      const c = state.getSnapshot().connection
+      if (c.phase !== 'ready' || c.mode !== 'organization') return
+      tail = tail.then(async () => {
+        if (closed) return
+        for (const projectId of c.removedProjects ?? []) {
+          const current = state.getSnapshot().connection
+          if (isClosed() || current.phase !== 'ready' || current.generation !== c.generation) return
+          await cleanupProject(projectId, c)
+        }
+      }).catch((error: unknown) => { if (!closed) console.warn('Organization project cleanup failed', error) })
+    }
+    const unsubscribe = state.subscribe(update); update()
+    return () => { closed = true; unsubscribe(); return tail }
+  }, 'organization.project-cleanup')
+  ctx.effect(() => {
     let closed = false, syncing = false, dirty = false, lastKey = ''
     const isClosed = () => closed
     const sync = async () => {
@@ -246,6 +300,7 @@ export function apply(ctx: Context): void {
           const value = page.assignment.result.value
           for (const item of value.items) {
             const a = item.assignment
+            if (c.removedProjects?.includes(a.projectId)) continue
             if (a.assigneeId !== member || !['pending', 'accepted'].includes(a.state)) continue
             if (isClosed() || state.getSnapshot().connection.generation !== c.generation) break
             await desktop.conversation({ kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'],

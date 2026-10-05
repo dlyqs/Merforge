@@ -8,10 +8,11 @@ const version = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const name = z.string().trim().min(1).max(120)
 const base = { operationId: id<OperationId>(), organizationId: id<OrganizationId>() }
 
-/** Allow-listed project creation/rename input; creation grants no implicit content access. */
+/** Allow-listed creation, write-authorized rename and creator-only shared deletion. */
 export const projectCommandSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('create-project'), name }).strict(),
   z.object({ ...base, kind: z.literal('rename-project'), projectId: id<OrganizationProjectId>(), expectedVersion: version, name }).strict(),
+  z.object({ ...base, kind: z.literal('delete-project'), projectId: id<OrganizationProjectId>(), expectedVersion: version }).strict(),
 ])
 /** Explicit grants use version zero for a missing grant and an empty action list to revoke. */
 export const grantCommandSchema = z.object({
@@ -20,6 +21,10 @@ export const grantCommandSchema = z.object({
 }).strict()
 /** Project database row and safe wire view. */
 export const projectSchema = z.object({ id: id<OrganizationProjectId>(), organizationId: id<OrganizationId>(), name, version }).strict()
+/** Creation identity is supplied by the authority, independently of content grants. */
+export const projectViewSchema = projectSchema.extend({ createdBy: id<AccountId>() }).strict()
+/** Deleted identifiers remain readable by previous grantees for installation-local cleanup. */
+export const deletedProjectsSchema = z.object({ items: z.array(id<OrganizationProjectId>()), total: version, offset: version }).strict()
 /** Grant rows remain after revocation to preserve their monotonic version. */
 export const grantSchema = z.object({
   projectId: id<OrganizationProjectId>(), membershipId: id<MembershipId>(),
@@ -31,6 +36,7 @@ export const resourceEventSchema = z.object({ revision: version, projectId: id<O
 export const projectQuerySchema = z.object({
   organizationId: id<OrganizationId>(), search: z.string().max(120).default(''),
   offset: version.default(0), cursor: z.string().max(2048).optional(),
+  excluded: z.array(id<OrganizationProjectId>()).default([]),
 }).strict()
 /** Resource detail request ties guessed project identifiers to an explicit organization. */
 export const projectReadSchema = z.object({ organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>() }).strict()

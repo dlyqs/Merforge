@@ -94,6 +94,7 @@ export interface OrganizationProjectView {
   organizationId: OrganizationId
   name: string
   version: number
+  createdBy: AccountId
 }
 /** One current-authority page with its atomic event handoff cursor. */
 export interface OrganizationProjectPage {

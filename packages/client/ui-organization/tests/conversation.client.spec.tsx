@@ -24,8 +24,10 @@ function fixture() {
       organizationId: randomUUID(), projectId: randomUUID(), conversationId: randomUUID() },
     settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [{ role: 'assistant', text: 'Private report' }],
     goals: [], state: 'ready', truncated: false })
-  const project = { id: result.owner.projectId, organizationId: result.owner.organizationId, name: 'Reports', version: 1 }
-  const planning = planningViewSchema.parse({ project, grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
+  const project = { id: result.owner.projectId!, organizationId: result.owner.organizationId, name: 'Reports', version: 1,
+    createdBy: result.owner.accountId }
+  const { createdBy: _creator, ...planningProject } = project
+  const planning = planningViewSchema.parse({ project: planningProject, grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
     policy: { models: [{ model: 'test-model', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000, maxRequests: 10,
       maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } })
   let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, phase: 'ready', mode: 'organization', revision: 1, generation: 1,
@@ -41,6 +43,38 @@ function fixture() {
     state = { ...state, connection: { ...state.connection, generation, phase: 'offline' } }
   } }
 }
+it.each([true, false])('offers the project removal action and matching confirmation for creator=%s', async (creator) => {
+  const h = fixture(), store = createConversationStore().create(), removeProject = vi.fn(async () => {})
+  if (!creator) h.project.createdBy = brandString<AccountId>(randomUUID())
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1,
+    cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } })
+  render(<OrganizationBrowser {...h.props} removeProject={removeProject} section="projects" wide expandSidebar={vi.fn()}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  fireEvent.click(await screen.findByRole('button', { name: `${zh.more} ${h.project.name}` }))
+  const label = creator ? zh.deleteProject : zh.removeLocalProject
+  fireEvent.click(screen.getByRole('menuitem', { name: label }))
+  expect(screen.getByText(creator ? zh.deleteSharedProjectHint : zh.removeLocalProjectHint)).toBeTruthy()
+  expect(removeProject).not.toHaveBeenCalled()
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: label })) })
+  expect(removeProject).toHaveBeenCalledExactlyOnceWith(h.project)
+})
+
+it('keeps project rows without a visible refresh message during delayed catalog reads and navigation switches', async () => {
+  const h = fixture(), store = createConversationStore().create()
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1,
+    cursor: 'catalog' as import('@deepseek-ai/dsh-organization/types').OrganizationCursor } })
+  h.conversation.mockReturnValue(new Promise(() => {}))
+  const props = { ...h.props, wide: true, expandSidebar: vi.fn(), actions: store.actions,
+    useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) => selector(store.getSnapshot()) }
+  const view = render(<OrganizationBrowser {...props} section="projects" />)
+  expect(await screen.findByRole('button', { name: h.project.name })).toBeTruthy()
+  expect(screen.queryByText(zh.loading)).toBeNull()
+  view.rerender(<OrganizationBrowser {...props} section="recent" />)
+  expect(screen.queryByText(zh.loading)).toBeNull()
+  view.rerender(<OrganizationBrowser {...props} section="projects" />)
+  expect(screen.getByRole('button', { name: h.project.name })).toBeTruthy()
+  expect(screen.queryByText(zh.loading)).toBeNull()
+})
 it('expands project conversations without creating one and opens the original private conversation in the shared destination', async () => {
   const h = fixture(), store = createConversationStore().create(), openConversation = vi.fn()
   h.result.catalog = { bots: [], conversations: [{ conversationId: h.result.owner.conversationId, title: 'Revenue discussion', createdAt: 1 }] }

@@ -44,4 +44,4 @@ Existing `personal-workflow/snapshot` events also produce a keyed `personal-plan
 
 ## Shared task presentation
 
-The personal task adapter supplies plan phases, authoritative statuses and localized controls to the shared `TaskMap` primitive. Organization tasks use the same canvas and detail styling with their authorized task projections and assignment controls. Personal approval, execution operations and Session membership remain owned by this adapter.
+The personal task adapter supplies plan phases, authoritative statuses and localized controls to the shared `TaskMap`, `TaskDetail` and `TaskStages` primitives. Organization tasks use the same canvas, dismissible detail header and phase/prerequisite navigation with their authorized task projections and assignment controls. Personal approval, execution operations and Session membership remain owned by this adapter.

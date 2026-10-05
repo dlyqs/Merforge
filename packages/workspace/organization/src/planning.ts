@@ -72,7 +72,8 @@ export function readPlanning(db: DatabaseSync, principal: Principal, query: z.ou
     plans: [], serverTime: Date.now(), policy })
   const selection = planningReadSchema.parse(query)
   const project = authorizedProject(db, principal, query.projectId, 'read'), grant = readGrant(db, principal, selection)
-  return planningViewSchema.parse({ project, grant,
+  const { createdBy: _creator, ...planningProject } = project
+  return planningViewSchema.parse({ project: planningProject, grant,
     canWrite: !!db.prepare('SELECT 1 FROM resource_grants WHERE projectId=? AND membershipId=? AND canWrite=1').get(query.projectId, principal.membershipId ?? null),
     plans: db.prepare('SELECT goalId,planId,taskId FROM planning_goals WHERE accountId=? AND conversationId=?').all(principal.accountId, query.conversationId),
     eligible: eligible(db, principal, selection, grant, epoch, policy),
