@@ -13,9 +13,9 @@ import type { Principal } from './types.ts'
 /** Published bytes and their index commit in the same SQLite transaction and backup. */
 export const deliveryDdl = `
 CREATE TABLE organization_artifacts (id TEXT PRIMARY KEY, assignmentId TEXT NOT NULL REFERENCES task_assignments(id),
- runId TEXT NOT NULL REFERENCES execution_runs(id), data TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
+ runId TEXT REFERENCES execution_runs(id), data TEXT NOT NULL, bytes BLOB NOT NULL) STRICT;
 CREATE TABLE organization_submissions (id TEXT PRIMARY KEY, assignmentId TEXT NOT NULL REFERENCES task_assignments(id),
- runId TEXT NOT NULL REFERENCES execution_runs(id), data TEXT NOT NULL) STRICT;
+ runId TEXT REFERENCES execution_runs(id), data TEXT NOT NULL) STRICT;
 CREATE TABLE delivery_events (revision INTEGER PRIMARY KEY REFERENCES organization_events(revision),
  assignmentId TEXT NOT NULL REFERENCES task_assignments(id), result TEXT NOT NULL) STRICT;
 `
@@ -65,17 +65,17 @@ export function changeDelivery(db: DatabaseSync, principal: Principal, command: 
   const a = selectedAssignment(db, command)
   authorizeParticipant(db, principal, a)
   if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== command.planRevision) throw new OrganizationError('version-conflict')
-  const row = db.prepare('SELECT data FROM execution_runs WHERE id=? AND assignmentId=?').get(command.runId, a.id)
-  if (!row) throw new OrganizationError('forbidden')
-  const run = executionRunSchema.parse(JSON.parse(String(row.data)))
-  if (run.planRevision !== a.planRevision) throw new OrganizationError('version-conflict')
+  const row = command.runId === null ? undefined : db.prepare('SELECT data FROM execution_runs WHERE id=? AND assignmentId=?').get(command.runId, a.id)
+  if (command.runId !== null && !row) throw new OrganizationError('forbidden')
+  const run = row ? executionRunSchema.parse(JSON.parse(String(row.data))) : undefined
+  if (run && run.planRevision !== a.planRevision) throw new OrganizationError('version-conflict')
   const { organizationId, projectId, planId, assignmentId, runId, planRevision } = command
   const base = { organizationId, projectId, planId, assignmentId, runId, planRevision, employeeId: a.assigneeId, createdRevision: revision }
   if (command.kind === 'publish-artifact') {
     if (command.size > limits.artifactMaxFileBytes || command.bytes.length > Math.ceil(limits.artifactMaxFileBytes / 3) * 4) throw new OrganizationError('invalid-input')
     const bytes = decode(command.bytes)
     if (bytes.length !== command.size || digest(bytes) !== command.sha256) throw new OrganizationError('invalid-input')
-    const used = db.prepare('SELECT count(*) AS n,COALESCE(sum(length(bytes)),0) AS size FROM organization_artifacts WHERE runId=?').get(run.id)
+    const used = db.prepare('SELECT count(*) AS n,COALESCE(sum(length(bytes)),0) AS size FROM organization_artifacts WHERE assignmentId=? AND runId IS ?').get(a.id, command.runId)
     if (Number(used?.n) >= limits.artifactMaxFiles || Number(used?.size) + bytes.length > limits.artifactMaxTotalBytes) throw new OrganizationError('invalid-input')
     if (command.artifactKind === 'git-change') {
       try { verifyGit(bytes, limits.artifactMaxFiles) } catch (error) {
@@ -85,18 +85,18 @@ export function changeDelivery(db: DatabaseSync, principal: Principal, command: 
     }
     const artifact = artifactSchema.parse({ ...base, id: randomUUID(), path: command.path, kind: command.artifactKind,
       mediaType: command.mediaType, description: command.description, size: bytes.length, sha256: command.sha256 })
-    db.prepare('INSERT INTO organization_artifacts VALUES (?,?,?,?,?)').run(artifact.id, a.id, run.id, JSON.stringify(artifact), bytes)
+    db.prepare('INSERT INTO organization_artifacts VALUES (?,?,?,?,?)').run(artifact.id, a.id, command.runId, JSON.stringify(artifact), bytes)
     return { artifactId: artifact.id }
   }
-  if (run.state === 'running' || run.state === 'prepared' || run.state === 'waiting-human'
+  if (run && (run.state === 'running' || run.state === 'prepared' || run.state === 'waiting-human'
     || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id)
-    || db.prepare("SELECT 1 FROM execution_human_requests WHERE runId=? AND json_extract(data,'$.state')='pending'").get(run.id)) throw new OrganizationError('version-conflict')
+    || db.prepare("SELECT 1 FROM execution_human_requests WHERE runId=? AND json_extract(data,'$.state')='pending'").get(run.id))) throw new OrganizationError('version-conflict')
   if (command.artifactIds.length > limits.artifactMaxFiles || new Set(command.artifactIds).size !== command.artifactIds.length) throw new OrganizationError('invalid-input')
   let size = 0
   const paths = new Set<string>()
   for (const id of command.artifactIds) {
     const { artifact } = readArtifact(db, id)
-    if (artifact.assignmentId !== a.id || artifact.runId !== run.id || artifact.planRevision !== a.planRevision
+    if (artifact.assignmentId !== a.id || artifact.runId !== command.runId || artifact.planRevision !== a.planRevision
       || artifact.employeeId !== principal.membershipId) throw new OrganizationError('forbidden')
     size += artifact.size
     paths.add(artifact.path)
@@ -104,7 +104,7 @@ export function changeDelivery(db: DatabaseSync, principal: Principal, command: 
   if (size > limits.artifactMaxTotalBytes || paths.size !== command.artifactIds.length) throw new OrganizationError('invalid-input')
   const submission = submissionSchema.parse({ ...base, id: randomUUID(), kind: 'accept-delivery', handlerId: a.approvedBy,
     state: 'submitted', artifactIds: command.artifactIds, summary: command.summary, target: command.target })
-  db.prepare('INSERT INTO organization_submissions VALUES (?,?,?,?)').run(submission.id, a.id, run.id, JSON.stringify(submission))
+  db.prepare('INSERT INTO organization_submissions VALUES (?,?,?,?)').run(submission.id, a.id, command.runId, JSON.stringify(submission))
   return { submissionId: submission.id }
 }
 /**
@@ -116,8 +116,7 @@ export function validateDeliveryDatabase(db: DatabaseSync): void {
     const { artifact } = readArtifact(db, artifactSchema.shape.id.parse(row.id))
     const a = selectedAssignment(db, artifact)
     const r = db.prepare('SELECT data FROM execution_runs WHERE id=? AND assignmentId=?').get(artifact.runId, a.id)
-    if (!r || artifact.planRevision !== a.planRevision || artifact.employeeId !== a.assigneeId
-      || executionRunSchema.parse(JSON.parse(String(r.data))).planRevision !== artifact.planRevision) throw new OrganizationError('incompatible-store')
+    if ((artifact.runId !== null && (!r || executionRunSchema.parse(JSON.parse(String(r.data))).planRevision !== artifact.planRevision)) || artifact.planRevision !== a.planRevision || artifact.employeeId !== a.assigneeId) throw new OrganizationError('incompatible-store')
     validateCreation(db, artifact, 'publish-artifact', { artifactId: artifact.id })
     if (artifact.kind === 'git-change') verifyGit(readArtifact(db, artifact.id).bytes, Number.MAX_SAFE_INTEGER)
   }

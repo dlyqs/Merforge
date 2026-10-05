@@ -25,7 +25,7 @@
 | modify | 本对话 GoalId 已有关联计划 | complex 允许修改同一根与准确 expectedRevision；保留所有历史 |
 | query | 明确引用本对话既有 GoalId | 只读答复与路由记录，不授予提案资格 |
 | 人工答复 | 已绑定任务或对应持久人工请求 | 现有 Run/Inbox 答复路径，不创建目标 |
-| 执行输入 | 普通对话选中当前获准任务；高级 Run 另需其执行授权 | 普通 user/message 与日志中的任务上下文；高级 Run 沿用 execution.enterTurn 与独立日志 |
+| 执行输入 | 员工任务对话要求当前已接受分配；高级 Run 另需其执行设置 | 普通 user/message 与日志中的任务上下文；高级 Run 沿用 execution.enterTurn 与独立日志 |
 
 评估保存 MessageId、GoalId、路由、mode/preferences/testing 版本以及 Project/Bot affiliation 变更位置。提案在串行提交处重新核对资格、当前输入身份、Skill/工具权限及归属。旧评估没有这些字段仍可读取，但不能授权新提案，必须重新评估。简单目标、查询和无共享写权限的建议没有共享计划副作用。
 
@@ -40,12 +40,12 @@
 | 本人私有建议 | 独立 organization-conversation 本机域 | 当前项目 read；共享树写权不足时标为建议 | 本人项目目标对话；获权后重新审核应用 |
 | 子树修改 | organization 固定新命令 | 当前指定子树 edit、准确整计划版本、继承资源/预算/批准限制 | 员工任务对话；原下发人重新批准 |
 | 真人候选查询 | organization 权限裁剪查询 | 当前可见且仍启用的 membership；身份可见不授予任务 read | 对话内负责人选择；不能用仅 admin 可读的成员整表 |
-| 分配/接受/委托/开始/提交/验收 | 既有 assignment/execution 权威 | 既有准确版本、真人身份、任务 read、grant 管理权、设备/租约/预算 | 固定业务确认卡、现有 Workbench 消费者 |
+| 分配/接受/执行/提交/验收 | assignment/execution/delivery 权威 | 准确版本、真人身份和当前任务权限；普通 Agent 与手工汇报无需 Run，高级 Run 校验其限额 | 固定业务确认卡、任务详情消费者 |
 | 员工对话待绑定记录 | 组织持久通知 + 员工本机 writer | 在线复核本人通知及当前任务 read | 员工端幂等创建独立任务对话，不复制下发人正文 |
 
 旧式未接入普通会话的有限规划服务只允许澄清、授权查询、评估与草案工具。其 `organization.Config.planning` 验证模型目的地、许可寿命、请求/字节/时长限额；SQLite 的 planning_grants、planning_permits、planning_events 保存资格、累积用量及事件。该服务的每次 HTTP 请求及重试独立核算许可，未知已发调用先查回执，取消或失权拒绝新增请求并排空已拥有调用。普通 Desktop 组织对话直接复用普通 API/Codex 提供方和执行能力；组织草案写入、分配、验收仍由当前组织权限校验，不通过这条旧规划传输发送用户消息。`save-planning-draft` 不要求旧模型 grant 或 eligible；新计划仍要求 project write，已有计划及子树仍要求对应 edit。SQLite v16 将 planning_events 的账号和项目直接关联到账号、项目及审计事件，升级保留原资格、累计用量、计划关联和回执。
 
-组织对话保存本机输入意图与绑定，组织权威保存共享业务操作回执，两者分步恢复。批量确认逐项使用原子固定动作，各项发送前保存 operationId，呈现成功/冲突/未确认；不承诺跨项事务。未知分配只核对回执。缺目标负责人 read 时单独明确补 grant，且必须有 grant 管理权；人员建议不自动授权、下发或委托。
+组织对话保存本机输入意图与绑定，组织权威保存共享业务操作回执，两者分步恢复。批量确认逐项使用原子固定动作，各项发送前保存 operationId，呈现成功/冲突/未确认；不承诺跨项事务。未知分配只核对回执。正式分配在同一事务授予员工项目读写与选定任务子树读写；下发人须有相应授权管理资格。人员建议不自动授权或下发。
 
 ## 共享任务背景
 
@@ -55,7 +55,7 @@
 
 完整 workgraphSave 继续要求 project write 和根 edit。`save-planning-draft` 支持指定非根子树的独立 read/edit grant，`readPlanningPlan` 只返回该子树和编辑资格。服务端读取完整版本、只替换选定子树，不要求员工提交或回读隐藏兄弟/祖先。外部依赖、原目标、资源、预算上限及原批准条件不能扩大；含义差异由原下发人审阅并重新批准，不声称自然语言可机器证明。
 
-任何定义变化产生新的整计划 revision；结构变化增加 structureVersion，旧结构 task grant 不再满足当前读取/编辑资格，按既有规则明确重新授权。旧批准、待接受或已接受分配及依赖的委托、租约、Run 新动作资格失效；在途动作由原执行机制收敛，历史回执和不可变成果保留。当前 revision 的前置、提交验收和集成资格重新计算，不把旧叶子变父任务后自动继承已交付状态。对话编辑前显示批准、grant、Run 和交付资格失效提示。SQLite planning_reapprovals 按原批准祖先保存不可替换的原下发人；新叶子由其重新批准，员工无代批权。限额只能继承或收窄，不能通过细分重置已消耗预算。
+任何定义变化产生新的整计划 revision；结构变化增加 structureVersion，旧结构 task grant 不再满足当前读取/编辑资格，按既有规则重新授权。旧批准、待接受或已接受分配及高级 Run 新动作资格失效；在途动作由原执行机制收敛，历史回执和不可变成果保留。当前 revision 的前置、提交验收和集成资格重新计算，不把旧叶子变父任务后自动继承已交付状态。对话编辑前显示批准、grant、Run 和交付资格失效提示。SQLite planning_reapprovals 按原批准祖先保存不可替换的原下发人；新叶子由其重新批准，员工无代批权。高级 Run 限额只能继承或收窄，不能通过细分重置已消耗预算。
 
 ## 服务角色、消费路径与销毁
 
@@ -64,7 +64,7 @@
 | personal-workflow 类型与唯一 writer，storageDomain JSON + Session JSONL | skill-dev-workflow agent/pre-step、workflow_assess/propose，session-controller workflowMode/SetMode/Preferences/SetPreferences | 串行队列内资格复核；关闭拒绝新操作、排空队列、关闭各域 |
 | sessionProjections personalWorkflowMode | ui-personal-workflow 的 conversation.input.left；本人设置在既有 settings.personal.testing | 效果注册释放；持久 mode 决定提案，投影只决定显示 |
 | Agent/Tools/Skill 既有注册 | 标准 preset；托管方法走普通 user/message；proposal tool result 保存准确快照 | Skill 或工具禁用、Session 归属变化拒绝旧评估；注册及监听随 fiber 撤销 |
-| organization 权威与 organization-api 固定 HTTPS | organization-connection generation/回执/SSE；apps/desktop/src/organization-context.ts 和 organization-execution.ts | Electron 持 token 和设备材料，所属 top frame、nonce/request/generation 复核；断线/休眠/身份切换取消并排空 |
+| organization 权威与 organization-api 固定 HTTPS | organization-connection generation/回执/SSE；apps/desktop/src/organization-context.ts 和 organization-execution.ts | Electron 持登录 token，所属 top frame、nonce/request/generation 复核；断线/休眠/身份切换取消并排空 |
 | organization-context 现有两事件只读 writer | apps/desktop-host/src/organization-context.ts、ui-organization 固定 context 消费者 | 保持只读格式，不伪造 task、不作为规划 Agent 入口 |
 | organization-conversation | 普通 Session Controller、Agent、模型、工具和对话界面；native attach 维护账号授权，持久通知幂等建立员工任务对话 | 普通 Session 按组织归属保护读取和操作，个人目录隐藏组织及派生会话；冷重开先在线复核 |
 | ConversationNodeDefinition + keyed renderer（Phase 6） | uiConversation.events → conversation.chat.node；ui-organization 提取纯展示/动作消费者 | 按稳定业务 ID 与准确 revision 从既有 Session 事件重建，不开启第二条历史流；fiber 清理贡献 |
@@ -85,17 +85,17 @@ organization/conversation-owner、organization/planning-input、organization/pla
 
 发送沿用普通 AgentLoop、标准模型提供方与工具。组织方法通过现有 pre-step 扩展记录任务事实和 Bot 指令，按有效设置提供 workflow_assess/workflow_propose；共享草案经当前组织权限提交。native attach 保留授权寿命，Common Session follow 直接推送实时 assistant chunks。组织任务详情保留右侧分配控件，“在对话中执行”打开同一套对话并选中节点，不另启隔离执行 Run。Desktop 可见验收由用户检查。
 
-SQLite 当前 v15；v15 保存直属上级关系，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
+SQLite 当前 v21，任务流程与历史迁移见[执行协议](organization-execution.md)。v15 保存直属上级关系，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
 
 ## 对话分配与执行消费者
 
-组织主入口同时提供项目对话和持久 Inbox。共享树的叶子可逐项审核并确认，或选中多项、审核各自当前权限后批量明确确认。缺负责人 read 仍由现有授权控件单独确认，批准不自动补 grant。原生 `assignment-batch` 按当前 server/account/organization 与 plan/revision 保存逐项 operationId、终态和回执；每项发送前先落盘。成功项不重发，冲突/拒绝逐项呈现，未知项只查回执并停止后续发送，未发送项保留未确认。重开通过 `assignment-batch-read` 恢复结果，不自动续发。
+组织主入口同时提供项目对话和持久 Inbox。共享树的叶子可逐项审核并确认，或选中多项、审核各自当前权限后批量明确确认。正式分配原子补齐员工项目与任务访问权。原生 `assignment-batch` 按当前 server/account/organization 与 plan/revision 保存逐项 operationId、终态和回执；每项发送前先落盘。成功项不重发，冲突/拒绝逐项呈现，未知项只查回执并停止后续发送，未发送项保留未确认。重开通过 `assignment-batch-read` 恢复结果，不自动续发。
 
-原有 assignment、accept-assignment request 和 notification 的原子关联就是员工离线期间的待建立标识，不新增共享聊天表或第二份通知。员工从组织对话入口或 Inbox 点击打开时，以 assignmentId 作为稳定 conversationId，并携带只含 planId/assignmentId 的 selector。Electron 每次授权都重读 preparation，验证当前成员是该原分配的 assignee；Host 先保留本人绑定再写 JSONL，失败后恢复同一 Session。双方账号、目标对话、员工对话与 Run 转录相互独立。界面显示原下发人、原任务与分配版本；打开不接受、不委托、不领取、不运行。
+原有 assignment、accept-assignment request 和 notification 的原子关联就是员工离线期间的待建立标识，不新增共享聊天表或第二份通知。员工从组织对话入口或 Inbox 点击打开时，以 assignmentId 作为稳定 conversationId，并携带只含 planId/assignmentId 的 selector。Electron 每次授权都重读 preparation，验证当前成员是该原分配的 assignee；Host 先保留本人绑定再写 JSONL，失败后恢复同一 Session。双方账号、目标对话、员工对话与 Run 转录相互独立。界面显示原下发人、原任务与分配版本；打开不接受或执行。员工明确接受后等待主动输入，普通 Agent 请求、准备及工具调用复核 accepted 状态；设备登记、准备授权和领取不参与流程。
 
 分配任务对话固定同一任务范围，其他任务 selector 被拒绝。普通 Agent 通过已有能力执行选中节点；组织模型工具只提交当前获准的业务写入，不能代替真人批准或验收。权限失效停止普通 Agent，历史读取也需当前任务权限；新版本或改派通过新的通知和 assignment 对话取得新资格，旧 Session 不转换身份。
 
-任务详情从权威读取所选节点，在右侧复用 AssignmentPanel 和 IntegrationPanel；“在对话中执行”打开普通对话并选中节点，沿普通输入、模型及工具链执行。API 与 Codex 后端切换沿共享机制创建继承组织归属的后继会话，并保留任务元数据。高级独立 Run 内仍复用 ExecutionHumanRequest、DeliveryPanel、AcceptanceReview，其委托、租约、提交、原下发人验收及最终确认遵循原业务权限。完成不自动提交，验收不自动集成。
+任务详情从权威读取所选节点，在右侧复用 AssignmentPanel 和 IntegrationPanel；“在对话中执行”打开普通对话并选中节点，沿普通输入、模型及工具链执行。API 与 Codex 后端切换沿共享机制创建继承组织归属的后继会话，并保留任务元数据。员工也可自行执行。DeliveryPanel、AcceptanceReview 支持无 Run 的成果上传、完成汇报和原下发人审批。高级独立 Run 是可选执行方式，保留本次执行限额及 ExecutionHumanRequest。完成不自动提交，审批不自动集成。
 
 ## 验证与产品交接
 

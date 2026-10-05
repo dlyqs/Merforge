@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, renameSync, unlinkSync, statSync } from 'n
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { loginResultSchema } from './schema.ts'
-import type { OrganizationDeviceVault } from './device-material.ts'
+import type { OrganizationCredentialVault } from './credential-vault.ts'
 
 const savedLoginSchema = loginResultSchema.extend({ format: z.literal(1), origin: z.url(),
   fingerprint: z.string(), username: z.string().min(1).max(256) }).strict()
@@ -14,7 +14,7 @@ export class OrganizationLoginSession {
   /** @param path - Private encrypted session file.
    * @param vault - Main-process OS encryption adapter.
    */
-  constructor(private readonly path: string, private readonly vault: OrganizationDeviceVault) {}
+  constructor(private readonly path: string, private readonly vault: OrganizationCredentialVault) {}
   private available(): boolean { return this.vault.isEncryptionAvailable() && !['basic_text', 'unknown'].includes(this.vault.getSelectedStorageBackend()) }
   /** Restore the login from the private OS-encrypted file.
    * @returns Validated saved credentials, or no session when absent or the vault is locked.

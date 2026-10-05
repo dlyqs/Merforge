@@ -34,17 +34,17 @@ it('cancels unconfirmed actions to unknown, permits historical evidence and refu
   expect((await h.read()).delegation.used).toBe(1)
   const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
 })
-it('pauses on service restart and retains old-device evidence without reviving permits', async () => {
+it('pauses on service restart and retains historical action evidence without reviving permits', async () => {
   const h = await setup(); await h.transition('running'); const action = h.action(); await h.execute(action)
   await h.close()
   const next = await openHarness(h.root); cleanup.push(next.close)
   let view: OrganizationExecutionView | undefined
   await next.service.readExecution(h.other.token, { ...h.selector, runId: h.run.runId }, (v) => { view = v })
-  expect(view?.eligible).toBe(false); expect(view?.run.state).toBe('paused'); expect(view?.actions[0]?.state).toBe('unknown')
+  expect(view?.eligible).toBe(true); expect(view?.run.state).toBe('paused'); expect(view?.actions[0]?.state).toBe('unknown')
   const command = { ...h.run, kind: 'settle-action', operationId: operationId(), actionId: action.actionId, outcome: 'failed', evidenceDigest: 'c'.repeat(64) }
-  await next.service.executionCommand(h.other.token, command, h.proof(await next.service.executionChallenge(h.other.token, command)))
+  await next.service.executionCommand(h.other.token, command)
   const reserve = h.action()
-  await expect(next.service.executionCommand(h.other.token, reserve, h.proof(await next.service.executionChallenge(h.other.token, reserve)))).rejects.toMatchObject({ code: 'version-conflict' })
+  await expect(next.service.executionCommand(h.other.token, reserve)).rejects.toMatchObject({ code: 'version-conflict' })
   const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
 })
 it('rolls back budget and action together on receipt failure and denies current revoked reads', async () => {
@@ -82,12 +82,11 @@ it('migrates v6 preparation without execution grants and rolls failed migration 
   expect(upgraded.prepare('SELECT count(*) AS n FROM execution_delegations').get()?.n).toBe(0)
   upgraded.close()
 })
-it('refuses preparation-only IDs, wrong device owners and capabilities outside the explicit grant', async () => {
+it('refuses unknown execution IDs, removed device fields and capabilities outside the explicit grant', async () => {
   const h = await setup()
-  const view = await h.read()
-  await expect(h.execute({ ...h.create, operationId: operationId(), executionDelegationId: view.delegation.delegationId }))
+  await expect(h.execute({ ...h.create, operationId: operationId(), executionDelegationId: randomUUID() }))
     .rejects.toMatchObject({ code: 'forbidden' })
-  await expect(h.execute({ ...h.create, operationId: operationId(), deviceId: randomUUID() })).rejects.toMatchObject({ code: 'forbidden' })
+  await expect(h.execute({ ...h.create, operationId: operationId(), deviceId: randomUUID() })).rejects.toMatchObject({ code: 'invalid-input' })
   await h.transition('running')
   await expect(h.execute({ ...h.action(), capability: 'shell' })).rejects.toMatchObject({ code: 'version-conflict' })
   expect((await h.read()).delegation.used).toBe(0)

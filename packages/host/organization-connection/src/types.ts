@@ -31,10 +31,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 export type ConnectionAction =
   | { kind: 'remove-project'; projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId }
   | { kind: 'assignment-batch' | 'assignment-batch-read' | 'planning-read' | 'planning-candidates' | 'planning-plan'; request: unknown }
-  | { kind: 'integration-read' | 'integration-verify' | 'integration-confirm' | 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-delegate' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation' | 'lease-claim' | 'lease-release' | 'lease-check'; request: unknown }
-  | { kind: 'device-register'; name: string }
-  | { kind: 'device-revoke'; expectedVersion: number }
-  | { kind: 'device-read' }
+  | { kind: 'integration-read' | 'integration-verify' | 'integration-confirm' | 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation'; request: unknown }
   | { kind: 'workgraph-sharing' | 'workgraph-share' | 'remove-plan' | 'workgraph-delete' | 'workgraph-removal' | 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
@@ -73,7 +70,6 @@ export interface ConnectionSnapshot {
   error?: string | undefined
   pendingOperation?: OperationId | undefined
   inbox?: import('@deepseek-ai/dsh-organization').OrganizationInboxPage | undefined
-  renewing?: import('@deepseek-ai/dsh-organization').OrganizationAssignmentId | undefined
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
@@ -98,7 +94,6 @@ export interface ConnectionResult {
       | { kind: 'tasks'; value: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/assignment').taskAssignmentsPageSchema> }
       | { kind: 'inbox'; value: import('@deepseek-ai/dsh-organization').OrganizationInboxPage }
       | { kind: 'preparation'; value: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/assignment').preparationSchema> }
-      | { kind: 'device'; value: import('@deepseek-ai/dsh-organization').OrganizationDevice | null }
   }
 
   receipt?: Receipt
@@ -175,7 +170,7 @@ export interface OrganizationExecutionChannel {
   /** @returns Current authorized Run/action metadata. */
   read(): Promise<import('@deepseek-ai/dsh-organization').OrganizationExecutionView>
   /**
-   * Send one signed command for the captured Run, retaining uncertain receipts.
+   * Send one authenticated command for the captured Run, retaining uncertain receipts.
    * @param command - Fixed reserve, settle or transition command.
    * @returns The authority's committed receipt.
    */

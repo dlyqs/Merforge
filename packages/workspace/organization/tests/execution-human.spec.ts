@@ -55,10 +55,11 @@ it('serializes competing answers and refuses wrong-kind, expired and old-version
   await expect(other.service.participantCommand(other.other.token, other.answer)).rejects.toMatchObject({ code: 'version-conflict' })
   expect((await other.read()).humanRequests[0]?.state).toBe('expired')
 }, 15000)
-it('answers never renew a lost lease and unknown actions prevent continuation', async () => {
+it('answers never revive a revoked assignment and unknown actions prevent continuation', async () => {
   const h = await waiting()
   await h.service.participantCommand(h.other.token, h.answer)
-  h.db.prepare("UPDATE assignment_leases SET state='released'").run()
+  await h.service.assignmentCommand(h.owner.token, { ...h.selector, kind: 'revoke-assignment',
+    operationId: operationId(), expectedVersion: h.db.prepare('SELECT version FROM task_assignments WHERE id=?').get(h.selector.assignmentId!)?.version })
   await expect(h.execute({ ...h.run, kind: 'resume-run', operationId: operationId() })).rejects.toMatchObject({ code: 'version-conflict' })
   expect((await h.read()).eligible).toBe(false)
   const other = await setupExecution(cleanup, 10)
@@ -82,7 +83,7 @@ it('upgrades v7 atomically and validates the new request table on reopen', async
   await h.close()
   h.db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=7')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(20)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
   expect(upgraded.prepare('SELECT count(*) AS n FROM execution_human_requests').get()?.n).toBe(0)
   upgraded.close()
 }, 15000)

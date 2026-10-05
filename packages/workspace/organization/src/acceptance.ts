@@ -45,7 +45,7 @@ export function changeAcceptance(db: DatabaseSync, principal: Principal, command
   authorizeAcceptance(db, principal, command)
   const a = selectedAssignment(db, command)
   if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== command.planRevision) throw new OrganizationError('version-conflict')
-  const row = db.prepare('SELECT data FROM organization_submissions WHERE id=? AND assignmentId=? AND runId=?')
+  const row = db.prepare('SELECT data FROM organization_submissions WHERE id=? AND assignmentId=? AND runId IS ?')
     .get(command.submissionId, a.id, command.runId)
   if (!row) throw new OrganizationError('forbidden')
   const s = submissionSchema.parse(JSON.parse(String(row.data)))

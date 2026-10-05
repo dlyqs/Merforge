@@ -1,157 +1,101 @@
 # 组织执行与交付协议
 
-本协议是[执行计划](organization-execution-plan.md) Phase 1 的实施依据。Phase 1–8 已实现执行、人工请求、本机恢复、持久产物、员工正式提交、原下发人验收/返工及目标核验与父级集成。组织 SQLite 是业务唯一写入者，Desktop 私有 Host 只拥有本机执行日志和协调服务。
+员工接受分配后，可主动使用普通 Agent 或自行执行，再上传成果并提交汇报。设备登记、设备准备能力授权、设备领取和独占租约不参与当前流程。组织 SQLite v21 保存共享业务事实，Desktop 私有 Host 保存员工本机对话与执行日志。
 
-已有任务的 Codex 调度与独立原生转录已接入，组合/发行证据及双平台、三机待验步骤见[Codex 验收交接](codex-backend-acceptance.md)。原生 completed、真人提交、原下发人验收与最终目标确认是不同事实。
+## 主流程与审批
 
-## 状态、作者与幂等
-
-所有命令使用当前登录身份，携带 organization/project/plan/assignment、准确整计划 revision 和 account 范围 operationId。同键不同内容拒绝；同键相同内容只返回历史事实，不能用回执恢复动作资格。新执行委托独立保存并引用员工明确选择的准备委托和设备，旧 task-read/draft 不产生执行权限。
-
-| 记录 | 状态转换 | 命令作者及前置条件 | 版本与幂等 |
-| --- | --- | --- | --- |
-| 执行委托 | active → revoked/invalidated/expired | 员工明确授予；已接受、设备证明、有限能力和预算；准备委托仍有效 | 独立 ID，准确 revision，operationId；撤销不可恢复 |
-| Run | prepared → running → paused/waiting-human/succeeded/failed/cancelled；prepared 可暂停或取消 | 本人、设备证明、有效执行委托、当前独占双 epoch 租约；恢复另行核验本机证据、目录、预算与资格 | Run ID；创建 operationId；终态不可变，暂停后显式新资格核对 |
-| Action | reserved → succeeded/failed/not-issued/unknown；unknown → succeeded/failed/not-issued | 每次实际模型尝试或副作用独立预占；历史设备仅可补报已有 action 的证据 | Run/action ID 唯一；请求摘要固定；结果同键同内容幂等，不覆盖确定结果 |
-| HumanRequest | pending → answered/approved/denied/cancelled/expired | 模型提出；指定当前有权真人答复；资料答复和工具审批分别保存 | Run/任务 revision、种类、期限、请求 ID；已读不改变状态 |
-| Artifact | uploading → verified/rejected | 员工选择分享；服务端按字节核验长度、哈希后才能引用 | 不可变 ID、任务 revision、相对路径、SHA-256、长度 |
-| Submission | draft → submitted | 员工明确确认，所有引用产物 verified，证据完整 | 新提交新 ID，准确 revision，operationId；不覆盖旧提交 |
-| Acceptance | pending → accepted/rejected | 原下发人仍有当前批准与查看权；驳回必须理由及新要求 | 提交 ID、revision、operationId；驳回创建新整计划 revision |
-| IntegrationReceipt | verified/rejected | 目标操作者有任务权限及本机明确目录许可；重新读取实际目标 | 提交 ID 集合、目标基线、实际字节哈希、核验结果、operationId |
-
-Run 终态只记录执行结束。submitted 表示员工正式提交，accepted 表示原下发人明确验收，delivered 要求目标端核验和父任务下发人的明确确认。叶子根任务同样需要目标核验。下发人停用或失权时阻塞验收，不自动转管理员。
-
-## 动作许可与取消竞争
-
-事务逐次验证当前身份、任务可见性、准确版本、接受与批准、执行委托、设备、serverEpoch/fencingEpoch、期限和能力。每个 Action 原子预占一个额度；同 action 相同摘要重试不重复扣款，不同摘要拒绝。预算跨 Run 共用，不因新 Run 或 unknown 重置。模型重试分配新 action，不能复用旧许可。
-
-许可到发出的窗口取配置 actionPermitTtlMs、委托期限和租约期限的最小值。本机最终发出前再次检查在线代次、截止时间、取消和资源要求。服务端取消与预占串行：取消先提交则预占拒绝；许可先提交则在途结果可能成功或 unknown。取消不等于回滚；Phase 4 必须等待受管进程退出并分别记录超时、signal 和 exitCode。
-
-reserved 过期或资格失效转 unknown，不自动退款。not-issued 可由原设备依据发出前的持久日志从 reserved/unknown 补报；已占额度不退款。发出标记先于真实调用 flush，存在该标记但没有结果时不能猜测未执行。旧 owner 在保持当前身份与任务读取权时可以签名补报自己原 action 的历史结果，不能创建新 action、延长许可或改变请求摘要。服务重启更换 epoch、暂停非终态 Run、把未确认 Action 标为 unknown；重连不自动运行。
-
-## 本机 Session 与模型材料
-
-`organization-context:` 继续保持原始两事件只读日志。`organization-execution:` 使用独立目录和注册域，按 server/account/run 预留绑定并关联原 context Session；执行 SessionId 由 Host 分配，Renderer 不提供身份、ID 或授权回调。预留先持久化，JSONL 可按已写前缀修复，ready 只在 flush 与独立重读后提交。冷启动验证绑定、头部与必需事件关系。
-
-执行日志保存归属、Run 引用、原 context、准确任务快照、员工所选模型非秘密配置、允许输入资料和人工消息。完整日志仅本人本机可见，不进入个人搜索、上传、fork、归档、恢复或 Agent 注册域。共享层仅保存 Run 状态、许可与摘要、明确上传的产物。API key、本机绝对目录和私人 Bot/记忆不共享。模型输入必须可从 Session 事件重建；首次执行和人工答复后的显式继续均通过正常持久 user/message 路径进入模型。
-
-模型路由及出站策略由组织允许列表与本次员工委托取交集。Host 接收非秘密配置指纹，本机映射凭据与目录。不存在可满足要求的实际 provider 时拒绝开始，不退回个人 preset 或无沙箱 provider。
-
-## 产物及父任务规则
-
-普通文件清单包含相对路径、字节数、SHA-256、媒体类型、准确 revision 和描述；禁止绝对路径、`..`、链接逃逸和整个仓库自动上传。Git 变更包同时保存明确基线 commit/tree、每个路径的操作及旧/新哈希、补丁和新增文件字节；二进制单独保存，不用模型文字代替 diff。目标核验先验证基线及冲突，由用户手工应用，然后重新读取目标文件并记录实际哈希。hash 不授予读取权限，下载逐次验证当前任务权限。
-
-驳回产生新整计划 revision，所有旧批准、接受、委托、租约失效；历史验收不能满足新 revision 的前置或父级汇合，必须明确重新确认。必要依赖只消费当前有权读取的已验收提交。父级需要所有当前必要子任务验收、绑定提交集合的目标核验，以及下发人确认；员工子任务租约不授予父级或另一台设备的目录权限。
-
-## 实际消费者与强制能力
-
-| 消费位置 | 当前接口 / 拟接入点 | 拒绝条件及验证阶段 |
+| 顺序 | 操作 | 结果 |
 | --- | --- | --- |
-| 权威与传输 | organization 的 SQLite 事务；organization-api 固定 HTTPS；organization-connection 原生签名 | 失权、旧 revision/epoch、超预算、失效证明；Phase 2 真实 HTTPS |
-| 本机协调 | organization-execution Service 定义及实现；Desktop 主进程与私有 Host IPC 消费 | nonce/requestId/窗口/代次错配、超时和取消；Phase 3，真实副作用保持拒绝 |
-| 模型实际尝试 | llm/stream，每次重试都重新经过实际 provider 调用 | 无独立 Action、出站目标未允许、配置不匹配；Phase 4 |
-| 工具调用 | tools/pre-execute 与最终 tools/execute 消费者 | 未映射工具、许可失效；不能只过滤 schema；Phase 4 |
-| 文件 | fs provider 的实际读写入口 | 规范化路径、链接/别名及允许资源不符；Phase 4 |
-| shell/subprocess | shell provider → subprocess → sandbox | 环境移除秘密，派生路径及沙箱能力不足拒绝；Phase 4 |
-| subagent/job/terminal/外部 provider | 独立执行组合不注册，最终入口 guard 同时拒绝 | 尚无组织许可继承协议，首版禁用 |
-| 目标核验 | 原生 integration-verify/confirm → 本机读取 → organization 回执 | 缺目标授权、基线冲突、实际内容不一致 |
+| 1 | 下发人选择当前任务版本和员工并确认分配 | 原子授予任务访问，创建接受请求与通知 |
+| 2 | 指定员工接受或拒绝 | 接受后等待员工主动执行；拒绝后由下发人处理 |
+| 3 | 员工在任务对话使用 Agent 或自行执行 | 普通 Agent 检查当前已接受分配与任务权限 |
+| 4 | 选取文件、说明并确认上传 | 持久产物字节和索引；尚未正式汇报 |
+| 5 | 选择产物，填写完成摘要与目标说明，确认提交 | 创建不可变 Submission，原下发人收到待审批事项 |
+| 6 | 原下发人核对成果并接受或驳回 | 接受确认该提交；驳回需理由与新要求并创建新整计划版本 |
+| 7 | 必要子任务成果汇总，手工应用到实际目标并核验 | 保存目标基线及实际文件观察 |
+| 8 | 有权原下发人明确确认最终交付 | delivered；核验本身不等于最终交付 |
 
-macOS Seatbelt 当前主要强制写限制，不能据此声称全盘读取或网络隔离。Windows ACL 报告 partial，读取与硬链接限制未满足完整要求。涉及这些要求的动作必须拒绝；Phase 4 在真实 provider 环境验证越界拒绝，Windows 与三机可见总验收留给产品 Phase 8。Phase 1–3 只验证静态、SQLite、HTTPS、Loader、IPC 和 JSONL，不启动页面。
+返工版本需要重新分配和接受，然后由员工主动执行并重新上传、提交。旧成果、汇报、审批和对话保留；旧 artifactId 不能直接充当新版成果。整计划修订会使该计划的旧分配和高级 Run 设置失效。
 
-## 当前内部执行消费者（Phase 4 进行中）
+所有业务命令使用当前登录身份与 account 范围 operationId。同键相同内容返回原回执，同键不同内容拒绝；回执是历史事实，每次后续操作仍复核当前权限和准确版本。审批仅允许原分配批准人且须仍有当前任务查看与根任务编辑权，其他管理员不能替代。审批每份提交至多一次，同任务版本至多一份 accepted 成果。
 
-`OrganizationExecution.execute` 已消费标准 Agent loop 和独立模型适配器，按动作调用在线 bridge，复用真实 filesystem 完成有界 UTF-8 文件读写。调用还必须有部署 `executionLimits` 和输入摘要内的显式本机目录/动作/步数/时长；旧准备输入无法启动执行。动作日志保存 reserved/issued/settled，各次模型重试独立授权。失去资格或回执不明后停止，已运行绑定不能未经核对再次执行。
+## 当前仍保留的交互与条件
 
-Desktop 已接入显式授权并开始、暂停、取消、Run 历史和本机记录读取。原生 Run 通道使用独立身份寿命，普通内容刷新及自身写入不取消执行；退出登录、切换组织、断线和休眠使旧通道永久失效。显式暂停/取消先保存服务端事实，再中止并等待本机 Host 区间退出。租约续期跨内容刷新保留，回执不明时停止新增写入。
+| 环节 | 当前处理 |
+| --- | --- |
+| 下发确认 | 选择员工后自动检查分配资格，再确认任务版本、范围与负责人并下发；访问权随分配授予 |
+| 员工回应 | 明确接受或拒绝；打开通知与任务对话不代替接受，也不启动执行 |
+| 完成汇报 | 上传文件需确认一次；选取已上传产物、填写摘要与目标说明后，再确认正式提交 |
+| 结果审批 | 原下发人确认接受，或填写驳回理由与新验收要求；管理员不能代审批 |
+| 驳回返工 | 创建新整计划版本，使整计划旧分配与高级 Run 设置失效；新版重新分配、接受、执行和汇报 |
+| 父任务汇总 | 必要叶子成果须全部通过审批；缺失、过时或不可读时阻塞父任务交付 |
+| 最终交付 | 手工应用到 Git 目标，选择目录核验，再明确确认；普通文件和报告也要求 Git 目标 |
+| 查看完整树 | 员工可申请，由原创建者批准或拒绝；节点任务执行不要求先申请 |
+| 高级独立 Run | 可选，保留执行限额、暂停、人工问题、显式继续和故障核对；普通 Agent 与手工作业无需使用 |
 
-组织 `executionModels` 与本机 `models` 必须同时允许员工选定的模型和准确 HTTPS `/v1` 地址。本机配置绑定凭据引用，凭据不进入共享数据；模型 HTTP 发送前再次在线复核策略与一次性许可，禁止重定向及适配器内部复用许可。默认配置允许官方文本模型，其他地址必须由组织与本机配置共同明确允许。完整对话仍留在本人 JSONL；本机报告在读取前后检查当前身份与准确任务访问，只按完整响应字节上限返回末尾文本。
+## 成果上传与完成汇报
 
-当前拒绝 shell：现有 Seatbelt 的写限制实测不代表具有读取/网络隔离。HumanRequest 与本机恢复见下节；产物与正式提交见 Phase 6 格式。确定性组合测试使用真实组织 HTTPS、设备签名、私有 IPC、内建 loop 和文件系统，只替换外部模型与 OS 凭据保险库；没有启动页面。
+`publish-artifact` 和 `submit-delivery` 接受 nullable runId，省略时解析为 null。普通 Agent 和手工作业无需创建 Run。员工必须拥有当前已接受分配、准确 planRevision 和任务访问权。指定 Run 时额外校验其归属与版本；提交要求 Run 已停止、无 reserved/unknown 动作及 pending 人工请求。无 Run 的汇报不受高级 Run 状态约束。
 
-## Phase 5：人工介入与恢复
+产物索引与 BLOB 字节在同一事务发布。服务端验证规范 base64、长度、SHA-256、相对路径、类型和说明；不按共享路径读取本机文件。绝对路径、反斜线、冒号、空段和 `.`/`..` 被拒绝。失败上传不产生可引用记录。员工只共享自己选中的文件，不自动上传仓库、私人 Session、凭据或 Bot 配置。
 
-SQLite v8 新增 execution_human_requests。`request-execution-human` 是私有设备签名命令，绑定准确 Run、整计划版本、处理人、期限以及可选历史 action 或待批准请求摘要。资料问题可指派员工本人或原下发人，创建时核验处理人的当前任务查看权；文件写入审批仅指派员工。创建提交后 Run 进入 waiting-human，新的模型/文件动作拒绝。`user-questions/request` 的组织 answerer 将问题写入组织服务后结束本机等待区间，不依赖进程内 Promise 保存问题。
+`artifactMaxFiles` 默认每 assignment/run 范围 20 个，`artifactMaxFileBytes` 默认 256 KiB，`artifactMaxTotalBytes` 默认每范围或提交 1 MiB。已发布但未提交文件计入额度。API 和原生响应/请求上限仍适用，配置须计入 base64 和 JSON 开销。提交至少引用一份产物，路径唯一，并填写 summary、target 和 confirmed=true。
 
-`answer-execution-question` 和 `approve-execution-tool` 是独立真人命令；接受分配和后续正式验收不能替代它们。答复检查当前处理人、任务查看权、准确版本、请求种类、期限和未处理状态。同 operationId 重试返回原回执，竞争答复仅一个提交。答复不会唤醒运行。可选 `requireWriteApproval` 属于员工授权输入摘要；Host 在真实写入前请求审批，批准只对应一个 fs-write 请求摘要、只能消费一次，仍受原能力与预算限制。参数正文只留本人本机记录，审批前在本机查看，不复制到组织请求正文。
+`delivery-command/read/download` 是固定真人动作。原下发人审批绑定 Submission 和完整 artifactId/SHA-256 集合，服务端重新核验字节。读取、事件、下载和回执逐次裁剪权限。备份包括产物字节，损坏或缺失证据拒绝启动、下载、提交和恢复。
 
-Inbox 按当前授权显示指定处理人的持久请求；Run 详情显示处理人、等待状态与答复。失权、旧版本、撤销或过期请求拒绝答复。Renderer 只可授予/撤销执行委托、创建 Run、暂停或取消；reserve、settle、resume 和运行时请求只通过私有 Host 通道签名，手工说明不能写成机器已确认的成功。
+Git 变更包仍由员工显式选择 JSON 文件，包含 format=1、明确 baseCommit/baseTree、patch，以及每个相对路径的 add/modify/delete、oldSha256/newSha256 和新字节 base64。新增的 oldSha256=null，删除的 newSha256/bytes=null；修改两种哈希必填。服务端核验包与字节一致性，实际目标核验另行执行。没有自动应用 patch、覆盖文件、push 或 merge。
 
-本机报告把服务端 Action 与 JSONL 对齐：仅有 reserved 标记表示尚未发出；已落盘的结果可补报；已 issued 但没有可观测结果继续 unknown。文件写入日志另存相对路径、字节数和预期哈希，核对时重新读取真实文件，匹配才可报告目标内容已满足；这不声称能证明崩溃瞬间 syscall 是否发生。核对不重复写文件或重发模型请求，也不退款。
+## 可选高级独立 Run
 
-员工先读取本机报告，再明确选择“只核对历史动作”或“核对并显式继续”。只核对允许原设备在租约失效后补报历史事实，不恢复权限。继续要求相同 Run、原设备、有效委托和双 epoch、剩余预算、全部人工请求已答复/决定，以及没有 reserved/unknown 动作。目录快照的指纹在报告、核对及持有目录锁后的执行开始处比较；目录变化拒绝。目录内容与路径元数据的读取受现有 maxBytes 限额约束，链接、特殊文件和超限目录拒绝核对；报告显示无法确认。此实现适用于受信任员工选择的有界目录，不提供对恶意 OS 用户并发换路径的隔离。
+高级执行仅在员工主动展开和启动时使用。员工选择 API 或本机 Codex、工作目录、输入资料和本次执行限额，入口内部完成 grant-execution → create-run → 显式启动。它不需要设备准备授权、登记或领取，也不是普通 Agent 与手工作业的必要步骤。
 
-Host 重启可用原 Session 日志显式恢复。组织服务重启、租约或委托过期后旧 epoch 永不复活：先核对历史动作并取消旧 Run，再由员工重新明确委托、领取并创建新 Run。新 Run 不自动复制或重放旧对话；员工选择新的工作输入。无法观测的动作仍标 unknown，不能把重新开始或人工说明当作旧动作的成功证明。工具与模型停在 waiting-human 时不持有无限期活跃 Agent；关闭仍等待当前区间和持久化操作退出。
+| 记录 | 状态与约束 |
+| --- | --- |
+| 执行设置 | active → revoked / invalidated / expired；绑定已接受分配、能力、有限预算、期限和 configDigest |
+| Run | prepared → running → paused / waiting-human / succeeded / failed / cancelled；终态不可恢复 |
+| Action | reserved → succeeded / failed / not-issued / unknown；unknown 可依据持久证据补报确定结果 |
+| HumanRequest | pending → answered / approved / denied / cancelled / expired；指定当前有权处理人 |
 
-## Phase 6 产物与提交格式
+执行资格来自当前员工、接受状态、版本、任务访问、已验收且可读的必要依赖，以及该 Run 的当前设置。`executionMaxBudget` 默认 100，`executionMaxDurationMs` 默认一小时。每次实际模型尝试独立预占一个额度，重试需要新 action；同 action 同摘要不重复扣款，unknown 和 not-issued 不退款。预算跨引用同设置的 Run 共用。
 
-SQLite v9 在独立组织数据库内保存产物索引及 BLOB 字节，二者与事件、回执同事务发布。上传前只存在员工选定的本机 File；传输使用固定 HTTPS/native 命令，完整 body 的长度、规范 base64 和 SHA-256 校验成功后才出现可引用产物。中断上传不产生发布记录，因此无需跨文件系统暂存清理；没有删除已发布对象的接口。备份沿用停服 SQLite 校验和复制，包含字节、索引和提交；启动、备份/恢复、下载和提交均拒绝缺失或损坏证据。个人附件、present 声明、Session 释放都不影响组织产物。
+`actionPermitTtlMs` 默认 10000，范围 100–60000，许可到发出的窗口同时受执行设置期限限制。Host 发出前重检当前身份、取消、许可、目录与能力。取消与预占串行；在途操作可能成功或 unknown，停止不能承诺回滚。服务重启暂停非终态 Run 并把未确认动作标为 unknown，重连不自动运行。
 
-`publish-artifact` 包含准确 assignment/Run/planRevision、相对路径、类型、说明、媒体类型、长度、SHA-256 和选定字节。`artifactMaxFiles` 默认每 Run 20 个，单文件 `artifactMaxFileBytes` 默认 256 KiB，总量 `artifactMaxTotalBytes` 默认每 Run/提交 1 MiB；已发布但未提交文件仍计入额度。上传和下载同时受 API `maxBodyBytes`/`maxResponseBytes`（默认 1 MiB）、`requestTimeoutMs`（默认 15 秒）与原生 `maxResponseBytes`/`timeoutMs` 约束，配置时须计入 base64 与 JSON 元数据开销。列表沿用 pageSize 和完整响应字节上限。
+HTTPS `/execution/command` 使用严格 `{ command }` envelope 和当前登录鉴权；`/execution/read`、`/execution/list` 返回共享 Run 元数据。Renderer 只可设置/撤销执行、创建 Run 和暂停/取消；reserve、settle、resume 与运行时请求只经私有 Host 通道。当前命令拒绝旧 deviceId、准备 delegationId、serverEpoch/fencingEpoch 和 proof。
 
-`submit-delivery` 必须由当前员工明确确认，保存不可变 artifactIds、摘要和目标说明。服务端重新检查准确版本已批准且接受的任务、当前查看权和产物归属；Run 须已停止，无 reserved/unknown 动作及 pending 人工请求。不要求过期执行委托仍有效，不重新领取或启动 Agent。Submission 状态为 `submitted`；原下发人 Inbox 的待验收通知由该持久事实重建，不能把它当作已验收。相同 operationId 重试返回同一回执，改变内容同键拒绝；新提交产生新 ID。读取、列表、事件、回执和下载逐次核权，原生代次变更丢弃迟到内容。
+## 本机执行、人工介入与恢复
 
-首版 Git 变更包是员工显式选取的 JSON 文件，不自动扫描或上传仓库。格式为：
+普通任务对话使用已有 Session Controller、Agent、模型、工具和用户权限。打开与接受不发送模型请求。每次执行请求与工具调用重新检查员工分配状态；共享变更仍由独立业务入口核权。
 
-```json
-{
-  "format": 1,
-  "baseCommit": "完整 Git commit 对象 ID（40 或 64 个十六进制字符）",
-  "baseTree": "完整 Git tree 对象 ID（40 或 64 个十六进制字符）",
-  "patch": "明确基线对应的补丁文本",
-  "files": [
-    { "path": "src/example.ts", "operation": "modify", "oldSha256": "原字节 SHA-256", "newSha256": "新字节 SHA-256", "bytes": "新字节的规范 base64" }
-  ]
-}
-```
+高级 `organization-execution:` 使用单独绑定与 JSONL，不进入个人搜索、上传、fork 或 Agent 注册域。Host 按 server/account/run 预留本机 Session，保存准确任务、员工选择的非秘密配置、资料和消息；Renderer 不指定 Session ID 或提供授权回调。nonce、requestId、窗口、身份 generation 和超时关联私有 IPC。ready 在 flush 与独立重读后发布。
 
-新增用 `add` 且 oldSha256=null；删除用 `delete` 且 newSha256/bytes=null；修改用 `modify` 且旧/新哈希均必填。每个路径唯一且相对，新增/修改的字节哈希逐项校验；二进制新内容同样用 base64 独立保存在 files 项中。服务端检查证据格式与字节一致性，不声称已经核验目标仓库的真实基线或补丁应用结果；目标端核验由下述原生服务完成。没有解包、执行下载、自动应用、push 或 merge。共享路径仅作元数据使用，服务端不按其读取本机文件，也不会沿链接逃出存储。绝对路径、反斜线、冒号、空路径段和 `.`/`..` 被拒绝。
+API 高级执行通过普通 loop、独立模型适配器与受控 read_file/write_file 消费者，省略个人记忆、预设、终端、jobs 和 subagents。shell 因现有沙箱不满足读取及网络隔离而拒绝。路径限定到员工所选规范目录，拒绝链接、遍历和 Windows alternate paths；重叠目录通过本机锁保护至取消退出。实现假定受信任 OS 所有者，不抵御恶意并发替换路径。
 
+模型必须同时匹配组织 executionModels 与本机 models 允许列表。凭据只在本机映射，发送前检查目的地与一次性许可；不能复用许可、重定向或退回个人配置。
 
-## Phase 7：原下发人验收与返工
+人工资料问题可由员工本人或原下发人处理，工具审批只由员工处理。创建持久请求使 Run waiting-human；答复不启动 Agent。requireWriteApproval 可要求每次准确 fs-write 摘要的一次性决定，不能扩大已有能力。明确继续时把答复作为持久 user/message 输入。
 
-SQLite v10 新增不可变 `organization_acceptances`，从 v9 升级不制造验收记录。`accept-delivery` / `reject-delivery` 沿用固定 `delivery-command` HTTPS/native 通道，绑定准确 assignment、Run、planRevision、Submission 和完整产物 ID/SHA-256 集合，要求真人确认。服务端重读已发布字节并校验哈希；只有批准该分配的原下发人、仍有当前根任务编辑和任务查看权时可决定。其他管理员、员工或模型不能代签；账号和组织身份以当前登录为准。相同操作重试返回原回执并重新检查当前作者权限，同键不同内容拒绝。
+恢复读取 reserved/issued/settled 日志和实际文件。reserved-only 可补报 not-issued；已发出但没有可观察结果保留 unknown。匹配真实字节可报告文件内容已满足，不重复写入或重发模型。仅历史核对不执行；明确继续还要求当前资格、相同 Run、剩余额度、已决定人工请求、无未决动作和匹配目录指纹。Run 设置失效后需核对、取消旧 Run，再明确创建新 Run；新 Run 不自动复制旧输入。历史结算仍要求原员工当前任务读取权，不要求旧设备。
 
-每份 Submission 至多一个决定，同一任务同一整计划版本至多一份已验收成果；后续重复提交不会覆盖它。已失效的批准、过期版本、未正式提交、错误 Run 或不完整/不匹配的产物集合拒绝验收。任务编辑与验收共用串行事务：编辑先提交则旧版本验收拒绝；验收先提交则决定保留为历史事实，之后的版本仍须新确认。验收记录只确认提交，不修改父任务或最终交付状态。
+## Codex 高级执行
 
-驳回必须填写理由和新验收要求。权威端复制当前完整定义，仅给被驳回任务追加新验收要求，并在同一事务中创建下一整计划 revision、关联拒绝决定、事件及回执。现有失效流程撤销整计划旧批准、准备/执行委托和租约，停止旧 Run 新动作；历史 Run、Submission、产物和拒绝事实保留。事务中任一步失败全部回滚。员工需由下发人重新批准后，再接受、明确委托和领取，创建新的 Run/执行上下文；不会覆盖旧 JSONL 快照。旧产物 ID 不能直接用于新版提交：复用内容也要在当前 Run 显式重新发布并正式确认。
+executionCodex 默认空数组。当前 backend 使用 `{ kind: codex, dispatch: local, runtimeVersion: 0.153.4, model, effort, maxTurns, maxDurationMs }`，只允许 codex-turn，budget 不超过 maxTurns；API Run 省略 backend。Host 和组织策略均须允许模型及限额。模型/推理选项来自本机安全 catalog，无 endpoint/key 表单。
 
-`readDelivery` 和持久 Inbox 以不可变提交加决定投影 `pending / accepted / rejected / superseded / blocked`。原下发人待验收与双方已处理结果分别显示；员工待处理中保留需返工通知，直到该任务新版本重新获批。历史数据、搜索、计数和事件始终通过当前任务读取权裁剪。任务详情提供共享证据下载、明确验收确认、驳回理由/要求和新版本提示。`accepted` 明示仍需目标核验，既不代表父任务完成，也不代表根任务最终交付。
+每次应用派发 turn 消耗一个单位；Codex 内部模型与原生工具不计入 Harness 动作额度。首次 running 保存 startedAt，暂停和人工等待不重置时长。nativeActive 核验已运行 turn 的访问、依赖、策略、设置和累计时长，最后一个 turn 可在预算用尽后结算；权限或时长丢失时中止并等待进程退出。
 
-启动及停服备份/恢复校验决定作者、事件/回执、提交引用、真实字节哈希和返工版本内容。v2–v9 备份可按原有流程校验升级；不增加 Session 事件或改变 JSONL 格式。真实 Desktop 可见操作仍由用户验收。
+每个 Run 保存独立 thread、派发意图、回执、原生条目和终态。人工请求先入 Inbox，再取消原生 callback 并结束区间。明确继续后，语义字段和 cwd 一致的命令决定可消费一次；文件变更缺完整可比较提案时须重新请求。缺确切回执或仍运行的 native turn 保留 unknown，不重发或另建。恢复检查私有转录摘要，不扫描文件。Codex 负责原生上下文、工具与质量；completed 不等于提交、审批或最终交付。
 
+## 依赖与目标集成
 
-## Phase 8：依赖准入与目标集成
+高级 Run 在 create/start/resume 和新动作处检查自身及祖先依赖；普通执行没有新增自动依赖派发。依赖展开为必要叶子已验收成果，必须属于当前版本且对执行员工可读。父节点汇集所有必要分支；缺失、过时或不可读时不返回部分输入，没有必要叶子成果的父节点保持阻塞。
 
-SQLite v11 新增不可变 `organization_integrations`、独立 `integration_confirmations` 和审计关联 `integration_events`。v10 升级不制造核验或交付；启动与停服维护校验版本、提交/验收集合、产物哈希、作者、观察结果及事件/回执关系。`readIntegration` 返回前置就绪、必要成果就绪、当前提交及哈希集合、最近目标观察与最终交付事实，不根据 Run 文本或结束次数推断。
+用户手工应用成果后，OrganizationIntegration 通过原生目录对话框选择 Git 根并读取 commit/tree、文件长度和 SHA-256。普通报告同样要求 Git 目标。Git 变更包进一步核对旧 blob 与 add/modify/delete 结果，拒绝链接、重名或冲突；所有子进程清理凭据环境并等待退出。
 
-依赖与父子关系分开计算。叶子可提前批准、接受和准备，但 create-run、开始、resume 和每次新动作许可都检查自身及祖先依赖。依赖节点展开为其必要叶子成果；同版本成果必须已正式验收且执行员工当前可读。父节点汇合所有必要分支的必要叶子，忽略非必要分支；任一缺失、过时或不可读时不返回部分集成输入。没有必要叶子成果的父节点保持阻塞。节点级可见权不授予兄弟正文或产物读取权。已发出动作的历史结算仍可保留，不因依赖失效伪造失败。
+共享观察只有随机目标引用、Git 基线和相对文件证据，绝对目录只在原生内存。最终确认重读同一目录；内容或基线变化追加 rejected 观察，旧 verified 不能交付。重启须重选目录核验。核验不锁外部编辑器，也不保证确认后文件永不变化。
 
-父节点没有叶子分配记录，其最终下发人使用不可变计划创建者；叶子（包括单叶根任务）使用原分配批准人。最终确认同时要求此人仍有项目写、根 subtree 编辑和所选任务/全部必要成果的读取权。其他管理员不能替代；停用或撤权不会转交决定权。整计划 revision 变化使旧回执不能支持当前交付，历史观察与确认保留。
+叶子使用原分配批准人确认，父节点使用不可变计划创建者；须仍有项目写、根 subtree 编辑、所选任务与全部必要成果读取权。不同操作者的观察不授予本机目录许可。模型通道不能提交、审批或最终确认。
 
-Desktop 的 `OrganizationIntegration` 是本机核验服务。`integration-read` 是固定组织读取动作；Renderer 的 `integration-verify` 只传任务选择，`integration-confirm` 只传任务选择、回执 ID 和真人确认。Electron 拦截这两个动作，普通 connection.perform 拒绝直接转发。服务端固定 `/integration/read`、`/integration/command` 使用独立组织 HTTPS 身份，写入沿用未知回执核对。接口信任已授权客户端的本机观察，不声称抵御恶意 OS 所有者；模型通道没有集成或最终确认能力。
+## 历史与验证
 
-用户先手工应用成果，再通过原生对话框选定 Git 仓库根目录；本期普通文件与报告也要求 Git 目标，以记录一致的 commit/tree 基线。本机重新下载当前授权的已验收字节，拒绝重名冲突，并读取实际目标文件的长度及 SHA-256。Git 变更包进一步校验 commit/tree 和旧 blob 哈希，并核对新增、修改及删除结果。共享 patch 是供人工应用的资料；最终证据来自逐文件内容，应用不会执行 patch、覆盖文件、push 或 merge。符号链接文件/目录拒绝，所有 Git 子进程移除凭据环境变量，沿用原生连接超时并等待结束。
+SQLite v21 允许无 Run 成果，并退役旧设备、准备授权和租约。历史执行 JSON 中的旧字段与 device-native dispatch 仅供持久记录读取；当前新执行使用 local。升级、备份和恢复验证外键、作者、事件/回执、成果哈希和返工版本关系。Session 日志格式不变。
 
-回执仅共享随机目标引用、commit/tree、相对路径/长度/哈希、客户端观察时间和 verified/rejected 结果（服务端以审计 revision 排序，不要求两台机器的时钟一致）；绝对目录映射只在原生进程内存中。最终确认重读同一已授权目录；内容或基线变化会追加 rejected 观察，使旧 verified 不能交付。核验过程中身份代次或权限变化拒绝迟到结果。重启后目录许可映射丢失，必须重新选择和核验；不自动重放应用。不同操作者的目标观察不能直接授予下发人在另一台设备上的目录许可，下发人需在自己明确选择的实际目标上重新核验。核验与确认都是读取时点的观察，不锁住外部编辑器，也不承诺确认后文件永不变化。
-
-任务详情提供依赖阻塞、必要成果与哈希、核验结果、目标目录选择和最终确认。内容按原生代次隐藏，集成事件按当前任务及输入可见权投影为无正文失效通知。它们不改变模型提示词、token、KV cache 或 Session JSONL 格式；没有自动向模型注入前置文件，员工仍通过现有授权产物下载和显式本机输入准备资料。可见 Desktop、Windows 及三机产品验收仍由用户执行。
-
-## Codex 原生调度与执行（7B Phase 6–8）
-
-当前组织 SQLite schema 为 v12。v11 升级只推进 schema stamp，历史 API Run JSON 保持原字节；不推断或授予 Codex 权限。停服备份写 v12，恢复接受校验通过的 v2–v11 备份并在 staging 升级，原设备、租约和执行授权按既有流程退休。
-
-组织 Config 的 `executionCodex` 默认空数组，独立于 `executionModels`。条目固定 `runtimeVersion: 0.153.4`、model、efforts、maxTurns 和 maxDurationMs。员工明确授予执行时附带 `backend: { kind: codex, dispatch: device-native, runtimeVersion, model, effort, maxTurns, maxDurationMs }`，Run 必须与委托完全一致。只允许 `codex-turn` capability，budget 不超过 maxTurns；API Run 继续省略 backend，不能领取 codex-turn。严格 parser 拒绝账号、token、home 和 endpoint 等额外字段。
-
-启动、保留新 turn 和显式继续重新检查准确任务版本、当前 read 与可读已验收依赖、接受、准备/执行委托、设备及双 epoch 租约、当前允许模型/effort 和限额。已有 reserved/unknown 阻止下一次派发。每次应用 turn 保留消耗一个不可退还单位；Codex 内部模型请求、重试和原生工具不计为应用可观测预算。
-
-首次 running 保存 startedAt，暂停和人工等待不重置累计时长。时长到期持久暂停并记录 duration-limit；设备/授权丢失记录 authority-lost，同时取消未答复的原生请求。turn 或委托 budget 用尽记录 turn-limit，已保留的最后一个 turn 仍可结算并写终态。员工停止和原生终态使用 employee-stop/native-terminal 等独立原因。旧设备仅可对既有动作提交历史结果，不能据此恢复调度。
-
-传输复用固定签名 HTTPS/native 命令、当前身份 generation、Host nonce 和顶层窗口核验。Renderer 不获得通用 Codex JSON-RPC 或组织代理。组织 Codex 执行桥已消费上述调度资格。Desktop 在已接受任务中明确选择 API 或本机 Codex；Codex 模型与推理选项来自本机安全 catalog，不填写 endpoint/key。部署同时需要组织 `executionCodex` policy 与员工 Host 的 `codex` 限额。后端、真人责任人、设备、准确版本、Run、原生状态、待谁处理和交付分别展示。失败授权草稿保留同一幂等键和截止时间，unknown 回执先核对，不重复派发。
-
-本机每个 Run 预留独立 Session、thread 和 JSONL，派发只包含获准任务、员工明确选择的资料/消息及显式继续时的真人答复。`organization/execution-native` 记录准备、关联、输入意图、回执、原生条目/终态、Inbox 请求及一次性决定。个人搜索、fork 和上传拒绝该命名空间；组织共享数据没有原生转录、账号或配置。原生登录与上下文仍由员工设备 Codex 持有。
-
-`nativeActive` 与允许新派发的 `eligible` 分开：前者复核已运行回合的访问/依赖/模型策略/委托/设备租约及累计时长，预算用尽后最后一个回合可以完成；撤权或时长到期则不能继续。执行桥在准备和执行时轮询该值；断线、休眠、退出、员工停止和身份变化取消并等待所属进程退出。原生工具不经过应用逐动作 guard。
-
-人工请求先保存 Inbox，再取消原生 callback 并停止本次区间。真人答复不会启动执行；员工明确继续后重检资格并创建下一原生回合。命令审批可对语义字段及 cwd 完全一致的新 callback 使用一次原决定，先保存消费记录并再次检查当前权限；变更请求重新确认。文件变更缺完整可比较提案时，旧审批不用于新 item，须重新请求。停止/断线从不复活旧 callback。
-
-原生恢复摘要校验本机转录，不扫描任务文件。已有确切回执可读取原 thread/turn 核对终态并补报历史结果；缺回执、未确认 thread 或仍运行的 native turn 保留 unknown，不重发或另建。completed 仅表示原生回合完成；员工提交、下发人验收及最终目标核验仍使用原有固定真人动作。纯 presenter 仅输出已知原生文本/工具字段与固定状态，原始协议和 stderr 不作为共享内容。工程测试不能代表真实模型、Windows、可见或三机验收通过。
+确定性测试覆盖 Loader、SQLite、HTTPS、私有 IPC、普通 Agent 和受控文件；外部模型由脚本替代。静态检查与构建不替代用户侧 Desktop 可见验收、真实模型、OS 凭据保险库及跨机测试。操作剧本见[验收指南](organization-execution-acceptance.md)。

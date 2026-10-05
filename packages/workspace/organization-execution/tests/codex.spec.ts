@@ -17,7 +17,7 @@ const nativeLimits = { startupTimeoutMs: 2000, rpcTimeoutMs: 2000, turnTimeoutMs
 async function setup(maxTurns = 2) {
   const local = await boot(undefined, limits, undefined, nativeLimits), directory = join(local.root, 'work')
   await mkdir(directory); await writeFile(join(directory, 'private.txt'), 'UNSELECTED_PRIVATE_MATERIAL')
-  const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4', model: 'scripted-csv', effort: 'medium', maxTurns,
+  const backend = { kind: 'codex', dispatch: 'local', runtimeVersion: '0.153.4', model: 'scripted-csv', effort: 'medium', maxTurns,
     maxDurationMs: 10000 } as const
   const inputs = executionRequestSchema.shape.inputs.parse({ model: backend.model, backend, capabilities: ['codex-turn'],
     execution: { directory, maxActions: maxTurns, maxSteps: maxTurns, maxDurationMs: 10000 },
@@ -171,4 +171,12 @@ it('refuses native receipt associations that diverge from the durable Run thread
   await expect(h.service.verifyBindings()).rejects.toThrow('native-log-mismatch')
   await writeFile(file, original)
   await h.service.verifyBindings()
+})
+
+it('refuses historical dispatch for new native inputs while retaining recovery parsing', async () => {
+  const h = await setup()
+  const legacy = { ...h.request, inputs: { ...h.request.inputs, backend: { ...h.request.inputs.backend!, dispatch: 'device-native' } } }
+  expect(() => executionRequestSchema.parse(legacy)).toThrow()
+  expect(executionRequestSchema.parse({ ...legacy, resume: { baselineDigest: 'a'.repeat(64) } }).inputs.backend?.dispatch)
+    .toBe('device-native')
 })

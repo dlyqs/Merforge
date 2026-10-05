@@ -26,9 +26,9 @@ export interface OrganizationAssignment {
   version: number
 }
 
-/** Independent, bounded permission to prepare execution on one registered device. */
+/** Historical preparation delegation identity retained for existing organization records. */
 export type OrganizationDelegationId = Branded<'OrganizationDelegationId'>
-/** Revocable native public-key registration, never a renderer-selected machine identity. */
+/** Historical device registration identity; current task execution uses the assigned account. */
 export type OrganizationDeviceId = Branded<'OrganizationDeviceId'>
 /** Durable answer and notification metadata, filtered through current task visibility. */
 export interface OrganizationHumanRequest {

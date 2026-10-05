@@ -15,7 +15,6 @@ export const connectionConfig = z.object({
   trustPath: z.string().refine(isAbsolute).optional(),
   timeoutMs: z.number().int().min(100).max(120000).default(15000),
   maxResponseBytes: z.number().int().min(1024).max(10485760).default(1048576),
-  renewalFraction: z.number().min(0.1).max(0.8).default(0.5),
   reconnectMs: z.number().int().min(100).max(60000).default(2000),
 }).strict()
 /** Parsed public server identity. */
@@ -45,10 +44,7 @@ export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('remove-project'), projectId: projectViewSchema.shape.id }).strict(),
   z.object({ kind: z.literal('project-page'), offset: z.number().int().nonnegative(), cursor: z.string().optional() }).strict(),
   z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
-  z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-delegate', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation', 'lease-claim', 'lease-release', 'lease-check']), request: z.unknown() }).strict(),
-  z.object({ kind: z.literal('device-register'), name: z.string().trim().min(1).max(120) }).strict(),
-  z.object({ kind: z.literal('device-revoke'), expectedVersion: z.number().int().positive() }).strict(),
-  z.object({ kind: z.literal('device-read') }).strict(),
+  z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation']), request: z.unknown() }).strict(),
   z.object({ kind: z.enum(['workgraph-sharing', 'workgraph-share', 'remove-plan', 'workgraph-delete', 'workgraph-removal', 'workgraph-save', 'workgraph-read', 'workgraph-tasks', 'workgraph-grant', 'workgraph-grants']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('probe'), origin: z.string().max(2048) }).strict(),
   z.object({ kind: z.literal('trust'), fingerprint: z.string() }).strict(),

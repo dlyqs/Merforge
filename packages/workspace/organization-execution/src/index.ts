@@ -128,7 +128,8 @@ export default class OrganizationExecution extends Service {
       const saved = state.get(), binding = saved.bindings.find(item => item.sessionId === prepared.sessionId)
       if (!binding || (!request.resume && binding.state !== 'ready') || (request.resume && !['stopped', 'executing'].includes(binding.state))) throw new Error('organization-execution: explicit-reconciliation-required')
       const { id, state: _state, version: _version, createdRevision: _created,
-        configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = prepared.run
+        configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
+        deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = prepared.run
       const transition = (status: 'running' | 'paused' | 'succeeded' | 'failed') => online(executionCommandSchema.parse({
         ...selector, runId: id, kind: 'transition-run', state: status, operationId: randomUUID(),
       }))
@@ -149,7 +150,7 @@ export default class OrganizationExecution extends Service {
         if (result === 'completed') await transition('succeeded')
         else if (result === 'failed') await transition('failed')
       } catch (error) {
-        // Stopping cannot restore an old lease; failed transport leaves authority reconciliation pending.
+        // Failed transport leaves the stop decision pending receipt reconciliation.
         await transition('paused').catch((stopError: unknown) => {
           this.ctx.logger.info('organization component=execution runId=%s result=stop-unconfirmed decisionCode=%s',
             prepared.run.id, stopError instanceof Error ? stopError.name : 'Error')
@@ -165,9 +166,9 @@ export default class OrganizationExecution extends Service {
     return settled
   }
   /**
-   * Report historical device evidence without granting permission or starting a model.
+   * Report historical action evidence without granting permission or starting a model.
    * @param request - Original inputs and explicitly reviewed local baseline.
-   * @param bridge - Fresh native task read and historical device settlement channel.
+   * @param bridge - Fresh native task read and historical action settlement channel.
    * @param signal - Native request and identity lifetime.
    * @returns Original local binding after evidence reporting; unresolved effects remain unknown.
    */
@@ -188,7 +189,8 @@ export default class OrganizationExecution extends Service {
           const facts = inspectActions((await reader.read()).events, await bridge())
           for (const record of facts.settlements) {
             const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest,
-              backend: _backend, startedAt: _started, stopReason: _stop, ...selector } = prepared.run
+              backend: _backend, startedAt: _started, stopReason: _stop,
+              deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = prepared.run
             await bridge(executionCommandSchema.parse({ ...selector, runId: id, kind: 'settle-action', operationId: randomUUID(),
               actionId: record.action.actionId, outcome: record.outcome, evidenceDigest: record.evidenceDigest }))
           }
@@ -206,7 +208,8 @@ export default class OrganizationExecution extends Service {
     const observed = await inspectDirectory(binding.inputs.execution.directory, maxBytes)
     if (observed.digest !== baseline) throw new Error('organization-execution: baseline-changed')
     const { id, state: _state, version: _version, createdRevision: _created,
-      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = binding.run
+      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
+      deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = binding.run
     let authority = await online()
     if (authority.execution.run.state === 'running') authority = await online(executionCommandSchema.parse({ ...selector, runId: id,
       kind: 'transition-run', state: 'paused', operationId: randomUUID() }))
@@ -372,9 +375,9 @@ export default class OrganizationExecution extends Service {
         const evidence = actionEvidenceSchema.parse(event.data), action = evidence.action
         const previous = actions.get(action.actionId)
         if (action.runId !== binding.run.id || action.assignmentId !== binding.run.assignmentId
-          || action.executionDelegationId !== binding.run.executionDelegationId || action.deviceId !== binding.run.deviceId
-          || action.planRevision !== binding.run.planRevision || action.serverEpoch !== binding.run.serverEpoch
-          || action.fencingEpoch !== binding.run.fencingEpoch || !binding.inputs.capabilities.includes(action.capability)
+          || action.executionDelegationId !== binding.run.executionDelegationId
+          || action.planRevision !== binding.run.planRevision
+          || !binding.inputs.capabilities.includes(action.capability)
           || (previous && (JSON.stringify(previous.action) !== JSON.stringify(action)
             || JSON.stringify(previous.file) !== JSON.stringify(evidence.file)))
           || (evidence.file !== undefined && action.capability !== 'fs-write')
@@ -430,9 +433,6 @@ export default class OrganizationExecution extends Service {
           || authority.execution.run.id !== request.runId || authority.execution.run.assignmentId !== request.assignmentId
           || authority.execution.run.planId !== request.planId || authority.execution.run.projectId !== request.projectId
           || authority.execution.run.organizationId !== request.organizationId
-          || authority.execution.run.serverEpoch !== binding.run.serverEpoch
-          || authority.execution.run.fencingEpoch !== binding.run.fencingEpoch
-          || authority.execution.run.deviceId !== binding.run.deviceId
           || authority.execution.run.executionDelegationId !== binding.run.executionDelegationId
           || authority.task.revision !== binding.run.planRevision
           || (!request.reconcile && authority.execution.delegation.used >= authority.execution.delegation.budget)

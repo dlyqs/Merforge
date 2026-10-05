@@ -8,6 +8,7 @@ import { integrationRecordSchema } from './integration-schema.ts'
 import { acceptanceDdl, validateAcceptanceDatabase } from './acceptance.ts'
 import { deliveryDdl, validateDeliveryDatabase } from './delivery.ts'
 import { executionHumanDdl, executionDdl, validateExecutionDatabase } from './execution-database.ts'
+import { migrateAssignmentExecution } from './assignment-migration.ts'
 import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
 import { assignmentDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
 import { DatabaseSync } from 'node:sqlite'
@@ -20,7 +21,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 20
+export const ORGANIZATION_SCHEMA_VERSION = 21
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -93,6 +94,10 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
   const db = new DatabaseSync(path)
   try {
     db.exec(`PRAGMA busy_timeout=${busyTimeoutMs}; PRAGMA foreign_keys=ON`)
+    const storedVersion = db.prepare('PRAGMA user_version').get()?.user_version
+    const migration = typeof storedVersion === 'number' && storedVersion > 0 && storedVersion < ORGANIZATION_SCHEMA_VERSION
+    // SQLite table replacement requires disabling enforcement before BEGIN; validation checks every reference before COMMIT.
+    if (migration) db.exec('PRAGMA foreign_keys=OFF')
     transaction(db, () => {
       const stamp = db.prepare('PRAGMA user_version').get()?.user_version
       const app = db.prepare('PRAGMA application_id').get()?.application_id
@@ -106,7 +111,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
         stamp === 5 || stamp === 6 || stamp === 7 || stamp === 8 || stamp === 9
         || stamp === 10 || stamp === 11 || stamp === 12 || stamp === 13 || stamp === 14
-        || stamp === 15 || stamp === 16 || stamp === 17 || stamp === 18 || stamp === 19) && app === applicationId) {
+        || stamp === 15 || stamp === 16 || stamp === 17 || stamp === 18 || stamp === 19 || stamp === 20) && app === applicationId) {
         db.exec(workgraphDeletionDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
         if (stamp < 4) validateDatabase(db, stamp >= 2, stamp >= 3, false)
         if (stamp === 1) db.exec(resourceDdl)
@@ -129,14 +134,15 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
           SELECT p.id,e.actorId FROM organization_projects p JOIN resource_events r ON r.projectId=p.id
           JOIN organization_events e ON e.revision=r.revision WHERE e.kind='create-project'`)
         if (!db.prepare('PRAGMA table_info(organization_projects)').all().some(row => row.name === 'background')) db.exec(projectContentDdl)
-        db.exec(workgraphSharingDdl)
+        if (stamp < 20) db.exec(workgraphSharingDdl)
+        migrateAssignmentExecution(db)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
       }
       validateDatabase(db)
     })
-    db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL')
+    db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL')
     return db
   } catch (error) {
     db.close()

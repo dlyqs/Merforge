@@ -67,7 +67,8 @@ export async function runCodexExecution(binding: ExecutionResult, authority: Exe
   const guard = new ActionGuard(binding, authority, bridge, data => append({ type: 'organization/execution-action',
     data: actionEvidenceSchema.parse(data), seq: SessionSeq(0), time: 0 }), lifetime, limits)
   const { id, state: _state, version: _version, createdRevision: _created, configDigest: _digest,
-    backend: _backend, startedAt: _started, stopReason: _stop, ...selector } = binding.run
+    backend: _backend, startedAt: _started, stopReason: _stop,
+    deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = binding.run
   const command = (fields: object) => executionCommandSchema.parse({ ...selector, runId: id, operationId: randomUUID(), ...fields })
   const stop = () => {
     if (runtime) {

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { isIP } from 'node:net'
 import { z } from 'zod'
-import { OrganizationConnection, type OrganizationDeviceVault } from '@deepseek-ai/dsh-organization-connection'
+import { OrganizationConnection, type OrganizationCredentialVault } from '@deepseek-ai/dsh-organization-connection'
 import { backupOrganization, restoreOrganization, lockOrganizationDirectory } from '@deepseek-ai/dsh-organization/maintenance'
 import type { OrganizationServerAction, OrganizationDesktopSnapshot, OrganizationServerSettings } from '@deepseek-ai/dsh-organization-connection/types'
 import type { DesktopOrganizationProcess } from './organization-process.ts'
@@ -43,8 +43,8 @@ export class DesktopOrganizationManager {
    * @param pick - Native picker for a new backup destination or existing backup source.
    */
   constructor(readonly process: DesktopOrganizationProcess,
-    home: string, private readonly pick: (kind: 'backup' | 'restore') => Promise<string | undefined>, vault?: OrganizationDeviceVault) {
-    this.connection = new OrganizationConnection({ trustPath: join(home, 'organization-client-trust.json') }, vault ? { directory: join(home, 'organization-devices'), vault } : undefined)
+    home: string, private readonly pick: (kind: 'backup' | 'restore') => Promise<string | undefined>, vault?: OrganizationCredentialVault) {
+    this.connection = new OrganizationConnection({ trustPath: join(home, 'organization-client-trust.json') }, vault ? { vault } : undefined)
     this.directory = join(home, 'organization-server')
     this.settingsPath = join(home, 'organization-server-settings.json')
     try { this.settings = settingsSchema.parse(JSON.parse(readFileSync(this.settingsPath, 'utf8'))) }

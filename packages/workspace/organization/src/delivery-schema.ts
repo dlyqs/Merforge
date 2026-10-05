@@ -12,7 +12,8 @@ const hash = z.string().regex(/^[a-f0-9]{64}$/)
 /** Portable shared paths never name a local absolute directory or traversal. */
 export const artifactPathSchema = z.string().min(1).max(512).refine(value =>
   !/[\\:\x00-\x1f]/.test(value) && value.split('/').every(part => part !== '' && part !== '.' && part !== '..'))
-const selector = assignmentReadSchema.extend({ runId: id<OrganizationRunId>(), planRevision: planRevisionSchema }).strict()
+const selector = assignmentReadSchema.extend({ runId: id<OrganizationRunId>().nullable().default(null),
+  planRevision: planRevisionSchema }).strict()
 const metadata = z.object({ path: artifactPathSchema, mediaType: z.string().min(1).max(120),
   description: z.string().trim().min(1).max(2048), kind: z.enum(['file', 'test-report', 'git-change']),
   size: integer, sha256: hash }).strict()

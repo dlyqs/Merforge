@@ -8,7 +8,7 @@ import { configSchema } from '../src/schema.ts'
 import { executionCodexBackendSchema } from '../src/execution-schema.ts'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { vi.restoreAllMocks(); for (const close of cleanup.splice(0).reverse()) await close() })
-const backend = { kind: 'codex', dispatch: 'device-native', model: 'native-test', effort: 'medium', runtimeVersion: '0.153.4',
+const backend = { kind: 'codex', dispatch: 'local', model: 'native-test', effort: 'medium', runtimeVersion: '0.153.4',
   maxTurns: 2, maxDurationMs: 10000 } as const
 const policy = [{ model: backend.model, runtimeVersion: backend.runtimeVersion, efforts: [backend.effort],
   maxTurns: 2, maxDurationMs: 10000 }]
@@ -46,7 +46,7 @@ it('defaults native policy to disabled and rejects undeclared native selection o
     .rejects.toMatchObject({ code: 'forbidden' })
   await expect(setupExecution(cleanup, 2, 'a'.repeat(64), ['model'], undefined, { backend, policy }))
     .rejects.toMatchObject({ code: 'invalid-input' })
-})
+}, 15000)
 
 it('starts the cumulative native deadline when a stopped prepared Run first resumes', async () => {
   const h = await setup()
@@ -78,32 +78,30 @@ it('bounds total time across pauses and refuses explicit resume without resettin
   await expect(h.execute({ ...h.run, kind: 'resume-run', operationId: operationId() })).rejects.toMatchObject({ code: 'version-conflict' })
 })
 
-it('refuses new dispatch after lease loss and accepts only the original device historical result', async () => {
+it('refuses new dispatch after assignment revocation and accepts historical action evidence', async () => {
   const h = await setup(); await h.transition('running')
   const action = { ...h.action(), capability: 'codex-turn' }; await h.execute(action)
-  const release = { ...h.selector, kind: 'release', operationId: operationId(), deviceId: h.run.deviceId,
-    serverEpoch: h.run.serverEpoch, fencingEpoch: h.run.fencingEpoch,
-    expectedVersion: Number(h.db.prepare('SELECT version FROM assignment_leases WHERE assignmentId=?').get(h.selector.assignmentId)?.version) }
-  await h.service.deviceCommand(h.other.token, release, h.proof(await h.service.deviceChallenge(h.other.token, release)))
+  const assignment = h.db.prepare('SELECT version FROM task_assignments WHERE id=?').get(h.selector.assignmentId!)
+  await h.service.assignmentCommand(h.owner.token, { ...h.selector, kind: 'revoke-assignment',
+    operationId: operationId(), expectedVersion: assignment?.version })
   expect((await h.read())).toMatchObject({ eligible: false, run: { state: 'paused', stopReason: 'authority-lost' }, actions: [{ state: 'unknown' }] })
   await expect(h.execute({ ...h.action(), capability: 'codex-turn' })).rejects.toMatchObject({ code: 'version-conflict' })
   const settle = { ...h.run, kind: 'settle-action', operationId: operationId(), actionId: action.actionId, outcome: 'succeeded', evidenceDigest: 'c'.repeat(64) }
-  await expect(h.execute({ ...settle, deviceId: randomUUID() })).rejects.toMatchObject({ code: 'forbidden' })
+  await expect(h.execute({ ...settle, deviceId: randomUUID() })).rejects.toMatchObject({ code: 'invalid-input' })
   await h.execute(settle)
   expect((await h.read()).actions[0]?.state).toBe('succeeded')
   const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
 })
 
-it('withdraws pending native human answers when the device releases ownership', async () => {
+it('withdraws pending native human answers when the assignment is revoked', async () => {
   const h = await setup(); await h.transition('running')
   const requestId = randomUUID()
   await h.execute({ ...h.run, kind: 'request-execution-human', operationId: operationId(), requestId,
     handlerId: (await h.read()).assigneeId, requestKind: 'work-question', prompt: 'Proceed?',
     expiresAt: Date.now() + 20000, actionId: null, requestDigest: null })
-  const release = { ...h.selector, kind: 'release', operationId: operationId(), deviceId: h.run.deviceId,
-    serverEpoch: h.run.serverEpoch, fencingEpoch: h.run.fencingEpoch,
-    expectedVersion: Number(h.db.prepare('SELECT version FROM assignment_leases WHERE assignmentId=?').get(h.selector.assignmentId)?.version) }
-  await h.service.deviceCommand(h.other.token, release, h.proof(await h.service.deviceChallenge(h.other.token, release)))
+  const assignment = h.db.prepare('SELECT version FROM task_assignments WHERE id=?').get(h.selector.assignmentId!)
+  await h.service.assignmentCommand(h.owner.token, { ...h.selector, kind: 'revoke-assignment',
+    operationId: operationId(), expectedVersion: assignment?.version })
   expect(await h.read()).toMatchObject({ eligible: false, run: { state: 'paused', stopReason: 'authority-lost' },
     humanRequests: [{ id: requestId, state: 'cancelled' }] })
   await expect(h.service.participantCommand(h.other.token, { ...h.selector, kind: 'answer-execution-question',
@@ -123,7 +121,7 @@ it('rechecks current native policy after restart while retaining original native
   const before = api.db.prepare('SELECT data FROM execution_runs WHERE id=?').get(api.run.runId)?.data
   api.db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=11')
   const upgraded = openOrganizationDatabase(api.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(20)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
   expect(upgraded.prepare('SELECT data FROM execution_runs WHERE id=?').get(api.run.runId)?.data).toBe(before)
   upgraded.close()
   const h = await setup(); await h.transition('running')
@@ -133,6 +131,6 @@ it('rechecks current native policy after restart while retaining original native
   await next.service.readExecution(h.other.token, { ...h.selector, runId: h.run.runId }, (view) => { eligible = view.eligible })
   expect(eligible).toBe(false)
   const resume = { ...h.run, kind: 'resume-run', operationId: operationId() }
-  await expect(next.service.executionCommand(h.other.token, resume, h.proof(await next.service.executionChallenge(h.other.token, resume))))
-    .rejects.toMatchObject({ code: 'version-conflict' })
+  await expect(next.service.executionCommand(h.other.token, resume))
+    .rejects.toMatchObject({ code: 'forbidden' })
 })

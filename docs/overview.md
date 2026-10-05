@@ -10,11 +10,11 @@
 
 [Codex 对话后端与组织外部执行实施计划](codex-backend-plan.md)细化产品 Phase 7B，内部 Phase 1–10 工程完成。用户最新要求“继续完成 phase9-10”，已达到 Phase 10 终点，恢复 `manual`、自动边界 `none`、relay 关闭。Phase 9–10 补齐个人五回合任务链、双员工独立 CSV/契约交付、跨组织/账号转录拒绝和重复旧终态回归；Desktop build、真实 npm tarball exports、普通 Node/Electron Node mode 的 Codex/API 私有 IPC smoke 通过。[Codex 验收交接](codex-backend-acceptance.md)提供平台、真实模型、三机与可见检查；全仓类型/依赖/JSDoc/unknown cast 的既有失败详见实施计划，未绕过门禁。固定 0.153.4 的共用 `codex-runtime` 和 `agent-codex` 已提供原生模型发现、持久文字对话、多轮发送、流式输出、意图/回执/结果记录、停止及冷重开核对。Desktop 的模型/effort 选择、Bot 默认值与刷新已接入；选择 Codex 无需 Merforge API key，缺登录/模型明确显示原因，更换后端或原生模型创建独立关联会话。
 
-个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织新增独立 opt-in Codex 调度策略、设备/任务/租约资格、累计 turn/时长与停止原因，SQLite 当前为 v14；v12 原生执行字段及 v11 API Run 不转换。组织原生执行已接入独立 Run/Session/thread 与私有 JSONL，派发准确任务和显式输入，停止等待所属进程及日志排空，未知发送不重放。人工请求进入持久 Inbox，答复后需明确继续；完整相同的命令决定只消费一次，缺完整提案的文件审批不能复用。工作台已有任务支持 Codex 后端、原生模型/effort 选择、运行/恢复/请求及现有提交、验收、返工和交付动作，不要求 API endpoint/key。
+个人任务通过真实 `agent/pre-step` 和任务工具管线派发；Codex 规划提案、完成报告与人工提问/一次审批进入既有服务和持久记录。原生任务只核对目录和应用权限，不扫描文件或 Git 内容；未完成的回合暂停，用户明确恢复并发送才能继续。旧 thread 没有所需任务声明时普通问答继续可用，任务增强与执行要求新会话。组织高级 Codex 执行保留独立 opt-in 调度策略、已接受分配准入、累计 turn/时长与停止原因，SQLite 当前为 v21；设备登记、准备授权和独占租约已移除，旧原生/API Run JSON 保留。组织原生执行已接入独立 Run/Session/thread 与私有 JSONL，派发准确任务和显式输入，停止等待所属进程及日志排空，未知发送不重放。人工请求进入持久 Inbox，答复后需明确继续；完整相同的命令决定只消费一次，缺完整提案的文件审批不能复用。工作台已有任务支持 Codex 后端、原生模型/effort 选择、运行/恢复/请求及现有提交、验收、返工和交付动作，不要求 API endpoint/key。
 
 Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex 拥有上下文、原生工具和执行质量，不使用内部 API 模型监督或兜底。相关聚焦回归、Client/Host 类型、局部 lint、i18n/组合/入口门禁、Desktop build、个人/Codex 产物 smoke 及组织普通 Node/Electron Node mode 私有 IPC smoke 通过；命令与既有全局门禁问题见实施计划。真实登录/模型、Windows、可见与三机验收仍待用户。基本个人对话与已有组织任务不依赖 7C，完整 Codex 组织目标对话仍需两计划衔接。[协议与消费规则](codex-backend.md)记录当前能力、限制与个人验收步骤。
 
-[对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，内部 Phase 1–10 工程完成。本轮按用户“请自动完成剩余 phase”完成 Phase 9–10，恢复 manual、自动边界 none、relay 关闭。[规划协议](conversation-planning.md)拥有个人默认识别、按用户偏好、目标/澄清关联、组织有限模型许可、结构化共享草案及获准子树修改。对话内负责人建议、逐项/批量明确分配、员工独立任务 Session 和接受到执行、介入、提交、验收/返工及最终确认已接入；业务仍归 SQLite v14，完整私有日志单独鉴权。
+[对话主入口与自动任务规划实施计划](conversation-planning-plan.md)细化产品 Phase 7C，内部 Phase 1–10 工程完成。本轮按用户“请自动完成剩余 phase”完成 Phase 9–10，恢复 manual、自动边界 none、relay 关闭。[规划协议](conversation-planning.md)拥有个人默认识别、按用户偏好、目标/澄清关联、组织有限模型许可、结构化共享草案及获准子树修改。对话内负责人建议、逐项/批量明确分配、员工独立任务 Session 和接受到执行、介入、提交、验收/返工及最终确认已接入；业务归 SQLite v21，完整私有日志单独鉴权。
 
 新增正常模式 CSV 组合从真实发送进入评估/提案，经过真人修改、分配、员工绑定查询、人工等待与显式恢复、驳回新版本、两个必要成果汇合和独立字节/哈希核验；没有通过工作台预种任务树。Desktop 完整构建、相关类型、局部 lint、入口/配置/Client 门禁、四个 npm tarball 的闭包/资源检查及普通 Node/Electron Node mode 私有进程 smoke 通过。[验收交接](conversation-planning-acceptance.md)提供真实模型语料和 A/B/C 三机自然对话剧本。真实模型测试无密钥自跳过；Desktop 可见、Windows、三机和历史产品验收仍待用户。工程完成不代表产品 Phase 8 通过，未启动页面、提交、推送或发布。新组织项目规划仍仅支持内建 API；Codex 规划需专用能力，不做 API fallback。
 
@@ -30,7 +30,7 @@ Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex
 
 ### 已完成的分配基础
 
-[组织任务批准、委托与待处理实施计划](organization-assignment-plan.md)对应产品 Phase 6，内部 Phase 1–8 工程完成，已恢复 manual。现有 SQLite v6 分配权威、批准/撤销、明确接受/拒绝、已读分离、有限委托、Ed25519 设备证明、独占租约，以及真实 HTTPS/原生固定动作和工作台。Electron 通过 safeStorage 保存独立加密材料；断线/休眠/身份变化停止续租，未知写入先查回执，重连不自动领取。工作台先核验责任人查看权再确认版本批准，不自动加 grant；“待我处理”由持久查询和权限裁剪事件重建，委托和领取是独立动作，始终显示尚未运行。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是对应修改入口。Phase 7–8 完成跨进程故障集成、完整发行构建及三组 Node/Electron Node mode 产物验证；[分配验收与交接](organization-assignment-acceptance.md)提供三机剧本及 Phase 7A 准入要求。入口、配置、类型路径、i18n、JSDoc、事件门禁通过，既有 file-upload 导入分类仍使依赖门禁失败，具体命令见计划。真实组织 Agent、产物提交和验收已由上述产品 Phase 7A 实现；OS 保险库、三机及可见验收仍待用户。
+当前[组织分配协议](organization-assignment.md)采用分配 → 员工接受/拒绝 → 主动执行。正式分配在同一事务授予员工项目与任务子树访问，创建接受请求、持久通知和回执。员工接受后可使用普通 Agent 或自行执行，打开与接受均不运行；设备登记、准备能力授权、领取、续租与独占设备执行权已删除。Electron 只保存加密登录凭据，未知写入先查回执，重连不自动执行。任务详情以分配、执行、成果、审批和最终交付分区展示，普通 Agent 与手工成果无需创建 Run。SQLite v21 升级保留历史成果、提交、审批和执行记录，退役旧设备、准备授权及租约。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是分配消费者；[分配验收](organization-assignment-acceptance.md)区分确定性测试和用户侧可见、OS 保险库与三机待验项。
 
 以下为已完成的产品 Phase 5 基础：
 
@@ -38,7 +38,7 @@ Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex
 
 原生固定 context 动作经过所属顶层窗口、当前任务 read、请求代次和私有 Host IPC nonce/授权请求关联；重开和交付前在线复核，撤权/断线/账号切换取消在途读取，历史关系失权拒绝旧快照。Host 不持有组织 bearer，不代理任意 LAN 请求。内部 Phase 7–8 的 Client 交互、跨身份 Loader/HTTPS/JSONL 集成、相关类型与局部 lint、完整发行构建和三组无窗口 Node/Electron Node mode smoke 通过。配置门禁本次复核通过；全仓依赖门禁仍有既有 file-upload 导入 `assertPersonalSessionId` 未分类问题，未修改例外表，未计为通过。服务目录生成器未在本次复跑，其历史记录保留于计划。
 
-WorkGraph 已有共享任务工作台：项目进入可见任务树、搜索分页、单任务创建、完整定义的节点文本编辑、独立任务授权管理和本人原始版本只读上下文。保存失败保留当前工作台草稿与幂等键，冲突禁止覆盖；身份切换清理草稿，原生代次变化隐藏正文。任务级拒绝重新核验组织并恢复事件监听，保留仍有效的组织选择。原始上下文保持只读；正式批准、委托和设备领取由上述组织分配模块消费，有界运行通过独立执行区显式开始。设计见 [WorkGraph 协议](organization-workgraph.md)，用户侧检查见[三机验收剧本](organization-workgraph-acceptance.md)。
+WorkGraph 已有共享任务工作台：项目进入可见任务树、搜索分页、单任务创建、完整定义的节点文本编辑、独立任务授权管理和本人原始版本只读上下文。保存失败保留当前工作台草稿与幂等键，冲突禁止覆盖；身份切换清理草稿，原生代次变化隐藏正文。任务级拒绝重新核验组织并恢复事件监听，保留仍有效的组织选择。原始上下文保持只读；正式分配与员工接受由组织分配模块负责，接受后主动使用普通 Agent 或自行执行。高级独立 Run 可选，普通成果上传与汇报无需 Run。设计见 [WorkGraph 协议](organization-workgraph.md)，用户侧检查见[三机验收剧本](organization-workgraph-acceptance.md)。
 
 ## 运行方式与目录
 
@@ -98,9 +98,9 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 维护说明
 
-路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v14 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
+路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v21 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
-产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；批准/撤销、接受/拒绝、有限委托和设备领取已接入工作台；组织执行通过独立本机 Session 提供显式有界运行，成果可显式上传并由员工正式提交，下发人验收及目标核验/最终交付已接入。
+产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；正式分配/撤销、员工接受/拒绝已接入任务详情，分配原子授予员工访问。接受不自动执行；员工主动使用普通 Agent 或自行执行，无设备登记、准备授权或领取。高级独立 Run 是可选入口，普通成果可直接上传并正式汇报，原下发人审批及目标核验/最终交付仍保留。
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 

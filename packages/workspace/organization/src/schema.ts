@@ -47,18 +47,14 @@ export const configSchema = z.object({
   workgraphMaxTasks: z.number().int().min(1).max(100000).default(1000),
   workgraphMaxDepth: z.number().int().min(1).max(10000).default(100),
   workgraphMaxBytes: z.number().int().min(256).max(104857600).default(1048576),
-  delegationMaxDurationMs: z.number().int().min(1000).max(604800000).default(3600000),
+  executionMaxDurationMs: z.number().int().min(1000).max(604800000).default(3600000),
   executionCodex: z.array(executionCodexPolicySchema).max(100).default([]),
   executionModels: z.array(executionModelSchema).max(100).default([
     { model: 'deepseek-flash', endpoint: 'https://api.deepseek.com/anthropic/v1' },
     { model: 'deepseek-v4-pro', endpoint: 'https://api.deepseek.com/anthropic/v1' },
   ]),
   actionPermitTtlMs: z.number().int().min(100).max(60000).default(10000),
-  delegationMaxBudget: z.number().int().min(1).max(1000000).default(100),
-  deviceChallengeTtlMs: z.number().int().min(1000).max(300000).default(60000),
-  deviceChallengeMaxPerAccount: z.number().int().min(1).max(1000).default(30),
-  deviceChallengeMaxTotal: z.number().int().min(1).max(100000).default(3000),
-  leaseTtlMs: z.number().int().min(1000).max(300000).default(30000),
+  executionMaxBudget: z.number().int().min(1).max(1000000).default(100),
   busyTimeoutMs: z.number().int().min(1).max(60000).default(5000),
 }).strict()
 /** Input validator for the private initialization channel. */
@@ -140,7 +136,7 @@ export const attemptSchema = z.object({
 /** Audit event parser; no request payload or credential is retained. */
 export const eventSchema = z.object({
   revision: z.number().int().positive(),
-  kind: z.enum(['edit-context', 'request-tree', 'decide-tree', 'open-planning', 'reserve-planning-request', 'consume-planning-request', 'save-planning-draft', 'verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'delete-plan', 'save-plan', 'restore', 'create-project', 'rename-project', 'update-project', 'delete-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-supervisor', 'set-account', 'change-password']),
+  kind: z.enum(['simplify-task-workflow', 'edit-context', 'request-tree', 'decide-tree', 'open-planning', 'reserve-planning-request', 'consume-planning-request', 'save-planning-draft', 'verify-integration', 'confirm-integration', 'accept-delivery', 'reject-delivery', 'publish-artifact', 'submit-delivery', 'grant-execution', 'revoke-execution', 'create-run', 'reserve-action', 'settle-action', 'transition-run', 'request-execution-human', 'resume-run', 'register-device', 'revoke-device', 'claim', 'renew', 'release', 'server-start', 'qualification-expired', 'answer-assignment', 'answer-execution-question', 'approve-execution-tool', 'read-notification', 'delegate', 'revoke-delegation', 'approve-assignment', 'revoke-assignment', 'set-task-grant', 'delete-plan', 'save-plan', 'restore', 'create-project', 'rename-project', 'update-project', 'delete-project', 'set-grant', 'initialize', 'register', 'recover', 'login', 'logout', 'login-denied', 'rate-limited', 'create-organization', 'invite', 'accept-invitation', 'set-membership', 'set-supervisor', 'set-account', 'change-password']),
   actorId: id<AccountId>().nullable(),
   organizationId: id<OrganizationId>().nullable(), at: version,
 })

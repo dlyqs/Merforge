@@ -18,16 +18,12 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID, randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { DeviceChallenges, ownedDevice, changeDevice, invalidateDevicesAndLeases } from './device.ts'
-import { deviceCommandSchema, provenDeviceCommandSchema, deviceProofSchema, serverEpochSchema, leaseSchema } from './device-schema.ts'
-import type { OrganizationDeviceChallenge, OrganizationLease } from './device-types.ts'
-import type { OrganizationDelegation } from './assignment-types.ts'
-import { taskAssignmentsQuerySchema, devicesQuerySchema } from './assignment-protocol.ts'
-import { deviceSchema } from './device-schema.ts'
+import { serverEpochSchema } from './device-schema.ts'
+import { taskAssignmentsQuerySchema } from './assignment-protocol.ts'
 import { assignmentSchema, assignmentRequestSchema, approvalReviewSchema } from './assignment-schema.ts'
 import { assignmentCommandSchema, assignmentReadSchema, participantCommandSchema, inboxQuerySchema } from './assignment-schema.ts'
 import { reviewAssignment, changeAssignment, selectedAssignment, authorizeAssignmentRead, invalidateAssignments } from './assignment.ts'
-import { authorizeParticipant, changeParticipant, visibleInbox, invalidateDelegations, parseDelegation } from './assignment-participant.ts'
+import { authorizeParticipant, changeParticipant, visibleInbox } from './assignment-participant.ts'
 import type { OrganizationInboxPage } from './assignment-types.ts'
 import type { OrganizationAssignment } from './assignment-types.ts'
 import { openOrganizationDatabase, transaction } from './database.ts'
@@ -46,7 +42,6 @@ import type { OrganizationProjectPage, OrganizationProjectView, OrganizationEven
 import type { AccountId, LoginResult, LoginToken, MemberView, OperationId, OrganizationAction, OrganizationId, OrganizationView, Principal, Receipt } from './types.ts'
 
 export type * from './device-types.ts'
-export { deviceChallengeText, deviceChallengeSchema, provenDeviceCommandSchema } from './device-schema.ts'
 export type * from './types.ts'
 export type * from './assignment-types.ts'
 export type * from './workgraph-types.ts'
@@ -89,23 +84,20 @@ export class OrganizationService extends Service {
   private tail: Promise<void> = Promise.resolve()
   private closing = false
   private readonly serverEpoch = serverEpochSchema.parse(randomUUID())
-  private readonly deviceChallenges: DeviceChallenges
   private readonly cursorSecret = randomBytes(32)
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'organization')
     this.config = parse(configSchema, config)
-    this.deviceChallenges = new DeviceChallenges(this.serverEpoch, this.config)
   }
 
   protected [Service.init](): void {
     const db = openOrganizationDatabase(this.config.path, this.config.busyTimeoutMs)
     try {
       transaction(db, () => {
-        if (db.prepare("SELECT 1 FROM assignment_leases WHERE state='held'").get()) {
+        if (db.prepare("SELECT 1 FROM execution_runs WHERE json_extract(data,'$.state') IN ('running','waiting-human')").get()) {
           const revision = this.event(db, 'server-start', null, null)
           invalidateExecution(db, revision, true)
-          db.prepare("UPDATE assignment_leases SET state='invalidated',version=? WHERE state='held'").run(revision)
         }
       })
     } catch (error) { db.close(); throw error }
@@ -172,7 +164,7 @@ export class OrganizationService extends Service {
             planId: r.planId, taskId: r.taskId, planRevision: r.planRevision }))
           if (!view.inputsReady || receipt.integration.delivered && !view.canConfirm) throw new OrganizationError('forbidden')
         }
-        if (receipt.deviceId) ownedDevice(db, current, receipt.deviceId, false)
+        if (receipt.deviceId && !db.prepare('SELECT 1 FROM organization_devices WHERE id=? AND accountId=? AND organizationId=?').get(receipt.deviceId, current.accountId, current.organizationId ?? null)) throw new OrganizationError('forbidden')
         if (receipt.assignmentId && receipt.projectId && receipt.planId) {
           if (['approve-assignment', 'revoke-assignment'].includes(String(event?.kind))) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
           else authorizeParticipant(db, current, selectedAssignment(db, { organizationId: receipt.organizationId,
@@ -236,8 +228,6 @@ export class OrganizationService extends Service {
     const revision = this.event(db, kind, actorId, organizationId)
     const receipt: Receipt = { operationId: input.operationId, revision, ...work(revision) }
     invalidateAssignments(db, revision)
-    invalidateDelegations(db, revision)
-    invalidateDevicesAndLeases(db, revision)
     invalidateExecution(db, revision)
     db.prepare('INSERT INTO operation_receipts VALUES (?,?,?,?)').run(scope, input.operationId, fingerprint, JSON.stringify(receipt))
     return receipt
@@ -245,15 +235,10 @@ export class OrganizationService extends Service {
 
   private recordCommit(receipt: Receipt): Receipt {
     const event = this.db?.prepare('SELECT kind FROM organization_events WHERE revision=?').get(receipt.revision)
-    if (event?.kind === 'renew') { this.publishCommit(receipt.revision); return receipt }
     this.ctx.logger.info('organization operation=%s operationId=%s revision=%s result=committed',
       event?.kind, receipt.operationId, receipt.revision)
     if (receipt.planId) this.ctx.logger.info('organization component=workgraph operationId=%s planId=%s revision=%s planRevision=%s result=committed',
       receipt.operationId, receipt.planId, receipt.revision, receipt.planRevision ?? 'grant')
-    if (receipt.deviceId) this.ctx.logger.info('organization component=device operationId=%s deviceId=%s revision=%s result=committed',
-      receipt.operationId, receipt.deviceId, receipt.revision)
-    if (receipt.lease) this.ctx.logger.info('organization component=lease operationId=%s fencingEpoch=%s revision=%s result=committed',
-      receipt.operationId, receipt.lease.fencingEpoch, receipt.revision)
     if (receipt.execution) this.ctx.logger.info('organization component=execution operationId=%s runId=%s actionId=%s revision=%s result=committed',
       receipt.operationId, receipt.execution.runId ?? 'none', receipt.execution.actionId ?? 'none', receipt.revision)
     if (receipt.execution?.requestId) this.ctx.logger.info('organization component=human-request runId=%s requestId=%s result=waiting-human',
@@ -766,11 +751,11 @@ export class OrganizationService extends Service {
         if (previous) return { receipt: previous, committed: false }
         const receipt = this.mutate(
           db, scope, request, request.kind, current.accountId, request.organizationId, fingerprint, (revision) => {
-            const result = changeParticipant(db, current, request, revision, this.config)
+            const result = changeParticipant(db, current, request, revision)
             const a = result.assignment
-            db.prepare('INSERT INTO assignment_actions VALUES (?,?,?)').run(revision, a.id, result.delegationId ?? null)
+            db.prepare('INSERT INTO assignment_actions VALUES (?,?,?)').run(revision, a.id, null)
             return { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId, planRevision: a.planRevision,
-              assignmentId: a.id, ...(result.delegationId ? { delegationId: result.delegationId } : {}) }
+              assignmentId: a.id }
           })
         return { receipt, committed: true }
       })
@@ -827,12 +812,10 @@ export class OrganizationService extends Service {
             SELECT createdRevision AS revision FROM task_assignments WHERE id=?
             UNION ALL SELECT version AS revision FROM task_assignments WHERE id=?
             UNION ALL SELECT revision FROM assignment_actions WHERE assignmentId=?
-            UNION ALL SELECT version FROM assignment_delegations WHERE assignmentId=?
-            UNION ALL SELECT version FROM assignment_leases WHERE assignmentId=?
             UNION ALL SELECT revision FROM delivery_events WHERE assignmentId=?
             UNION ALL SELECT revision FROM execution_events WHERE assignmentId=?
             UNION ALL SELECT json_extract(data,'$.version') FROM execution_human_requests WHERE assignmentId=?
-          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
+          ) WHERE revision>? AND revision<=?`).get(assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, assignment.id, after, revision)
           return typeof row?.revision === 'number' ? [{ assignmentId: assignment.id, revision: row.revision }] : []
         })
         return this.boundedWorkgraph({ from: brandString<import('./types.ts').OrganizationCursor>(query.cursor), cursor: createCursor(this.cursorSecret, principal, version, revision), revision, events: events.sort((a, b) => a.revision - b.revision) })
@@ -879,23 +862,6 @@ export class OrganizationService extends Service {
           offset: query.offset, revision, cursor: createCursor(this.cursorSecret, principal, version, revision) })
       })
       deliver(value)
-    })
-  }
-
-  /**
-   * Read only the current member's public device registrations.
-   * @param token - Current organization credential.
-   * @param input - Organization selector.
-   * @param deliver - Synchronous authorized handoff.
-   * @returns Completion after bounded delivery.
-   */
-  readDevices(token: LoginToken, input: unknown, deliver: (value: import('./device-types.ts').OrganizationDevice[]) => void): Promise<void> {
-    return this.enqueue('devices', (db) => {
-      const query = parse(devicesQuerySchema, input)
-      const principal = this.principal(db, token, query.organizationId)
-      const devices = db.prepare('SELECT * FROM organization_devices WHERE organizationId=? AND accountId=? AND membershipId=?')
-        .all(query.organizationId, principal.accountId, principal.membershipId ?? null).map(row => deviceSchema.parse(row))
-      deliver(this.boundedWorkgraph(devices))
     })
   }
 
@@ -1032,17 +998,14 @@ export class OrganizationService extends Service {
 
   private expireQualifications(db: DatabaseSync): void {
     const now = Date.now()
-    const expired = db.prepare("SELECT 1 FROM assignment_delegations WHERE state='active' AND expiresAt<=? UNION ALL SELECT 1 FROM assignment_leases WHERE state='held' AND expiresAt<=? UNION ALL SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_human_requests WHERE json_extract(data,'$.state')='pending' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_runs WHERE json_extract(data,'$.backend.kind')='codex' AND json_extract(data,'$.state') IN ('prepared','running','paused','waiting-human') AND json_extract(data,'$.stopReason') IS NOT 'duration-limit' AND json_extract(data,'$.startedAt') + json_extract(data,'$.backend.maxDurationMs')<=? LIMIT 1").get(now, now, now, now, now, now)
+    const expired = db.prepare("SELECT 1 FROM execution_delegations WHERE json_extract(data,'$.state')='active' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_actions WHERE json_extract(data,'$.state')='reserved' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_human_requests WHERE json_extract(data,'$.state')='pending' AND json_extract(data,'$.expiresAt')<=? UNION ALL SELECT 1 FROM execution_runs WHERE json_extract(data,'$.backend.kind')='codex' AND json_extract(data,'$.state') IN ('prepared','running','paused','waiting-human') AND json_extract(data,'$.stopReason') IS NOT 'duration-limit' AND json_extract(data,'$.startedAt') + json_extract(data,'$.backend.maxDurationMs')<=? LIMIT 1").get(now, now, now, now)
     if (!expired) return
     const revision = transaction(db, () => {
       const revision = this.event(db, 'qualification-expired', null, null)
-      db.prepare("UPDATE assignment_delegations SET state='expired',version=? WHERE state='active' AND expiresAt<=?").run(revision, now)
-      db.prepare("UPDATE assignment_leases SET state='expired',version=? WHERE state='held' AND expiresAt<=?").run(revision, now)
-      invalidateDevicesAndLeases(db, revision)
       invalidateExecution(db, revision)
       return revision
     })
-    this.ctx.logger.info('organization component=lease operation=expire revision=%s result=committed', revision)
+    this.ctx.logger.info('organization component=execution operation=expire revision=%s result=committed', revision)
     this.publishCommit(revision)
   }
 
@@ -1119,53 +1082,31 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Issue an action-bound device challenge for the closed execution command set.
-   * @param token - Current employee login.
-   * @param input - Strict execution mutation.
-   * @returns Short-lived single-use challenge.
-   */
-  executionChallenge(token: LoginToken, input: unknown): Promise<OrganizationDeviceChallenge> {
-    return this.enqueue('execution-challenge', async (db) => {
-      const command = parse(executionCommandSchema, input)
-      const digest = await requestFingerprint('execution', command)
-      return transaction(db, () => {
-        const principal = this.principal(db, token, command.organizationId)
-        authorizeParticipant(db, principal, selectedAssignment(db, command))
-        return this.deviceChallenges.issue(db, principal, command, digest)
-      })
-    })
-  }
-  /**
-   * Commit a signed execution mutation and its account-scoped receipt atomically.
+   * Commit an authenticated execution mutation and its account-scoped receipt atomically.
    * @param token - Current employee login.
    * @param input - Strict execution command.
-   * @param proofInput - Native device signature; replay still requires current read authority.
    * @returns Historical operation receipt; new actions always recheck qualification.
    */
-  executionCommand(token: LoginToken, input: unknown, proofInput?: unknown): Promise<Receipt> {
+  executionCommand(token: LoginToken, input: unknown): Promise<Receipt> {
     return this.enqueue('execution-command', async (db) => {
       const command = parse(executionCommandSchema, input)
       const fingerprint = await requestFingerprint('execution', command)
       const result = transaction(db, () => {
         const principal = this.principal(db, token, command.organizationId)
         authorizeParticipant(db, principal, selectedAssignment(db, command))
-        ownedDevice(db, principal, command.deviceId, false)
         const scope = `account:${principal.accountId}`
         const previous = this.previous(db, scope, command.operationId, fingerprint)
-        if (previous) return { receipt: previous, challengeId: null }
-        const proof = parse(deviceProofSchema, proofInput)
-        this.deviceChallenges.verify(principal, command, fingerprint, proof)
+        if (previous) return { receipt: previous, committed: false }
         const receipt = this.mutate(db, scope, command, command.kind, principal.accountId, command.organizationId,
           fingerprint, (revision) => {
-            const execution = changeExecution(db, principal, command, revision, this.serverEpoch, this.config)
+            const execution = changeExecution(db, principal, command, revision, this.config)
             db.prepare('INSERT INTO execution_events VALUES (?,?,?)').run(revision, command.assignmentId, JSON.stringify(execution))
             return { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId,
               planRevision: command.planRevision, assignmentId: command.assignmentId, execution }
           })
-        return { receipt, challengeId: proof.challengeId }
+        return { receipt, committed: true }
       })
-      if (result.challengeId) { this.deviceChallenges.consume(result.challengeId); return this.recordCommit(result.receipt) }
-      return result.receipt
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
     })
   }
   /**
@@ -1179,7 +1120,7 @@ export class OrganizationService extends Service {
     return this.enqueue('execution-read', (db) => {
       const query = parse(executionReadSchema, input)
       const value = transaction(db, () => this.boundedWorkgraph(readExecution(db,
-        this.principal(db, token, query.organizationId), query, this.serverEpoch, this.config.executionModels, this.config.executionCodex)))
+        this.principal(db, token, query.organizationId), query, this.config.executionModels, this.config.executionCodex)))
       deliver(value)
     })
   }
@@ -1207,62 +1148,7 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Issue a bounded one-use challenge for a fixed native device action.
-   * @param token - Current logged-in organization member.
-   * @param input - Strict registration or ownership command, excluding proof.
-   * @returns Identity-, action- and digest-bound canonical challenge.
-   */
-  deviceChallenge(token: LoginToken, input: unknown): Promise<OrganizationDeviceChallenge> {
-    return this.enqueue('device-challenge', async (db) => {
-      const command = parse(provenDeviceCommandSchema, input)
-      const digest = await requestFingerprint('device', command)
-      return transaction(db, () => {
-        const principal = this.principal(db, token, command.organizationId)
-        if (command.kind !== 'register-device') authorizeParticipant(db, principal, selectedAssignment(db, command))
-        return this.deviceChallenges.issue(db, principal, command, digest)
-      })
-    })
-  }
-
-  /**
-   * Register/revoke a device or reserve, renew and release exclusive task ownership.
-   * @param token - Current logged-in member credential.
-   * @param input - Strict device command; identifiers do not replace signatures.
-   * @param proofInput - Required challenge signature except for account-authorized revocation.
-   * @returns Durable historical result; callers must separately query current preparation state.
-   */
-  deviceCommand(token: LoginToken, input: unknown, proofInput?: unknown): Promise<Receipt> {
-    return this.enqueue('device', async (db) => {
-      const command = parse(deviceCommandSchema, input)
-      const fingerprint = await requestFingerprint('device', command)
-      const result = transaction(db, () => {
-        const principal = this.principal(db, token, command.organizationId)
-        const scope = `account:${principal.accountId}`
-        if (command.kind !== 'register-device') ownedDevice(db, principal, command.deviceId, false)
-        if (command.kind === 'claim' || command.kind === 'renew' || command.kind === 'release') authorizeParticipant(db, principal, selectedAssignment(db, command))
-        const previous = this.previous(db, scope, command.operationId, fingerprint)
-        if (previous) return { receipt: previous, committed: false, challengeId: null }
-        const proof = command.kind === 'revoke-device' ? null : parse(deviceProofSchema, proofInput)
-        if (command.kind !== 'revoke-device' && proof) this.deviceChallenges.verify(principal, command, fingerprint, proof)
-        const receipt = this.mutate(
-          db, scope, command, command.kind, principal.accountId, command.organizationId, fingerprint, (revision) => {
-            const result = changeDevice(db, principal, command, revision, this.serverEpoch, this.config.leaseTtlMs)
-            db.prepare('INSERT INTO device_actions VALUES (?,?,?)').run(revision, result.deviceId, result.lease ? JSON.stringify(result.lease) : null)
-            if (!result.lease) return { organizationId: command.organizationId, deviceId: result.deviceId }
-            if (command.kind === 'register-device' || command.kind === 'revoke-device') throw new Error('organization: unexpected lease result')
-            const a = selectedAssignment(db, command)
-            return { organizationId: command.organizationId, deviceId: result.deviceId, assignmentId: a.id, projectId: a.projectId,
-              planId: a.planId, planRevision: a.planRevision, delegationId: result.lease.delegationId, lease: result.lease }
-          })
-        return { receipt, committed: true, challengeId: proof?.challengeId ?? null }
-      })
-      if (result.challengeId) this.deviceChallenges.consume(result.challengeId)
-      return result.committed ? this.recordCommit(result.receipt) : result.receipt
-    })
-  }
-
-  /**
-   * Read preparation qualifications under current task visibility, without model/tool execution capability.
+   * Read the assignment and employee response under current task visibility.
    * @param token - Current task reader credential; mutation still requires the designated employee.
    * @param input - Exact assignment selector.
    * @param deliver - Synchronous current-authority handoff.
@@ -1270,12 +1156,8 @@ export class OrganizationService extends Service {
    */
   readPreparation(token: LoginToken, input: unknown, deliver: (value: {
     serverTime: number
-    delegationMaxDurationMs: number
-    delegationMaxBudget: number
     assignment: OrganizationAssignment
     request: import('./assignment-types.ts').OrganizationHumanRequest
-    delegations: OrganizationDelegation[]
-    lease: OrganizationLease | null
   }) => void): Promise<void> {
     return this.enqueue('preparation', (db) => {
       const query = parse(assignmentReadSchema, input)
@@ -1284,11 +1166,7 @@ export class OrganizationService extends Service {
         const assignment = selectedAssignment(db, query)
         authorizeAssignmentRead(db, current, assignment)
         const request = assignmentRequestSchema.parse(db.prepare('SELECT * FROM assignment_requests WHERE assignmentId=?').get(assignment.id))
-        const delegations = db.prepare('SELECT * FROM assignment_delegations WHERE assignmentId=? ORDER BY createdRevision').all(assignment.id).map(parseDelegation)
-        const row = db.prepare('SELECT * FROM assignment_leases WHERE assignmentId=? ORDER BY fencingEpoch DESC LIMIT 1').get(assignment.id)
-        return this.boundedWorkgraph({ serverTime: Date.now(), delegationMaxDurationMs: this.config.delegationMaxDurationMs,
-          delegationMaxBudget: this.config.delegationMaxBudget, assignment, request, delegations,
-          lease: row ? leaseSchema.parse(row) : null })
+        return this.boundedWorkgraph({ serverTime: Date.now(), assignment, request })
       })
       deliver(value)
     })

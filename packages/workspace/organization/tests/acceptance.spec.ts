@@ -86,8 +86,8 @@ it('rejection retains historical evidence, creates one new plan revision and req
   expect(await h.service.deliveryCommand(h.owner.token, h.reject)).toEqual(receipt)
   expect((await h.readDelivery()).submissions[0]).toMatchObject({ reviewState: 'rejected', acceptance: { reason: h.reject.reason, reworkRevision: 2 } })
   expect(h.db.prepare('SELECT state FROM task_assignments').get()?.state).toBe('invalidated')
-  expect(h.db.prepare('SELECT state FROM assignment_delegations').get()?.state).toBe('invalidated')
-  expect(h.db.prepare('SELECT state FROM assignment_leases').get()?.state).toBe('invalidated')
+  expect(h.db.prepare('SELECT count(*) AS n FROM assignment_delegations').get()?.n).toBe(0)
+  expect(h.db.prepare('SELECT count(*) AS n FROM assignment_leases').get()?.n).toBe(0)
   expect((await h.read()).run.state).toBe('succeeded')
   await h.service.readPlan(h.owner.token, { ...h.query, revision: 1 }, (v) => { expect(v.definition).toEqual(h.save.definition) })
   await h.service.readPlan(h.owner.token, h.query, (v) => { expect(v.definition.tasks[0]!.acceptance).toEqual(['A reviewed report', h.reject.requirements]) })
@@ -95,17 +95,12 @@ it('rejection retains historical evidence, creates one new plan revision and req
   await expect(h.service.deliveryCommand(h.other.token, { ...h.submit, operationId: operationId() })).rejects.toMatchObject({ code: 'version-conflict' })
   const approval = await h.service.assignmentCommand(h.owner.token, { ...h.approve, operationId: operationId(), planRevision: 2 })
   const selector = { ...h.query, assignmentId: approval.assignmentId }
-  const acceptance = await h.service.participantCommand(h.other.token, { ...selector, kind: 'answer-assignment', operationId: operationId(),
+  await h.service.participantCommand(h.other.token, { ...selector, kind: 'answer-assignment', operationId: operationId(),
     requestId: h.db.prepare('SELECT id FROM assignment_requests WHERE assignmentId=?').get(approval.assignmentId!)?.id, expectedVersion: approval.revision, answer: 'accepted' })
-  const prep = await h.service.participantCommand(h.other.token, { ...selector, kind: 'delegate', operationId: operationId(), expectedVersion: acceptance.revision,
-    deviceId: h.run.deviceId, executorId: 'desktop-builtin', capabilities: ['draft'], budget: 2, expiresAt: Date.now() + 60000 })
-  const claim = { ...selector, kind: 'claim', operationId: operationId(), deviceId: h.run.deviceId, delegationId: prep.delegationId }
-  const lease = (await h.service.deviceCommand(h.other.token, claim, h.proof(await h.service.deviceChallenge(h.other.token, claim)))).lease!
-  const base = { ...selector, planRevision: 2, deviceId: h.run.deviceId }
-  const granted = await h.execute({ ...base, kind: 'grant-execution', operationId: operationId(), delegationId: prep.delegationId,
+  const base = { ...selector, planRevision: 2 }
+  const granted = await h.execute({ ...base, kind: 'grant-execution', operationId: operationId(),
     capabilities: ['model'], budget: 2, expiresAt: Date.now() + 30000, configDigest: 'a'.repeat(64) })
-  const owner = { ...base, executionDelegationId: granted.execution!.executionDelegationId,
-    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+  const owner = { ...base, executionDelegationId: granted.execution!.executionDelegationId }
   const run = await h.execute({ ...owner, kind: 'create-run', operationId: operationId(), configDigest: 'a'.repeat(64) })
   expect(run.execution!.runId).not.toBe(h.run.runId)
   await h.execute({ ...owner, runId: run.execution!.runId, kind: 'transition-run', state: 'cancelled', operationId: operationId() })

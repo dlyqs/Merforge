@@ -1,7 +1,5 @@
 /** Offline organization maintenance. A separate SQLite lock excludes live service writers. */
 import { invalidateExecution } from './execution.ts'
-import { invalidateDevicesAndLeases } from './device.ts'
-import { invalidateDelegations } from './assignment-participant.ts'
 import { invalidateAssignments } from './assignment.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, openSync, closeSync, lstatSync, readFileSync, writeFileSync, copyFileSync, renameSync, rmSync, chmodSync } from 'node:fs'
@@ -11,7 +9,7 @@ import { z } from 'zod'
 import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION, transaction } from './database.ts'
 
 const files = ['organization.sqlite', 'tls-identity.json'] as const
-const manifestSchema = z.object({ format: z.literal(1), schema: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10), z.literal(11), z.literal(12), z.literal(13), z.literal(14), z.literal(15), z.literal(16), z.literal(17), z.literal(18), z.literal(19), z.literal(ORGANIZATION_SCHEMA_VERSION)]), hashes: z.object({ 'organization.sqlite': z.string().regex(/^[a-f0-9]{64}$/), 'tls-identity.json': z.string().regex(/^[a-f0-9]{64}$/) }).strict() }).strict()
+const manifestSchema = z.object({ format: z.literal(1), schema: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10), z.literal(11), z.literal(12), z.literal(13), z.literal(14), z.literal(15), z.literal(16), z.literal(17), z.literal(18), z.literal(19), z.literal(20), z.literal(ORGANIZATION_SCHEMA_VERSION)]), hashes: z.object({ 'organization.sqlite': z.string().regex(/^[a-f0-9]{64}$/), 'tls-identity.json': z.string().regex(/^[a-f0-9]{64}$/) }).strict() }).strict()
 function regular(path: string): void { if (!lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) throw new Error('invalid-backup-path') }
 function directory(path: string): void { if (!isAbsolute(path) || !lstatSync(path).isDirectory() || lstatSync(path).isSymbolicLink()) throw new Error('invalid-backup-path') }
 function hash(path: string): string { regular(path); return createHash('sha256').update(readFileSync(path)).digest('hex') }
@@ -107,8 +105,6 @@ export function restoreOrganization(backup: string, target: string, busyTimeoutM
         db.prepare('UPDATE metadata SET recoveryHash=? WHERE rootAccountId IS NOT NULL').run(createHash('sha256').update(recoveryToken).digest('hex'))
         const event = db.prepare("INSERT INTO organization_events(kind,actorId,organizationId,at) VALUES ('restore',NULL,NULL,?)").run(Date.now())
         invalidateAssignments(db, Number(event.lastInsertRowid), true)
-        invalidateDelegations(db, Number(event.lastInsertRowid))
-        invalidateDevicesAndLeases(db, Number(event.lastInsertRowid), true)
         invalidateExecution(db, Number(event.lastInsertRowid), true)
       })
       db.exec('PRAGMA wal_checkpoint(TRUNCATE)')

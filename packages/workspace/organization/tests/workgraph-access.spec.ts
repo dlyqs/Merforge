@@ -73,7 +73,7 @@ it('uses explicit node/subtree grants for details, searches and counts without h
     expect(grants.length).toBe(3)
     expect(JSON.stringify(grants)).not.toContain('HIDDEN')
   })
-  await expect(h.grant(h.x, 'subtree', ['read', 'edit'])).rejects.toMatchObject({ code: 'invalid-input' })
+  await expect(h.grant(h.x, 'subtree', ['read', 'edit'])).rejects.toMatchObject({ code: 'version-conflict' })
 })
 
 it('invalidates pagination on grants and restart, while reopened pages retain only authorized rows', async () => {

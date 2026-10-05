@@ -77,13 +77,12 @@ export class SharedConversationSessions {
     }), 'organization-conversation.task-method')
     ctx.on('agent/created', async ({ agent }) => { if (this.owns(agent.id)) await this.installTools(agent) })
     ctx.on('tools/pre-execute', async (request, next) => {
-      if (request.agent && this.owns(request.agent.id)) await this.authorize(request.agent.id)
+      if (request.agent && this.owns(request.agent.id)) await this.authorizeExecution(request.agent.id)
       return next()
     })
     ctx.tools.guard((exec) => {
       if (!exec.agent || !this.owns(exec.agent.id) || !ctx.personalWorkflow.testingPreferences().forceDecomposition) return
       const attachment = this.require(exec.agent.id)
-      // oxlint-disable-next-line typescript/no-deprecated -- A selected organization task permits ordinary execution.
       if (attachment.binding.owner.assignment || exec.agent.session.snapshotEvents().some(event => event.type === 'organization/task-selection')) return
       if (!['workflow_assess', 'workflow_propose', 'planning_members', 'ask_user_question'].includes(exec.name))
         return 'Temporary workflow testing requires a decomposed plan, user review and explicit task selection before executing work.'
@@ -137,7 +136,6 @@ export class SharedConversationSessions {
     attachment.cancel.signal.throwIfAborted()
     const session = this.ctx.sessions.get(id)
     {
-      // oxlint-disable-next-line typescript/no-deprecated -- Authorization inspects the live account task references.
       const events = session ? session.snapshotEvents() : await this.history(id)
       const targets = new Map<string, { planId: NonNullable<ConversationResult['execution']>['target']['planId']; taskId: NonNullable<ConversationResult['execution']>['target']['taskId'] }>()
       for (const event of events) {
@@ -153,6 +151,12 @@ export class SharedConversationSessions {
         organizationId: owner.organizationId, projectId: conversationProjectId(owner), conversationId: owner.conversationId, ...target })
       attachment.cancel.signal.throwIfAborted()
     }
+    return authority
+  }
+  private async authorizeExecution(id: SessionId): Promise<ConversationAuthority> {
+    const authority = await this.authorize(id), owner = this.require(id).binding.owner
+    if (owner.assignment && (authority.assignment?.id !== owner.assignment.assignmentId
+      || authority.assignment.state !== 'accepted')) throw new Error('organization-conversation: assignment-not-accepted')
     return authority
   }
   private async history(id: SessionId): Promise<readonly SessionEvent[]> {
@@ -197,10 +201,9 @@ export class SharedConversationSessions {
       const ordinary = agent
       const stopAgent = () => { ordinary.cancel({ kind: 'user' }) }
       cancel.signal.addEventListener('abort', stopAgent, { once: true })
-      const stopRequest = ordinary.ctx.on('agent/request', async (_request, next) => { await this.authorize(activeId); return next() })
+      const stopRequest = ordinary.ctx.on('agent/request', async (_request, next) => { await this.authorizeExecution(activeId); return next() })
       try {
         cancel.signal.throwIfAborted()
-        // oxlint-disable-next-line typescript/no-deprecated -- A persisted explicit choice takes precedence over Bot and account defaults.
         const hasSelection = ordinary.session.snapshotEvents().some(event => event.type === 'model/selection')
         if (ordinary.options.backend === undefined && !hasSelection
           && (!ordinary.session.requestHeader() || ordinary.session.requestHeader()?.config.provider === 'organization-planning')) {
@@ -245,7 +248,6 @@ export class SharedConversationSessions {
     await attachment.done
   }
   private input(agent: Agent) {
-    // oxlint-disable-next-line typescript/no-deprecated -- Scoped tools use the current durable account input.
     const input = agent.session.snapshotEvents().findLast(event => event.type === 'organization/planning-input')
     if (input?.type !== 'organization/planning-input') throw new Error('organization-conversation: input-required')
     if (input.data.settings.revision !== this.settings(this.require(agent.id).binding).revision)
@@ -292,7 +294,7 @@ export class SharedConversationSessions {
     })))
   }
   private async prepare(agent: Agent, decision: PreStepDecision, signal: AbortSignal): Promise<PreStepDecision> {
-    const authority = await this.authorize(agent.id), attachment = this.require(agent.id)
+    const authority = await this.authorizeExecution(agent.id), attachment = this.require(agent.id)
     if (decision.kind === 'reject') return decision
     const user = decision.messages.find(message => message.source.kind === 'user')
     if (!user) return decision
@@ -304,7 +306,6 @@ export class SharedConversationSessions {
           method: 'Temporary workflow testing is enabled. Ask the user to select an organization project before decomposing this goal. Do not perform the requested work directly; planning requires an explicit project.' }) }] })] }
     }
     const { binding, bridge } = attachment, owner = binding.owner
-    // oxlint-disable-next-line typescript/no-deprecated -- Account routing reads the ordinary live Session prefix.
     const events = agent.session.snapshotEvents()
     const selected = events.findLast(event => event.type === 'organization/task-selection')
     const target = authority.assignment ? { planId: authority.assignment.planId, taskId: authority.assignment.taskId }

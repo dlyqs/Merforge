@@ -18,7 +18,7 @@ const tool = (name, args) => ({ name, args })
 export const nativeLimits = { startupTimeoutMs: 5000, rpcTimeoutMs: 5000, turnTimeoutMs: 60000, humanTimeoutMs: 5000,
   interruptTimeoutMs: 1000, disposeGraceMs: 100, maxFrameBytes: 1000000, maxEarlyEvents: 100, maxTurnBytes: 1000000,
   modelCacheMs: 1000, modelPageSize: 100, maxModelPages: 10 }
-export const nativeBackend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4', model: 'scripted-csv',
+export const nativeBackend = { kind: 'codex', dispatch: 'local', runtimeVersion: '0.153.4', model: 'scripted-csv',
   effort: 'medium', maxTurns: 30, maxDurationMs: 60000 }
 const csv = 'name,note\nAlice,"hello,world"\nBob,"say ""hi"""\n'
 
@@ -124,12 +124,12 @@ export async function executionScenario(kit, createHost = root => localExecution
       await writeFile(join(directory, 'untouched.txt'), 'PRIVATE_UNSELECTED_SENTINEL')
     }
     const server = join(root, 'server')
-    const config = { authority: { deviceChallengeMaxPerAccount: 1000, ...(kit.native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: nativeBackend.model, efforts: ['medium'], maxTurns: 30, maxDurationMs: 60000 }] } : {}), ...(kit.planningRoute ? { planning: kit.planningPolicy } : {}), ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
+    const config = { authority: { ...(kit.native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: nativeBackend.model, efforts: ['medium'], maxTurns: 30, maxDurationMs: 60000 }] } : {}), ...(kit.planningRoute ? { planning: kit.planningPolicy } : {}), ...(kit.liveRoute ? { executionModels: [{ model: kit.liveRoute.model, endpoint: kit.liveRoute.endpoint }] } : {}) }, api: { directory: server, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
     app = await kit.bootOrganization(config)
     const init = await app.authority.initialize({ operationId: randomUUID(), username: 'owner', password,
       organizationName: 'CSV team', recoveryToken: randomBytes(32).toString('base64url') })
     async function connect(username, machine) {
-      const client = new kit.OrganizationConnection({ trustPath: join(root, `${machine}.json`), reconnectMs: 100 }, { directory: join(root, machine), vault })
+      const client = new kit.OrganizationConnection({ trustPath: join(root, `${machine}.json`), reconnectMs: 100 }, { vault })
       clients.push(client)
       await client.perform({ kind: 'probe', origin: `https://127.0.0.1:${app.ready.port}` })
       await client.perform({ kind: 'trust', fingerprint: app.ready.fingerprint })
@@ -161,9 +161,15 @@ export async function executionScenario(kit, createHost = root => localExecution
     const initialRevision = typeof planned === 'number' ? planned : planned.revision
     if (typeof planned !== 'number') ({ parent, left, right } = planned)
     if (!kit.planningHooks) await active(owner, { kind: 'workgraph-save', request: { ...query, expectedRevision: 0, operationId: randomUUID(), definition } })
-    const grant = (await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: employee.membershipId,
-      actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })).receipt
-    await active(member, { kind: 'device-register', name: 'CSV employee device' })
+    await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: employee.membershipId,
+      actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })
+    async function revokeTaskAccess(membershipId) {
+      const grants = (await active(owner, { kind: 'workgraph-grants', request: query })).workgraph.result.value
+      for (const grant of grants.filter(item => item.membershipId === membershipId && item.actions.length)) {
+        await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: grant.taskId, scope: grant.scope,
+          membershipId, actions: [], expectedVersion: grant.version, operationId: randomUUID() } })
+      }
+    }
     let host = await createHost(localRoot); hosts.push(host)
     const inputs = { model: kit.liveRoute?.model ?? 'scripted-csv', ...(kit.liveRoute ? { endpoint: kit.liveRoute.endpoint } : {}), capabilities: ['model', 'fs-read', 'fs-write'], materials: ['CSV columns name,note'],
       messages: [kit.liveRoute ? `Write result.csv using write_file with EXACT UTF-8 content ${JSON.stringify(csv)}. Then read it using read_file and finish. Do not touch other files or request human input.` : 'PRIVATE_EXECUTION_SENTINEL: prepare CSV evidence'], execution: { directory: work, maxActions: 30, maxSteps: 15, maxDurationMs: 60000 } }
@@ -177,17 +183,11 @@ export async function executionScenario(kit, createHost = root => localExecution
       const item = member.snapshot().inbox.items.find(i => i.assignment.id === selector.assignmentId && i.request.kind === 'accept-assignment')
       await active(member, { kind: 'assignment-participant', request: { ...selector, kind: 'answer-assignment', operationId: randomUUID(),
         requestId: item.request.id, expectedVersion: item.assignment.version, answer: 'accepted' } })
-      const current = (await active(member, { kind: 'assignment-preparation', request: selector })).assignment.result.value
-      const delegated = await active(member, { kind: 'assignment-delegate', request: { ...selector, kind: 'delegate', operationId: randomUUID(),
-        expectedVersion: current.assignment.version, executorId: 'desktop-builtin', capabilities: ['task-read'], budget: 30, durationMs: 300000 } })
-      const delegationId = delegated.receipt.delegationId
-      const lease = (await active(member, { kind: 'lease-claim', request: { ...selector, delegationId } })).receipt.lease
       const granted = await active(member, { kind: 'execution-command', request: { ...selector, planRevision, kind: 'grant-execution',
-        operationId: randomUUID(), delegationId, ...(kit.native ? { backend: nativeBackend } : {}), capabilities: inputs.capabilities, budget, expiresAt: Date.now() + 240000, configDigest } })
-      const ownerFields = { ...selector, planRevision, executionDelegationId: granted.receipt.execution.executionDelegationId,
-        serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+        operationId: randomUUID(), ...(kit.native ? { backend: nativeBackend } : {}), capabilities: inputs.capabilities, budget, expiresAt: Date.now() + 240000, configDigest } })
+      const ownerFields = { ...selector, planRevision, executionDelegationId: granted.receipt.execution.executionDelegationId }
       const runId = (await active(member, { kind: 'execution-command', request: { ...ownerFields, kind: 'create-run', operationId: randomUUID(), configDigest, ...(kit.native ? { backend: nativeBackend } : {}) } })).receipt.execution.runId
-      return { selector, ownerFields, lease, request: kit.executionRequestSchema.parse({ ...selector, runId, operationId: randomUUID(), inputs, start: true }) }
+      return { selector, ownerFields, request: kit.executionRequestSchema.parse({ ...selector, runId, operationId: randomUUID(), inputs, start: true }) }
     }
     const runView = async run => (await active(member, { kind: 'execution-read', request: { ...run.selector, runId: run.request.runId } })).execution
     async function execute(run, script, resume) {
@@ -235,8 +235,7 @@ export async function executionScenario(kit, createHost = root => localExecution
             && value.execution.actions.find(a => a.actionId === command.actionId)?.capability === 'fs-write'
           if (!triggered && (fault === 'lost-response' ? settledWrite : reservedWrite)) {
             triggered = true
-            if (fault === 'revoked') await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent,
-              scope: 'subtree', membershipId: employee.membershipId, actions: [], expectedVersion: grant.revision, operationId: randomUUID() } })
+            if (fault === 'revoked') await revokeTaskAccess(employee.membershipId)
             if (fault === 'sleep') member.suspend()
             if (fault === 'identity') await member.perform({ kind: 'personal' })
             if (fault === 'server-restart') {
@@ -299,8 +298,6 @@ export async function executionScenario(kit, createHost = root => localExecution
     const leftFile = await submit(second, 'result.csv'); await review(leftFile)
     const integrationQuery = { ...query, taskId: parent, planRevision: initialRevision + 1 }
     assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.inputsReady, false)
-    await active(member, { kind: 'lease-release', request: second.selector })
-    let secondGrant
     if (kit.twoMembers) {
       const secondMember = await connect(null, 'second-employee')
       const invite = await active(owner, { kind: 'invite', role: 'member' })
@@ -308,9 +305,8 @@ export async function executionScenario(kit, createHost = root => localExecution
       await secondMember.perform({ kind: 'login', username: 'second-employee', password })
       await secondMember.perform({ kind: 'select', organizationId: init.organizationId })
       await command({ kind: 'set-grant', projectId: project.projectId, membershipId: employee.membershipId, expectedVersion: 0, actions: ['read'] })
-      secondGrant = (await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: right, scope: 'node', membershipId: employee.membershipId,
-        actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })).receipt
-      await active(secondMember, { kind: 'device-register', name: 'Independent CSV contract device' })
+      await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: right, scope: 'node', membershipId: employee.membershipId,
+        actions: ['read'], expectedVersion: 0, operationId: randomUUID() } })
       await assert.rejects(kit.readOrganizationExecution(secondMember, host, { ...second.selector, runId: second.request.runId }, () => {}, new AbortController().signal))
       member = secondMember
       localRoot = join(root, 'second-employee-host'); work = join(root, 'second-employee-git')
@@ -366,10 +362,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     assert.equal(shared.includes(work), false)
     await until(() => owner.snapshot().phase === 'ready')
     await assert.rejects(kit.readOrganizationExecution(owner, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal))
-    await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: parent, scope: 'subtree', membershipId: firstEmployee.membershipId,
-      actions: [], expectedVersion: grant.revision, operationId: randomUUID() } })
-    if (secondGrant) await active(owner, { kind: 'workgraph-grant', request: { ...query, taskId: right, scope: 'node', membershipId: employee.membershipId,
-      actions: [], expectedVersion: secondGrant.revision, operationId: randomUUID() } })
+    for (const membershipId of new Set([firstEmployee.membershipId, employee.membershipId])) await revokeTaskAccess(membershipId)
     await member.perform({ kind: 'reconnect' })
     await assert.rejects(active(member, { kind: 'delivery-download', request: { ...third.selector, artifactId: rightFile.artifactId } }))
     await until(() => member.snapshot().phase === 'ready')

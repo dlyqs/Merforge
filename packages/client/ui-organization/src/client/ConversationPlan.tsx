@@ -82,7 +82,7 @@ export function ConversationPlan(props: OrganizationProps & {
       <p>{t('assignee')}: {name(assignment?.assigneeId ?? task.suggestedMembershipId)}</p>
       <p>{assignment ? t(`assignment-${assignment.state}`) : t('conversationUnassigned')}</p>
       {run && <p>{t(`run-${run.state}`)}</p>}
-      <p>{submission?.reviewState === 'pending' ? t('waitingDispatcher') : assignment?.state === 'pending' ? t('waitingEmployee') : t('waitingPreparation')}</p>
+      <p>{submission?.reviewState === 'pending' ? t('waitingDispatcher') : assignment?.state === 'pending' ? t('waitingEmployee') : t('waitingExecution')}</p>
       <p>{t('conversationLatestSubmission')}: {submission?.summary ?? t('conversationNoSubmission')}</p>
       <details className={css.advanced}><summary>{t('suggestedMember')}</summary>
         <label className={css.field}>{t('conversationFindMember')}<Input value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0) }} /></label>

@@ -51,7 +51,7 @@ Account 含账号状态、密码摘要、版本；Membership 含组织、账号�
 
 使用 Node `node:sqlite` 的 `DatabaseSync`，与现有 `storage-sqlite` 技术一致；Node >=22.19 与 Electron 44 的 Node runtime 支持。Node 为 MIT、内含 SQLite 为 public domain，无新增原生 addon。现有 `KvUnit` 仅承诺单次调用原子性，因此不复用其多次写入模拟组织事务。
 
-组织库独占 `application_id` 和 `ORGANIZATION_SCHEMA_VERSION = 18`（SQLite `user_version`），独立于个人 Session 格式。已知 v1–v17 库在事务内补齐对应版本缺失的表和记录后升级；v17 从项目创建审计事件恢复不可变的创建账号，并记录共享删除 revision。WorkGraph 表和授权规则见[组织任务设计](organization-workgraph.md)，分配、设备、租约及恢复失效规则见[组织分配协议](organization-assignment.md)。未盖章但非空的库、其他 application id、未知版本或非法持久记录均拒绝。使用 STRICT 表、外键、唯一索引、WAL、`synchronous=FULL`、`BEGIN IMMEDIATE`；同步事务体没有 await。服务队列包括密码计算，关闭先拒绝新工作再等队列清空。所有 mutation 在写锁内重新检查权限和版本；并发初始化/邀请由唯一记录和事务判定，不能创建第二套管理员。
+组织库独占 `application_id` 和 `ORGANIZATION_SCHEMA_VERSION = 21`（SQLite `user_version`），独立于个人 Session 格式。已知 v1–v20 库在事务内补齐对应版本缺失的表和记录后升级；v17 从项目创建审计事件恢复不可变的创建账号，并记录共享删除 revision；v21 退役旧设备、准备授权和租约并允许无 Run 成果。WorkGraph 表和授权规则见[组织任务设计](organization-workgraph.md)，分配、接受及恢复失效规则见[组织分配协议](organization-assignment.md)。未盖章但非空的库、其他 application id、未知版本或非法持久记录均拒绝。使用 STRICT 表、外键、唯一索引、WAL、`synchronous=FULL`、`BEGIN IMMEDIATE`；同步事务体没有 await。服务队列包括密码计算，关闭先拒绝新工作再等队列清空。所有 mutation 在写锁内重新检查权限和版本；并发初始化/邀请由唯一记录和事务判定，不能创建第二套管理员。
 
 身份与项目表：`metadata`（实例、bootstrap account/org、恢复摘要）、`accounts`、`organizations`、`memberships`、`invitations`、`login_sessions`、`login_attempts`、`operation_receipts`、`organization_events`、`organization_projects`、`organization_project_lifecycle`、`resource_grants`、`resource_events`。事件自增序号同时作为变更 revision；各实体 version 指向最近变更 revision。业务数据、事件、回执同事务提交；提交失败回滚全部，成功响应只在 COMMIT 后返回。失败登录计数也持久保存，进程重启不能绕过限流。审计事件不含密码、用户名、token 或项目正文。
 
@@ -124,17 +124,17 @@ Phase 2 使用真实 SQLite 临时目录、重开、写入故障、并发初始�
 
 `OrganizationConnection` 是合并定义与实现的本机连接库，真实消费者为 Electron 主进程；设置与 sidebar 经 `OrganizationDesktopBridge` 调用固定动作。沿用已经存在的 Electron 控制入口，未为个人 Host 添加组织代理。这调整了最初“Client → 本机 Host → LAN”的建议路径，令牌由本机原生连接持有，个人 Host 保持 loopback，组织服务不加载个人组合。信任记录保存在 `organization-client-trust.json`；登录令牌、用户名、服务身份、证书指纹和服务端到期时间通过系统安全存储加密，保存在独立的 `.login` 文件，绝不保存密码。Desktop 启动后在线核验会话和当前权限，再恢复可用状态；临时断网保留未过期凭据并重连。使用服务端配置的有效期（默认 7 天），重启不续期；本机空闲期间也会自动清除到期会话。系统安全存储不可用或使用明文后端时仅支持内存登录。退出登录、证书失效和身份/组织切换清除可见项目并取消旧代次；断线禁止写入，重连重新验证登录与成员资格。
 
-未确认的写入持久化 server/account/organization/operation ID 和可选设备登记/撤销动作类型，不含令牌或正文。`GET /organization/v1/receipts/:operationId` 检查当前账号及相关管理/资源权限后返回其自己的回执或 null；原生 `reconcile` 只查询，不重发副作用。原生进程仍运行时可以取回暂存的邀请明文；重启后明文已丢弃，管理员在确认旧邀请提交后可另发新邀请。证书与回执日志均为本机 owner-only 文件。
+未确认的写入持久化 server/account/organization/operation ID，不含令牌或正文。`GET /organization/v1/receipts/:operationId` 检查当前账号及相关管理/资源权限后返回其自己的回执或 null；原生 `reconcile` 只查询，不重发副作用。原生进程仍运行时可以取回暂存的邀请明文；重启后明文已丢弃，管理员在确认旧邀请提交后可另发新邀请。证书与回执日志均为本机 owner-only 文件。
 
 GUI 服务配置保存在 `organization-server-settings.json`，组织库固定在独立 `organization-server` 子目录。默认关闭，`restoreOnLaunch` 默认 false；设置保存和启动失败不影响个人 Host。服务机应将实际局域网 IP/DNS 加入证书 names。运行时持有目录旁的 `organization-server.owner.sqlite` EXCLUSIVE 锁，重复 writer 或维护者拒绝；进程强杀后由 OS 释放锁，不依赖删除 stale PID 文件。
 
-当前组织 schema 为 v18；停服备份写 v18，恢复接受经校验的 v2–v17 并在 staging 升级。v11 API 执行 JSON 保持原字节；v12 的显式 Codex 策略和调度元数据见[执行协议](organization-execution.md)。停服备份只写新目录，包含 `organization.sqlite`、`tls-identity.json`、严格版本/hash manifest。恢复先在 staging 校验文件类型、格式、hash、完整性、外键、持久记录与 TLS 密钥配对，再撤销登录与邀请、轮换恢复凭证并追加 `restore` 审计。完成后原目录保留为 `.previous-<uuid>`，最终替换失败尝试原位回滚。备份包含组织密码摘要及证书私钥，须按敏感文件保存。没有个人文件、个人 API key 或聊天迁移；不支持在线热备份、云同步或自动升级。证书轮换只能停服后通过本机显式操作触发，各客户端需重新比对指纹。
+当前组织 schema 为 v21；停服备份写 v21，恢复接受经校验的 v2–v21，并在 staging 将旧版本升级。v21 支持无 Run 成果与汇报，退役旧设备、准备授权和租约；历史执行 JSON 保持原字节，详见[执行协议](organization-execution.md)。停服备份只写新目录，包含 `organization.sqlite`、`tls-identity.json`、严格版本/hash manifest。恢复先在 staging 校验文件类型、格式、hash、完整性、外键、持久记录与 TLS 密钥配对，再撤销登录与邀请、轮换恢复凭证并追加 `restore` 审计。完成后原目录保留为 `.previous-<uuid>`，最终替换失败尝试原位回滚。备份包含组织密码摘要及证书私钥，须按敏感文件保存。没有个人文件、个人 API key 或聊天迁移；不支持在线热备份、云同步或自动升级。证书轮换只能停服后通过本机显式操作触发，各客户端需重新比对指纹。
 
 [验收剧本](organization-foundation-acceptance.md)分别记录自动化工程证据和用户侧三机待验项。产品下一阶段应继续在组织领域/受限 API/连接动作/组织 UI 接入共享项目与 WorkGraph，不把个人 Agent loop 改成多租户执行器。
 
 ## 组织架构
 
-当前 SQLite 版本为 v18；v15 增加 organization_hierarchy，v17 增加项目创建者与共享删除记录，v18 增加背景、概括与目标字段（旧项目初始为空），不改变成员身份与版本。只有项目创建者可按当前版本修改名称、背景、概括与目标；获分配者可以读取这些信息。项目对话每次请求带入当前项目资料，并保存到已有 planning-input 事件中。组织成员通过固定 GET `/organizations/:id/hierarchy` 读取成员 ID、姓名、角色、启用状态、直属上级和层级版本，不返回账号 ID 或凭据。管理员可查看整个组织架构，包括停用节点。员工只可查看自己的全部下属、与自己同属一位直属上级的同级同事及向上的汇报链，并只接收启用节点；返回结果移除指向不可见上级的引用。没有直属上级不代表所有根节点互为同事。
+当前 SQLite 版本为 v21；v15 增加 organization_hierarchy，v17 增加项目创建者与共享删除记录，v18 增加背景、概括与目标字段（旧项目初始为空），不改变成员身份与版本。只有项目创建者可按当前版本修改名称、背景、概括与目标；获分配者可以读取这些信息。项目对话每次请求带入当前项目资料，并保存到已有 planning-input 事件中。组织成员通过固定 GET `/organizations/:id/hierarchy` 读取成员 ID、姓名、角色、启用状态、直属上级和层级版本，不返回账号 ID 或凭据。管理员可查看整个组织架构，包括停用节点。员工只可查看自己的全部下属、与自己同属一位直属上级的同级同事及向上的汇报链，并只接收启用节点；返回结果移除指向不可见上级的引用。没有直属上级不代表所有根节点互为同事。
 
 管理员通过 `set-supervisor` 和观察到的版本更新直属上级或根节点。循环、自己作为上级、跨组织及停用上级均拒绝。层级本身不授予项目内容访问权，分配规则详见[任务分配](organization-assignment.md#组织层级与分发权限)。组织模式沿用 Projects、Bots、Recent 与 Tasks 的导航位置，填充当前身份的组织记录；个人与组织对话、Bot 配置均隔离。
 

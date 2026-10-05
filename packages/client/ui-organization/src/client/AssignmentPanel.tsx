@@ -1,8 +1,8 @@
-/** Explicit approval and preparation controls; all authority remains in native fixed actions. */
+/** Task assignment and employee responses; native fixed actions enforce current authority. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import type { OrganizationTaskView, OrganizationDevice } from '@deepseek-ai/dsh-organization'
+import type { OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionAction, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
@@ -13,7 +13,7 @@ import css from './TaskInspector.module.css'
 type Preparation = Extract<NonNullable<ConnectionResult['assignment']>['result'], { kind: 'preparation' }>['value']
 type History = Extract<NonNullable<ConnectionResult['assignment']>['result'], { kind: 'tasks' }>['value']
 
-/** @param props - Current task and native identity partition. @returns Separate approval, answer, delegation and lease controls. */
+/** @param props - Current task and native identity partition. @returns Assignment, employee response and history controls. */
 export function AssignmentPanel(props: OrganizationProps & {
   task: OrganizationTaskView
   projectId: OrganizationProjectId
@@ -24,13 +24,9 @@ export function AssignmentPanel(props: OrganizationProps & {
   const c = props.useOrganization(s => s.connection), { t, task } = props
   const [history, setHistory] = useState<{ generation: number; value: History }>()
   const [preparation, setPreparation] = useState<{ generation: number; value: Preparation }>()
-  const [device, setDevice] = useState<OrganizationDevice | null>(null)
   const [assignee, setAssignee] = useState(task.suggestedMembershipId ?? '')
   const [review, setReview] = useState<Extract<NonNullable<ConnectionResult['assignment']>['result'], { kind: 'review' }>['value'] & { generation: number }>()
   const [confirmedRevision, setConfirmedRevision] = useState<number>()
-  const [deviceName, setDeviceName] = useState(t('deviceDefaultName'))
-  const [duration, setDuration] = useState(''), [budget, setBudget] = useState('')
-  const [draftCapability, setDraftCapability] = useState(false)
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   const operationLock = useRef(false)
   const readSequence = useRef(0)
@@ -57,10 +53,6 @@ export function AssignmentPanel(props: OrganizationProps & {
     const value = result.assignment.result.value
     setPreparation({ generation: result.assignment.generation, value })
     props.onAssignmentRevision?.(value.assignment.planRevision)
-    if (value.assignment.assigneeId === memberId) {
-      const local = await props.connection({ kind: 'device-read' })
-      if (alive.current && sequence === readSequence.current && local.assignment?.result.kind === 'device') setDevice(local.assignment.result.value)
-    }
   }
   const load = async (offset = 0) => {
     const result = await props.connection({ kind: 'assignment-tasks', request: { ...query, offset,
@@ -113,11 +105,7 @@ export function AssignmentPanel(props: OrganizationProps & {
     ...selector, operationId: randomUUID(), ...fields } }) }
   const active = current?.assignment.state === 'pending' || current?.assignment.state === 'accepted'
   const sameVersion = current?.assignment.planRevision === task.revision
-  const localDelegation = current?.delegations.find(item => item.deviceId === device?.id && item.state === 'active')
   if (!ready) return <p role="status">{t('qualificationRecheck')}</p>
-  const validDelegation = Number.isFinite(Number(duration)) && Number(duration) > 0
-    && !!current && Number(duration) * 60000 <= current.delegationMaxDurationMs
-    && Number.isInteger(Number(budget)) && Number(budget) > 0 && Number(budget) <= current.delegationMaxBudget
   return <section className={css.panel} aria-busy={busy || reviewBusy}>
     <div className={css.heading}><h4>{t('assignmentTitle')}</h4>
       <Button size="sm" disabled={!writable} onClick={() => { void load().catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('refreshAssignment')}</Button>
@@ -136,7 +124,7 @@ export function AssignmentPanel(props: OrganizationProps & {
         </dl>
         {current.assignment.reason && <p className={css.notice}>{t(current.assignment.reason)}</p>}
         {!sameVersion && <p className={css.notice} data-tone="warn" role="alert">{t('assignmentOldVersion')}</p>}
-        <p className={css.hint}>{t(current.assignment.state === 'pending' ? 'waitingEmployee' : current.assignment.state === 'accepted' ? 'waitingPreparation' : 'waitingDispatcher')}</p>
+        <p className={css.hint}>{t(current.assignment.state === 'pending' ? 'waitingEmployee' : current.assignment.state === 'accepted' ? 'waitingExecution' : 'waitingDispatcher')}</p>
         {mine && sameVersion && current.request.state === 'pending' && <div className={css.actions}>
           <Button variant="primary" disabled={!writable} onClick={() => { participant({ kind: 'answer-assignment', requestId: current.request.id,
             expectedVersion: current.assignment.version, answer: 'accepted' }) }}>{t('acceptAssignment')}</Button>
@@ -161,75 +149,19 @@ export function AssignmentPanel(props: OrganizationProps & {
         <div className={css.footer}><Button variant="primary" type="submit" disabled={!writable || !reviewCurrent || !review.canAssign || confirmedRevision !== task.revision}>{t('approveAssignment')}</Button></div>
       </form>}
     </section>
-    <section className={css.step}>
-      <div className={css.stepHeading}><span aria-hidden="true">2</span><h4>{t('taskDeviceStep')}</h4>
-        {localDelegation && <span className={css.status} data-ready>{t('delegation-active')}</span>}
+    {current?.assignment.state === 'accepted' && sameVersion && <section className={css.step}>
+      <div className={css.stepHeading}><span aria-hidden="true">2</span><h4>{t('taskExecutionReady')}</h4></div>
+      <p className={css.hint}>{t('taskAcceptedNext')}</p>
+    </section>}
+    {current && active && current.assignment.approvedBy === memberId && <details className={css.advanced}>
+      <summary>{t('taskManageAuthority')}</summary><div className={css.panel}>
+        <p className={css.hint}>{t('taskRevokeHint')}</p>
+        <div className={css.actions}><Button className={css.danger} disabled={!writable} onClick={() => {
+          void run({ kind: 'assignment-command', request: { ...selector, operationId: randomUUID(),
+            kind: 'revoke-assignment', expectedVersion: current.assignment.version } })
+        }}>{t('revokeAssignment')}</Button></div>
       </div>
-      {!current || !sameVersion || current.assignment.state !== 'accepted' ? <p className={css.hint}>{t('taskAwaitAcceptance')}</p> : <>
-        <p className={css.hint}>{t('delegationTitle')}</p>
-        {localDelegation ? <dl className={css.facts}>
-          <div><dt>{t('localDevice')}</dt><dd>{device?.name}</dd></div>
-          <div><dt>{t('delegationBudget')}</dt><dd>{localDelegation.budget}</dd></div>
-          <div><dt>{t('expiresAt')}</dt><dd>{new Date(localDelegation.expiresAt).toLocaleString()}</dd></div>
-          <div><dt>{t('preparation')}</dt><dd>{localDelegation.capabilities.map(capability => t(capability === 'draft' ? 'draftCapability' : 'readCapability')).join(' · ')}</dd></div>
-        </dl> : <p className={css.hint}>{t('noDelegation')}</p>}
-        {mine && <>
-          <p className={css.hint}>{device?.name ?? t('taskAwaitDevice')}</p>
-          {(!device || device.state === 'revoked') && <form className={css.form} onSubmit={(event) => {
-            event.preventDefault(); if (writable && deviceName.trim()) void run({ kind: 'device-register', name: deviceName })
-          }}>
-            <label>{t('deviceName')}<Input required disabled={!writable} value={deviceName} onChange={(event) => { setDeviceName(event.target.value) }} /></label>
-            <div className={css.actions}><Button variant="primary" type="submit" disabled={!writable || !deviceName.trim()}>{t('registerDevice')}</Button></div>
-          </form>}
-          {device?.state === 'active' && !localDelegation && <form className={css.form} onSubmit={(event) => {
-            event.preventDefault(); if (!writable || !validDelegation) return
-            void run({ kind: 'assignment-delegate', request: { ...selector, operationId: randomUUID(), kind: 'delegate',
-              expectedVersion: current.assignment.version, executorId: 'desktop-builtin', capabilities: draftCapability ? ['task-read', 'draft'] : ['task-read'],
-              budget: Number(budget), durationMs: Number(duration) * 60000 } })
-          }}>
-            <div className={css.grid}>
-              <label>{t('delegationMinutes')}<Input required disabled={!writable} type="number" min={1 / 60} max={current.delegationMaxDurationMs / 60000} step="any" value={duration} onChange={(event) => { setDuration(event.target.value) }} /></label>
-              <label>{t('delegationBudget')}<Input required disabled={!writable} type="number" min={1} step={1} max={current.delegationMaxBudget} value={budget} onChange={(event) => { setBudget(event.target.value) }} /></label>
-            </div>
-            <p className={css.hint}>{t('delegationLimits', { minutes: current.delegationMaxDurationMs / 60000, budget: current.delegationMaxBudget })}</p>
-            <p className={css.hint}>{t('readCapability')}</p>
-            <label><input type="checkbox" disabled={!writable} checked={draftCapability} onChange={(event) => { setDraftCapability(event.target.checked) }} />{t('draftCapability')}</label>
-            <div className={css.footer}><Button variant="primary" type="submit" disabled={!writable || !validDelegation}>{t('delegateExplicitly')}</Button></div>
-          </form>}
-        </>}
-      </>}
-    </section>
-    <section className={css.step}>
-      <div className={css.stepHeading}><span aria-hidden="true">3</span><h4>{t('taskClaimStep')}</h4>
-        <span className={css.status} data-ready={current?.lease?.state === 'held'}>{t(current?.lease ? `lease-${current.lease.state}` : 'noLease')}</span>
-      </div>
-      <p className={css.hint}>{t(current?.lease?.state === 'held' ? 'taskClaimed' : localDelegation ? 'taskAwaitClaim'
-        : current?.assignment.state === 'accepted' ? 'taskAwaitDevice' : current ? 'taskAwaitAcceptance' : 'taskAwaitAssignment')}</p>
-      {current?.lease && <p className={css.hint}>{t('expiresAt')}: {new Date(current.lease.expiresAt).toLocaleString()}</p>}
-      {mine && <>
-        <p className={css.hint}>{t(c.renewing === current?.assignment.id ? 'renewingLease' : 'qualificationRecheck')}</p>
-        {current?.lease?.state === 'held' && current.lease.deviceId === device?.id && <div className={css.actions}>
-          <Button variant="outline" disabled={!writable} onClick={() => { void run({ kind: 'lease-check', request: selector }) }}>{t('checkLease')}</Button>
-        </div>}
-        {sameVersion && current?.assignment.state === 'accepted' && localDelegation && current.lease?.state !== 'held'
-          && <div className={css.actions}><Button variant="primary" disabled={!writable} onClick={() => { void run({ kind: 'lease-claim', request: {
-            ...selector, delegationId: localDelegation.id } }) }}>{t('claimExplicitly')}</Button></div>}
-      </>}
-    </section>
-    {current && <details className={css.advanced}><summary>{t('taskManageAuthority')}</summary><div className={css.panel}>
-      {current.delegations.map(item => <div className={css.record} key={item.id}>
-        <p>{t(`delegation-${item.state}`)} · {item.deviceId === device?.id ? device.name : t('otherDevice')} · {t('delegationBudget')}: {item.budget}</p>
-        <p>{t('expiresAt')}: {new Date(item.expiresAt).toLocaleString()}</p>
-        {mine && item.state === 'active' && <div className={css.actions}><Button className={css.danger} disabled={!writable} onClick={() => { participant({ kind: 'revoke-delegation', delegationId: item.id, expectedVersion: item.version }) }}>{t('revokeDelegation')}</Button></div>}
-      </div>)}
-      {current.lease && <p>{t('deviceId')}: {current.lease.deviceId} · {t('ownershipEpoch')}: {current.lease.fencingEpoch}</p>}
-      <div className={css.actions}>
-        {mine && current.lease?.state === 'held' && current.lease.deviceId === device?.id && <Button className={css.danger} disabled={!writable} onClick={() => { void run({ kind: 'lease-release', request: selector }) }}>{t('releaseLease')}</Button>}
-        {mine && device?.state === 'active' && <Button className={css.danger} disabled={!writable} onClick={() => { void run({ kind: 'device-revoke', expectedVersion: device.version }) }}>{t('revokeDevice')}</Button>}
-        {active && <Button className={css.danger} disabled={!writable} onClick={() => { void run({ kind: 'assignment-command', request: {
-          ...selector, operationId: randomUUID(), kind: 'revoke-assignment', expectedVersion: current.assignment.version } }) }}>{t('revokeAssignment')}</Button>}
-      </div>
-    </div></details>}
+    </details>}
     {currentHistory && currentHistory.total > 1 && <details className={css.advanced}><summary>{t('assignmentHistory')}</summary><div className={css.actions}>
       {currentHistory.items.map(item => <Button key={item.id} disabled={!writable} onClick={() => {
         void loadPreparation(item.id).catch((error: unknown) => { setNotice(t(workgraphError(error))) })

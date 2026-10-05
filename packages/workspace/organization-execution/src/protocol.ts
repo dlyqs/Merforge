@@ -7,7 +7,7 @@ import { contextAuthoritySchema, contextResultSchema, contextRequestSchema } fro
 /** Non-secret local model selection and exact user-authorized inputs. */
 export const executionInputsSchema = z.object({ model: z.string().min(1).max(200),
   endpoint: executionModelSchema.shape.endpoint.optional(),
-  backend: executionCodexBackendSchema.optional(),
+  backend: executionCodexBackendSchema.extend({ dispatch: z.enum(['local', 'device-native']) }).optional(),
   capabilities: z.array(executionCapabilitySchema).min(1).max(4),
   requireWriteApproval: z.boolean().optional(),
   execution: z.object({ directory: z.string().min(1), maxActions: z.number().int().positive(),
@@ -25,7 +25,10 @@ export const executionInputsSchema = z.object({ model: z.string().min(1).max(200
 /** Exact Run and local inputs; execution starts only with the explicit start flag. */
 export const executionRequestSchema = executionReadSchema.extend({ operationId: contextRequestSchema.shape.operationId,
   inputs: executionInputsSchema, start: z.boolean().optional(), reconcile: z.boolean().optional(),
-  resume: z.object({ baselineDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional() }).strict()
+  resume: z.object({ baselineDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional() }).strict().superRefine((request, ctx) => {
+  if (!request.resume && request.inputs.backend?.dispatch === 'device-native')
+    ctx.addIssue({ code: 'custom', message: 'Historical native dispatch requires an existing recovery binding' })
+})
 /** Native identity, current task view, original context and online execution qualification. */
 export const executionAuthoritySchema = contextAuthoritySchema.extend({ context: contextResultSchema,
   execution: executionViewSchema }).strict()
@@ -38,11 +41,11 @@ export const executionBindingSchema = z.object({ owner: contextResultSchema.shap
 export const executionResultSchema = executionBindingSchema.extend({
   sessionId: z.string().regex(/^organization-execution:[0-9a-f-]{36}$/).transform(SessionId), mode: z.enum(['prepared', 'finished']),
 }).strict()
-/** Fixed signed command accepted only through the native Run channel. */
+/** Fixed authenticated command accepted only through the native Run channel. */
 export type ExecutionCommand = z.output<typeof executionCommandSchema>
 /** Native prepare request. */
 export type ExecutionRequest = z.output<typeof executionRequestSchema>
-/** Online native proof projection, never a reusable permission. */
+/** Online native identity and task projection, never a reusable permission. */
 export type ExecutionAuthority = z.output<typeof executionAuthoritySchema>
 /** Durable prepared execution context. */
 export type ExecutionResult = z.output<typeof executionResultSchema>

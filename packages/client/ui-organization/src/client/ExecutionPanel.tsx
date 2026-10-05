@@ -125,21 +125,18 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
         planId: task.planId, assignmentId: preparation.assignment.id }
       const fresh = await props.connection({ kind: 'assignment-preparation', request: selector }); current()
       if (fresh.assignment?.result.kind !== 'preparation') throw new Error('unavailable')
-      const p = fresh.assignment.result.value, lease = p.lease
-      if (!lease || lease.state !== 'held') throw new Error('version-conflict')
-      const delegation = p.delegations.find(d => d.deviceId === lease.deviceId && d.state === 'active')
-      if (!delegation) throw new Error('forbidden')
+      const p = fresh.assignment.result.value
+      if (p.assignment.state !== 'accepted' || p.assignment.planRevision !== task.revision) throw new Error('version-conflict')
       if (backend === 'codex' && (!effort || !catalog?.groups.some(g => g.backend === 'codex' && g.models.some(m => m.id === model
         && m.reasoning?.efforts.some(e => e.id === effort))))) throw new Error('native-unavailable')
-      const native: Inputs['backend'] = backend === 'codex' && effort ? { kind: 'codex', dispatch: 'device-native',
+      const native: Inputs['backend'] = backend === 'codex' && effort ? { kind: 'codex', dispatch: 'local',
         runtimeVersion: '0.153.4', model, effort, maxTurns: Number(actions), maxDurationMs: Number(minutes) * 60000 } : undefined
       const inputs: Inputs = { model, ...(native ? { backend: native } : { endpoint, requireWriteApproval: writeApproval }),
         capabilities: native ? ['codex-turn'] : ['model', ...(read ? ['fs-read' as const] : []), ...(write ? ['fs-write' as const] : [])],
         execution: { directory, maxActions: Number(actions), maxSteps: native ? Number(actions) : Number(steps),
           maxDurationMs: Number(minutes) * 60000 },
         materials: [], messages: [message] }
-      const body = JSON.stringify({ inputs, selector, revision: task.revision, device: lease.deviceId,
-        serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, delegationId: delegation.id })
+      const body = JSON.stringify({ inputs, selector, revision: task.revision })
       if (draft.current?.body !== body) draft.current = { body, grantId: randomUUID(), createId: randomUUID(),
         expiresAt: p.serverTime + Number(minutes) * 60000,
         openId: randomUUID() as Parameters<OrganizationDesktopBridge['execution']>[0]['operationId'] }
@@ -147,13 +144,13 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(inputs))); current()
       const configDigest = Array.from(new Uint8Array(bytes), n => n.toString(16).padStart(2, '0')).join('')
       const grant = await props.connection({ kind: 'execution-command', request: { ...selector, kind: 'grant-execution',
-        operationId: attempt.grantId, planRevision: task.revision, delegationId: delegation.id,
+        operationId: attempt.grantId, planRevision: task.revision,
         ...(native ? { backend: native } : {}), capabilities: inputs.capabilities,
         budget: Number(actions), expiresAt: attempt.expiresAt, configDigest } }); current()
       const created = await props.connection({ kind: 'execution-command', request: { ...selector, kind: 'create-run',
         operationId: attempt.createId, planRevision: task.revision, ...(native ? { backend: native } : {}),
         executionDelegationId: grant.receipt?.execution?.executionDelegationId,
-        serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, configDigest } }); current()
+        configDigest } }); current()
       const runId = created.receipt?.execution?.runId
       if (!runId) throw new Error('unavailable')
       await props.execution({ ...selector, runId, operationId: attempt.openId, inputs, start: true })
@@ -193,7 +190,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
     try {
       const { id, state: _state, version: _version, createdRevision: _created,
         configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
-        deviceId: _device, ...selector } = view.run
+        deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = view.run
       await props.connection({ kind: 'execution-command', request: { ...selector, runId: id, operationId: randomUUID(), kind: 'transition-run', state } })
       if (isAlive()) await load()
     } catch (error) { if (isAlive()) setNotice(t(executionError(error))) }
@@ -201,15 +198,15 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   }
   const currentViews = ready && views?.generation === c.generation ? views : undefined
   if (props.section === 'delivery') {
-    const selected = currentViews?.items.find(item => item.run.id === selectedRun) ?? currentViews?.items[0]
+    const selected = currentViews?.items.find(item => item.run.id === selectedRun)
     return <section className={css.panel}>
       <h4>{t('deliveryTitle')}</h4>
       {!ready && <p role="status">{t('qualificationRecheck')}</p>}
       {notice && <p className={css.notice} role="status">{notice}</p>}
       {currentViews && preparation ? <>
-        {currentViews.items.length > 1 && <label className={css.form}>{t('executionRun')}<select value={selected?.run.id ?? ''}
+        {currentViews.items.length > 0 && <label className={css.form}>{t('executionRun')}<select value={selectedRun}
           onChange={(event) => { setSelectedRun(event.target.value) }}>
-          {currentViews.items.map(item => <option key={item.run.id} value={item.run.id}>{t(`run-${item.run.state}`)} · {item.run.id.slice(0, 8)}</option>)}
+          <option value="">{t('taskManualDelivery')}</option>{currentViews.items.map(item => <option key={item.run.id} value={item.run.id}>{t(`run-${item.run.state}`)} · {item.run.id.slice(0, 8)}</option>)}
         </select></label>}
         <DeliveryPanel key={selected?.run.id ?? preparation.assignment.id} {...props} assignment={preparation.assignment}
           {...(selected ? { run: selected.run, submissionReady: !selected.actions.some(action => ['reserved', 'unknown'].includes(action.state))
@@ -256,7 +253,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
           <Checkbox label={t('executionWrite')} checked={write} disabled={busy} onChange={(e) => { setWrite(e); setConfirmed(false) }} />
           <Checkbox label={t('executionRequireWriteApproval')} checked={writeApproval} disabled={busy} onChange={(value) => { setWriteApproval(value); setConfirmed(false) }} /></fieldset>}
         <Checkbox label={t('executionConfirm')} checked={confirmed} disabled={busy} onChange={(e) => { setConfirmed(e) }} />
-        <div className={css.footer}><Button variant="primary" type="submit" disabled={!confirmed || busy || !!c.pendingOperation || preparation.lease?.state !== 'held'}>{t('executionStart')}</Button></div>
+        <div className={css.footer}><Button variant="primary" type="submit" disabled={!confirmed || busy || !!c.pendingOperation}>{t('executionStart')}</Button></div>
       </form>}
       {currentViews?.items.length === 0 && <div className={css.empty}><strong>{t('taskRunEmpty')}</strong><p>{t('taskRunEmptyHint')}</p></div>}
       {currentViews && currentViews.items.length > 0 && <h4>{t('taskRunHistory')}</h4>}
@@ -266,7 +263,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
         <p>{t('executionBackend')}: {t(view.run.backend ? 'executionCodex' : 'executionApi')}
           {view.run.backend ? ` · ${view.run.backend.model} ${view.run.backend.effort}`
             : report?.report.runId === view.run.id && report.report.recovery ? ` · ${report.report.recovery.inputs.model}` : ''}</p>
-        <details className={css.advanced}><summary>{t('technicalDetails')}</summary><p>{t('executionRun')}: {view.run.id}</p><p>{t('deviceId')}: {view.run.deviceId}</p></details>
+        <details className={css.advanced}><summary>{t('technicalDetails')}</summary><p>{t('executionRun')}: {view.run.id}</p></details>
         {view.run.backend && <p>{t('executionCodexHint')}</p>}
         <p>{t('executionRemaining', { count: view.delegation.budget - view.delegation.used })}</p>
         {!view.eligible && <p>{t('qualificationRecheck')}</p>}

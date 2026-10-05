@@ -60,13 +60,12 @@ export class ActionGuard {
         : authority.execution.eligible)
       || actual.state !== 'running'
       || actual.id !== expected.id || actual.assignmentId !== expected.assignmentId
-      || actual.executionDelegationId !== expected.executionDelegationId || actual.deviceId !== expected.deviceId
-      || actual.serverEpoch !== expected.serverEpoch || actual.fencingEpoch !== expected.fencingEpoch
+      || actual.executionDelegationId !== expected.executionDelegationId
       || actual.planRevision !== expected.planRevision || authority.task.revision !== expected.planRevision
       || authority.task.id !== this.binding.snapshot.id || actual.configDigest !== expected.configDigest) throw new Error('organization-execution: authority-lost')
   }
   /**
-   * Recheck the current lease and identity; never returns a cached permission.
+   * Recheck the accepted assignment and identity; never returns a cached permission.
    * @returns Completion when the Run is still eligible.
    */
   async checkOnline(): Promise<void> {
@@ -76,7 +75,8 @@ export class ActionGuard {
   }
   private command(fields: object): Command {
     const { id, state: _state, version: _version, createdRevision: _created,
-      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason, ...selector } = this.binding.run
+      configDigest: _digest, backend: _backend, startedAt: _startedAt, stopReason: _stopReason,
+      deviceId: _device, serverEpoch: _epoch, fencingEpoch: _fence, ...selector } = this.binding.run
     return executionCommandSchema.parse({ ...selector, runId: id, operationId: randomUUID(), ...fields })
   }
   /**

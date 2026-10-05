@@ -54,16 +54,6 @@ export const answerAssignmentSchema = participantBase.extend({ kind: z.literal('
 }).strict()
 /** Acknowledgement affects only this assignee's notification. */
 export const readNotificationSchema = participantBase.extend({ kind: z.literal('read-notification'), notificationId: id<OrganizationNotificationId>() }).strict()
-/** Finite delegation request; limits and registered ownership are checked by the authority. */
-export const delegateSchema = participantBase.extend({ kind: z.literal('delegate'), expectedVersion: z.number().int().positive(),
-  deviceId: deviceIdSchema, executorId: z.literal('desktop-builtin'),
-  capabilities: z.array(z.enum(['task-read', 'draft'])).min(1).max(2).transform(values => [...new Set(values)].sort()),
-  budget: z.number().int().positive(), expiresAt: z.number().int().positive(),
-}).strict()
-/** Optimistic withdrawal by the member who granted the delegation. */
-export const revokeDelegationSchema = participantBase.extend({ kind: z.literal('revoke-delegation'),
-  delegationId: delegationIdSchema, expectedVersion: z.number().int().positive(),
-}).strict()
 const executionAnswerBase = participantBase.extend({ requestId: executionHumanSchema.shape.id,
   planRevision: planRevisionSchema, runId: executionHumanSchema.shape.runId })
 /** Work information is distinct from approval and formal acceptance. */
@@ -73,7 +63,7 @@ export const answerExecutionQuestionSchema = executionAnswerBase.extend({ kind: 
 export const approveExecutionToolSchema = executionAnswerBase.extend({ kind: z.literal('approve-execution-tool'),
   approved: z.boolean() }).strict()
 /** Participant actions remain distinct from root-editor approval. */
-export const participantCommandSchema = z.discriminatedUnion('kind', [answerAssignmentSchema, readNotificationSchema, delegateSchema, revokeDelegationSchema, answerExecutionQuestionSchema, approveExecutionToolSchema])
+export const participantCommandSchema = z.discriminatedUnion('kind', [answerAssignmentSchema, readNotificationSchema, answerExecutionQuestionSchema, approveExecutionToolSchema])
 /** Pending and processed views share authorization-before-search and cursor rules. */
 export const inboxQuerySchema = workgraphGrantsSchema.pick({ organizationId: true }).extend({
   state: z.enum(['pending', 'processed', 'all']).default('all'), search: z.string().max(200).default(''),

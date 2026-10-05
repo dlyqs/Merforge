@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { DatabaseSync } from 'node:sqlite'
 import { OrganizationError } from './error.ts'
 import { deviceSchema, leaseSchema } from './device-schema.ts'
-import { validateDeviceKey } from './device.ts'
+import { createPublicKey } from 'node:crypto'
 import { parseDelegation } from './assignment-participant.ts'
 
 /** Device actions retain their original lease result even after another owner takes over. */
@@ -31,7 +31,7 @@ export function validateDeviceDatabase(db: DatabaseSync): void {
   const fail = () => { throw new OrganizationError('incompatible-store') }
   for (const row of db.prepare('SELECT * FROM organization_devices').all()) {
     const d = deviceSchema.parse(row)
-    try { validateDeviceKey(d.publicKey) } catch (error) {
+    try { validateHistoricalKey(d.publicKey) } catch (error) {
       if (error instanceof OrganizationError && error.code === 'invalid-input') fail()
       throw error
     }
@@ -43,7 +43,7 @@ export function validateDeviceDatabase(db: DatabaseSync): void {
       || event.at !== d.registeredAt || d.state === 'active' && (member.enabled !== 1 || member.accountEnabled !== 1)) fail()
     if (d.state === 'revoked') {
       const terminal = db.prepare('SELECT kind FROM organization_events WHERE revision=?').get(d.version)
-      if (d.version <= d.createdRevision || !['revoke-device', 'set-membership', 'set-account', 'restore'].includes(String(terminal?.kind))) fail()
+      if (d.version <= d.createdRevision || !['revoke-device', 'set-membership', 'set-account', 'restore', 'simplify-task-workflow'].includes(String(terminal?.kind))) fail()
     }
   }
   for (const row of db.prepare('SELECT * FROM assignment_delegations').all()) {
@@ -85,5 +85,12 @@ export function validateDeviceDatabase(db: DatabaseSync): void {
         || !db.prepare('SELECT 1 FROM assignment_leases WHERE assignmentId=? AND fencingEpoch=? AND createdRevision=?')
           .get(lease.assignmentId, lease.fencingEpoch, lease.createdRevision)) fail()
     } else if (!['register-device','revoke-device'].includes(String(e?.kind))) fail()
+  }
+}
+
+function validateHistoricalKey(encoded: string): void {
+  const key = createPublicKey({ key: Buffer.from(encoded, 'base64'), format: 'der', type: 'spki' })
+  if (key.asymmetricKeyType !== 'ed25519' || key.export({ format: 'der', type: 'spki' }).toString('base64') !== encoded) {
+    throw new OrganizationError('incompatible-store')
   }
 }

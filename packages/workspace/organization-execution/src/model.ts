@@ -55,8 +55,7 @@ export function executionAdapter(ctx: Context, request: ExecutionRequest, routes
       const permits = view.actions.filter(a => a.state === 'reserved' && a.capability === 'model')
       const permit = permits[0]
       if (permits.length !== 1 || !permit || used.has(permit.actionId) || permit.runId !== run.id
-        || permit.serverEpoch !== run.serverEpoch || permit.fencingEpoch !== run.fencingEpoch
-        || permit.deviceId !== run.deviceId || permit.executionDelegationId !== run.executionDelegationId) {
+        || permit.executionDelegationId !== run.executionDelegationId) {
         throw new Error('organization-execution: model-permit-required')
       }
       const expires = started + permit.expiresAt - view.serverTime

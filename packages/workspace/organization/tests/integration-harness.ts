@@ -44,20 +44,14 @@ export async function integrationFixture(cleanup: (() => Promise<unknown>)[], tr
   const prepareTask = async (taskId: string) => {
     const approved = await h.service.assignmentCommand(h.owner.token, { ...h.approve, taskId, operationId: operationId() })
     const selector = { ...h.query, assignmentId: approved.assignmentId }
-    const accepted = await h.service.participantCommand(h.other.token, { ...selector, kind: 'answer-assignment', operationId: operationId(),
+    await h.service.participantCommand(h.other.token, { ...selector, kind: 'answer-assignment', operationId: operationId(),
       requestId: h.db.prepare('SELECT id FROM assignment_requests WHERE assignmentId=?').get(approved.assignmentId!)?.id,
       expectedVersion: approved.revision, answer: 'accepted' })
-    const prep = await h.service.participantCommand(h.other.token, { ...selector, kind: 'delegate', operationId: operationId(),
-      expectedVersion: accepted.revision, deviceId: h.run.deviceId, executorId: 'desktop-builtin', capabilities: ['draft'],
-      budget: 10, expiresAt: Date.now()+60000 })
-    const claim = { ...selector, kind: 'claim', operationId: operationId(), deviceId: h.run.deviceId, delegationId: prep.delegationId }
-    const proof = h.proof(await h.service.deviceChallenge(h.other.token, claim))
-    const lease = (await h.service.deviceCommand(h.other.token, claim, proof)).lease!
-    const base = { ...selector, deviceId: h.run.deviceId, planRevision: revision }
-    const granted = await h.execute({ ...base, kind: 'grant-execution', operationId: operationId(), delegationId: prep.delegationId,
+    const base = { ...selector, planRevision: revision }
+    const granted = await h.execute({ ...base, kind: 'grant-execution', operationId: operationId(),
       capabilities: ['model'], budget: 10, expiresAt: Date.now()+30000, configDigest: 'a'.repeat(64) })
     const create = { ...base, kind: 'create-run', operationId: operationId(), executionDelegationId: granted.execution!.executionDelegationId,
-      serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, configDigest: 'a'.repeat(64) }
+      configDigest: 'a'.repeat(64) }
     return { selector, create }
   }
   const observation = (files = [file]) => ({ targetRef: randomUUID(), baseCommit: '1'.repeat(40), baseTree: '2'.repeat(40),

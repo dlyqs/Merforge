@@ -1,11 +1,9 @@
-/** Transactional acceptance, notification acknowledgement and bounded delegation. */
+/** Transactional acceptance and notification acknowledgement. */
 import { submissionView } from './acceptance.ts'
 import { submissionSchema } from './delivery-schema.ts'
 import { executionHumanSchema } from './execution-human-schema.ts'
-import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
-import { ownedDevice } from './device.ts'
 import { OrganizationError } from './error.ts'
 import { authorizeAssignmentRead, selectedAssignment, assignmentInvalidation } from './assignment.ts'
 import { assignmentSchema, assignmentRequestSchema, assignmentNotificationSchema, delegationSchema, type participantCommandSchema } from './assignment-schema.ts'
@@ -41,13 +39,11 @@ export function parseDelegation(row: Record<string, unknown> | undefined): Organ
  * @param principal - Current authenticated employee.
  * @param command - Strict participant request.
  * @param revision - Allocated audit revision.
- * @param limits - Deployment ceilings for finite delegations.
- * @returns Updated assignment and optional delegation identity.
+ * @returns Updated assignment.
  */
 export function changeParticipant(
   db: DatabaseSync, principal: Principal, command: z.output<typeof participantCommandSchema>, revision: number,
-  limits: { delegationMaxDurationMs: number; delegationMaxBudget: number },
-): { assignment: OrganizationAssignment; delegationId?: OrganizationDelegation['id'] } {
+): { assignment: OrganizationAssignment } {
   const assignment = selectedAssignment(db, command)
   if (command.kind === 'answer-execution-question' || command.kind === 'approve-execution-tool') {
     answerExecutionHuman(db, principal, command, revision)
@@ -62,15 +58,8 @@ export function changeParticipant(
     db.prepare('UPDATE assignment_notifications SET readAt=COALESCE(readAt,?) WHERE id=?').run(now, command.notificationId)
     return { assignment }
   }
-  if (command.kind === 'revoke-delegation') {
-    const delegation = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=? AND assignmentId=?').get(command.delegationId, assignment.id))
-    if (delegation.membershipId !== principal.membershipId) throw new OrganizationError('forbidden')
-    if (delegation.state !== 'active' || delegation.version !== command.expectedVersion || delegation.expiresAt <= now) throw new OrganizationError('version-conflict')
-    db.prepare("UPDATE assignment_delegations SET state='revoked',version=? WHERE id=?").run(revision, delegation.id)
-    return { assignment, delegationId: delegation.id }
-  }
   if (assignment.version !== command.expectedVersion || assignmentInvalidation(db, assignment) !== null) throw new OrganizationError('version-conflict')
-  if (command.kind === 'answer-assignment') {
+  {
     const row = db.prepare('SELECT * FROM assignment_requests WHERE id=? AND assignmentId=?').get(command.requestId, assignment.id)
     if (!row) throw new OrganizationError('forbidden')
     const request = assignmentRequestSchema.parse(row)
@@ -81,18 +70,6 @@ export function changeParticipant(
     db.prepare('UPDATE assignment_notifications SET readAt=NULL WHERE requestId=?').run(request.id)
     return { assignment: { ...assignment, state: command.answer, version: revision } }
   }
-  if (assignment.state !== 'accepted') throw new OrganizationError('version-conflict')
-  ownedDevice(db, principal, command.deviceId)
-  if (command.expiresAt <= now || command.expiresAt - now > limits.delegationMaxDurationMs || command.budget > limits.delegationMaxBudget) throw new OrganizationError('invalid-input')
-  db.prepare("UPDATE assignment_delegations SET state='expired',version=? WHERE assignmentId=? AND state='active' AND expiresAt<=?").run(revision, assignment.id, now)
-  if (db.prepare("SELECT id FROM assignment_delegations WHERE assignmentId=? AND deviceId=? AND state='active'").get(assignment.id, command.deviceId)) throw new OrganizationError('version-conflict')
-  const delegation = delegationSchema.parse({ id: randomUUID(), assignmentId: assignment.id, planRevision: assignment.planRevision,
-    membershipId: principal.membershipId, deviceId: command.deviceId, executorId: command.executorId,
-    capabilities: command.capabilities, budget: command.budget, expiresAt: command.expiresAt, state: 'active', createdRevision: revision, version: revision })
-  db.prepare('INSERT INTO assignment_delegations VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(delegation.id, delegation.assignmentId,
-    delegation.planRevision, delegation.membershipId, delegation.deviceId, delegation.executorId, JSON.stringify(delegation.capabilities),
-    delegation.budget, delegation.expiresAt, delegation.state, revision, revision)
-  return { assignment, delegationId: delegation.id }
 }
 
 /**
@@ -160,16 +137,6 @@ export function visibleInbox(db: DatabaseSync, principal: Principal,
     items.push({ assignment, request, notificationId: null, readAt: null })
   }
   return items
-}
-
-/**
- * Retire delegations when the approval ceases to be accepted; authorization restoration cannot revive them.
- * @param db - Same transaction as the causing mutation.
- * @param revision - Causing audit event.
- */
-export function invalidateDelegations(db: DatabaseSync, revision: number): void {
-  db.prepare(`UPDATE assignment_delegations SET state='invalidated',version=? WHERE state='active'
-    AND assignmentId IN (SELECT id FROM task_assignments WHERE state<>'accepted')`).run(revision)
 }
 
 /**

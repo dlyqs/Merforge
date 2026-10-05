@@ -128,7 +128,7 @@ it('opens one employee-only task conversation after offline approval, recovers l
   expect(read.result.entries.at(-1)?.text).toBe('Employee private analysis')
   await expect(organizationConversation(h.owner, reopened.host, request, () => {}, new AbortController().signal)).rejects.toThrow('forbidden')
   const prep = await worker.perform({ kind: 'assignment-preparation', request: { ...h.remote.query, assignmentId: approved.receipt!.assignmentId } })
-  expect(prep.assignment?.result).toMatchObject({ kind: 'preparation', value: { assignment: { state: 'pending' }, delegations: [], lease: null } })
+  expect(prep.assignment?.result).toMatchObject({ kind: 'preparation', value: { assignment: { state: 'pending' } } })
   const logs = (await readdir(join(root, 'conversations'), { recursive: true })).filter(p => p.endsWith('.jsonl'))
   expect(logs).toHaveLength(1)
   expect(await readFile(join(root, 'conversations', logs[0]!), 'utf8')).toContain('Employee private analysis')

@@ -29,7 +29,7 @@ it('waits for an outstanding report authorization on disposal and never delivers
 
 it('rejects a mismatched native selection before resolving API credentials or mounting an API executor', async () => {
   const h = await boot(), f = fixture()
-  const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4',
+  const backend = { kind: 'codex', dispatch: 'local', runtimeVersion: '0.153.4',
     model: 'native-test', effort: 'medium', maxTurns: 2, maxDurationMs: 10000 } as const
   const authority: ExecutionAuthority = { ...f.authority, execution: { ...f.authority.execution,
     run: { ...f.authority.execution.run, backend, startedAt: null, stopReason: null },
@@ -131,7 +131,7 @@ it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/privat
     return new Response(events.map(data => `data: ${data}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } })
   })
   const directory = join(local.root, 'work'); await mkdir(directory)
-  const connection = new OrganizationConnection({ reconnectMs: 100 }, { directory: join(local.root, 'device'), vault: {
+  const connection = new OrganizationConnection({ reconnectMs: 100 }, { vault: {
     isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test-vault',
     encryptString: text => Buffer.from(text), decryptString: bytes => bytes.toString(),
   } })
@@ -149,20 +149,14 @@ it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/privat
     const selector = { ...remote.query, assignmentId: approved.assignmentId! }, item = connection.snapshot().inbox!.items[0]!
     await connection.perform({ kind: 'assignment-participant', request: { ...selector, kind: 'answer-assignment', operationId: randomUUID(),
       requestId: item.request.id, expectedVersion: item.assignment.version, answer: 'accepted' } })
-    await connection.perform({ kind: 'device-register', name: 'test desktop' })
-    const preparation = await connection.perform({ kind: 'assignment-preparation', request: selector })
-    if (preparation.assignment?.result.kind !== 'preparation') throw new Error('missing preparation')
-    const delegated = await connection.perform({ kind: 'assignment-delegate', request: { ...selector, kind: 'delegate', operationId: randomUUID(),
-      expectedVersion: preparation.assignment.result.value.assignment.version, executorId: 'desktop-builtin', capabilities: ['draft'], budget: 3, durationMs: 60000 } })
-    const claimed = await connection.perform({ kind: 'lease-claim', request: { ...selector, delegationId: delegated.receipt!.delegationId } })
-    const lease = claimed.receipt!.lease!, inputs = { ...fixture().request.inputs, endpoint: route.endpoint,
+    const inputs = { ...fixture().request.inputs, endpoint: route.endpoint,
       execution: { directory, maxActions: 3, maxSteps: 3, maxDurationMs: 10000 } }
     const grant = await connection.perform({ kind: 'execution-command', request: { ...selector, planRevision: 1, kind: 'grant-execution',
-      operationId: randomUUID(), delegationId: delegated.receipt!.delegationId, capabilities: ['model'], budget: 3,
+      operationId: randomUUID(), capabilities: ['model'], budget: 3,
       expiresAt: Date.now() + 30000, configDigest: executionInputsDigest(inputs) } })
     const created = await connection.perform({ kind: 'execution-command', request: { ...selector, planRevision: 1, kind: 'create-run',
       operationId: randomUUID(), executionDelegationId: grant.receipt!.execution!.executionDelegationId,
-      serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch, configDigest: executionInputsDigest(inputs) } })
+      configDigest: executionInputsDigest(inputs) } })
     const request = executionRequestSchema.parse({ ...selector, runId: created.receipt!.execution!.runId,
       operationId: randomUUID(), inputs, start })
     const exchange = (r: ExecutionRequest | ExecutionReportRequest,
@@ -222,6 +216,7 @@ it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/privat
       expect(fetch).toHaveBeenCalledTimes(2)
       expect(fetch.mock.calls[1]?.[1]?.body).toContain('Confirmed total 42.')
     }
+    await vi.waitFor(() => { expect(connection.snapshot().phase).toBe('ready') })
     const shared = await connection.perform({ kind: 'execution-read', request: { ...selector, runId: request.runId } })
     expect(JSON.stringify(shared)).not.toContain(inputs.messages[0])
     await connection.perform({ kind: 'personal' })
@@ -235,7 +230,7 @@ it.each(['prepare', 'execute', 'human'] as const)('uses real HTTPS/native/privat
     const backup = backupOrganization(remote.config.api.directory, join(remote.root, 'backup'), 100)
     if (!start) {
       const legacy = new DatabaseSync(join(backup, 'organization.sqlite'))
-      legacy.exec('DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; PRAGMA user_version=7')
+      legacy.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE tree_requests; DROP TABLE plan_contexts; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; PRAGMA user_version=7')
       legacy.close()
       const hashes = { 'organization.sqlite': createHash('sha256').update(await readFile(join(backup, 'organization.sqlite'))).digest('hex'),
         'tls-identity.json': createHash('sha256').update(await readFile(join(backup, 'tls-identity.json'))).digest('hex') }

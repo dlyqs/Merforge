@@ -8,7 +8,6 @@ import { createServer, type Server } from 'node:https'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { z } from 'zod'
-import { deviceEnvelopeSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { OrganizationStreams } from './events.ts'
 import { configSchema, loadIdentity } from './tls.ts'
 
@@ -154,7 +153,7 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/(members|hierarchy)$/.exec(path)
-      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/sharing', '/workgraph/share', '/workgraph/delete', '/workgraph/removal', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
+      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/sharing', '/workgraph/share', '/workgraph/delete', '/workgraph/removal', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation'].includes(path) ? 'POST'
         : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
@@ -177,26 +176,18 @@ export class OrganizationApiService extends Service {
       if (path === '/delivery/command') { this.respond(res, 200, await authority.deliveryCommand(token, await this.body(req))); return }
       if (path === '/delivery/read') { await authority.readDelivery(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/delivery/download') { await authority.downloadArtifact(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
-      if (path === '/execution/challenge') { this.respond(res, 200, await authority.executionChallenge(token, await this.body(req))); return }
       if (path === '/execution/list') { await authority.listExecutions(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/execution/read') { await authority.readExecution(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/execution/command') {
         const envelope = executionEnvelopeSchema.safeParse(await this.body(req))
         if (!envelope.success) throw new OrganizationError('invalid-input')
-        this.respond(res, 200, await authority.executionCommand(token, envelope.data.command, envelope.data.proof)); return
-      }
-      if (path === '/device/challenge') { this.respond(res, 200, await authority.deviceChallenge(token, await this.body(req))); return }
-      if (path === '/device/command') {
-        const envelope = deviceEnvelopeSchema.safeParse(await this.body(req))
-        if (!envelope.success) throw new OrganizationError('invalid-input')
-        this.respond(res, 200, await authority.deviceCommand(token, envelope.data.command, envelope.data.proof)); return
+        this.respond(res, 200, await authority.executionCommand(token, envelope.data.command)); return
       }
       if (path === '/assignment/review') { await authority.readApproval(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/assignment/read') { await authority.readAssignment(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/assignment/tasks') { await authority.readTaskAssignments(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/assignment/inbox') { await authority.readInbox(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/assignment/preparation') { await authority.readPreparation(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
-      if (path === '/device/list') { await authority.readDevices(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/workgraph/sharing') { await authority.readPlanSharing(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }
       if (path === '/workgraph/share') { this.respond(res, 200, await authority.sharePlan(token, await this.body(req))); return }
       if (path === '/workgraph/delete') { this.respond(res, 200, await authority.deletePlan(token, await this.body(req))); return }

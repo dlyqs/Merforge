@@ -27,10 +27,11 @@ it.each(['left', 'right'] as const)('requires both independent children with %s 
   expect((await h.readIntegration()).delivered).toBe(true)
   const { kind: _dependentKind, configDigest: _dependentDigest, ...dependentOwner } = dependent.create
   await h.execute({ ...dependentOwner, runId: run.execution!.runId, kind: 'transition-run', state: 'running', operationId: operationId() })
-  const grant = h.db.prepare('SELECT version FROM task_grants WHERE membershipId=? AND taskId=?').get(h.other.membershipId!, h.left)
   const { taskId: _taskId, planRevision: _revision, ...selector } = h.query
-  await h.service.grantTask(h.owner.token, { ...selector, taskId: h.left, membershipId: h.other.membershipId,
-    scope: 'node', actions: [], expectedVersion: grant?.version, operationId: operationId() })
+  for (const grant of h.db.prepare('SELECT * FROM task_grants WHERE planId=? AND taskId=? AND membershipId=?').all(h.query.planId, h.left, h.other.membershipId!)) {
+    await h.service.grantTask(h.owner.token, { ...selector, taskId: h.left, membershipId: h.other.membershipId,
+      scope: grant.scope, actions: [], expectedVersion: grant.version, operationId: operationId() })
+  }
   await expect(h.execute({ ...dependentOwner, runId: run.execution!.runId, kind: 'reserve-action', operationId: operationId(),
     actionId: operationId(), capability: 'model', requestDigest: 'b'.repeat(64) })).rejects.toMatchObject({ code: 'version-conflict' })
   await h.close()
@@ -58,11 +59,12 @@ it('blocks inaccessible sibling evidence and invalidates receipts on whole-plan 
   const h = await integrationFixture(cleanup, true)
   const { taskId: _taskId, planRevision: _revision, ...selector } = h.query
   const planGrant = await h.service.grantTask(h.owner.token, { ...selector, taskId: h.query.taskId, membershipId: h.other.membershipId,
-    scope: 'node', actions: ['read'], expectedVersion: h.taskGrant.revision, operationId: operationId() })
+    scope: 'node', actions: ['read'], expectedVersion: h.db.prepare("SELECT version FROM task_grants WHERE planId=? AND taskId=? AND membershipId=? AND scope='node'").get(h.query.planId, h.query.taskId, h.other.membershipId!)?.version ?? 0, operationId: operationId() })
   expect(planGrant.revision).toBeGreaterThan(0)
-  const grant = h.db.prepare('SELECT version FROM task_grants WHERE membershipId=? AND taskId=?').get(h.other.membershipId!, h.left)
-  await h.service.grantTask(h.owner.token, { ...selector, taskId: h.left, membershipId: h.other.membershipId,
-    scope: 'node', actions: [], expectedVersion: grant?.version, operationId: operationId() })
+  for (const grant of h.db.prepare('SELECT * FROM task_grants WHERE planId=? AND taskId=? AND membershipId=?').all(h.query.planId, h.left, h.other.membershipId!)) {
+    await h.service.grantTask(h.owner.token, { ...selector, taskId: h.left, membershipId: h.other.membershipId,
+      scope: grant.scope, actions: [], expectedVersion: grant.version, operationId: operationId() })
+  }
   expect(await h.readIntegration(h.query.taskId, h.other.token)).toMatchObject({ inputsReady: false, inputs: [], latest: null })
   const leaf = await integrationFixture(cleanup), { command } = await leaf.verify()
   await leaf.service.savePlan(leaf.owner.token, { ...leaf.save, expectedRevision: 1, operationId: operationId() })
@@ -86,7 +88,7 @@ it('migrates v10 without manufacturing target evidence and rolls back a failed m
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(10)
   h.db.exec('DROP TABLE organization_integrations')
   const db = openOrganizationDatabase(h.path, 100)
-  expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(20)
+  expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
   expect(db.prepare('SELECT count(*) AS n FROM organization_integrations').get()?.n).toBe(0)
   db.close()
 }, 15000)

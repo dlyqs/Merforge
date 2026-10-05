@@ -23,7 +23,7 @@ const clients = []
 const children = []
 const contextHosts = []
 const password = 'correct horse battery staple'
-// Test vault substitutes OS encryption only; native key ownership and signatures stay real.
+// Test vault substitutes OS encryption only; account authentication, authorization and receipts stay real.
 const vault = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test-vault',
   encryptString: text => Buffer.from(text), decryptString: bytes => bytes.toString() }
 const preparation = result => {
@@ -50,7 +50,8 @@ try {
     const directory = join(home, 'organization-server')
     const controller = new DesktopOrganizationProcess(executable, root, 20000)
     controllers.push(controller)
-    const config = { api: { directory, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 } }
+    const config = { api: { directory, host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 },
+      authority: { loginMaxAttempts: 20 } }
     const ready = await controller.start(config)
     assert.equal(ready.phase, 'ready')
     config.api.port = ready.port
@@ -64,7 +65,7 @@ try {
       const personal = personalDirectory ?? join(root, `personal-${username}-${randomUUID()}`)
       await mkdir(personal, { recursive: true })
       await writeFile(join(personal, 'private.txt'), `private-${username}-session-api-key-sentinel`)
-      const client = new OrganizationConnection({ trustPath: join(personal, 'organization-trust.json'), reconnectMs: 100 }, { directory: personal, vault })
+      const client = new OrganizationConnection({ trustPath: join(personal, 'organization-trust.json'), reconnectMs: 100 }, { vault })
       clients.push(client)
       await client.perform({ kind: 'probe', origin })
       await client.perform({ kind: 'trust', fingerprint: ready.fingerprint })
@@ -87,7 +88,7 @@ try {
     }
     await command({ kind: 'create-project', name: 'Hidden salary project' })
     const project = (await command({ kind: 'create-project', name: 'Shared design project' })).receipt
-    const granted = (await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: 0, actions: ['read'] })).receipt
+    await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: 0, actions: ['read'] })
     await until(() => member.snapshot().projects?.total === 1)
     assert.equal(owner.snapshot().projects.total, 2)
     await member.perform({ kind: 'search', query: 'salary', offset: 0 })
@@ -131,62 +132,39 @@ try {
     const answered = await active(member, answer)
     assert.deepEqual((await active(member, answer)).receipt, answered.receipt)
     await assert.rejects(active(member, { ...answer, request: { ...answer.request, answer: 'rejected', operationId: randomUUID() } }))
-    const device = await member.perform({ kind: 'device-register', name: 'Employee first device' })
     const secondEmployee = await native('employee-second')
     await secondEmployee.client.perform({ kind: 'login', username: 'employee', password })
     await secondEmployee.client.perform({ kind: 'select', organizationId: initialized.organizationId })
-    const secondDevice = await secondEmployee.client.perform({ kind: 'device-register', name: 'Employee second device' })
-    assert.notEqual(device.receipt.deviceId, secondDevice.receipt.deviceId)
-    const delegate = async client => {
-      await until(() => client.snapshot().phase === 'ready')
-      const current = preparation(await active(client, { kind: 'assignment-preparation', request: assigned }))
-      const result = await active(client, { kind: 'assignment-delegate', request: { ...assigned, kind: 'delegate',
-        operationId: randomUUID(), expectedVersion: current.assignment.version, executorId: 'desktop-builtin',
-        capabilities: ['task-read'], budget: 2, durationMs: 60000 } })
-      return { ...assigned, delegationId: result.receipt.delegationId }
+    const participants = [member, secondEmployee.client]
+    for (const client of participants) {
+      assert.equal(preparation(await active(client, { kind: 'assignment-preparation', request: assigned })).assignment.state, 'accepted')
     }
-    const claims = [await delegate(member), await delegate(secondEmployee.client)]
-    const contenders = [member, secondEmployee.client]
-    await until(() => contenders.every(client => client.snapshot().phase === 'ready'))
-    const results = await Promise.allSettled(contenders.map((client, index) => active(client, { kind: 'lease-claim', request: claims[index] })))
-    assert.equal(results.filter(result => result.status === 'fulfilled').length, 1)
-    const winner = results.findIndex(result => result.status === 'fulfilled')
-    assert.match(results[1 - winner].reason.message, /version-conflict/)
-    const lease = results[winner].value.receipt.lease
-    assert.equal(lease.fencingEpoch, 1)
-    assert.equal(lease.state, 'held')
-    contenders[winner].suspend()
-    assert.equal(contenders[winner].snapshot().renewing, undefined)
     await controller.stop()
     const cold = new DatabaseSync(join(directory, 'organization.sqlite'), { readOnly: true })
     try {
       assert.equal(cold.prepare('SELECT state FROM task_assignments WHERE id=?').get(assigned.assignmentId).state, 'accepted')
       assert.equal(cold.prepare('SELECT count(*) AS n FROM assignment_requests WHERE assignmentId=?').get(assigned.assignmentId).n, 1)
-      assert.equal(cold.prepare('SELECT count(*) AS n FROM assignment_leases WHERE assignmentId=?').get(assigned.assignmentId).n, 1)
       assert.equal(cold.prepare('SELECT count(*) AS n FROM assignment_notifications WHERE requestId=?').get(item.request.id).n, 1)
+      for (const table of ['organization_devices', 'assignment_delegations', 'assignment_leases', 'execution_runs']) {
+        assert.equal(cold.prepare(`SELECT count(*) AS n FROM ${table}`).get().n, 0)
+      }
     } finally { cold.close() }
     await controller.start(config)
-    for (const client of [owner, ...contenders]) await client.perform({ kind: 'reconnect' })
-    assert.equal(preparation(await active(member, { kind: 'assignment-preparation', request: assigned })).lease.state, 'invalidated')
-    await assert.rejects(active(contenders[winner], { kind: 'lease-check', request: assigned }), /lease-recheck-required/)
-    const reclaimed = await active(contenders[winner], { kind: 'lease-claim', request: claims[winner] })
-    assert.equal(reclaimed.receipt.lease.fencingEpoch, 2)
-    assert.notEqual(reclaimed.receipt.lease.serverEpoch, lease.serverEpoch)
-    await active(contenders[winner], { kind: 'lease-release', request: assigned })
-    // Reopening the native owner must recover the same device, but never start renewal.
+    for (const client of [owner, ...participants]) await client.perform({ kind: 'reconnect' })
+    assert.equal(preparation(await active(member, { kind: 'assignment-preparation', request: assigned })).assignment.state, 'accepted')
     await member.close()
     const reopenedEmployee = await native('employee', employee.personal)
-    const reopenedMember = reopenedEmployee.client
-    await reopenedMember.perform({ kind: 'login', username: 'employee', password })
-    await reopenedMember.perform({ kind: 'select', organizationId: initialized.organizationId })
-    assert.equal((await reopenedMember.perform({ kind: 'device-read' })).assignment.result.value.id, device.receipt.deviceId)
-    assert.equal(reopenedMember.snapshot().renewing, undefined)
-    member = reopenedMember
+    member = reopenedEmployee.client
+    await member.perform({ kind: 'login', username: 'employee', password })
+    await member.perform({ kind: 'select', organizationId: initialized.organizationId })
+    assert.equal(preparation(await active(member, { kind: 'assignment-preparation', request: assigned })).assignment.state, 'accepted')
     const current = preparation(await active(owner, { kind: 'assignment-preparation', request: assigned }))
     await active(owner, { kind: 'assignment-command', request: { ...assigned, kind: 'revoke-assignment',
       expectedVersion: current.assignment.version, operationId: randomUUID() } })
     assert.equal(preparation(await active(member, { kind: 'assignment-preparation', request: assigned })).assignment.state, 'revoked')
-    await assert.rejects(active(member, { kind: 'lease-claim', request: claims[0] }))
+    await assert.rejects(active(member, { kind: 'delivery-command', request: { ...assigned, planRevision: 1,
+      kind: 'submit-delivery', operationId: randomUUID(), runId: null, artifactIds: [randomUUID()],
+      summary: 'Revoked assignment', target: 'Report', confirmed: true } }))
     const outsider = await native('outsider')
     const outsiderInvite = await owner.perform({ kind: 'invite', role: 'member' })
     await outsider.client.perform({ kind: 'register', username: 'outsider', password, invitationToken: outsiderInvite.invitationToken })
@@ -234,7 +212,10 @@ try {
       assert.equal(status, 404)
     }
     const invalidatedAssignment = await approve()
-    await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: granted.revision, actions: [] })
+    const grants = (await active(owner, { kind: 'grants', projectId: project.projectId })).grants
+    const employeeGrant = grants.find(grant => grant.membershipId === registered.receipt.membershipId)
+    assert.ok(employeeGrant)
+    await command({ kind: 'set-grant', projectId: project.projectId, membershipId: registered.receipt.membershipId, expectedVersion: employeeGrant.version, actions: [] })
     await until(() => member.snapshot().projects?.total === 0)
     await assert.rejects(openOrganizationContext(member, reopenedHost, selector, () => {}))
     await reopenedHost.close(); contextHosts.splice(contextHosts.indexOf(reopenedHost), 1)
@@ -271,7 +252,6 @@ try {
     await owner.perform({ kind: 'select', organizationId: initialized.organizationId })
     const restoredPreparation = preparation(await owner.perform({ kind: 'assignment-preparation', request: assigned }))
     assert.equal(restoredPreparation.assignment.state, 'revoked')
-    assert.equal((await active(member, { kind: 'device-read' })).assignment.result.value.state, 'revoked')
     const restoredPlan = await owner.perform({ kind: 'workgraph-read', request: taskQuery })
     assert.deepEqual(restoredPlan.workgraph.result.value.definition, definition)
     await until(() => member.snapshot().phase === 'ready')
@@ -313,7 +293,7 @@ try {
   const recoveredTrust = { ...recovered, origin: `https://127.0.0.1:${recovered.port}`, timeoutMs: 5000, maxResponseBytes: 1048576 }
   assert.equal((await organizationRequest(recoveredTrust, 'POST', '/organization/v1/login', { username: 'crashowner', password })).status, 200)
   await replacement.stop()
-  console.log('organization integration built smoke passed: Node + Electron, two native clients, WorkGraph, assignment/answer/delegation, two-device claim, device reopen, lease restart, unauthorized inbox/receipt, revocation, private-route isolation, backup/restore and certificate rotation')
+  console.log('organization integration built smoke passed: Node + Electron, multiple native clients, WorkGraph, assignment acceptance without device records or automatic Runs, client reopen, service restart, unauthorized inbox/receipt, revocation, private-route isolation, backup/restore and certificate rotation')
 } finally {
   for (const { child, exited } of children) { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited }
   await Promise.allSettled(contextHosts.map(host => host.close()))

@@ -121,22 +121,21 @@ it('keeps execution drafts and the selected section when task authority refreshe
   expect(h.props.execution).not.toHaveBeenCalled()
 })
 
-it('requires a separate completion confirmation after artifact upload', async () => {
+it.each([false, true])('requires a separate completion confirmation after artifact upload with isolated Run=%s', async (withRun) => {
   const h = fixture(true), base = h.connection.getMockImplementation()!
   const a = h.prep.assignment
   a.state = 'accepted'
   const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
     assignmentId: a.id, planRevision: a.planRevision }
-  const run = executionRunSchema.parse({ ...selector, id: randomUUID(), deviceId: randomUUID(),
-    executionDelegationId: randomUUID(), serverEpoch: randomUUID(), fencingEpoch: 1,
-    configDigest: 'a'.repeat(64), state: 'succeeded', createdRevision: 3, version: 3 })
+  const run = withRun ? executionRunSchema.parse({ ...selector, id: randomUUID(),
+    executionDelegationId: randomUUID(), configDigest: 'a'.repeat(64), state: 'succeeded', createdRevision: 3, version: 3 }) : undefined
   const page = deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
     limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } })
   h.connection.mockImplementation(async (action) => {
     if (action.kind === 'delivery-read') return { generation: 1, delivery: { ...page } }
     if (action.kind === 'delivery-command') {
       const command = deliveryCommandSchema.parse(action.request)
-      if (command.kind === 'publish-artifact') page.artifacts.push({ ...selector, runId: run.id,
+      if (command.kind === 'publish-artifact') page.artifacts.push({ ...selector, runId: run?.id ?? null,
         id: brandString(randomUUID()), employeeId: a.assigneeId, kind: command.artifactKind,
         path: command.path, mediaType: command.mediaType, description: command.description,
         size: command.size, sha256: command.sha256, createdRevision: 4 })
@@ -164,7 +163,7 @@ it('requires a separate completion confirmation after artifact upload', async ()
   await waitFor(() => {
     const writes = h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command').map(([action]) => action.request)
     expect(writes).toHaveLength(2)
-    expect(writes[1]).toMatchObject({ kind: 'submit-delivery', runId: run.id, artifactIds: [page.artifacts[0]?.id],
+    expect(writes[1]).toMatchObject({ kind: 'submit-delivery', runId: run?.id ?? null, artifactIds: [page.artifacts[0]?.id],
       summary: 'Completed and checked', target: 'Project report', confirmed: true })
   })
 })
@@ -199,6 +198,8 @@ it.each(['pending', 'cancelled', 'expired'] as const)('gates submission for a st
     return base(action)
   })
   render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current section="delivery" />)
+  const runSelect = await screen.findByLabelText(zh.executionRun)
+  if (runSelect) fireEvent.change(runSelect, { target: { value: runId } })
   fireEvent.click(await screen.findByRole('checkbox', { name: 'report.txt' }))
   fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
   fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
@@ -218,11 +219,11 @@ function fixture(approved: boolean, admin = false) {
     artifacts: [], required: true, dependsOn: [], suggestedMembershipId: memberId, assignable: true, hasUndisclosedPrerequisite: false }],
   total: 1, offset: 0, revision: 1, cursor: 'cursor' }).items[0]!
   const id = randomUUID()
-  const prep = preparationSchema.parse({ serverTime: 100, delegationMaxBudget: 100, delegationMaxDurationMs: 3600000,
+  const prep = preparationSchema.parse({ serverTime: 100,
     assignment: { id, organizationId, projectId, planId: task.planId, taskId: task.id, planRevision: 1,
       approvedBy: randomUUID(), assigneeId: memberId, state: 'pending', reason: null, createdAt: 1, createdRevision: 2, version: 2 },
     request: { id: randomUUID(), assignmentId: id, kind: 'accept-assignment', state: 'pending', expiresAt: null, answeredRevision: null },
-    delegations: [], lease: null })
+  })
   const history = taskAssignmentsPageSchema.parse({ items: approved ? [prep.assignment] : [], total: approved ? 1 : 0, offset: 0, revision: 2, cursor: 'cursor' })
   const item = { assignment: prep.assignment, request: prep.request, notificationId: brandString<import('@deepseek-ai/dsh-organization').OrganizationNotificationId>(randomUUID()), readAt: null }
   let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
@@ -233,7 +234,6 @@ function fixture(approved: boolean, admin = false) {
     if (action.kind === 'assignment-review') return reply({ kind: 'review', value: { planRevision: task.revision, assigneeId: memberId, canAssign: true } })
     if (action.kind === 'assignment-tasks') return reply({ kind: 'tasks', value: history })
     if (action.kind === 'assignment-preparation') return reply({ kind: 'preparation', value: prep })
-    if (action.kind === 'device-read') return reply({ kind: 'device', value: null })
     if (action.kind === 'assignment-inbox') return reply({ kind: 'inbox', value: { items: [item], total: 1, unread: 1, offset: 0, revision: 2, cursor: brandString('cursor') } })
     if (action.kind === 'assignment-participant') {
       const input = action.request as { kind: string }
@@ -270,12 +270,12 @@ it('accepts without delegating or claiming and hides old details when offline', 
   const h = fixture(true)
   const view = render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
   fireEvent.click(await screen.findByRole('button', { name: zh.acceptAssignment }))
-  await screen.findByRole('button', { name: zh.registerDevice })
+  await screen.findByText(zh.taskExecutionReady)
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-delegate' || action.kind === 'lease-claim')).toBe(false)
   expect(screen.getByText(zh.preparationOnly)).toBeTruthy()
   h.offline(); view.rerender(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current={false} />)
   expect(screen.queryByText(h.prep.assignment.approvedBy)).toBeNull()
-  expect(screen.queryByRole('button', { name: zh.registerDevice })).toBeNull()
+  expect(screen.queryByText(zh.taskExecutionReady)).toBeNull()
   expect(screen.getByRole('status').textContent).toBe(zh.qualificationRecheck)
 })
 it('reads pending task actions without answering or acknowledging notifications', async () => {
@@ -314,17 +314,9 @@ it('lets an ordinary leader confirm dispatch without separate permission command
 
 it('selects native Codex without endpoint or file-tool controls and retains the exact failed grant draft', async () => {
   const h = fixture(true), base = h.connection.getMockImplementation()!
-  const deviceId = brandString<import('@deepseek-ai/dsh-organization').OrganizationDeviceId>(randomUUID())
-  const delegationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationDelegationId>(randomUUID())
   const executionDelegationId = brandString<import('@deepseek-ai/dsh-organization').OrganizationExecutionDelegationId>(randomUUID())
   const runId = brandString<import('@deepseek-ai/dsh-organization').OrganizationRunId>(randomUUID())
   h.prep.assignment.state = 'accepted'
-  const prepared = preparationSchema.parse({ ...h.prep, delegations: [{
-    id: delegationId, assignmentId: h.prep.assignment.id, planRevision: 1,
-    membershipId: h.prep.assignment.assigneeId, deviceId, executorId: 'desktop-builtin', capabilities: ['task-read'], budget: 3,
-    expiresAt: 100000, state: 'active', createdRevision: 3, version: 3 }], lease: { assignmentId: h.prep.assignment.id, delegationId, deviceId, fencingEpoch: 1,
-    serverEpoch: randomUUID(), expiresAt: 100000, state: 'held', createdRevision: 3, version: 3 } })
-  h.prep.delegations = prepared.delegations; h.prep.lease = prepared.lease
   const openCodexSettings = vi.fn()
   h.props.openCodexSettings = openCodexSettings
   h.props.loadModels = vi.fn<NonNullable<OrganizationProps['loadModels']>>(async () => ({ default: { provider: 'codex', model: 'native-model' }, routableProviders: ['codex'],
@@ -332,7 +324,7 @@ it('selects native Codex without endpoint or file-tool controls and retains the 
       reasoning: { efforts: [{ id: 'medium', name: 'medium' }], defaultEffort: 'medium' } }] }], failures: [] }))
   const nativeCommand = (request: unknown) => {
     if (typeof request !== 'object' || request === null) throw new Error('invalid native command')
-    return executionCommandSchema.parse({ ...request, deviceId })
+    return executionCommandSchema.parse(request)
   }
   let fail = true
   h.connection.mockImplementation(async (action) => {
@@ -395,7 +387,7 @@ it('uses the same explicit acceptance and execution controls inside a conversati
   expect(screen.getByRole('tab', { name: zh.taskIntegrationTab })).toBeTruthy()
   expect(h.connection.mock.calls.every(([a]) => !['assignment-participant', 'execution-command', 'lease-claim', 'assignment-delegate'].includes(a.kind))).toBe(true)
   fireEvent.click(accept)
-  await screen.findByRole('button', { name: zh.registerDevice })
+  await screen.findByText(zh.taskExecutionReady)
   expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-participant')).toHaveLength(1)
   expect(h.props.execution).not.toHaveBeenCalled()
 })

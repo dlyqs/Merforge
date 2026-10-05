@@ -302,7 +302,7 @@ it('holds a write for exact employee approval and consumes it once after explici
   expect(await readFile(join(h.directory, 'approved.txt'), 'utf8')).toBe('approved bytes')
   expect((await h.remote.read()).actions.filter(a => a.approvalId === request.id)).toHaveLength(1)
 })
-it('settles durable historical evidence after lease loss without reactivating the old Run', async () => {
+it('settles durable historical evidence after assignment revocation without reactivating the old Run', async () => {
   const h = await setup()
   const bridge: ExecutionBridge = async (command) => {
     if (command?.kind === 'settle-action' && (await h.remote.read()).actions.find(a => a.actionId === command.actionId)?.capability === 'fs-write') throw new Error('reply-lost')
@@ -311,7 +311,8 @@ it('settles durable historical evidence after lease loss without reactivating th
   await expect(h.service.execute(h.request, bridge, { adapter: new MockAdapter([
     toolCallResponse('write', 'write_file', { path: 'historical.txt', content: 'observed' }),
   ]), directory: h.directory }, signal())).rejects.toThrow()
-  h.remote.db.prepare("UPDATE assignment_leases SET state='released'").run()
+  await h.remote.service.assignmentCommand(h.remote.owner.token, { ...h.remote.selector, kind: 'revoke-assignment',
+    operationId: randomUUID(), expectedVersion: h.remote.db.prepare('SELECT version FROM task_assignments WHERE id=?').get(h.remote.selector.assignmentId!)?.version })
   const request = { ...await recovery(h), start: false, reconcile: true }
   await h.service.reconcile(request, h.bridge, signal())
   const view = await h.remote.read()

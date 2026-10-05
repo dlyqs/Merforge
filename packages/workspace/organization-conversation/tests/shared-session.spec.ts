@@ -19,6 +19,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
 import * as Method from '@deepseek-ai/dsh-skill-dev-workflow'
 import Conversation, { conversationAuthoritySchema, conversationRequestSchema } from '../src/index.ts'
+import { assignmentSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { planningPlanViewSchema } from '@deepseek-ai/dsh-organization/planning'
 import { conversationNativeMessageSchema } from '../src/protocol.ts'
 import { installOrganizationConversationControl } from '../../../../apps/desktop-host/src/organization-conversation.ts'
@@ -36,7 +37,7 @@ import { organizationConversation } from '../../../../apps/desktop/src/organizat
 import { conversationAuthorizationError } from '../src/protocol.ts'
 
 async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved?: { root: string; request: ConversationRequest; authority: ConversationAuthority }, peer?: Awaited<ReturnType<typeof nativeFixture>>['peer'], projectless = false,
-  native?: { connection: OrganizationConnection; request: ConversationRequest }) {
+  native?: { connection: OrganizationConnection; request: ConversationRequest }, assignment?: NonNullable<ConversationAuthority['assignment']>) {
   const root = saved?.root ?? await mkdtemp(join(tmpdir(), 'organization-common-session-'))
   const model = new MockAdapter(script)
   const extras = [
@@ -63,8 +64,11 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0], saved
   const errors: unknown[] = []
   ctx.on('agent/error', ({ error }) => { errors.push(error) })
   const request = native?.request ?? saved?.request ?? conversationRequestSchema.parse({ kind: 'attach', organizationId: randomUUID(), ...(projectless ? {} : { projectId: randomUUID() }),
-    conversationId: randomUUID(), operationId: randomUUID() })
+    conversationId: assignment?.id ?? randomUUID(), operationId: randomUUID(),
+    ...(assignment ? { organizationId: assignment.organizationId, projectId: assignment.projectId,
+      assignment: { planId: assignment.planId, assignmentId: assignment.id } } : {}) })
   const authority = saved?.authority ?? conversationAuthoritySchema.parse({ serverId: randomUUID(), accountId: randomUUID(), generation: 1,
+    ...(assignment ? { assignment } : {}),
     view: { ...(projectless ? {} : { project: { id: request.projectId, organizationId: request.organizationId, name: 'Team project', version: 1 } }),
       grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
       policy: { models: [{ model: 'legacy', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000,
@@ -558,3 +562,43 @@ it('records current project context in each ordinary conversation input and obse
     expect(inputs.map(event => event.data.authority.view.project?.background)).toEqual(['Shared product background', 'Updated project background'])
   } finally { await h.close() }
 })
+
+it('waits for employee acceptance and an explicit prompt before using the ordinary Agent', async () => {
+  const assignment = assignmentSchema.parse({ id: randomUUID(), organizationId: randomUUID(), projectId: randomUUID(),
+    planId: randomUUID(), taskId: randomUUID(), planRevision: 1, approvedBy: randomUUID(), assigneeId: randomUUID(),
+    state: 'pending', reason: null, createdAt: 0, createdRevision: 1, version: 1 })
+  const h = await setup([toolCallResponse('action', 'local_action', {}), textResponse('Employee report ready')],
+    undefined, undefined, false, undefined, assignment)
+  try {
+    const phaseId = randomUUID()
+    h.setPlan(planningPlanViewSchema.parse({ version: { planId: assignment.planId, organizationId: assignment.organizationId,
+      projectId: assignment.projectId, revision: 1, createdBy: assignment.approvedBy, createdAt: 0,
+      definition: { taskId: assignment.taskId, phases: [{ id: phaseId, title: 'Report' }], tasks: [{ id: assignment.taskId,
+        phaseId, parentTaskId: null, goal: 'Prepare the employee report', scope: 'Report only', acceptance: ['Reviewed totals'],
+        artifacts: ['Report'], dependsOn: [], required: true, suggestedMembershipId: null }] } },
+    canEdit: false, sharedContext: '', structuralEdit: false, invalidatesQualifications: true, requiresOriginalApproval: true }))
+    const attached = await h.attach(), id = attached.report.sharedSessionId!, execute = vi.fn(() => 'Report')
+    h.ctx.tools.register(defineTool({ name: 'local_action', description: 'Prepare report', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, text) => [{ type: 'text', text }] }, execute }))
+    expect(h.model.requests).toHaveLength(0)
+    await h.send(id, 'Start the pending task')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors.map(String).join(' ')).toContain('assignment-not-accepted')
+    expect(h.model.requests).toHaveLength(0)
+    expect(execute).not.toHaveBeenCalled()
+    h.authority.assignment!.state = 'accepted'
+    expect(h.model.requests).toHaveLength(0)
+    h.errors.length = 0
+    await h.send(id, 'Execute the accepted task')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors).toEqual([])
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(h.model.requests).toHaveLength(2)
+    h.authority.assignment!.state = 'revoked'
+    await h.send(id, 'Continue the revoked task')
+    await h.ctx.agents.get(id)!.whenIdle()
+    expect(h.errors.map(String).join(' ')).toContain('assignment-not-accepted')
+    expect(h.model.requests).toHaveLength(2)
+    attached.lifetime.abort(); await attached.done
+  } finally { await h.close() }
+}, 30000)

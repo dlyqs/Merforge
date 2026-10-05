@@ -68,8 +68,10 @@ it('blocks unresolved actions, wrong Run artifacts, stale revisions and revoked 
   await expect(h.submit(artifactId)).rejects.toMatchObject({ code: 'version-conflict' })
   await expect(h.submit(artifactId, { confirmed: false })).rejects.toMatchObject({ code: 'invalid-input' })
   await expect(h.service.deliveryCommand(h.owner.token, h.upload)).rejects.toMatchObject({ code: 'forbidden' })
-  await h.service.grantTask(h.owner.token, { ...h.query, taskId: h.save.definition.taskId, membershipId: h.other.membershipId,
-    scope: 'node', actions: [], expectedVersion: h.taskGrant.revision, operationId: operationId() })
+  for (const grant of h.db.prepare('SELECT * FROM task_grants WHERE planId=? AND taskId=? AND membershipId=?').all(h.query.planId, h.save.definition.taskId, h.other.membershipId!)) {
+    await h.service.grantTask(h.owner.token, { ...h.query, taskId: h.save.definition.taskId, membershipId: h.other.membershipId,
+      scope: grant.scope, actions: [], expectedVersion: grant.version, operationId: operationId() })
+  }
   await expect(h.service.downloadArtifact(h.other.token, { ...h.selector, artifactId }, () => {})).rejects.toMatchObject({ code: 'forbidden' })
   await expect(h.publish()).rejects.toMatchObject({ code: 'forbidden' })
   await expect(h.service.readDelivery(h.other.token, h.selector, () => {})).rejects.toMatchObject({ code: 'forbidden' })
@@ -113,7 +115,7 @@ it('validates Git baselines and byte hashes, and migrates the delivery tables fr
   expect(empty.db.prepare("SELECT name FROM sqlite_master WHERE name='organization_artifacts'").get()).toBeUndefined()
   empty.db.exec('DROP TABLE organization_submissions')
   const upgraded = openOrganizationDatabase(empty.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(20)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
   upgraded.close()
 }, 15000)
 

@@ -45,7 +45,7 @@ export interface RuntimeLimits {
 /**
  * Execute one explicitly selected bounded interval in a fresh, isolated composition.
  * @param binding - Durable original task and employee configuration.
- * @param authority - Current identity and lease proof.
+ * @param authority - Current employee identity and task authority.
  * @param bridge - Correlated private native command/read channel.
  * @param adapter - Deployment-owned model adapter; never a personal Agent or preset.
  * @param root - Dedicated organization JSONL directory.

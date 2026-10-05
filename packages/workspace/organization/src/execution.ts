@@ -6,13 +6,10 @@ import type { z } from 'zod'
 import { membershipSchema, accountSchema } from './schema.ts'
 import { OrganizationError } from './error.ts'
 import { selectedAssignment, assignmentInvalidation, authorizeAssignmentRead } from './assignment.ts'
-import { authorizeParticipant, parseDelegation } from './assignment-participant.ts'
-import { ownedDevice } from './device.ts'
-import { leaseSchema } from './device-schema.ts'
+import { authorizeParticipant } from './assignment-participant.ts'
 import { executionHumanSchema } from './execution-human-schema.ts'
 import { executionRunSchema, executionDelegationSchema, executionActionSchema, type executionCommandSchema, type executionReadSchema } from './execution-schema.ts'
 import type { Principal } from './types.ts'
-import type { OrganizationServerEpoch } from './device-types.ts'
 import type { OrganizationExecutionReceipt, OrganizationExecutionView } from './execution-types.ts'
 
 type Command = z.output<typeof executionCommandSchema>
@@ -28,56 +25,42 @@ function save(db: DatabaseSync, table: string, id: string, data: object): void {
 }
 function grant(db: DatabaseSync, command: Exclude<Command, { kind: 'grant-execution' }>) {
   const d = read(db, 'execution_delegations', command.executionDelegationId, executionDelegationSchema)
-  if (d.assignmentId !== command.assignmentId || d.deviceId !== command.deviceId || d.planRevision !== command.planRevision) throw new OrganizationError('forbidden')
+  if (d.assignmentId !== command.assignmentId || d.planRevision !== command.planRevision) throw new OrganizationError('forbidden')
   return d
 }
 function qualify(db: DatabaseSync, principal: Principal, d: z.output<typeof executionDelegationSchema>) {
   const a = selectedAssignment(db, d)
   authorizeParticipant(db, principal, a)
-  ownedDevice(db, principal, d.deviceId)
-  const prep = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(d.delegationId))
   if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== d.planRevision
-    || d.state !== 'active' || d.expiresAt <= Date.now() || prep.state !== 'active' || prep.expiresAt <= Date.now()) fail()
+    || d.state !== 'active' || d.expiresAt <= Date.now()) fail()
   requireDependencies(db, principal, { organizationId: a.organizationId, projectId: a.projectId,
     planId: a.planId, taskId: a.taskId, planRevision: a.planRevision })
   return a
 }
-function owner(db: DatabaseSync, principal: Principal, d: z.output<typeof executionDelegationSchema>,
-  c: { serverEpoch: OrganizationServerEpoch; fencingEpoch: number }, epoch: OrganizationServerEpoch) {
-  qualify(db, principal, d)
-  const row = db.prepare('SELECT * FROM assignment_leases WHERE assignmentId=? AND fencingEpoch=?').get(d.assignmentId, c.fencingEpoch)
-  if (!row) return fail()
-  const lease = leaseSchema.parse(row)
-  if (lease.state !== 'held' || lease.expiresAt <= Date.now() || lease.serverEpoch !== epoch || c.serverEpoch !== epoch
-    || lease.deviceId !== d.deviceId || lease.delegationId !== d.delegationId) fail()
-  return lease
+function owner(db: DatabaseSync, principal: Principal, d: z.output<typeof executionDelegationSchema>) {
+  return qualify(db, principal, d)
 }
 /**
- * Apply a signed execution command inside the authority receipt transaction.
+ * Apply an authenticated execution command inside the authority receipt transaction.
  * @param db - Authority transaction.
  * @param principal - Fresh authenticated employee.
- * @param c - Strict signed command.
+ * @param c - Strict execution command.
  * @param revision - Mutation audit position.
- * @param epoch - Current service activation.
  * @param limits - Validated execution limits.
  * @returns Stable identities, never a reusable authorization.
  */
-export function changeExecution(db: DatabaseSync, principal: Principal, c: Command, revision: number, epoch: OrganizationServerEpoch,
-  limits: { actionPermitTtlMs: number; delegationMaxBudget: number; delegationMaxDurationMs: number; executionCodex: OrganizationExecutionView['codexPolicy'] }): OrganizationExecutionReceipt {
+export function changeExecution(db: DatabaseSync, principal: Principal, c: Command, revision: number,
+  limits: { actionPermitTtlMs: number; executionMaxBudget: number; executionMaxDurationMs: number; executionCodex: OrganizationExecutionView['codexPolicy'] }): OrganizationExecutionReceipt {
   const a = selectedAssignment(db, c)
   authorizeParticipant(db, principal, a)
-  ownedDevice(db, principal, c.deviceId, c.kind !== 'settle-action')
   if (c.kind === 'grant-execution') {
-    const prep = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(c.delegationId))
-    if (prep.assignmentId !== a.id || prep.deviceId !== c.deviceId || prep.membershipId !== principal.membershipId) throw new OrganizationError('forbidden')
-    if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== c.planRevision
-      || prep.state !== 'active' || prep.expiresAt <= Date.now()) fail()
-    if (c.expiresAt <= Date.now() || c.expiresAt > prep.expiresAt || c.expiresAt - Date.now() > limits.delegationMaxDurationMs
-      || c.budget > Math.min(prep.budget, limits.delegationMaxBudget)) throw new OrganizationError('invalid-input')
+    if (a.state !== 'accepted' || assignmentInvalidation(db, a) || a.planRevision !== c.planRevision) fail()
+    if (c.expiresAt <= Date.now() || c.expiresAt - Date.now() > limits.executionMaxDurationMs
+      || c.budget > limits.executionMaxBudget) throw new OrganizationError('invalid-input')
     if (c.backend !== undefined) {
       requireCodexPolicy(c.backend, limits.executionCodex)
       if (c.capabilities.length !== 1 || c.capabilities[0] !== 'codex-turn' || c.budget > c.backend.maxTurns
-        || c.backend.maxDurationMs > limits.delegationMaxDurationMs) throw new OrganizationError('invalid-input')
+        || c.backend.maxDurationMs > limits.executionMaxDurationMs) throw new OrganizationError('invalid-input')
     } else if (c.capabilities.includes('codex-turn')) throw new OrganizationError('invalid-input')
     const { kind: _kind, operationId: _operation, ...fields } = c
     const d = executionDelegationSchema.parse({ ...fields, id: randomUUID(), state: 'active', used: 0, createdRevision: revision, version: revision })
@@ -91,7 +74,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     return { executionDelegationId: d.id }
   }
   if (c.kind === 'create-run') {
-    owner(db, principal, d, c, epoch)
+    owner(db, principal, d)
     if (JSON.stringify(c.backend) !== JSON.stringify(d.backend)) throw new OrganizationError('forbidden')
     if (d.backend !== undefined) requireCodexPolicy(d.backend, limits.executionCodex)
     if (c.configDigest !== d.configDigest) throw new OrganizationError('forbidden')
@@ -102,21 +85,20 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     return { executionDelegationId: d.id, runId: run.id }
   }
   const run = read(db, 'execution_runs', c.runId, executionRunSchema)
-  if (run.assignmentId !== a.id || run.executionDelegationId !== d.id || run.deviceId !== c.deviceId
-    || run.serverEpoch !== c.serverEpoch || run.fencingEpoch !== c.fencingEpoch) throw new OrganizationError('forbidden')
+  if (run.assignmentId !== a.id || run.executionDelegationId !== d.id) throw new OrganizationError('forbidden')
   const result = { executionDelegationId: d.id, runId: run.id }
   if (c.kind === 'settle-action') {
     const action = read(db, 'execution_actions', c.actionId, executionActionSchema)
     if (action.runId !== run.id) throw new OrganizationError('forbidden')
     if (action.state === c.outcome && action.evidenceDigest === c.evidenceDigest) return { ...result, actionId: action.actionId }
     if (action.state !== 'reserved' && !(action.state === 'unknown' && ['succeeded', 'failed', 'not-issued'].includes(c.outcome))) fail()
-    // Historical device evidence never refunds budget or reactivates permission.
+    // Historical action evidence never refunds budget or reactivates permission.
     save(db, 'execution_actions', action.actionId, { ...action, state: c.outcome, evidenceDigest: c.evidenceDigest, version: revision })
     return { ...result, actionId: action.actionId }
   }
   if (c.kind === 'request-execution-human') {
-    owner(db, principal, d, c, epoch)
-    if (run.state !== 'running' || c.expiresAt <= Date.now() || c.expiresAt - Date.now() > limits.delegationMaxDurationMs) fail()
+    owner(db, principal, d)
+    if (run.state !== 'running' || c.expiresAt <= Date.now() || c.expiresAt - Date.now() > limits.executionMaxDurationMs) fail()
     if (![a.assigneeId, a.approvedBy].includes(c.handlerId)
       || (c.requestKind === 'tool-approval' && (c.handlerId !== a.assigneeId || !c.requestDigest))) throw new OrganizationError('forbidden')
     const handler = membershipSchema.parse(db.prepare('SELECT * FROM memberships WHERE id=?').get(c.handlerId))
@@ -132,7 +114,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     return { ...result, requestId: human.id }
   }
   if (c.kind === 'resume-run') {
-    owner(db, principal, d, c, epoch)
+    owner(db, principal, d)
     requireNativeDispatch(db, run, limits.executionCodex)
     if (!['paused', 'waiting-human'].includes(run.state) || d.used >= d.budget
       || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id)
@@ -143,8 +125,8 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   if (c.kind === 'transition-run') {
     if (terminal(run.state)) fail()
     if (run.state === 'waiting-human' && c.state === 'paused') return result
-    // Stopping does not renew ownership; old devices may stop their own historical Run only.
-    if (c.state === 'running') { owner(db, principal, d, c, epoch); requireNativeDispatch(db, run, limits.executionCodex); if (run.state !== 'prepared') fail() }
+    // The employee can stop a historical Run after its execution permission expires.
+    if (c.state === 'running') { owner(db, principal, d); requireNativeDispatch(db, run, limits.executionCodex); if (run.state !== 'prepared') fail() }
     if (['succeeded', 'failed'].includes(c.state) && (run.state !== 'running'
       || db.prepare("SELECT 1 FROM execution_actions WHERE runId=? AND json_extract(data,'$.state') IN ('reserved','unknown')").get(run.id))) fail()
     save(db, 'execution_runs', run.id, { ...run, state: c.state, ...run.backend === undefined ? {} : {
@@ -153,7 +135,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
     }, version: revision })
     return result
   }
-  const lease = owner(db, principal, d, c, epoch)
+  owner(db, principal, d)
   if (run.state !== 'running' || !d.capabilities.includes(c.capability)) fail()
   if ((run.backend !== undefined) !== (c.capability === 'codex-turn')) throw new OrganizationError('forbidden')
   const old = db.prepare('SELECT data FROM execution_actions WHERE id=?').get(c.actionId)
@@ -175,7 +157,7 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
   if (d.used >= d.budget) fail()
   const { kind: _kind, operationId: _operation, ...fields } = c
   const action = executionActionSchema.parse({ ...fields, state: 'reserved', evidenceDigest: null,
-    expiresAt: Math.min(Date.now() + limits.actionPermitTtlMs, lease.expiresAt, d.expiresAt), createdRevision: revision,
+    expiresAt: Math.min(Date.now() + limits.actionPermitTtlMs, d.expiresAt), createdRevision: revision,
     version: revision })
   db.prepare('INSERT INTO execution_actions VALUES (?,?,?)').run(action.actionId, run.id, JSON.stringify(action))
   save(db, 'execution_delegations', d.id, { ...d, used: d.used + 1, version: revision })
@@ -190,13 +172,12 @@ export function changeExecution(db: DatabaseSync, principal: Principal, c: Comma
  * @param db - Authority transaction.
  * @param principal - Current task reader.
  * @param query - Exact Run selector.
- * @param epoch - Current service activation.
  * @param modelPolicy - Current deployment-approved outbound model routes.
  * @param codexPolicy - Current deployment-approved native scheduling limits.
  * @returns Shared metadata only; no full local log.
  */
 export function readExecution(db: DatabaseSync, principal: Principal, query: z.output<typeof executionReadSchema>,
-  epoch: OrganizationServerEpoch, modelPolicy: OrganizationExecutionView['modelPolicy'], codexPolicy: OrganizationExecutionView['codexPolicy']): OrganizationExecutionView {
+  modelPolicy: OrganizationExecutionView['modelPolicy'], codexPolicy: OrganizationExecutionView['codexPolicy']): OrganizationExecutionView {
   const a = selectedAssignment(db, query)
   authorizeAssignmentRead(db, principal, a)
   const run = read(db, 'execution_runs', query.runId, executionRunSchema)
@@ -204,7 +185,7 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
   const delegation = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
   let nativeActive = false
   try {
-    owner(db, principal, delegation, run, epoch)
+    owner(db, principal, delegation)
     if (run.backend !== undefined) {
       requireCodexPolicy(run.backend, codexPolicy)
       nativeActive = run.state === 'running' && run.startedAt != null
@@ -212,7 +193,7 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
     }
   } catch (error) { if (!(error instanceof OrganizationError)) throw error }
   let eligible = false
-  try { owner(db, principal, delegation, run, epoch); requireNativeDispatch(db, run, codexPolicy); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
+  try { owner(db, principal, delegation); requireNativeDispatch(db, run, codexPolicy); eligible = ['prepared', 'running', 'paused', 'waiting-human'].includes(run.state) }
   catch (error) { if (!(error instanceof OrganizationError)) throw error }
   const actions = db.prepare('SELECT data FROM execution_actions WHERE runId=? ORDER BY rowid').all(run.id)
     .map(row => executionActionSchema.parse(JSON.parse(String(row.data))))
@@ -230,17 +211,15 @@ export function readExecution(db: DatabaseSync, principal: Principal, query: z.o
 export function invalidateExecution(db: DatabaseSync, revision: number, restart = false): void {
   for (const row of db.prepare('SELECT data FROM execution_delegations').all()) {
     const d = executionDelegationSchema.parse(JSON.parse(String(row.data)))
-    const prep = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(d.delegationId))
-    if (d.state === 'active' && (prep.state !== 'active' || d.expiresAt <= Date.now())) {
+    if (d.state === 'active' && (selectedAssignment(db, d).state !== 'accepted' || assignmentInvalidation(db, selectedAssignment(db, d)) || d.expiresAt <= Date.now())) {
       save(db, 'execution_delegations', d.id, { ...d, state: d.expiresAt <= Date.now() ? 'expired' : 'invalidated', version: revision })
     }
   }
   for (const row of db.prepare('SELECT data FROM execution_runs').all()) {
     const run = executionRunSchema.parse(JSON.parse(String(row.data)))
     const d = read(db, 'execution_delegations', run.executionDelegationId, executionDelegationSchema)
-    const lease = db.prepare('SELECT state,expiresAt FROM assignment_leases WHERE assignmentId=? AND fencingEpoch=?').get(run.assignmentId, run.fencingEpoch)
     const expired = run.backend !== undefined && run.startedAt != null && Date.now() - run.startedAt >= run.backend.maxDurationMs
-    const lost = restart || expired || d.state !== 'active' || lease?.state !== 'held' || Number(lease.expiresAt) <= Date.now()
+    const lost = restart || expired || d.state !== 'active'
     const stopReason = expired ? 'duration-limit' : 'authority-lost'
     const shouldPause = run.backend === undefined ? ['prepared', 'running'].includes(run.state)
       : !terminal(run.state) && (run.state !== 'paused' || run.stopReason !== stopReason)

@@ -53,7 +53,7 @@ export function DeliveryPanel(props: OrganizationProps & {
   const value = c.phase === 'ready' && c.mode === 'organization' && page?.generation === c.generation ? page.value : undefined
   const mine = c.organizations.find(o => o.id === c.organizationId)?.membershipId === a.assigneeId
   const share = async () => {
-    if (!value || !run || !uploadConfirmed || operationLock.current) return
+    if (!value || !uploadConfirmed || operationLock.current) return
     operationLock.current = true
     setBusy(true); setNotice('')
     try {
@@ -67,7 +67,7 @@ export function DeliveryPanel(props: OrganizationProps & {
         const sha256 = Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('')
         let raw = ''
         for (const byte of new Uint8Array(buffer)) raw += String.fromCharCode(byte)
-        await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run.id, planRevision: run.planRevision,
+        await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run?.id ?? null, planRevision: a.planRevision,
           operationId: selection.operationId, kind: 'publish-artifact', artifactKind: selection.kind, path: selection.file.name,
           description: selection.description, mediaType: selection.file.type || 'application/octet-stream',
           size: buffer.byteLength, sha256, bytes: btoa(raw) } }); current()
@@ -78,14 +78,14 @@ export function DeliveryPanel(props: OrganizationProps & {
     finally { operationLock.current = false; if (alive.current) { setBusy(false); setUploadConfirmed(false) } }
   }
   const submit = async () => {
-    if (!confirmed || !run || !chosen.length || operationLock.current) return
+    if (!confirmed || !chosen.length || operationLock.current) return
     operationLock.current = true
     setNotice('')
     setBusy(true)
     try {
-      const fingerprint = JSON.stringify({ chosen, summary, target, runId: run.id })
+      const fingerprint = JSON.stringify({ chosen, summary, target, runId: run?.id ?? null })
       if (submissionIntent.current?.fingerprint !== fingerprint) submissionIntent.current = { fingerprint, operationId: randomUUID() }
-      await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run.id, planRevision: run.planRevision,
+      await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run?.id ?? null, planRevision: a.planRevision,
         operationId: submissionIntent.current.operationId, kind: 'submit-delivery', artifactIds: chosen, summary, target, confirmed: true } }); current()
       setChosen([]); setNotice(t('deliverySubmitted')); await load()
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
@@ -106,8 +106,8 @@ export function DeliveryPanel(props: OrganizationProps & {
       link.click(); URL.revokeObjectURL(url)
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
   }
-  const stopped = !!run && ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false
-  const runArtifacts = value?.artifacts.filter(file => !run || file.runId === run.id) ?? []
+  const stopped = !run || ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false
+  const runArtifacts = value?.artifacts.filter(file => file.runId === (run?.id ?? null)) ?? []
   const submissions = value?.submissions.filter(submission => !run || submission.runId === run.id) ?? []
   const uploadValid = !!value && selected.length > 0 && selected.length <= value.limits.artifactMaxFiles
     && selected.every(item => item.file.size <= value.limits.artifactMaxFileBytes && item.description.trim())
@@ -115,7 +115,7 @@ export function DeliveryPanel(props: OrganizationProps & {
   return <section className={css.panel} aria-busy={busy}>
     <p className={css.hint}>{t('deliveryHint')}</p>
     {notice && <p className={css.notice} role="status">{notice}</p>}
-    {mine && run && a.state === 'accepted' && value && <>
+    {mine && a.state === 'accepted' && value && <>
       <section className={css.step}>
         <div className={css.stepHeading}><span aria-hidden="true">1</span><h5>{t('taskUploadStep')}</h5></div>
         <p className={css.hint}>{t('deliveryLimits', { count: value.limits.artifactMaxFiles, bytes: value.limits.artifactMaxFileBytes, total: value.limits.artifactMaxTotalBytes })}</p>

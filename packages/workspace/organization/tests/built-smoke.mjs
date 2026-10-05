@@ -5,9 +5,8 @@ import { OrganizationIntegration } from '../../../../apps/desktop/lib/types/orga
 import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { randomUUID, generateKeyPairSync, sign, createHash } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
-import { deviceChallengeText } from '@deepseek-ai/dsh-organization/assignment'
 import { deliveryCommandSchema } from '@deepseek-ai/dsh-organization/delivery'
 import Organization, { createOrganizationToken } from '../lib/index.js'
 
@@ -48,27 +47,13 @@ try {
   const selector = { ...query, assignmentId: approved.assignmentId }
   let inbox
   await ctx.organization.readInbox(login.token, { organizationId: first.organizationId }, value => { inbox = value })
-  const accepted = await ctx.organization.participantCommand(login.token, { ...selector, operationId: randomUUID(),
+  await ctx.organization.participantCommand(login.token, { ...selector, operationId: randomUUID(),
     kind: 'answer-assignment', requestId: inbox.items[0].request.id, expectedVersion: approved.revision, answer: 'accepted' })
-  const pair = generateKeyPairSync('ed25519')
-  const proof = challenge => ({ challengeId: challenge.challengeId,
-    signature: sign(null, Buffer.from(deviceChallengeText(challenge)), pair.privateKey).toString('base64url') })
-  const deviceCommand = async command => ctx.organization.deviceCommand(login.token, command,
-    proof(await ctx.organization.deviceChallenge(login.token, command)))
-  const device = await deviceCommand({ kind: 'register-device', operationId: randomUUID(), organizationId: first.organizationId,
-    publicKey: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), keyGeneration: 1, name: 'Built smoke device' })
-  const delegated = await ctx.organization.participantCommand(login.token, { ...selector, operationId: randomUUID(),
-    kind: 'delegate', expectedVersion: accepted.revision, deviceId: device.deviceId, executorId: 'desktop-builtin',
-    capabilities: ['draft'], budget: 2, expiresAt: Date.now() + 60000 })
-  const { lease } = await deviceCommand({ ...selector, kind: 'claim', operationId: randomUUID(), deviceId: device.deviceId,
-    delegationId: delegated.delegationId })
-  const execute = async command => ctx.organization.executionCommand(login.token, command,
-    proof(await ctx.organization.executionChallenge(login.token, command)))
-  const base = { ...selector, planRevision: 1, deviceId: device.deviceId }
-  const grant = await execute({ ...base, kind: 'grant-execution', operationId: randomUUID(), delegationId: delegated.delegationId,
+  const execute = async command => ctx.organization.executionCommand(login.token, command)
+  const base = { ...selector, planRevision: 1 }
+  const grant = await execute({ ...base, kind: 'grant-execution', operationId: randomUUID(),
     capabilities: ['model'], budget: 2, expiresAt: Date.now() + 30000, configDigest: 'a'.repeat(64) })
-  const owner = { ...base, executionDelegationId: grant.execution.executionDelegationId,
-    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+  const owner = { ...base, executionDelegationId: grant.execution.executionDelegationId }
   const run = await execute({ ...owner, kind: 'create-run', operationId: randomUUID(), configDigest: 'a'.repeat(64) })
   const runId = run.execution.runId
   await execute({ ...owner, runId, kind: 'transition-run', operationId: randomUUID(), state: 'cancelled' })

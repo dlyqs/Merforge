@@ -26,10 +26,10 @@ pnpm exec vitest run --config vitest.e2e.config.ts packages/subagent/codex-runti
 | `ui-settings-models/tests/codex-*.client.spec.*`、`model-setup-onboarding.client.spec.tsx`、导航及相关消费者测试 | 共享 Loader/source、迟到回复和代次裁剪、固定失败诊断、偏好独立写入、跳过及已有用户、API 读取失败仍显示卡片、入口不执行与 Bot 草稿返回 |
 | `codex-runtime/tests/payload.spec.ts`、Desktop runtime/package-set 测试、setup built/packed smoke | 缺包/错误版本拒绝、空 PATH 固定 wrapper、平台 payload 文件保留、生产包闭包与 Electron Node mode；不宣称真实安装已验证 |
 | Desktop `personal-codex.spec.ts` | 一个 Bot/thread 的两轮聊天、显式增强规划、真人批准/选择、原生一次审批、暂停、冷重开、明确恢复与报告；API key 为空，fetch 出站拒绝，内部 stream/prepareCall 为零 |
-| Desktop `organization-execution.spec.ts` | API CSV 及故障回归；Codex 双员工/设备/Host/工作目录、实际 CSV/契约文件、返工新 revision、独立目标核验；员工互相和下发人读取私有转录拒绝 |
+| Desktop `organization-execution.spec.ts` | API CSV 及故障回归；Codex 双员工/Host/工作目录、实际 CSV/契约文件、返工新 revision、独立目标核验；员工互相和下发人读取私有转录拒绝 |
 | `agent-codex/tests/bridge.spec.ts`、`projection.spec.ts` | 单 writer、未发布输入、未知回执、重开不重放、目录/模型冲突、工具-only 完成、无登录、人工答复撤销、能力拒绝与持久字段验证 |
 | `codex-runtime/tests` | 固定 schema、握手/线程准备失败、恢复历史串流、重复旧终态、EOF/崩溃、取消超时、未知 RPC、回调超时与身份复用、独立清理结果 |
-| `organization/tests/execution-codex.spec.ts`、`organization-execution/tests/codex.spec.ts` | 策略默认关闭、选择/权限/设备/租约/累计 turn 与时长、撤权停止、私人日志关联及原生结果核对；API Run 不转换 |
+| `organization/tests/execution-codex.spec.ts`、`organization-execution/tests/codex.spec.ts` | 策略默认关闭、选择/权限/已接受分配/累计 turn 与时长、撤权停止、私人日志关联及原生结果核对；API Run 不转换 |
 | `subagent-codex/tests/subagent-codex.spec.ts` | 原有 ephemeral one-shot、终态/最终文本、取消、协议故障及安全诊断 |
 
 计划 Phase 9–10 记录实际命令和失败基线；覆盖索引不表示每次执行全部文件。7C 当前尚未实现，关闭强拆后的自然目标、自动建树与对话内分配组合未运行。
@@ -59,8 +59,8 @@ macOS arm64、macOS x64 与 Windows x64 分开记录结果。使用独立 OS 测
 | 5 关闭与重开 | 等待期间关闭设置再打开；另在独立尝试关闭 owner 窗口或重启 Host | 关闭卡片不取消同一尝试；owner 销毁/Host 断连清除 grant 并清理进程；新 Host 不恢复旧代码或自动开始 |
 | 6 成功复核 | 完成官网验证，观察卡片与个人/Bot/组织模型目录；重开 Desktop 并检测 | 成功后独立重读 account 和 model；实际原生认证能持久复用，已有认证不重复开始登录；需要用户显式选择模型/effort |
 | 7 状态负例 | 使用合法的无需认证配置、无可用模型账号，以及发行副本缺包/错误版本 | `requiresOpenaiAuth=false` 不提示必须登录；认证就绪但空模型单独显示；缺包/版本错误明确失败，不自动安装或使用全局 CLI |
-| 8 来源返回 | 从个人模型菜单失败、带未保存草稿的 Bot 编辑器、组织执行失败分别进入接入；关闭后返回 | 均进入同一卡片；Bot 草稿和设置来源 section 保留；导航本身不保存模型/Bot、不领取/开始 Run；设置中的 API 草稿切换后仍保留 |
-| 9 实际使用 | 选择真实 Codex model/effort，按下节完成两轮对话；再使用原 API 后端 | 两轮上下文和流式结果正确，API 继续可用；登录不改 API 默认值；组织仍需原有任务/设备/委托资格才能显式运行 |
+| 8 来源返回 | 从个人模型菜单失败、带未保存草稿的 Bot 编辑器、组织执行失败分别进入接入；关闭后返回 | 均进入同一卡片；Bot 草稿和设置来源 section 保留；导航本身不保存模型/Bot、不开始 Run；设置中的 API 草稿切换后仍保留 |
+| 9 实际使用 | 选择真实 Codex model/effort，按下节完成两轮对话；再使用原 API 后端 | 两轮上下文和流式结果正确，API 继续可用；登录不改 API 默认值；组织员工接受任务后主动运行；高级 Run 另核验其执行设置 |
 | 10 安装体验证 | 在每个平台安装后重复启动、登录、取消、冷重开，并观察进程树退出 | 目标 payload 与独立 Electron Node executable 均在安装体，签名/版本正确；Windows 无控制台闪现及遗留所属后代；另一架构结果不能代替本架构 |
 
 布局、长错误文案、键盘焦点、复制反馈和官网返回由用户可见验收。保存脱敏状态截图、文件 hash 与步骤结果；验证码、认证 URL、token、邮箱、home/绝对认证路径和 Bot 草稿不进入共享证据。应用没有退出/切换原生账号功能，账号策略与额度仅以真实原生行为判断。这些实际账号、可见和安装体场景当前均为待验。
@@ -92,19 +92,19 @@ macOS arm64、macOS x64 与 Windows x64 分开记录结果。使用独立 OS 测
 
 | 步骤 | 操作 | 必须核对 |
 | --- | --- | --- |
-| 1 准入 | A 给成员准确任务 read，批准责任人；B/C 明确接受、登记设备、准备有限委托并领取 | 已读、接受、领取、执行许可分开；不同成员不共享原生账号/凭据 |
-| 2 原生执行委托 | 策略显式开启固定 runtime/model/effort，分别选 Codex、目录、材料、turn/时长限额 | 不输入 API endpoint/key；未允许模型、未接受、过期租约、非本人设备或不同 revision 拒绝派发 |
+| 1 准入 | A 正式分配并原子授予任务访问；B/C 明确接受后等待主动执行 | 打开与接受不执行；无需设备登记、准备授权或领取；不同成员不共享原生账号/凭据 |
+| 2 可选高级执行设置 | 策略显式开启固定 runtime/model/effort，分别选 Codex、目录、材料、turn/时长限额 | 不输入 API endpoint/key；未允许模型、未接受、执行设置过期、非本人分配或不同 revision 拒绝派发 |
 | 3 人工等待与重开 | B 开始 CSV，触发列名提问或一次审批；A/B 按指定处理人答复，B 冷重开后明确继续 | Inbox 持久；答复本身不运行；旧问题/旧身份/旧审批不能重用；恢复核对相同目录与 thread |
 | 4 隔离 | C 开始另一叶子；A/B/C 查看共享 Run，再尝试读取对方私人转录 | 共享历史无私人输入、原生历史、token/email/绝对目录；私人转录仅所属员工当前任务访问可读 |
-| 5 交付与返工 | B 上传并正式提交，A 下载核对并驳回要求增加 Bob/转义；新版重新批准、接受、委托、领取、执行、提交和验收 | completed 不自动上传/提交/验收；旧 Run 和旧资格不支持新版；返工证据不可变且可追溯 |
+| 5 交付与返工 | B 上传并正式提交，A 下载核对并驳回要求增加 Bob/转义；新版重新分配、接受、主动执行、提交和验收 | completed 不自动上传/提交/验收；旧 Run 和旧资格不支持新版；返工证据不可变且可追溯 |
 | 6 另一成员与集成 | C 提交列契约，A 验收两项；A 下载到独立 Git 目录、核验后明确确认父任务 | 任一必要成果未验收不能交付；确认前重读，变化记录拒绝；C 无权验收 B，管理员不能替原下发人确认 |
-| 7 撤权与失联 | 长回合期间撤销 read/租约，或 B 休眠/退出身份/断线；再尝试继续和读取 | 停止并等待所属进程；禁止新派发与旧转录访问；已在途副作用不承诺回滚 |
+| 7 撤权与失联 | 长回合期间撤销任务访问或分配，或 B 休眠/退出身份/断线；再尝试继续和读取 | 停止并等待所属进程；禁止新派发与旧转录访问；已在途副作用不承诺回滚 |
 | 8 限额与故障 | 耗尽 turn/总时长，关闭服务再恢复，检查 unknown 和原生回执 | 最后已准入回合可以结算；继续不重置预算；未知副作用不自动重放；不切到 API 模型 |
 
 实际成果由验收人独立读取；这属于真人验收，不是 Merforge 监督 Codex。组织 Run 转录与个人 Session corpus 分离，私人搜索/上传不能绕过命名空间和组织当前访问检查。平台、真实模型、三机和可见检查尚未执行，不能以确定性组合或 build 标记为通过。
 
 ## 保存验收结果
 
-每个平台和每个场景单独记录日期、安装版本/目标架构、固定 runtime 版本、安全账户类别、catalog model/effort、场景步骤、实际输出/终态、取消/重开结果与通过/失败/未运行。组织证据额外记录准确 plan revision、Run、设备租约、提交/验收/最终确认回执。保存用户可审阅的脱敏截图或文件 hash，避免 token、邮箱、私人全文及绝对目录进入共享报告。
+每个平台和每个场景单独记录日期、安装版本/目标架构、固定 runtime 版本、安全账户类别、catalog model/effort、场景步骤、实际输出/终态、取消/重开结果与通过/失败/未运行。组织证据额外记录准确 plan revision、assignment、可选 Run、提交/验收/最终确认回执。保存用户可审阅的脱敏截图或文件 hash，避免 token、邮箱、私人全文及绝对目录进入共享报告。
 
 签名/安装、真实 Codex、Windows、可见与三机的未运行项继续保留待验。7C 完成后另补自然目标与对话内分配到 Codex 的组合，不能以本剧本的工作台步骤代替。

@@ -1,7 +1,7 @@
 import { OrganizationIntegration } from '../../../../apps/desktop/src/organization-integration.ts'
 import { execFileSync } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
-/** Real private Loader, HTTPS and native device owner; only the OS vault is substituted. */
+/** Real private Loader and account-owned HTTPS task operations; only the OS vault is substituted. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -26,7 +26,7 @@ const vault = { isEncryptionAvailable: () => true, getSelectedStorageBackend: ()
 async function setup(native = false) {
   const root = await mkdtemp(join(tmpdir(), 'native-assignment-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
-  const app = await bootOrganization({ api: { directory: join(root, 'server'), host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 }, authority: { leaseTtlMs: 2000, ...native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: 'native-test', efforts: ['medium'], maxTurns: 2, maxDurationMs: 10000 }] } : {} } })
+  const app = await bootOrganization({ api: { directory: join(root, 'server'), host: '127.0.0.1', port: 0, names: ['127.0.0.1'], eventPollMs: 20 }, authority: { ...native ? { executionCodex: [{ runtimeVersion: '0.153.4', model: 'native-test', efforts: ['medium'], maxTurns: 2, maxDurationMs: 10000 }] } : {} } })
   cleanup.push(app.close)
   const init = await app.authority.initialize({ operationId: randomUUID(), username: 'owner', password,
     organizationName: 'Team', recoveryToken: randomBytes(32).toString('base64url') })
@@ -47,7 +47,7 @@ async function setup(native = false) {
       goal: 'Prepare report', scope: 'Bounded report', acceptance: ['Reviewable draft'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null }] } })
   await app.authority.grantTask(ownerLogin.token, { ...query, taskId, membershipId: employee.membershipId, scope: 'node', actions: ['read'], expectedVersion: 0, operationId: randomUUID() })
   const connect = async (username: string, machine: string) => {
-    const connection = new OrganizationConnection({ trustPath: join(root, `${machine}.json`), reconnectMs: 100 }, { directory: join(root, machine), vault })
+    const connection = new OrganizationConnection({ trustPath: join(root, `${machine}.json`), reconnectMs: 100 }, { vault })
     cleanup.push(() => connection.close())
     await connection.perform({ kind: 'probe', origin: `https://127.0.0.1:${app.ready.port}` })
     await connection.perform({ kind: 'trust', fingerprint: app.ready.fingerprint })
@@ -69,97 +69,24 @@ function preparation(result: ConnectionResult) {
   if (result.assignment?.result.kind !== 'preparation') throw new Error('missing preparation')
   return result.assignment.result.value
 }
-async function acceptAndDelegate(h: Awaited<ReturnType<typeof setup>>) {
+async function acceptAssignment(h: Awaited<ReturnType<typeof setup>>) {
   const item = h.worker.snapshot().inbox!.items[0]!
   await h.worker.perform({ kind: 'assignment-participant', request: { ...h.selector, kind: 'answer-assignment',
     operationId: randomUUID(), requestId: item.request.id, expectedVersion: item.assignment.version, answer: 'accepted' } })
-  await h.worker.perform({ kind: 'device-register', name: 'Employee computer' })
-  const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
-  const delegated = await h.worker.perform({ kind: 'assignment-delegate', request: { ...h.selector, kind: 'delegate',
-    operationId: randomUUID(), expectedVersion: current.assignment.version, executorId: 'desktop-builtin',
-    capabilities: ['task-read'], budget: 2, durationMs: 60000 } })
-  return { ...h.selector, delegationId: delegated.receipt!.delegationId! }
+  return h.selector
 }
-it('consumes approval, persistent inbox, separate delegation, native claim, renewal and release through HTTPS', async () => {
-  const h = await setup(), claim = await acceptAndDelegate(h)
-  const result = await h.worker.perform({ kind: 'lease-claim', request: claim })
-  expect(result.receipt?.lease?.state).toBe('held')
-  expect(h.worker.snapshot().renewing).toBe(h.selector.assignmentId)
-  await vi.waitFor(async () => {
-    const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
-    expect(current.lease!.version).toBeGreaterThan(result.receipt!.lease!.version)
-  }, { timeout: 5000 })
-  await h.worker.perform({ kind: 'lease-release', request: h.selector })
-  expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease?.state).toBe('released')
-  await vi.waitFor(() =>{  expect(h.owner.snapshot().phase).toBe('ready') })
-  const history = await h.owner.perform({ kind: 'assignment-tasks', request: { ...h.query, taskId: h.taskId } })
-  expect(history.assignment?.result.kind).toBe('tasks')
-  await h.worker.perform({ kind: 'logout' })
-  expect(h.worker.snapshot().inbox).toBeUndefined()
-  expect(h.worker.snapshot().renewing).toBeUndefined()
-})
-it('rejects renderer-selected device identity and stops renewal before sleep', async () => {
-  const h = await setup(), claim = await acceptAndDelegate(h)
-  await expect(h.worker.perform({ kind: 'lease-claim', request: { ...claim, deviceId: randomUUID() } })).rejects.toThrow()
-  await vi.waitFor(async () => {
-    expect(h.owner.snapshot().phase).toBe('ready')
-    expect(preparation(await h.owner.perform({ kind: 'assignment-preparation', request: h.selector })).assignment.state).toBe('accepted')
-  }, { timeout: 5000 })
-  await h.worker.perform({ kind: 'lease-claim', request: claim })
-  h.worker.suspend()
-  expect(h.worker.snapshot().renewing).toBeUndefined()
-  expect(h.worker.snapshot().phase).toBe('offline')
-  await expect(h.worker.perform({ kind: 'lease-check', request: h.selector })).rejects.toThrow('unavailable')
-  await h.worker.perform({ kind: 'reconnect' })
-  expect(h.worker.snapshot().renewing).toBeUndefined()
-  await h.worker.perform({ kind: 'lease-check', request: h.selector })
-  expect(h.worker.snapshot().renewing).toBe(h.selector.assignmentId)
-})
-it('blocks writes after a committed claim loses its reply and reconciles the receipt without reclaiming', async () => {
-  const h = await setup(), claim = await acceptAndDelegate(h)
-  const original = transport.organizationRequest
-  let dropped = false
-  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
-    const response = await original(...args)
-    if (!dropped && args[2] === '/organization/v1/device/command') { dropped = true; throw new Error('reply-lost') }
-    return response
-  })
-  await expect(h.worker.perform({ kind: 'lease-claim', request: claim })).rejects.toThrow('unavailable')
-  await vi.waitFor(() =>{  expect(h.worker.snapshot().phase).toBe('ready') })
-  expect(h.worker.snapshot().pendingOperation).toBeDefined()
-  await expect(h.worker.perform({ kind: 'lease-claim', request: claim })).rejects.toThrow('operation-pending')
-  const reconciled = await h.worker.perform({ kind: 'reconcile' })
-  expect(reconciled.receipt?.lease?.fencingEpoch).toBe(1)
-  expect(h.worker.snapshot().renewing).toBeUndefined()
-  expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease?.fencingEpoch).toBe(1)
-})
-
-it('recovers local registration and revocation material after lost responses', async () => {
-  const h = await setup(), original = transport.organizationRequest
-  let drop = true
-  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
-    const response = await original(...args)
-    if (drop && args[2] === '/organization/v1/device/command') { drop = false; throw new Error('reply-lost') }
-    return response
-  })
-  await expect(h.worker.perform({ kind: 'device-register', name: 'Recoverable computer' })).rejects.toThrow('unavailable')
-  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
-  const registered = await h.worker.perform({ kind: 'reconcile' })
-  const local = await h.worker.perform({ kind: 'device-read' })
-  expect(local.assignment?.result).toMatchObject({ kind: 'device', value: { id: registered.receipt?.deviceId } })
-  drop = true
-  await expect(h.worker.perform({ kind: 'device-revoke', expectedVersion: registered.receipt!.revision })).rejects.toThrow('unavailable')
-  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
-  await h.worker.perform({ kind: 'reconcile' })
-  expect((await h.worker.perform({ kind: 'device-read' })).assignment?.result).toEqual({ kind: 'device', value: null })
-  const replacement = await h.worker.perform({ kind: 'device-register', name: 'Replacement computer' })
-  expect(replacement.receipt?.deviceId).not.toBe(registered.receipt?.deviceId)
-  const login = await h.app.authority.login({ username: 'employee', password })
-  await h.app.authority.deviceCommand(login.token, { kind: 'revoke-device', operationId: randomUUID(),
-    organizationId: h.query.organizationId, deviceId: replacement.receipt!.deviceId, expectedVersion: replacement.receipt!.revision })
-  await h.worker.perform({ kind: 'reconnect' })
-  const rotated = await h.worker.perform({ kind: 'device-register', name: 'Confirmed rotation' })
-  expect(rotated.receipt?.deviceId).not.toBe(replacement.receipt?.deviceId)
+it('accepts assignments through HTTPS without creating device registrations, preparation grants or leases', async () => {
+  const h = await setup()
+  await acceptAssignment(h)
+  expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))).toMatchObject({ assignment: { state: 'accepted' } })
+  const db = new DatabaseSync(join(h.root, 'server', 'organization.sqlite'))
+  try {
+    for (const table of ['organization_devices', 'assignment_delegations', 'assignment_leases']) {
+      expect(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n).toBe(0)
+    }
+  } finally { db.close() }
+  for (const action of [{ kind: 'device-register', name: 'Removed' }, { kind: 'lease-claim', request: h.selector },
+    { kind: 'assignment-delegate', request: h.selector }]) await expect(h.worker.perform(action)).rejects.toThrow()
 })
 it('discards a delayed preparation response after leaving the organization', async () => {
   const h = await setup(), original = transport.organizationRequest
@@ -178,20 +105,18 @@ it('discards a delayed preparation response after leaving the organization', asy
   expect(h.worker.snapshot().inbox).toBeUndefined()
 })
 
-it('retires accepted preparation after a text revision and never revives it after reapproval', async () => {
-  const h = await setup(), claim = await acceptAndDelegate(h)
-  await h.worker.perform({ kind: 'lease-claim', request: claim })
+it('retires an accepted assignment after a text revision and never revives it after reapproval', async () => {
+  const h = await setup()
+  await acceptAssignment(h)
   await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
   const read = await h.owner.perform({ kind: 'workgraph-read', request: h.query })
   if (read.workgraph?.result.kind !== 'plan') throw new Error('missing plan')
   const definition = structuredClone(read.workgraph.result.value.definition)
-  definition.tasks[0]!.scope = 'Revised preparation'
+  definition.tasks[0]!.scope = 'Revised scope'
   await h.owner.perform({ kind: 'workgraph-save', request: { ...h.query, definition, expectedRevision: 1, operationId: randomUUID() } })
   await h.worker.perform({ kind: 'reconnect' })
   const retired = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
   expect(retired.assignment).toMatchObject({ state: 'invalidated', reason: 'revision-changed', planRevision: 1 })
-  expect(retired.lease?.state).toBe('invalidated')
-  await expect(h.worker.perform({ kind: 'lease-claim', request: claim })).rejects.toThrow('version-conflict')
   await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
   const approved = await h.owner.perform({ kind: 'assignment-command', request: { ...h.query,
     kind: 'approve-assignment', taskId: h.taskId, planRevision: 2, assigneeId: h.employee.membershipId, operationId: randomUUID() } })
@@ -200,12 +125,11 @@ it('retires accepted preparation after a text revision and never revives it afte
   expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).assignment.state).toBe('invalidated')
   const fresh = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: { ...h.selector, assignmentId: approved.receipt!.assignmentId } }))
   expect(fresh.assignment.state).toBe('pending')
-  expect(fresh.lease).toBeNull()
 })
 
 it('keeps revoked read authority terminal after granting it again and clears inbox on organization switch', async () => {
-  const h = await setup(), claim = await acceptAndDelegate(h)
-  await h.worker.perform({ kind: 'lease-claim', request: claim })
+  const h = await setup()
+  await acceptAssignment(h)
   const login = await h.app.authority.login({ username: 'owner', password })
   let grants: OrganizationTaskGrant[] = []
   await h.app.authority.readTaskGrants(login.token, h.query, (value) => { grants = value })
@@ -223,62 +147,27 @@ it('keeps revoked read authority terminal after granting it again and clears inb
   await h.worker.perform({ kind: 'reconnect' })
   expect(preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).assignment)
     .toMatchObject({ state: 'invalidated', reason: 'authority-lost' })
-  await expect(h.worker.perform({ kind: 'lease-claim', request: claim })).rejects.toThrow('version-conflict')
   const employeeLogin = await h.app.authority.login({ username: 'employee', password })
   const other = await h.app.authority.execute(employeeLogin.token, { kind: 'create-organization', name: 'Other organization', operationId: randomUUID() })
   await h.worker.perform({ kind: 'reconnect' })
   await h.worker.perform({ kind: 'select', organizationId: other.organizationId })
   expect(h.worker.snapshot().inbox?.total).toBe(0)
-  expect(h.worker.snapshot().renewing).toBeUndefined()
   await expect(h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).rejects.toThrow()
 })
 
-it('uses fixed signed execution actions over HTTPS and preserves preparation-only permissions', async () => {
-  const h = await setup(), delegation = await acceptAndDelegate(h)
-  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
-  const lease = claimed.receipt!.lease!
-  const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
-  expect(current.delegations[0]?.capabilities).toEqual(['task-read'])
-  const base = { ...h.selector, planRevision: 1 }
-  const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
-    delegationId: delegation.delegationId, capabilities: ['model'], budget: 1, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
-  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
-    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
-  const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run',
-    operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
-  const runId = created.receipt!.execution!.runId!
-  const read = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
-  expect(read.execution?.run.state).toBe('prepared'); expect(read.execution?.delegation.used).toBe(0)
-  const channel = h.worker.executionChannel({ ...h.selector, runId })
-  await channel.command(executionCommandSchema.parse({ ...owner, runId, deviceId: lease.deviceId,
-    kind: 'transition-run', state: 'running', operationId: randomUUID() }))
-  await channel.command(executionCommandSchema.parse({ ...owner, runId, deviceId: lease.deviceId,
-    kind: 'reserve-action', operationId: randomUUID(), actionId: randomUUID(), capability: 'model', requestDigest: 'b'.repeat(64) }))
-  await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, runId, kind: 'settle-action',
-    actionId: randomUUID(), outcome: 'succeeded', evidenceDigest: 'c'.repeat(64), operationId: randomUUID() } })).rejects.toThrow('forbidden')
-  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
-  const after = await h.worker.perform({ kind: 'execution-read', request: { ...h.selector, runId } })
-  expect(after.execution?.delegation.used).toBe(1)
-  await expect(h.worker.perform({ kind: 'execution-command', request: { ...owner, deviceId: randomUUID(), runId,
-    kind: 'transition-run', state: 'cancelled', operationId: randomUUID() } })).rejects.toThrow('invalid-input')
-})
-
 async function executionChannelFixture() {
-  const h = await setup(), delegation = await acceptAndDelegate(h)
-  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
-  const lease = claimed.receipt!.lease!
+  const h = await setup()
+  await acceptAssignment(h)
   const current = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector }))
   const base = { ...h.selector, planRevision: 1 }
   const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
-    delegationId: delegation.delegationId, capabilities: ['model'], budget: 2, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
-  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
-    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+    capabilities: ['model'], budget: 2, expiresAt: current.serverTime + 20000, configDigest: 'a'.repeat(64) } })
+  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId }
   const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, kind: 'create-run',
     operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
   const runId = created.receipt!.execution!.runId!
   const channel = h.worker.executionChannel({ ...h.selector, runId })
-  const run = (await channel.read()).run
-  const command = (fields: object) => executionCommandSchema.parse({ ...owner, runId, deviceId: run.deviceId,
+  const command = (fields: object) => executionCommandSchema.parse({ ...owner, runId,
     operationId: randomUUID(), ...fields })
   return { h, channel, command, runId }
 }
@@ -286,12 +175,6 @@ it('keeps Run commands alive across projection refreshes but permanently retires
   const { h, channel, command } = await executionChannelFixture()
   await channel.command(command({ kind: 'transition-run', state: 'running' }))
   await vi.waitFor(() => { expect(h.worker.snapshot().generation).toBeGreaterThan(channel.generation) })
-  expect(channel.signal.aborted).toBe(false)
-  const initial = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease!
-  await vi.waitFor(async () => {
-    const latest = preparation(await h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).lease!
-    expect(latest.version).toBeGreaterThan(initial.version)
-  }, { timeout: 5000 })
   expect(channel.signal.aborted).toBe(false)
   const actionId = randomUUID()
   await channel.command(command({ kind: 'reserve-action', actionId, capability: 'model', requestDigest: 'b'.repeat(64) }))
@@ -355,7 +238,7 @@ it('does not acknowledge native cancellation until the owned Host interval drain
   const rejected = expect(running).rejects.toThrow()
   await entered.promise
   await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
-  const { deviceId: _device, ...request } = command({ kind: 'transition-run', state: 'cancelled' })
+  const request = command({ kind: 'transition-run', state: 'cancelled' })
   let acknowledged = false
   const stopping = h.worker.perform({ kind: 'execution-command', request }).then((result) => { acknowledged = true; return result })
   try {
@@ -385,10 +268,10 @@ it('delivers a durable execution question through HTTPS, keeps replies separate 
   await expect(channel.command(command({ kind: 'resume-run' }))).rejects.toThrow()
 })
 
-it('shares immutable bytes and formal employee submissions over HTTPS, including stopped backup and restore', async () => {
-  const { h, channel, command, runId } = await executionChannelFixture()
-  await channel.command(command({ kind: 'transition-run', state: 'running' }))
-  await channel.command(command({ kind: 'transition-run', state: 'succeeded' }))
+it('shares and approves manual employee work over HTTPS without a Run, including stopped backup and restore', async () => {
+  const h = await setup()
+  await acceptAssignment(h)
+  const runId = null
   const bytes = Buffer.from('name,total\nalpha,42\n')
   const sha256 = createHash('sha256').update(bytes).digest('hex')
   const base = { ...h.selector, runId, planRevision: 1 }
@@ -450,6 +333,7 @@ it('shares immutable bytes and formal employee submissions over HTTPS, including
   const login = await restarted.authority.login({ username: 'owner', password })
   await restarted.authority.downloadArtifact(login.token, { ...h.selector, artifactId }, (value) =>{  expect(value.bytes).toBe(bytes.toString('base64')) })
   await restarted.authority.readDelivery(login.token, h.selector, (value) => {
+    expect(value.submissions[0]?.runId).toBeNull()
     expect(value.submissions[0]?.acceptance?.id).toBe(accepted.receipt!.delivery!.acceptanceId)
   })
   await restarted.authority.readIntegration(login.token, query, (value) => { expect(value.delivered).toBe(true) })
@@ -536,17 +420,15 @@ it('rejects through fixed HTTPS actions, notifies the employee and prevents old 
   expect((await h.owner.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId } })).artifact?.bytes).toBe(bytes.toString('base64'))
 }, 20000)
 
-it('carries native backend grants and scheduling permits through signed HTTPS while retiring the Run channel on identity change', async () => {
-  const h = await setup(true), delegation = await acceptAndDelegate(h)
-  const claimed = await h.worker.perform({ kind: 'lease-claim', request: delegation })
-  const lease = claimed.receipt!.lease!
-  const backend = { kind: 'codex', dispatch: 'device-native', runtimeVersion: '0.153.4', model: 'native-test', effort: 'medium',
+it('carries native backend grants and scheduling permits through authenticated HTTPS while retiring the Run channel on identity change', async () => {
+  const h = await setup(true)
+  await acceptAssignment(h)
+  const backend = { kind: 'codex', dispatch: 'local', runtimeVersion: '0.153.4', model: 'native-test', effort: 'medium',
     maxTurns: 2, maxDurationMs: 10000 }
   const base = { ...h.selector, planRevision: 1 }
   const granted = await h.worker.perform({ kind: 'execution-command', request: { ...base, kind: 'grant-execution', operationId: randomUUID(),
-    delegationId: delegation.delegationId, backend, capabilities: ['codex-turn'], budget: 2, expiresAt: Date.now() + 20000, configDigest: 'a'.repeat(64) } })
-  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId,
-    serverEpoch: lease.serverEpoch, fencingEpoch: lease.fencingEpoch }
+    backend, capabilities: ['codex-turn'], budget: 2, expiresAt: Date.now() + 20000, configDigest: 'a'.repeat(64) } })
+  const owner = { ...base, executionDelegationId: granted.receipt!.execution!.executionDelegationId }
   const created = await h.worker.perform({ kind: 'execution-command', request: { ...owner, backend, kind: 'create-run',
     operationId: randomUUID(), configDigest: 'a'.repeat(64) } })
   const runId = created.receipt!.execution!.runId!
@@ -554,7 +436,7 @@ it('carries native backend grants and scheduling permits through signed HTTPS wh
   const view = await channel.read()
   expect(view.run.backend).toEqual(backend)
   expect(view.codexPolicy).toHaveLength(1)
-  const command = (fields: object) => executionCommandSchema.parse({ ...owner, deviceId: lease.deviceId,
+  const command = (fields: object) => executionCommandSchema.parse({ ...owner,
     runId, operationId: randomUUID(), ...fields })
   await channel.command(command({ kind: 'transition-run', state: 'running' }))
   const actionId = randomUUID()

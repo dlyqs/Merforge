@@ -26,7 +26,7 @@
 
 应用转录记录发送内容、接收输出和原生工具条目，不宣称是完整模型日志。`thread/read` 的 typed items、raw response 与 `instructionSources` 路径不能重建完整请求；这仍是能力事实，但不再阻塞 Codex 接入。`completeModelLog: false` 继续如实声明。Harness API 后端仍保留自身完整请求日志和工具 guard；这些规则不强加到 Codex 内部执行。
 
-组织应用仍复核是否允许向指定设备派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
+组织应用仍复核当前员工是否允许派发/继续该任务、转录访问与真人提交/验收。它不要求禁用 Codex 的原生文件、shell、MCP 或子代理，也不宣称逐内部模型请求许可或原生工具限额。应用 task completed 的管理含义由既有真人流程拥有；原生 `turn/completed` 记录的是 Codex 报告的运行终态。
 
 
 不向 Renderer 或业务消费者开放通用 RPC（Host 底层 transport 仅供协议实现共用）、CustomArgs、PATH fallback、任意二进制路径、除本人在 Desktop 主动开始/取消设备码登录之外的原生认证修改或自动安装。one-shot 保留现有权限模式、ephemeral 单 turn、最终回答选择和安全诊断；共享传输与进程 owner，不扩大其恢复或工具能力。
@@ -42,7 +42,7 @@
 | 完整模型可见日志 | `completeModelLog: false` | 应用只声明桥接转录；不作为准入门槛 |
 | 任务动作与人工请求 | 固定 callback + Loader/真实工具权限/JSONL 回归通过 | 个人任务评估/提案/报告；组织独立 Run、Inbox 等待及显式继续；命令决定可消费一次，文件审批不能复用缺提案的旧 item |
 | steering、fork、图像/附件 | 当前共用 runtime 拒绝 | Host/UI 同步声明不可用 |
-| 组织调度资格 | 显式 policy、codex-turn、SQLite v12 与固定签名传输回归通过 | 准许指定设备启动/继续；独立原生执行与已有任务 UI 已接入 |
+| 组织调度资格 | 显式 policy、codex-turn 执行设置与登录鉴权传输 | 已接受分配的员工主动启动/继续；可选高级原生执行与任务 UI 已接入 |
 
 当前 runtime 只接受 `native` 选择，拒绝旧 `controlled` 与 `organization` mode 标签；组织运行通过独立消费者以 native 模式调用，组织资格由任务管理消费方拥有。关闭全部原生工具、重建全部内部模型请求不属于应用能力。原生账号、模型效果与 macOS/Windows 运行行为仍需实际验证。
 
@@ -97,11 +97,11 @@ resume 前核对登录可用性、runtime、cwd、Project/Bot 归属、应用授
 
 ## 组织调度 policy 与 7C 接口
 
-现有 organization modelPolicy 是 model/endpoint 对，API 执行在 HTTP dispatch 前消费 one-use permit 并禁重定向。Codex 原生执行不能伪造 endpoint 或复用该 permit。当前 `executionCodex` policy 默认关闭，显式原生委托与 Run 保存 backend/runtime/model/effort、device-native 方式及 maxTurns/maxDurationMs，在应用启动/继续派发点复核精确任务版本、read/依赖、接受、委托、device lease 和运行限额；不以内部模型或原生工具动作作为 Merforge 可观测的逐动作许可。
+现有 organization modelPolicy 是 model/endpoint 对，API 执行在 HTTP dispatch 前消费 one-use permit 并禁重定向。Codex 原生执行不能伪造 endpoint 或复用该 permit。当前 `executionCodex` policy 默认关闭，高级执行设置与 Run 保存 backend/runtime/model/effort、local 方式及 maxTurns/maxDurationMs，在应用启动/继续派发点复核精确任务版本、read/依赖、员工接受状态、当前执行设置和运行限额；不以内部模型或原生工具动作作为 Merforge 可观测的逐动作许可。
 
 SQLite v12 只扩展显式原生调度记录，不转换 v11 API Run；固定签名 HTTPS/native/IPC 承载选择而不传凭据。turn-limit 记录应用调度预算耗尽，最后一个在途 turn 仍可结算；duration-limit 和 authority-lost 持久暂停并取消旧人工请求。组织运行桥和已有任务 Desktop 选择已挂载；派发、转录、原生回合核对和 Inbox 在本机独立保存，真人提交/验收仍使用既有固定动作；详见[组织执行协议](organization-execution.md)。
 
-7B 消费显式 personal workflow 和已有组织任务，通过输入派发、结果接收与应用任务管理工具连接现有服务。批准、接受、委托、开始、提交和验收仍由现有真人动作拥有。7C 后续调用相同 backend create/resume/send/cancel/read + capability 接口，不在 loop 内复制组织业务。7B 基础执行桥不依赖 7C 自动识别；完整组织目标对话仍需两者完成。
+7B 消费显式 personal workflow 和已有组织任务，通过输入派发、结果接收与应用任务管理工具连接现有服务。分配、接受、主动执行、提交和验收由真人动作拥有；设备登记、准备授权和领取已移除。7C 后续调用相同 backend create/resume/send/cancel/read + capability 接口，不在 loop 内复制组织业务。7B 基础执行桥不依赖 7C 自动识别；完整组织目标对话仍需两者完成。
 
 7B Phase 7–8 已有任务接口接受显式 `inputs.backend`，其 kind/runtime/model/effort/turn/time 与组织 Run 必须一致；Codex 路径不接受 endpoint，也不解析 API 凭据。7C 后续应复用该选择与固定真人动作，不创建新的组织运行或批准权威。7C 当前仍未实现，7B 已有任务消费不表示无任务目标规划或组织自然目标对话已完成。
 

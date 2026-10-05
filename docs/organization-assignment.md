@@ -1,105 +1,39 @@
-# 组织分配协议
+# 组织分配与接收协议
 
-本协议覆盖组织任务批准计划的 Phase 1–6。领域层已实现批准/撤销、接受/拒绝、待处理查询、有限委托、设备证明与独占租约；HTTPS、Electron 固定动作、OS 加密材料、断线核对与有限续租及工作台已接入。真实 Agent、Run 和产物闭环属于产品 Phase 7A。
+当前流程为：创建任务并分配 → 员工接受或拒绝 → 员工主动使用普通 Agent 或自行执行 → 上传成果并提交汇报 → 原下发人审批。接受任务不会启动 Agent。设备登记、设备准备授权、任务领取、独占租约和续租均已移除。
 
-## 权威与数据
+## 分配与员工答复
 
-组织 `OrganizationService` 是唯一写入者；所有业务事实、失效、audit event 和 operation receipt 使用同一 SQLite `BEGIN IMMEDIATE` 事务。完整任务正文只存在 `plan_revisions`，分配按 planId + planRevision + taskId 引用，不复制定义。账号 scope 内 OperationId 唯一；指纹包含动作种类和规范化输入。相同请求返回原回执，内容改变返回 `operation-conflict`。重放只报告历史写入成功，不能恢复已终止资格。读取回执重新验证当前动作权限。
+任务定义只保存在不可变的 `plan_revisions` 中。Assignment 引用 organization/project/plan、整计划 revision 和叶子 task，并保存原下发人、指定员工、创建时间及审计版本。批准会在同一 SQLite 事务中创建分配、接受请求、通知、事件和回执，并授予员工项目 read/write 与所选任务 read/edit 访问。普通成员可向本人或直属员工分配；管理员可向任一有效成员分配。下发人始终需要当前项目和任务权限。
 
-| 记录 | 字段与身份 | 状态 |
-| --- | --- | --- |
-| Assignment | 品牌 OrganizationAssignmentId；organizationId、projectId、planId、planRevision、taskId；approvedBy（当前身份）、assigneeId；createdAt、createdRevision、version | pending → accepted / rejected / revoked / invalidated；accepted → revoked / invalidated |
-| HumanRequest | 品牌 OrganizationHumanRequestId；assignmentId 唯一；kind=accept-assignment；state；expiresAt=null；answeredRevision。发起者、处理人、组织、任务及版本通过不可变分配字段关联 | pending → cancelled / accepted / rejected；有限期限记录读取时投影 expired |
-| Notification | 品牌 OrganizationNotificationId；requestId 唯一；createdRevision、readAt。无正文副本；当前接收者由 request→assignment.assigneeId 决定 | 已读不答复；答复事务重置 readAt，通知查询反映持久请求状态 |
-| Delegation | 品牌 OrganizationDelegationId；assignmentId、planRevision、membershipId、deviceId、executorId、capabilities、budget、expiresAt、createdRevision、version | active → revoked / invalidated / expired |
-| Device | 品牌 OrganizationDeviceId；organizationId、accountId、membershipId、publicKey、keyGeneration、name、registeredAt、createdRevision、version | active → revoked；轮换创建新设备授权 |
-| Lease（Phase 4） | assignmentId、delegationId、deviceId、fencingEpoch（品牌递增整数）、serverEpoch、expiresAt、version | held → released / expired / invalidated；历史代次不复用 |
-
-接受请求仍不自动超时：新建和迁移后的 expiresAt 明确为 null，等待显式答复或撤销/失效；当前没有设置请求期限的动作。解析器和答复检查拒绝已过期的有限期限记录，未来引入期限写入仍需 Config 与迁移策略。委托与租约必须有限期，不能使用 null。
-
-内建 executorId 固定为 `desktop-builtin`，准备能力仅允许 `task-read`、`draft`，都局限于该准确版本任务；没有 shell、网络、路径或真实执行权限。budget 为正整数动作数量上限，当前不消费预算，Phase 7A 必须定义实际动作扣减。每个分配/设备最多一个 active 委托，可以给本人两台已登记设备分别委托，但整个分配最多一个 held 租约。`delegationMaxDurationMs` 默认一小时、`delegationMaxBudget` 默认 100、`leaseTtlMs` 默认 30 秒，均由 Config 验证；续租不能超过委托期限。到期在下一次权威调用前独立事务终止并发布失效，即使随后动作被拒绝或时钟回退也不复活。
-
-分配 `reason` 为 revision-changed、authority-lost、restored 或 null；显式 revoked 无自动失效原因。`version` 是创建、答复或终止的组织 audit revision，区别于 planRevision。终止状态不可转回 pending。每个 plan/task 的 pending/accepted 分配共用部分唯一索引。
-
-## 动作与授权
-
-所有输入均含 organizationId 和 operationId；任务动作另含 projectId/planId。任何调用先复核当前账号、成员、登录和选择范围，再查回执，再验证新动作前置条件。管理员身份不授予任务正文权限。HTTP JSON、原生 IPC、数据库重开均为校验入口。
-
-| 动作 / 阶段 | 输入与前置条件 | 原子结果与拒绝 |
-| --- | --- | --- |
-| approve-assignment / 2 | planRevision、taskId、assigneeId。下发人拥有当前项目 read+write、计划根 subtree read+edit；目标为当前版本叶子（前置在执行准入时检查）；目标成员/账号有效且符合直属分配规则 | 同一事务补齐责任人项目 read/write 与目标叶子 subtree read/edit，并保存分配 pending、接受请求 pending、通知和回执；已有 pending 返回 version-conflict；旧版本 version-conflict；非叶子 invalid-input；下发人缺权限/无效成员 forbidden |
-| revoke-assignment / 2–3 | assignmentId、expectedVersion；当前项目 read+write 与根 subtree read+edit。允许具有这些权限的另一编辑者撤销 | pending/accepted → revoked；仅未答复请求 cancelled，已答复历史保留；委托/租约失效 |
-| accept / reject / 3 | requestId、expectedVersion、显式 answer；当前处理人、任务 read、项目 read、有效版本/请求期限 | 一次答复、assignment accepted/rejected、回执和通知；非本人 forbidden，旧状态 version-conflict；不同 operationId 竞争只成功一次 |
-| delegate / revoke-delegation / 3 | assignmentId、expectedVersion、deviceId、内建 executorId、能力子集、有限 budget/expiresAt；本人 accepted、当前查看权及批准范围；设备属于本人且有效 | 独立委托/撤销及回执；超范围 invalid-input，身份/设备 forbidden，旧状态 version-conflict；不启动 Agent |
-| register-device / revoke-device / 4 | 公钥、服务端挑战证明、名称；撤销含 deviceId/expectedVersion；当前本人登录，登记证明持有私钥 | 账号/成员绑定的设备记录/撤销和回执；撤销联动委托与租约；证明错误 forbidden，过期/重放挑战 version-conflict |
-| claim / 4 | assignmentId、delegationId、设备证明；有效 accepted、委托、设备和查看权，无当前有效 owner | 递增 fencingEpoch 与有限租约、回执；已有 owner/旧状态 version-conflict，身份 forbidden |
-| renew / release / 4 | assignmentId、deviceId、fencingEpoch、serverEpoch、设备证明、expectedVersion；必须匹配未过期 owner 及全部当前资格 | 续租期限不超过委托/Config 限额，或释放当前租约；旧代次/过期 version-conflict；释放不是回滚 |
-
-固定失败码继续使用 invalid-input、forbidden、unauthenticated、version-conflict、operation-conflict；UI 在有完整定义权限时可显示叶子/前置/成员查看权缺口，服务端拒绝不泄露无权对象正文。存储损坏 incompatible-store，关闭 closed。Phase 3–5 新增错误码须同时更新传输/native/locales。
-
-已实现领域入口为 `assignmentCommand`、`participantCommand`、`deviceChallenge`、`deviceCommand`、`readAssignment`、`readInbox`、`readInboxEvents`、`readPreparation` 和 `receipt`。读取分配要求当前项目与目标 task read，并使用当前/历史授权交集；知道 assignmentId 或管理成员权限不能绕过。接受/已读/委托及其回执额外要求本人是指定员工。待处理列表先核权，再搜索、计数和分页；游标绑定身份、权限和快照，撤权或重启后必须重取。`readInboxEvents` 只返回本人当前可见分配的标识失效，不复制正文。通知仅在提交后通过 `organization/committed` 提示，持久查询负责重建。
-
-## 失效与串行时序
-
-任何新计划 revision 使整个计划旧分配失效，包括只改文字；结构变更仍遵守 WorkGraph grant epoch。项目/任务 grant、账号或成员修改在同一事务检查所有 pending/accepted 分配：下发人的批准权限或接收人的查看权限/身份任一丢失即永久 invalidated，未答复请求 cancelled，已答复事实保留，委托和租约失效。保留其他 grant 后仍有完整有效权限不算失权。重新授权、成员重新启用或恢复账号不能复活终态。
-
-普通服务重启保留 pending 分配/请求；重开先验证所有记录及跨表关系，不修补损坏记录。离线备份恢复在 staging 迁移及校验后撤销登录/邀请、清除回执、轮换恢复凭据，并将 pending 分配标记 restored。原始正文、批准与通知历史保留，必须重新批准。Phase 4 恢复还必须撤销设备和委托；服务每次启动生成新 serverEpoch，旧租约不能续用，即使机器时钟或数据库备份回退。
-
-| 竞争或故障 | 事务顺序与可观察结果 |
+| 记录 | 状态与作用 |
 | --- | --- |
-| 批准与撤权 | 批准先提交则撤权事务终止其分配/请求；撤权先提交则批准权限检查失败。无悬空有效分配 |
-| 答复与版本更新 | 答复先提交随后版本事务终止旧资格；版本先提交则答复拒绝。答复不迁移到新版本 |
-| 领取与撤销 | 领取先提交则撤销使其 epoch 不再有效；撤销先提交则 claim 失败。每次模型/工具动作仍须在线验证（Phase 7A） |
-| 两次批准/两台设备领取 | 单写者队列加 SQLite 写锁和唯一索引，只有一个当前分配/owner；失败事务无审计、通知或回执残留 |
-| 写入成功但响应丢失 | 原生显示待核对，查询原 operationId；当前身份/权限通过才返回历史回执，再读当前业务状态。不能把成功回执当当前资格 |
-| 断线、休眠、Host 重启 | 停止续租与推进；重验登录、设备、版本和回执。迟到响应按原生 generation 丢弃；需要显式重新领取 |
+| Assignment | pending → accepted / rejected / revoked / invalidated；accepted → revoked / invalidated |
+| 接受请求 | pending → accepted / rejected / cancelled；新请求 expiresAt=null，等待明确答复或失效 |
+| 通知 | 已读仅改变 readAt，不能替代接受；答复后按持久请求状态显示 |
 
-跨 HTTPS 的 approve/revoke、答复、委托、设备、claim/renew/release 都需要原生保存 operationId 与待核对状态。跨 Host IPC 的本机上下文创建仍使用已有 nonce/requestId/generation 和独立本机回执；不把两个存储宣称为一个事务。
+同一任务只允许一个 pending/accepted 分配。接受和拒绝只允许当前指定员工，必须匹配 requestId 和分配 version。原下发人撤销分配需要当前计划编辑权限；撤销不可恢复，重新分配创建新记录。通知不复制任务正文或私人聊天。
 
-## 设备证明与原生材料
+计划修订、下发权限或员工任务访问丢失会永久使旧分配失效；重新授权不会恢复旧记录。普通服务重启保留分配和答复。备份恢复会使 pending/accepted 分配失效，要求重新分配与接受。
 
-`OrganizationDeviceMaterial` 在原生包产生 Ed25519 密钥，只把经注入 OS 保险库适配器加密后的材料保存到独立原生目录。账号/服务/组织/成员共同绑定加密材料与文件选择；首次发送前保留公钥和登记 operationId，重开使用同一登记命令核对。私钥不写 Renderer、个人 Profile、日志或组织备份；保险库不可用、basic_text 或 unknown backend 均拒绝。签名方法解析固定动作并复核挑战全部绑定，不提供任意字节签名。Electron 已接入 safeStorage、固定 IPC 与连接代次；无页面测试仅替换 OS 保险库，真实 OS 解锁及跨机恢复尚未验收。
+## 接受后的执行与成果
 
-服务端 challenge 绑定 serverId、serverEpoch、accountId、membershipId、organizationId、动作、规范请求摘要、operationId、deviceId/公钥及 keyGeneration。签名使用 `deviceChallengeSchema` 固定字段顺序的 JSON UTF-8 字节，协议标记为 `merforge-device-v1`。当前登录、签名、时限及未消费状态在写事务验证，提交成功后在同一串行队列消费挑战；事务回滚可重试原证明。登记证明持有私钥；claim/renew/release 使用已登记公钥。设备撤销是当前账号对本人设备的显式动作，不要求仍能使用遗失的私钥。挑战默认 60 秒，每账号每 TTL 窗口最多 30 个、全服务 3000 个（已消费仍占窗口额度），均可由 Config 修改。字段长度受严格 schema 限制。重试先查回执，新挑战不改变业务指纹；挑战不跨服务重启。
+已接受的员工可打开任务对话，主动提交指令给普通 Agent，也可以自行完成工作。普通 Agent 的请求和工具入口检查当前分配已接受及任务访问权。打开、刷新、接受或答复通知均不自动执行。
 
-复制本机文件不能复制 OS 保险库解密权；跨设备恢复必须新建密钥。轮换显式撤销旧 DeviceId 后登记新 DeviceId；不沿用旧 delegation/lease。服务端恢复撤销所有设备，因此备份中的旧公钥/授权不能恢复有效身份。账号是登录主体；DeviceId 是设备授权；connection generation 是原生丢弃迟到响应的本机计数；fencingEpoch 是权威所有权代次；serverEpoch 区分服务启动/恢复，四者不可互换。
+成果上传与正式汇报独立于执行方式，普通 Agent 和手工作业使用 runId=null。高级独立 Run 是可选执行入口：其设置、动作限额、暂停和恢复只约束该 Run，不是分配接受后的准备步骤。具体见[执行与交付协议](organization-execution.md)。
 
-## 迁移、入口和验证
+## 身份、幂等与读取
 
-物理 schema 当前为 v6：v4 的批准/请求/通知在 v5 扩展状态及答复、已读字段，并添加委托和参与者动作记录；v6 添加设备、租约历史及设备动作结果。v1–v5 在一个启动事务迁移，失败回滚 user_version 和全部 DDL。启动校验字段、外键、批准/答复作者、准确任务版本、活跃权限、设备归属、租约代次、动作结果与回执关联；不修补损坏数据。备份写 v6，恢复接受 v2–v6，先比较 manifest 与实际 stamp，再迁移 staging。恢复撤销登录、全部设备和活跃资格，保留已答复历史；每次服务启动使 held 租约失效，重新显式 claim 生成更大 fencingEpoch 和新的 serverEpoch。个人 Session 格式不变。
+`OrganizationService` 是唯一业务写入者。命令使用当前登录员工身份，无设备证明。事件、业务记录、权限更新和 operation receipt 使用同一 `BEGIN IMMEDIATE` 事务。account scope 内 operationId 唯一：相同内容返回历史回执，同键不同内容返回 operation-conflict。历史回执不能恢复当前资格。
 
-真实入口位置：组织 `src/index.ts` 的串行 service、`database.ts` 启动迁移、`maintenance.ts` 备份恢复；`organization-api/src/transport.ts` 的 HTTPS allowlist、`organization-connection/src/{index,schema,types}.ts` 的固定动作、Desktop `organization-manager.ts` 和两端 `organization-context.ts` 的所属窗口及 IPC 复核。固定网络/native 动作已接通；未知动作及真实执行动作继续拒绝。
+`assignmentCommand` 处理批准和撤销；`participantCommand` 处理接受、拒绝、已读及独立 Run 的指定人工答复。`readApproval`、`readAssignment`、`readTaskAssignments`、`readInbox`、`readInboxEvents`、`readPreparation` 和 `receipt` 在每次读取时复核当前权限。`readPreparation` 保留原接口名，仅返回 serverTime、assignment 和 request。
 
-验证使用 `organization/tests` 的真实 Loader + 临时 SQLite，直接通过 service 进行双身份、回执、竞争和重开断言，独立数据库读取原子事实；offline restore 用真实 TLS 身份与维护函数。后续跨进程复用 `apps/desktop-host/tests/organization-workgraph.spec.ts`，不新建应用启动器。测试政策见 [testing](testing.md)，事务与关闭规则见 [defensive-patterns](defensive-patterns.md)。
+待处理查询先核权再搜索、计数和分页；游标绑定当前身份、权限及快照。事件流仅发送当前可见的分配标识。知道 assignmentId、产物哈希或管理成员权限不能替代任务读取权。
 
-真实动作入口的在线资格查询返回 assignment/planRevision/delegation/device/serverEpoch/fencingEpoch/expiry 与能力预算；模型请求、工具调用、提交和产物验收分别消费资格，拒绝陈旧代次，并记录在途 unknown 副作用。组织 Session 保持本人隔离并引用准确任务版本。下发后员工在线同步建立本人任务对话，接受不委托，领取不运行。
+HTTPS 固定接口包括 `/assignment/review`、`/assignment/command`、`/assignment/participant`、`/assignment/read`、`/assignment/tasks`、`/assignment/inbox` 和 `/assignment/preparation`。设备接口及 execution challenge 接口已删除。Electron 保存登录凭据和未知操作回执 journal，Renderer 不获得令牌；身份变化、断线和休眠使旧私有通道失效。
 
-## 固定传输与工作台消费
+## SQLite v21 历史升级
 
-严格协议由组织包 `./assignment` 提供。`POST /assignment/review` 核验准确叶子版本、下发人权限、有效成员和直属分配关系，只返回绑定版本/成员的 `canAssign` 结果；预览不修改权限或创建分配。员工已有查看权不再是下发前提。`/assignment/command`、`/assignment/participant` 消费批准、撤销、答复、已读和委托。`/assignment/tasks` 按当前任务查看权分页读取历史；`/assignment/inbox` 按本人请求授权后搜索、计数和分页；`/assignment/preparation` 让当前任务查看者读取批准、请求、委托和领取状态。准备查询还返回服务端时间与委托 Config 上限，不能当作执行资格。
+v20 升级到 v21 时，产物和提交的 runId 允许 NULL。已有字节、提交、审批、回执和执行 JSON 保留；旧 active 设备、准备授权和 held 租约通过 simplify-task-workflow 审计事件退役。旧表和旧执行 JSON 中的设备字段仅用于历史校验，当前命令不接受这些字段，也不重新登记或领取。
 
-`POST /device/challenge`、`/device/command`、`/device/list` 仅消费固定设备协议，JSON 外层也拒绝多余字段。原生 `assignment-delegate` 接收时长，不接受 deviceId/绝对到期；`lease-claim/release/check` 不接受设备证明、fencingEpoch 或 serverEpoch，而是从本机密钥和线上准备查询构造。`device-register/revoke/read` 使用当前成员的本机材料。原生待核对 journal 增加 organizationId 和登记/撤销动作类型，仍不存令牌、任务正文或私钥。登记丢响应可按原 operationId 恢复本机绑定；撤销丢响应先查回执，重新登记也须线上确认旧设备已撤销才轮换。
-
-`GET /assignment/events` 和 `followInboxEvents` 携带 from/cursor/revision，缺口要求重新获取当前快照。WorkGraph 失效流也包含当前有权查看的分配/委托/租约变更，使下发人看到员工答复。一个事务可同时失效多个计划，同一 revision 的多个不同引用合法；重复批次不重复应用。所有流先重新核权再交付。
-
-原生连接当前一次协调一个任务的续租，`renewalFraction` 默认 0.5（允许 0.1–0.8），按服务端返回剩余租期安排下一次核对。每次续租重新读取并签名；退出、休眠、离线、其他代次失效停止计时，不恢复旧 owner。仍有效的本机 held 租约可由用户明确核对并恢复续租；已过期、服务重启或被替代的 owner 只能重新明确领取。进程关闭等待事件、在途动作和续租任务结算，不激活 Agent。
-
-工作台提供核验下发资格→确认版本/责任人→下发并自动授权、持久待处理/已处理和独立接受/拒绝、登记设备→指定能力/时长/预算→有限委托→显式领取。标记已读不答复。原始上下文只读，版本与当前任务或分配不同会提示，不改写 JSONL。账号/组织切换清除草稿和正文；暂时失败保留同身份合法草稿，版本冲突清除批准确认并重读。
-
-## 验证与下一阶段交接
-
-[验收与交接](organization-assignment-acceptance.md)列出 A/B/C 三机剧本、无页面证据范围和 Phase 7A 消费位置。私有服务在普通 Node/Electron Node mode 下验证批准至领取、双设备竞争、重启代次、设备材料持久化、第三主体隔离及恢复失效；测试保险库不代表 OS 解锁已验收。当前准备查询不授予真实执行权限，下一阶段必须在模型、工具、提交与验收入口核验当前资格并持久记录 unknown 副作用。
-
-## Execution handoff
-
-SQLite v7 retains preparation delegations without expanding `task-read` or `draft`. The employee separately grants finite execution capabilities bound to a preparation delegation, device and configuration digest. Run creation and action reservation use current exact-version and dual-epoch qualification. Claiming or opening a prepared execution Session never starts a model. See the [execution protocol](organization-execution.md).
-
-执行 Phase 8 起，带自身或祖先依赖的叶子允许批准与准备；真实执行要求当前可读的已验收前置成果。目标核验及最终确认见[执行协议](organization-execution.md#phase-8依赖准入与目标集成)。
-
-## 组织层级与分发权限
-
-SQLite v15 的 organization_hierarchy 独立保存成员的直属上级及版本，由组织管理员明确修改。普通成员只能向自己及直属下属分配；不能向同级或间接下属分配。管理员可以向本组织任意启用成员分配。下发人仍须具备当前项目 read/write、计划根 subtree read/edit 和准确版本权限。责任人无需预先取得项目或任务授权；实际下发在同一事务补齐项目 read/write 和所选叶子 subtree read/edit，保留其他任务权限。底层访问记录供任务投影和编辑检查使用，Client 不提供独立任务授权管理界面。审核和实际下发均由服务端校验。
-
-员工进入组织模式时，原生 Inbox 同步器按 assignmentId 创建本人任务对话；离线员工下次连接时补建，重复同步复用同一对话。项目沿用同一权威 projectId，任务正文引用同一准确版本；领导私有对话不复制。下发不自动接受、委托、领取或执行任务。
-
-修改上级会重新检查原下发人的分配权限；不再符合规则的分配及其委托、租约和新执行资格失效，保留原有历史回执。组织任务视图可选节点并使用原有分配审核与确认控件；打开节点不自动下发。组织工作台的组织架构页按直属上级画树，管理员选择成员后修改上级并保存，拒绝循环、跨组织关系和过期版本。
+升级在单个启动事务内执行。SQLite 重建被引用的表前关闭外键执行，提交前通过所有关系校验及 foreign_key_check，完成后重新开启；失败回滚表、状态和 schema stamp。停服备份和恢复继续验证真实产物字节与审批关系，不制造新的执行或审批事实。
