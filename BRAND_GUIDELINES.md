@@ -1,10 +1,12 @@
-# DeepSeek Harness Brand Asset Usage Guidelines
+# Merforge brand assets
 
-To maintain the long\-term healthy development of the DeepSeek Harness ecosystem, avoid user confusion, and facilitate the retrieval and identification of related resources, we have established these specifications and hope that everyone will adhere to them:
+Merforge currently uses a temporary M mark and a system-font wordmark. These assets are placeholders for future brand artwork.
 
-- In your project's descriptive text, you may use "DeepSeek Harness" to truthfully and accurately describe your project's relationship with DeepSeek Harness, for example, "built on DeepSeek Harness" or "compatible with DeepSeek Harness\." Such descriptions comply with license requirements and help users understand your project's positioning\.
-- If you wish your project name to reflect its association with the DeepSeek Harness ecosystem, we recommend using the abbreviated "DSH" designation for naming, which is both clear and facilitates communication within the community\.
-- When naming your project, please avoid using the full "DeepSeek Harness" trademark directly\. "DeepSeek Harness" is a registered trademark of DeepSeek\. Unauthorized use in project names can easily lead to user misunderstanding and confusion, thereby affecting the clarity of the entire ecosystem\. It may also involve trademark infringement\.
-- Additionally, please avoid using official brand materials in your promotions or presentations in a way that could cause misunderstanding, so as not to give users the false impression of official endorsement, cooperation, or authorization\.
+- Client mark and wordmark: `packages/client/ui-primitives/src/BrandMark.tsx` and `BrandWordmark.tsx`.
+- Browser favicons: `apps/web/public/favicon.svg` and `favicon-dark.svg`.
+- Desktop application icons: `apps/desktop/resources/icon*.svg` and their PNG exports.
+- Installer artwork: `apps/desktop/installer/assets/brand*.svg`, their PNG exports, and `uninstaller-sidebar.png`.
 
-We believe that a clear and orderly community environment will make every developer's efforts more visible and more readily recognized\. For the few cases that do not comply with the above specifications, we may contact the relevant parties to make appropriate adjustments in order to maintain the overall order of the ecosystem\. Thank you for your understanding and support—let us work together to build a more friendly and sustainable open\-source community\.
+Replace the artwork in these files while retaining their filenames, dimensions and component props. Update the filled client M path and both favicon paths together. Export Desktop platform SVGs as transparent 1024×1024 PNGs; export installer SVGs at their existing 1× and 2× dimensions. The Desktop packaging guide owns platform asset requirements.
+
+The application name is Merforge in both supported locales. Upstream copyright, license notices, workspace package identifiers and model-provider protocol identifiers retain their original values.

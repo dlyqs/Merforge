@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-skill",
-  "description": "Agent skill provider registry for the DeepSeek Harness",
+  "description": "Agent skill provider registry for the Merforge",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"

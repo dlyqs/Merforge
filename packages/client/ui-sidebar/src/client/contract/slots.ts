@@ -86,6 +86,10 @@ export interface SidebarSectionOwnerProps {
   wide: boolean
   /** Selected secondary browser; absent in independent management occurrences. */
   section?: 'projects' | 'bots' | 'recent'
+  /** A primary navigation click requests the first conversation, including repeated clicks. */
+  navigationRevision?: number
+  /** Acknowledge the selection after the browser catalog is ready. */
+  onNavigationHandled?: () => void
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
 }

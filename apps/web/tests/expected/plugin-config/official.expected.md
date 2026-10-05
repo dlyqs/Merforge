@@ -24,7 +24,7 @@
     - text: 设置 Subagent 的递归层级、数量和模型。
   - listitem:
     - button "查看 网页搜索": 网页搜索
-    - text: 设置 DeepSeek 的搜索提供方。
+    - text: 设置 Merforge 的搜索提供方。
 - heading "已安装" [level=3]
 - text: "2"
 - list:

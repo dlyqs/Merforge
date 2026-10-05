@@ -22,7 +22,18 @@ try {
   const login = await ctx.organization.login({ username: request.username, password: request.password })
   assert.equal(login.principal.accountId, first.accountId)
   const project = await ctx.organization.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(),
-    organizationId: first.organizationId, name: 'Built WorkGraph' })
+    organizationId: first.organizationId, name: 'Built WorkGraph', background: 'Initial background', summary: 'Project overview', goal: 'Deliver evidence' })
+  await ctx.organization.projectCommand(login.token, { kind: 'update-project', operationId: randomUUID(),
+    organizationId: first.organizationId, projectId: project.projectId, expectedVersion: project.revision,
+    name: 'Updated WorkGraph', background: 'Current background', summary: 'Project overview', goal: 'Deliver evidence' })
+  const readProject = () => ctx.organization.readProject(login.token,
+    { organizationId: first.organizationId, projectId: project.projectId }, value => {
+      assert.equal(value.name, 'Updated WorkGraph')
+      assert.equal(value.background, 'Current background')
+      assert.equal(value.summary, 'Project overview')
+      assert.equal(value.goal, 'Deliver evidence')
+    })
+  await readProject()
   await ctx.organization.grant(login.token, { kind: 'set-grant', operationId: randomUUID(), organizationId: first.organizationId,
     projectId: project.projectId, membershipId: first.membershipId, expectedVersion: project.revision, actions: ['read', 'write'] })
   const taskId = randomUUID(), phaseId = randomUUID(), planId = randomUUID()
@@ -104,6 +115,7 @@ try {
   await ctx.plugin(Organization, { path })
   assert.deepEqual(await ctx.organization.initialize(request), first)
   assert.equal((await ctx.organization.organizations(login.token))[0].name, request.organizationName)
+  await readProject()
   await ctx.organization.readPlan(login.token, query, value => assert.deepEqual(value.definition, definition))
   await ctx.organization.downloadArtifact(login.token, { ...selector, artifactId }, value => {
     assert.equal(createHash('sha256').update(Buffer.from(value.bytes, 'base64')).digest('hex'), sha256)

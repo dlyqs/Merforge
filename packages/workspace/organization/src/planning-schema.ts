@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import { workgraphSaveSchema, workgraphDefinitionSchema, workgraphVersionSchema } from './workgraph-schema.ts'
 import { executionModelSchema } from './execution-schema.ts'
+import { projectContentFields } from './resource-schema.ts'
 import type { OrganizationId, OrganizationProjectId, OperationId, AccountId, MembershipId } from './types.ts'
 const id = <T extends Branded<string>>() => z.uuid().transform(brandString<T>)
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
@@ -66,7 +67,8 @@ export const planningMutationReceiptSchema = z.object({ operationId: id<Operatio
   planning: planningReceiptSchema }).strict()
 /** Fresh project authorization and optional finite qualification. */
 export const planningViewSchema = z.object({ project: z.object({ id: planningReadSchema.shape.projectId,
-  organizationId: planningReadSchema.shape.organizationId, name: z.string(), version: integer }).strict(),
+  organizationId: planningReadSchema.shape.organizationId, name: z.string(), version: integer,
+  background: projectContentFields.background.default(''), summary: projectContentFields.summary.default(''), goal: projectContentFields.goal.default('') }).strict(),
 canWrite: z.boolean().default(false),
 plans: z.array(z.object({ goalId: planningDraftSchema.shape.goalId, planId: workgraphSaveSchema.shape.planId,
   taskId: workgraphDefinitionSchema.shape.taskId }).strict()).default([]),

@@ -105,7 +105,7 @@ describe('SidebarRoot shell', () => {
     expect(screen.getByRole('button', { name: 'Personal / Organization' })).toBeTruthy()
     expect(screen.queryByTestId('custom-brand-mark')).toBeNull()
     expect(screen.queryByTestId('custom-brand-name')).toBeNull()
-    expect(screen.queryByText('DSH Local Build')).toBeNull()
+    expect(screen.queryByText('Merforge')).toBeNull()
     expect(screen.queryByText('1.2.3')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(b.startSession).toHaveBeenCalledOnce()

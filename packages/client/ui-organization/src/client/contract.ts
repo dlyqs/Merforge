@@ -15,6 +15,14 @@ export interface OrganizationInjected {
   selectConversation?: (selection: import('./conversation-store.ts').ConversationSelection | null) => Promise<void>
   /** Open the selected project's tasks in the shared main task destination. */
   openProjectTasks?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => void
+  /** Show project information in the main area. */
+  openProject?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => void
+  /** Select an exact project task in the task destination. */
+  openTask?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView,
+    task: import('@deepseek-ai/dsh-organization').OrganizationTaskView) => void
+  /** Show the real new-conversation entry for an empty navigation group. */
+  showConversationStart?: (project?: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView,
+    botId?: import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationRequest['botId']) => void
   /**
    * Delete the creator's shared project or remove a participant's installation-local copy.
    * @param project - Currently authorized project and immutable creator identity.

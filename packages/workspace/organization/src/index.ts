@@ -171,7 +171,10 @@ export class OrganizationService extends Service {
           else authorizeParticipant(db, current, selectedAssignment(db, { organizationId: receipt.organizationId,
             projectId: receipt.projectId, planId: receipt.planId, assignmentId: receipt.assignmentId }))
         }
-        if (event?.kind === 'rename-project' && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'write')
+        if ((event?.kind === 'rename-project' || event?.kind === 'update-project') && receipt.projectId) {
+          authorizeProjectCreator(db, current, receipt.projectId)
+          authorizedProject(db, current, receipt.projectId, 'read')
+        }
         if (event?.kind === 'delete-project' && receipt.projectId) authorizeProjectCreator(db, current, receipt.projectId)
       }
       if (event?.kind === 'set-account' && principal.accountId !== this.metadata(db).rootAccountId) throw new OrganizationError('forbidden')
@@ -1334,7 +1337,7 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Create a project, rename it with write permission, or delete it as its original creator.
+   * Create a project or update and delete it as its original creator.
    * @param token - Current organization bearer credential.
    * @param input - Strict project command with optimistic version and operation identifier.
    * @returns Committed receipt; creation also grants its creating member read/write at the same revision.
@@ -1360,7 +1363,10 @@ export class OrganizationService extends Service {
       const authorize = () => {
         const principal = this.principal(db, token, command.organizationId,
           command.kind === 'set-grant' ? 'manage' : 'member')
-        if (command.kind === 'rename-project') authorizedProject(db, principal, command.projectId, 'write')
+        if (command.kind === 'rename-project' || command.kind === 'update-project') {
+          authorizeProjectCreator(db, principal, command.projectId)
+          authorizedProject(db, principal, command.projectId, 'read')
+        }
         if (command.kind === 'delete-project') authorizeProjectCreator(db, principal, command.projectId)
         return principal
       }
@@ -1376,15 +1382,19 @@ export class OrganizationService extends Service {
           switch (command.kind) {
             case 'create-project':
               projectId = projectSchema.shape.id.parse(randomUUID())
-              db.prepare('INSERT INTO organization_projects VALUES (?,?,?,?)').run(projectId, command.organizationId, command.name, revision)
+              db.prepare('INSERT INTO organization_projects (id,organizationId,name,version,background,summary,goal) VALUES (?,?,?,?,?,?,?)')
+                .run(projectId, command.organizationId, command.name, revision, command.background, command.summary, command.goal)
               db.prepare('INSERT INTO organization_project_lifecycle VALUES (?,?,NULL)').run(projectId, current.accountId)
               db.prepare('INSERT INTO resource_grants VALUES (?,?,1,1,?)').run(projectId, this.member(db, current.accountId, command.organizationId).id, revision)
               break
-            case 'rename-project': {
-              const project = authorizedProject(db, current, command.projectId, 'write')
+            case 'rename-project':
+            case 'update-project': {
+              const project = authorizedProject(db, current, command.projectId, 'read')
               if (project.version !== command.expectedVersion) throw new OrganizationError('version-conflict')
               projectId = project.id
               db.prepare('UPDATE organization_projects SET name=?,version=? WHERE id=?').run(command.name, revision, projectId)
+              if (command.kind === 'update-project') db.prepare('UPDATE organization_projects SET background=?,summary=?,goal=? WHERE id=?')
+                .run(command.background, command.summary, command.goal, projectId)
               break
             }
             case 'delete-project': {

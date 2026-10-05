@@ -106,3 +106,5 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. Panel metadata is a read-only presentation projection of the Slot registry and locale, with no independent write API. The registry owns entry identity and disposal; this package's assembly tests assert the projection after registration and locale notifications settle. The shell owns no separate navigation state to reconcile with those sources.
+
+Primary Project, Bot and Recent clicks pass a `navigationRevision` request to the current account browser. The browser acknowledges it with `onNavigationHandled` after selecting the first conversation or showing a working creation entry. Repeated clicks issue new requests; opening the global New conversation entry clears a pending browser request.

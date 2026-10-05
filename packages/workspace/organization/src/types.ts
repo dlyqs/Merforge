@@ -95,6 +95,12 @@ export interface OrganizationProjectView {
   name: string
   version: number
   createdBy: AccountId
+  /** Background included in each project conversation's recorded model input. */
+  background: string
+  /** Human-maintained project overview. */
+  summary: string
+  /** Desired project outcome. */
+  goal: string
 }
 /** One current-authority page with its atomic event handoff cursor. */
 export interface OrganizationProjectPage {

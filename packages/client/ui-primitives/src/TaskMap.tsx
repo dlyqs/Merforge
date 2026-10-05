@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Button } from './Button.tsx'
-import { IconBranchOutlineRegular, IconPlusOutlineRegular, IconChevronUpOutlineRegular, IconChevronDownOutlineRegular } from './icons/index.tsx'
+import { IconBranchOutlineRegular, IconPlusOutlineRegular, IconChevronUpOutlineRegular, IconChevronDownOutlineRegular, IconFullscreenOutlineRegular } from './icons/index.tsx'
 type TaskId = string
 
 /** Account-independent task card fields; labels are supplied by the owning locale. */
@@ -36,6 +36,8 @@ export interface TaskMapLabels {
   expandAll: string
   expandBranch: string
   collapseBranch: string
+  fullscreen: string
+  exitFullscreen: string
 }
 import { layoutMindMap, mapGeometry, taskAncestors } from './task-map-layout.ts'
 import css from './TaskMap.module.css'
@@ -53,6 +55,9 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
   children?: ReactNode
 }) {
   const viewport = useRef<HTMLDivElement>(null)
+  const fullscreenButton = useRef<HTMLButtonElement>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const zoomAnchor = useRef<{ x: number; y: number; clientX: number; clientY: number }>()
   const drag = useRef<{ pointerId: number; x: number; y: number; left: number; top: number } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [collapsed, setCollapsed] = useState<ReadonlySet<TaskId>>(new Set())
@@ -85,8 +90,45 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
     element.scrollLeft = insetX + (current.x + mapGeometry.nodeWidth / 2) * zoom - element.clientWidth / 2
     element.scrollTop = insetY + (current.y + mapGeometry.nodeHeight / 2) * zoom - element.clientHeight / 2
   }
-  useEffect(() => { center() }, [selected, zoom, current?.x, current?.y])
-  const changeZoom = (delta: number) => { setManualZoom(Math.min(1.5, Math.max(0.25, Math.round((zoom + delta) * 100) / 100))) }
+  useEffect(() => { center() }, [selected, current?.x, current?.y])
+  const setZoomAt = (next: number, clientX: number, clientY: number) => {
+    const element = viewport.current
+    if (!element) return
+    const insetX = Math.max(0, (element.clientWidth - layout.width * zoom) / 2)
+    const insetY = Math.max(0, (element.clientHeight - layout.height * zoom) / 2)
+    zoomAnchor.current = { x: (element.scrollLeft + clientX - insetX) / zoom,
+      y: (element.scrollTop + clientY - insetY) / zoom, clientX, clientY }
+    setManualZoom(Math.min(1.5, Math.max(Math.min(0.25, fitted), next)))
+  }
+  useLayoutEffect(() => {
+    const element = viewport.current, anchor = zoomAnchor.current
+    if (!element || !anchor) return
+    element.scrollLeft = anchor.x * zoom + Math.max(0, (element.clientWidth - layout.width * zoom) / 2) - anchor.clientX
+    element.scrollTop = anchor.y * zoom + Math.max(0, (element.clientHeight - layout.height * zoom) / 2) - anchor.clientY
+    zoomAnchor.current = undefined
+  }, [zoom, layout.width, layout.height])
+  useEffect(() => {
+    const element = viewport.current
+    if (!element) return
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const rect = element.getBoundingClientRect()
+      const delta = (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1)
+      setZoomAt(zoom * Math.exp(-delta * 0.0015), event.clientX - rect.left, event.clientY - rect.top)
+    }
+    element.addEventListener('wheel', wheel, { passive: false })
+    return () => { element.removeEventListener('wheel', wheel) }
+  }, [zoom, fitted, layout.width, layout.height])
+  useEffect(() => {
+    if (!fullscreen) return
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setFullscreen(false); fullscreenButton.current?.focus() }
+    }
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('keydown', escape) }
+  }, [fullscreen])
+  const changeZoom = (delta: number) => { setZoomAt(Math.round((zoom + delta) * 100) / 100,
+    (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2) }
   const toggle = (id: TaskId) => {
     if (!visibleCollapsed.has(id)) onSelect(id)
     setCollapsed((previous) => {
@@ -96,7 +138,7 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
       return next
     })
   }
-  return <section className={css.map} aria-label={labels.mindMap}>
+  return <section className={css.map} data-fullscreen={fullscreen} aria-label={labels.mindMap}>
     <header className={css.toolbar}>
       <div className={css.heading}><IconBranchOutlineRegular /><h3>{labels.mindMap}</h3><span>{labels.mapCount}</span></div>
       <div className={css.controls} role="group" aria-label={labels.mapControls}>
@@ -106,6 +148,9 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children }:
         <span className={css.separator} aria-hidden="true" />
         <Button size="sm" onClick={() => { setManualZoom(null); if (viewport.current) { viewport.current.scrollLeft = 0; viewport.current.scrollTop = 0 } }}>{labels.fitMap}</Button>
         <Button size="sm" disabled={!current} onClick={center}>{labels.locateTask}</Button>
+        <button ref={fullscreenButton} type="button" className={css.fullscreen} aria-label={fullscreen ? labels.exitFullscreen : labels.fullscreen}
+          title={fullscreen ? labels.exitFullscreen : labels.fullscreen} aria-pressed={fullscreen}
+          onClick={() => { setFullscreen(value => !value) }}><IconFullscreenOutlineRegular /></button>
       </div>
     </header>
     {layout.invalidHierarchy && <p className={css.warning} role="status">{labels.invalidHierarchy}</p>}

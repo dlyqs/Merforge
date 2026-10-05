@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
 import { setupExecution } from './execution-harness.ts'
 import { operationId, openHarness, password, addMember } from './harness.ts'
-import { openOrganizationDatabase } from '../src/database.ts'
+import { openOrganizationDatabase, ORGANIZATION_SCHEMA_VERSION } from '../src/database.ts'
 
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
@@ -150,12 +150,15 @@ it('rolls back the new version, invalidation and decision together if the receip
 }, 15000)
 it('migrates v9 without manufacturing acceptances and rolls back failed schema upgrades', async () => {
   const h = await fixture(); await h.close()
+  h.db.exec('DROP TABLE organization_hierarchy; DROP TABLE organization_project_lifecycle')
+  h.db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal')
   h.db.exec('DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; PRAGMA user_version=9; CREATE TABLE organization_acceptances (sentinel TEXT)')
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow()
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(9)
   h.db.exec('DROP TABLE organization_acceptances')
   const upgraded = openOrganizationDatabase(h.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(14)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
+  expect(upgraded.prepare('SELECT background,summary,goal FROM organization_projects').get()).toEqual({ background: '', summary: '', goal: '' })
   expect(upgraded.prepare('SELECT count(*) AS n FROM organization_acceptances').get()?.n).toBe(0)
   expect(upgraded.prepare('SELECT count(*) AS n FROM organization_submissions').get()?.n).toBe(1)
   upgraded.close()

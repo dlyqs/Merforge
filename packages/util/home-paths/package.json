@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-home-paths",
-  "description": "Shared filesystem path helpers for the DeepSeek Harness",
+  "description": "Shared filesystem path helpers for the Merforge",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"

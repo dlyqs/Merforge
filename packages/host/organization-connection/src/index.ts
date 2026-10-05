@@ -812,7 +812,7 @@ export class OrganizationConnection {
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
     const route = workgraph === 'integration' ? '/integration/command' : workgraph === 'delivery' ? '/delivery/command' : workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
       : workgraph === 'device' ? '/device/command' : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
-        : kind === 'create-project' || kind === 'rename-project' || kind === 'delete-project' ? '/projects' : '/commands'
+        : kind === 'create-project' || kind === 'rename-project' || kind === 'update-project' || kind === 'delete-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,
       accountId: this.state.principal.accountId,
       serverId: this.state.principal.serverId, ...('organizationId' in command ? { organizationId: command.organizationId } : {}),

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-terminal-bash",
-  "description": "Persistent shell PTY backend over the DeepSeek Harness subprocess terminal primitive",
+  "description": "Persistent shell PTY backend over the Merforge subprocess terminal primitive",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"

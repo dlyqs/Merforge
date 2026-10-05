@@ -16,6 +16,8 @@ type Catalog = { project: OrganizationProjectView; catalog: NonNullable<Conversa
 /** @param props - Framework navigation seat and current identity. @returns Project, Bot or recent rows. */
 export function OrganizationBrowser(props: OrganizationProps & ConversationSelectionProps & { section: 'projects' | 'bots' | 'recent'
   wide: boolean
+  navigationRevision?: number
+  onNavigationHandled?: () => void
   expandSidebar(): void }) {
   const alive = useRef(false)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
@@ -28,7 +30,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   const [editing, setEditing] = useState<{ project?: OrganizationProjectView; bot?: Bot }>()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [menu, setMenu] = useState<string | null>(null), [sortName, setSortName] = useState(false)
-  const [projectDraft, setProjectDraft] = useState<{ project?: OrganizationProjectView; name: string }>()
+  const [projectDraft, setProjectDraft] = useState<{ name: string; background: string; summary: string; goal: string }>()
   const [deleting, setDeleting] = useState<OrganizationProjectView>()
   const projectOperation = useRef<string>()
   const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
@@ -133,6 +135,27 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   </Tooltip>
   const ordered = <T extends { name: string },>(values: T[]): T[] =>
     sortName ? [...values].sort((a, b) => a.name.localeCompare(b.name)) : values
+  const navigationHandled = useRef<number>()
+  useEffect(() => {
+    const request = props.navigationRevision
+    if (request === undefined || request === navigationHandled.current || !ready || busy
+      || catalogs?.generation !== c.generation || !catalogs.complete || notice
+      || props.section === 'recent' && accountCatalog?.generation !== c.generation) return
+    navigationHandled.current = request
+    props.onNavigationHandled?.()
+    const firstProject = ordered(items.map(item => ({ ...item, name: item.project.name })))[0]
+    const firstBot = ordered(items.flatMap(({ project, catalog }) =>
+      catalog.bots.map(bot => ({ project, catalog, bot, name: bot.name }))))[0]
+    const target = props.section === 'recent' ? recent[0]
+      : props.section === 'projects' ? firstProject && { project: firstProject.project, conversation: firstProject.catalog.conversations[0] }
+        : firstBot && { project: firstBot.project,
+          conversation: firstBot.catalog.conversations.find(item => item.botId === firstBot.bot.id) }
+    if (target?.conversation) void open(target.project, target.conversation.conversationId,
+      target.conversation.botId, target.conversation.assignment)
+    else props.showConversationStart?.(target?.project, props.section === 'bots' ? firstBot?.bot.id : undefined)
+    const groupId = props.section === 'bots' ? firstBot?.bot.id : target?.project?.id
+    if (groupId) setExpanded(new Set([groupId]))
+  }, [props.navigationRevision, ready, busy, catalogs, accountCatalog, props.section, c.generation, notice])
   return <section className={props.wide ? css.root : `${css.root} ${css.rail}`} aria-label={props.t(titleKey)}><div className={css.body}>
     {props.wide && props.section !== 'recent' && <div className={css.browserActions}><div className={css.headingActions}>
       <Menu open={menu === 'sort'} portal align="end" onClose={() => { setMenu(null) }} selectedId={sortName ? 'name' : 'default'}
@@ -143,7 +166,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         <button type="button" className={css.headerAction} aria-label={props.t(props.section === 'bots' ? 'createBot' : 'createProject')} disabled={!ready || busy}
           onClick={() => { if (props.section === 'bots') setEditing({})
           else { projectOperation.current = undefined
-            setProjectDraft({ name: '' }) } }}><IconPlusOutlineRegular /></button>
+            setProjectDraft({ name: '', background: '', summary: '', goal: '' }) } }}><IconPlusOutlineRegular /></button>
       </Tooltip>
     </div></div>}
     {notice && <p role="alert">{notice}</p>}
@@ -152,14 +175,13 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         onToggle={() => { toggle(project.id) }} actions={<>
           <Menu open={menu === project.id} portal align="end" onClose={() => { setMenu(null) }}
             anchor={<button type="button" className={css.rowAction} aria-label={`${props.t('more')} ${project.name}`} aria-haspopup="menu" aria-expanded={menu === project.id} onClick={() => { setMenu(menu === project.id ? null : project.id) }}><IconEllipsisOutlineRegular /></button>}
-            items={[{ id: 'tasks', label: props.t('tasks') }, { id: 'edit', label: props.t('editProject'), icon: <IconEditOutlineRegular /> },
+            items={[{ id: 'view', label: props.t('viewProject'), disabled: !ready || busy },
               { id: 'delete', label: props.t(project.createdBy === c.principal?.accountId ? 'deleteProject' : 'removeLocalProject'),
                 disabled: busy || !ready || !props.removeProject }]}
             onSelect={(id) => { setMenu(null)
-              if (id === 'tasks') props.openProjectTasks?.(project)
+              if (id === 'view') props.openProject?.(project)
               else if (id === 'delete') setDeleting(project)
-              else { projectOperation.current = undefined
-                setProjectDraft({ project, name: project.name }) } }} />
+            }} />
           {newButton(project)}
         </>}>
         {catalog.conversations.map(conversation => row(project, conversation))}
@@ -207,14 +229,12 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
       </select></label>}{notice && <p role="alert">{notice}</p>}
     </div>
   </Modal>}
-  {projectDraft && <Modal open title={props.t(projectDraft.project ? 'editProject' : 'createProject')} closeLabel={props.t('close')} onClose={() => { if (!busy) setProjectDraft(undefined) }}>
+  {projectDraft && <Modal open title={props.t('createProject')} closeLabel={props.t('close')} onClose={() => { if (!busy) setProjectDraft(undefined) }}>
     <form className={css.form} onSubmit={(event) => {
       event.preventDefault(); if (!ready || busy || !projectDraft.name.trim()) return
       setBusy(true); setNotice(''); projectOperation.current ??= randomUUID()
-      const project = projectDraft.project
       void props.connection({ kind: 'command', command: { operationId: projectOperation.current, organizationId: c.organizationId,
-        ...(project ? { kind: 'rename-project', projectId: project.id, expectedVersion: project.version } : { kind: 'create-project' }),
-        name: projectDraft.name.trim() } })
+        kind: 'create-project', ...projectDraft, name: projectDraft.name.trim() } })
         .then(() => {
           if (!alive.current || identity.current.mode !== 'organization' || identity.current.organizationId !== c.organizationId
             || identity.current.principal?.serverId !== c.principal?.serverId
@@ -225,6 +245,10 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     }}>
       <label>{props.t('projectName')}<Input autoFocus required disabled={busy} value={projectDraft.name} onChange={(event) => { projectOperation.current = undefined
         setProjectDraft({ ...projectDraft, name: event.target.value }) }} /></label>
+      {(['background', 'summary', 'goal'] as const).map(key => <label key={key}>{props.t(key === 'background' ? 'projectBackground' : key === 'summary' ? 'projectSummary' : 'projectGoal')}
+        <textarea rows={3} maxLength={key === 'background' ? 32000 : 8000} disabled={busy} value={projectDraft[key]} onChange={(event) => {
+          projectOperation.current = undefined; setProjectDraft({ ...projectDraft, [key]: event.target.value })
+        }} /></label>)}
       {notice && <p role="alert">{notice}</p>}
       <div className={css.formActions}><Button disabled={busy} onClick={() => { setProjectDraft(undefined) }}>{props.t('cancel')}</Button><Button type="submit" variant="primary" disabled={busy || !projectDraft.name.trim()}>{props.t('save')}</Button></div>
     </form>

@@ -15,9 +15,46 @@ import { executionViewSchema, executionCommandSchema } from '@deepseek-ai/dsh-or
 import { ConversationTask } from '../src/client/ConversationTask.tsx'
 import { AssignmentBatch } from '../src/client/AssignmentBatch.tsx'
 import { assignmentBatchRequestSchema } from '../../../host/organization-connection/src/assignment-batch.ts'
-import { Inbox } from '../src/client/Inbox.tsx'
+import { readTaskRequests } from '../src/client/task-requests.ts'
+import { deliveryCommandSchema, deliveryPageSchema } from '@deepseek-ai/dsh-organization/delivery'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
+
+it.each(['accept-delivery', 'reject-delivery'] as const)('offers %s in the selected task after evidence confirmation', async (kind) => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment, handlerId = a.assigneeId
+  a.approvedBy = handlerId; a.assigneeId = brandString(randomUUID()); a.state = 'accepted'
+  h.prep.request.state = 'accepted'
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, runId: randomUUID(), planRevision: a.planRevision }
+  const artifactId = randomUUID(), sha256 = 'a'.repeat(64), submissionId = randomUUID()
+  const page = deliveryPageSchema.parse({ artifacts: [{ ...selector, id: artifactId, employeeId: a.assigneeId,
+    path: 'report.txt', mediaType: 'text/plain', description: 'Task report', kind: 'file', size: 5, sha256, createdRevision: 3 }],
+  submissions: [{ ...selector, id: submissionId, employeeId: a.assigneeId, handlerId, kind: 'accept-delivery',
+    state: 'submitted', artifactIds: [artifactId], summary: 'Completed task', target: 'Review report', createdRevision: 4,
+    reviewState: 'pending', acceptance: null }], total: 1, offset: 0,
+  limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'delivery-read') return { generation: 1, delivery: page }
+    return base(action)
+  })
+  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
+  const button = await screen.findByRole('button', { name: kind === 'accept-delivery' ? zh.reviewAccept : zh.reviewReject })
+  expect(button.disabled).toBe(true)
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-command')).toBe(false)
+  fireEvent.change(screen.getByLabelText(zh.reviewReason), { target: { value: 'Missing result' } })
+  fireEvent.change(screen.getByLabelText(zh.reviewRequirements), { target: { value: 'Add result' } })
+  fireEvent.click(screen.getByLabelText(zh.reviewConfirm))
+  fireEvent.click(button)
+  await waitFor(() => {
+    const action = h.connection.mock.calls.find(([action]) => action.kind === 'delivery-command')?.[0]
+    expect(action?.kind).toBe('delivery-command')
+    if (action?.kind !== 'delivery-command') throw new Error('missing decision')
+    expect(deliveryCommandSchema.parse(action.request)).toMatchObject({ ...selector, kind, submissionId,
+      artifacts: [{ artifactId, sha256 }], confirmed: true,
+      ...(kind === 'reject-delivery' ? { reason: 'Missing result', requirements: 'Add result' } : {}) })
+  })
+})
 
 it('pages authorized Run history without starting execution and hides it when offline', async () => {
   const h = fixture(true), base = h.connection.getMockImplementation()!
@@ -125,20 +162,13 @@ it('accepts without delegating or claiming and hides old details when offline', 
   expect(screen.queryByRole('button', { name: zh.registerDevice })).toBeNull()
   expect(screen.getByRole('status').textContent).toBe(zh.qualificationRecheck)
 })
-it('marks a persistent notification read without answering and queries the processed view explicitly', async () => {
+it('reads pending task actions without answering or acknowledging notifications', async () => {
   const h = fixture(true)
-  render(<Inbox {...h.props} />)
-  fireEvent.click(await screen.findByRole('button', { name: zh.markReadOnly }))
-  await waitFor(() => {
-    const action = h.connection.mock.calls.find(([action]) => action.kind === 'assignment-participant')?.[0]
-    expect(action && 'request' in action ? action.request : null).toMatchObject({ kind: 'read-notification' })
-  })
+  const items = await readTaskRequests(h.props.connection, h.prep.assignment.organizationId, 1, () => true)
+  expect(items?.[0]?.assignment.id).toBe(h.prep.assignment.id)
+  expect(h.connection.mock.calls[0]?.[0]).toMatchObject({ kind: 'assignment-inbox', request: { state: 'pending' } })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-participant')).toBe(false)
   expect(h.prep.request.state).toBe('pending')
-  fireEvent.click(screen.getByRole('button', { name: zh['inbox-processed'] }))
-  await waitFor(() => {
-    const action = h.connection.mock.calls.filter(([action]) => action.kind === 'assignment-inbox').at(-1)?.[0]
-    expect(action && 'request' in action ? action.request : null).toMatchObject({ state: 'processed' })
-  })
 })
 
 it('keeps dispatch disabled when assignment eligibility fails', async () => {

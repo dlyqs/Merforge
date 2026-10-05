@@ -8,12 +8,15 @@ import type { OrganizationTaskSelectionProps } from './task-store.ts'
 import { readNavigationProjects } from './projects.ts'
 import { taskRows, workgraphError } from './workgraph-view.ts'
 import { Workbench } from './Workbench.tsx'
+import { readTaskRequests } from './task-requests.ts'
 
 type TaskProps = OrganizationProps & OrganizationTaskSelectionProps & { openTasks(): void }
 /** @param props - Native task reader and declared selection actions. @returns Authorized hierarchical task rows. */
 export function OrganizationTaskList(props: TaskProps) {
   const c = props.useOrganization(s => s.connection), selected = props.useStore(s => s.selected)
-  const [page, setPage] = useState<{ generation: number; items: { project: OrganizationProjectView; tasks: OrganizationTaskView[] }[] }>()
+  const [page, setPage] = useState<{ generation: number
+    items: { project: OrganizationProjectView; tasks: OrganizationTaskView[] }[]
+    pending: import('@deepseek-ai/dsh-organization').OrganizationInboxItem[] }>()
   const [notice, setNotice] = useState(''), [reload, setReload] = useState(0)
   useEffect(() => {
     let active = true
@@ -34,7 +37,8 @@ export function OrganizationTaskList(props: TaskProps) {
         }
         items.push({ project, tasks })
       }
-      if (isActive()) setPage({ generation: c.generation, items })
+      const pending = c.organizationId ? await readTaskRequests(props.connection, c.organizationId, c.generation, () => active) : []
+      if (isActive()) setPage({ generation: c.generation, items, pending: pending ?? [] })
     })().catch((error: unknown) => { if (active) setNotice(props.t(workgraphError(error))) })
     return () => { active = false }
   }, [c.generation, c.phase, c.mode, reload])
@@ -48,7 +52,9 @@ export function OrganizationTaskList(props: TaskProps) {
         props.actions.selectTask({ ...c.principal, organizationId: project.organizationId, projectId: project.id,
           planId: task.planId, taskId: task.id })
         props.openTasks()
-      }}><IconBranchOutlineRegular /><span><strong>{task.goal}</strong><small>{task.phaseTitle} · {props.t('taskVersion', { revision: task.revision })}</small></span></button>,
+      }}><IconBranchOutlineRegular /><span><strong>{task.goal}</strong><small>{task.phaseTitle} · {props.t('taskVersion', { revision: task.revision })}</small>
+          {page?.pending.some(item => item.assignment.planId === task.planId) && <small className={css.pendingAction}>{props.t('taskActionNeeded')}</small>}
+        </span></button>,
       )}</nav></section>)}
     {c.phase === 'ready' && page?.generation !== c.generation && !notice && <p role="status">{props.t('loading')}</p>}
     {page?.generation === c.generation && !current.some(p => p.tasks.length) && !notice && <p>{props.t('emptyTasksTitle')}</p>}

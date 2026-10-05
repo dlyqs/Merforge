@@ -22,6 +22,8 @@ export function SidebarRoot({
   const panels = usePanels(snapshot => snapshot)
   const activePanel = usePanelInfo(info => info.activePanelId)
   const [section, setSection] = useState<'projects' | 'bots' | 'recent'>('projects')
+  const [navigationRevision, setNavigationRevision] = useState<number>()
+  const navigationSequence = useRef(0)
   const tasks = panels.find(panel => panel.id === 'tasks')
   const showingTasks = tasks !== undefined && activePanel === tasks.id
   const activeSection = showingTasks ? 'tasks' : section
@@ -71,7 +73,7 @@ export function SidebarRoot({
       {renderSlot('sidebar.account', {})}
       <Tooltip label={t('session.new.label')} side="right">
         <button type="button" className={css.createButton} aria-label={t('session.new.label')}
-          onClick={() => { setSection('recent'); startSession() }}><IconPlusOutlineRegular size={22} /></button>
+          onClick={() => { setNavigationRevision(undefined); setSection('recent'); startSession() }}><IconPlusOutlineRegular size={22} /></button>
       </Tooltip>
       <nav className={css.panelList} aria-label={t('panels.label')}>
         {tasks !== undefined && <button type="button" className={css.navButton} aria-current={showingTasks ? 'page' : undefined}
@@ -80,7 +82,7 @@ export function SidebarRoot({
           ['projects', IconFolderCloseRegular], ['bots', IconAgentPresetOutlineRegular], ['recent', IconClockOutlineRegular],
         ] as const).map(([id, Icon]) => <button key={id} type="button" className={css.navButton}
           aria-current={activePanel === null && section === id ? 'page' : undefined}
-          onClick={() => { setSection(id); selectPanel(null); expandSidebar() }}><Icon size={21} /><span>{t(`nav.${id}`)}</span></button>)}
+          onClick={() => { setSection(id); setNavigationRevision(++navigationSequence.current); selectPanel(null); expandSidebar() }}><Icon size={21} /><span>{t(`nav.${id}`)}</span></button>)}
         {panels.filter(panel => panel.id !== 'tasks').map(panel => <Tooltip key={panel.id} label={panel.label} side="right">
           <button type="button" className={css.navButton} aria-label={panel.label} aria-current={activePanel === panel.id ? 'page' : undefined}
             onClick={() => { selectPanel(panel.id) }}>
@@ -96,7 +98,9 @@ export function SidebarRoot({
     </aside>
     {!collapsed && <section className={css.secondary} aria-label={t(`nav.${activeSection}`)}>
       <div className={css.regionArea}>
-        {showingTasks ? renderSlot('sidebar.tasks', {}) : renderSlot('sidebar.personal', { wide: true, section, expandSidebar })}
+        {showingTasks ? renderSlot('sidebar.tasks', {}) : renderSlot('sidebar.personal', { wide: true, section, expandSidebar,
+          ...(navigationRevision === undefined ? {} : { navigationRevision,
+            onNavigationHandled: () => { setNavigationRevision(undefined) } }) })}
       </div>
     </section>}
 

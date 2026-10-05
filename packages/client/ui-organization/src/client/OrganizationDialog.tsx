@@ -9,9 +9,8 @@ import type { OrganizationKey } from './locales.ts'
 import { zh } from './locales.ts'
 import css from './Organization.module.css'
 import { OrganizationHierarchy } from './Hierarchy.tsx'
-import { Inbox } from './Inbox.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
-type Section = 'connection' | 'projects' | 'members' | 'server' | 'inbox' | 'hierarchy'
+type Section = 'connection' | 'projects' | 'members' | 'server' | 'hierarchy'
 type Task = 'login' | 'register' | 'accept' | 'createOrg' | 'passwordChange' | 'createProject' | 'permissions' | 'configure' | 'initialize' | 'recover' | 'restore'
 
 /** @param props - Framework facts, initial section and dismissal callback. @returns Centered organization management workspace. */
@@ -120,7 +119,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
   const recovery = <><div className={css.notice}>{t('recoveryHint')}</div>{button('secret', async () => { setSecret(await props.secret()); setSaved(false) })}
     {secret && <label className={css.field}>{t('recovery')}<output className={css.secret}>{secret}</output></label>}
     <label className={css.check}><input type="checkbox" checked={saved} onChange={(event) => { setSaved(event.target.checked) }} />{t('savedSecret')}</label></>
-  const sectionLabels: Record<Section, OrganizationKey> = { hierarchy: 'hierarchyTitle', inbox: 'inbox', connection: 'account', projects: 'projects', members: 'members', server: 'server' }
+  const sectionLabels: Record<Section, OrganizationKey> = { hierarchy: 'hierarchyTitle', connection: 'account', projects: 'projects', members: 'members', server: 'server' }
   return <Modal open title={t('workspace')} closeLabel={t('close')} onClose={() => { if (!busy) props.onClose() }} className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}
     onKeyDownCapture={(event) => {
       if (event.key === 'Escape') {
@@ -143,7 +142,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
     <div ref={root} className={css.workspace} aria-busy={busy}>
       <div className={css.workspaceHeader}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={22} /></span><div><strong>{org?.name ?? t('title')}</strong><p>{c.username ?? t('welcome')}</p></div></div><span className={css.status} data-online={c.phase === 'ready'}>{t(c.phase)}</span></div>
       <nav className={css.tabs} aria-label={t('workspace')}>
-        {(['projects', 'inbox', 'hierarchy', 'members', 'connection', 'server'] as const).filter(item => item !== 'members' || admin).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item)
+        {(['projects', 'hierarchy', 'members', 'connection', 'server'] as const).filter(item => item !== 'members' || admin).map(item => <button key={item} aria-current={section === item ? 'page' : undefined} disabled={busy} onClick={() => { setSection(item)
           navigate(null) }}>{t(sectionLabels[item])}</button>)}
       </nav>
       <div className={css.content}>
@@ -179,29 +178,31 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
           {task === 'createOrg' && form(() => command({ kind: 'create-organization', name: value('orgName') }), input('orgName'), !writable || !value('orgName').trim())}
           {task === 'passwordChange' && form(() => command({ kind: 'change-password', currentPassword: value('password'), newPassword: value('newPassword') }), <>{input('password', 'password')}{input('newPassword', 'password')}{confirmation('newPassword')}</>, !writable || !value('password') || value('newPassword').length < 8 || value('newPassword') !== value('confirmPassword'))}
           {!task && section === 'hierarchy' && <OrganizationHierarchy {...props} />}
-          {!task && section === 'inbox' && <Inbox {...props} />}
           {!task && section === 'projects' && <>
             <p className={css.muted}>{t('scope')}</p>
             {!c.organizationId ? <p className={css.empty}>{t('chooseHint')}</p> : <>
               <form className={css.search} onSubmit={(event) => { event.preventDefault(); if (!busy && c.phase === 'ready') void run(() => connect({ kind: 'search', query: value('search'), offset: 0 })) }}><Input className={css.input ?? ''} icon={<IconSearchOutlineRegular />} aria-label={t('search')} placeholder={t('search')} value={value('search')} onChange={(event) => { set('search', event.target.value) }} /><Button type="submit" variant="outline" disabled={busy || c.phase !== 'ready'}>{t('searchAction')}</Button></form>
               <div className={css.actions}>{launch('createProject', !writable)}</div>
               {admin && <details className={css.advanced}><summary>{t('advancedAccess')}</summary>{launch('permissions', !writable)}</details>}
-              {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { if (props.openProjectTasks) { props.openProjectTasks(project)
-                props.onClose() } }}>{t('tasks')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions')
+              {projects && <><div className={css.projectGrid}><p className={css.eyebrow}>{t('total', { count: projects.total })}</p>{projects.items.map(project => <div className={css.listRow} key={project.id}><span className={css.avatar}><IconFolderCloseRegular size={18} /></span><div className={css.entryText}><strong>{project.name}</strong><small>{t('projectCardHint')}</small></div><div className={css.actions}><Button variant="primary" onClick={() => { if (props.openProject) { props.openProject(project)
+                props.onClose() } }}>{t('viewProject')}</Button>{admin && <Button variant="outline" onClick={() => { navigate('permissions')
                 set('projectId', project.id) }}>{t('projectMembers')}</Button>}</div></div>)}{!projects.items.length && <p className={css.empty}>{t('empty')}</p>}</div>
               <div className={css.pagination}>{button('firstPage', () => connect({ kind: 'search', query: value('search'), offset: 0 }), c.phase !== 'ready' || projects.offset === 0)}{button('next', () => connect({ kind: 'search', query: value('search'), offset: projects.offset + projects.items.length }), c.phase !== 'ready' || projects.offset + projects.items.length >= projects.total)}</div></>}
             </>}
           </>}
           {task === 'createProject' && form(async () => {
             const name = value('projectName').trim()
-            const result = await command({ kind: 'create-project', organizationId: c.organizationId, name })
+            const content = { background: value('projectBackground'), summary: value('projectSummary'), goal: value('projectGoal') }
+            const result = await command({ kind: 'create-project', organizationId: c.organizationId, name, ...content })
             navigate(null)
             if (result.receipt?.projectId && result.receipt.organizationId && c.principal) {
               const created = { id: result.receipt.projectId, organizationId: result.receipt.organizationId,
-                name, version: result.receipt.revision, createdBy: c.principal.accountId }
-              if (props.openProjectTasks) { props.openProjectTasks(created); props.onClose() }
+                name, ...content, version: result.receipt.revision, createdBy: c.principal.accountId }
+              if (props.openProject) { props.openProject(created); props.onClose() }
             }
-          }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !writable || !value('projectName').trim())}
+          }, <>{input('projectName')}{(['projectBackground', 'projectSummary', 'projectGoal'] as const).map(key => <label key={key} className={css.field}>{t(key)}
+            <textarea rows={3} maxLength={key === 'projectBackground' ? 32000 : 8000} value={value(key)} disabled={busy} onChange={(event) => { set(key, event.target.value) }} /></label>)}
+          <p className={css.muted}>{t('projectBackgroundHint')}</p></>, !writable || !value('projectName').trim())}
           {task === 'permissions' && admin && <>
             <label className={css.field}>{t('chooseProject')}<select value={value('projectId')} disabled={busy} onChange={(event) => { set('projectId', event.target.value) }}>
               <option value="">{t('chooseProject')}</option>

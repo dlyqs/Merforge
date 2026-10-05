@@ -7,11 +7,16 @@ function id<T extends Branded<string>>() { return z.uuid().transform(value => br
 const version = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const name = z.string().trim().min(1).max(120)
 const base = { operationId: id<OperationId>(), organizationId: id<OrganizationId>() }
+/** Project content accepted at creation and in creator-owned updates. */
+export const projectContentFields = { background: z.string().max(32000),
+  summary: z.string().max(8000), goal: z.string().max(8000) }
 
-/** Allow-listed creation, write-authorized rename and creator-only shared deletion. */
+/** Allow-listed creation and creator-only content updates and shared deletion. */
 export const projectCommandSchema = z.discriminatedUnion('kind', [
-  z.object({ ...base, kind: z.literal('create-project'), name }).strict(),
+  z.object({ ...base, kind: z.literal('create-project'), name, background: projectContentFields.background.default(''),
+    summary: projectContentFields.summary.default(''), goal: projectContentFields.goal.default('') }).strict(),
   z.object({ ...base, kind: z.literal('rename-project'), projectId: id<OrganizationProjectId>(), expectedVersion: version, name }).strict(),
+  z.object({ ...base, kind: z.literal('update-project'), projectId: id<OrganizationProjectId>(), expectedVersion: version, name, ...projectContentFields }).strict(),
   z.object({ ...base, kind: z.literal('delete-project'), projectId: id<OrganizationProjectId>(), expectedVersion: version }).strict(),
 ])
 /** Explicit grants use version zero for a missing grant and an empty action list to revoke. */
@@ -20,7 +25,8 @@ export const grantCommandSchema = z.object({
   expectedVersion: version, actions: z.array(z.enum(['read', 'write'])).max(2).refine(actions => new Set(actions).size === actions.length),
 }).strict()
 /** Project database row and safe wire view. */
-export const projectSchema = z.object({ id: id<OrganizationProjectId>(), organizationId: id<OrganizationId>(), name, version }).strict()
+export const projectSchema = z.object({ id: id<OrganizationProjectId>(), organizationId: id<OrganizationId>(),
+  name, version, ...projectContentFields }).strict()
 /** Creation identity is supplied by the authority, independently of content grants. */
 export const projectViewSchema = projectSchema.extend({ createdBy: id<AccountId>() }).strict()
 /** Deleted identifiers remain readable by previous grantees for installation-local cleanup. */

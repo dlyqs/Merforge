@@ -8,6 +8,7 @@
 .dialog.executionDialog { width: min(720px, 100%); }
 .dialogContent { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .body { display: grid; gap: 20px; min-width: 0; font-size: 13px; line-height: 1.6; }
+.pendingAction { color: var(--dsw-alias-state-warn-primary); }
 .body :is(h3, h4, p, dl, dd) { margin: 0; }
 .body h3 { font-size: 14px; font-weight: 600; }
 .body h4 { font-size: 13px; font-weight: 600; }

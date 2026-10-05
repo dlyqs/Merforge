@@ -14,6 +14,8 @@ import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
 import { TaskCanvas } from './TaskCanvas.tsx'
+import { readTaskRequests } from './task-requests.ts'
+import { ExecutionHumanRequest } from './ExecutionHumanRequest.tsx'
 
 type Draft = {
   planId: OrganizationPlanId
@@ -39,6 +41,7 @@ export function Workbench(props: OrganizationProps & {
   const c = props.useOrganization(s => s.connection)
   const { t } = props
   const [page, setPage] = useState<{ generation: number; value: OrganizationTaskPage }>()
+  const [requests, setRequests] = useState<{ generation: number; items: import('@deepseek-ai/dsh-organization').OrganizationInboxItem[] }>()
   const [selected, setSelected] = useState<OrganizationTaskId | undefined>(props.initialTaskId)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [access, setAccess] = useState<'project' | null>(null)
@@ -54,6 +57,17 @@ export function Workbench(props: OrganizationProps & {
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const query = { organizationId: props.project.organizationId, projectId: props.project.id }
   const ready = c.phase === 'ready' && c.mode === 'organization' && c.organizationId === props.project.organizationId
+  const pending = ready && requests?.generation === c.generation ? requests.items : []
+  const loadRequests = async (active: () => boolean = () => alive.current) => {
+    const items = await readTaskRequests(props.connection, props.project.organizationId, c.generation, active)
+    if (active() && items) setRequests({ generation: c.generation,
+      items: items.filter(item => item.assignment.projectId === props.project.id) })
+  }
+  useEffect(() => {
+    let active = true
+    if (ready) void loadRequests(() => active).catch((error: unknown) => { if (active) setNotice(t(workgraphError(error))) })
+    return () => { active = false }
+  }, [ready, c.generation])
   const currentPage = ready && page?.generation === c.generation ? page.value : undefined
   const pageTasks = currentPage?.items ?? []
   const task = currentPage?.items.find(item => item.id === selected)
@@ -168,7 +182,7 @@ export function Workbench(props: OrganizationProps & {
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
     {(currentPage?.items.length || draft) && <div className={taskWorkspaceStyles.body}><div className={taskWorkspaceStyles.workspace}>
-      <TaskCanvas t={t} tasks={canvasTasks} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}>
+      <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}>
         {detailTask && detailsOpen && <TaskDetail taskId={detailTask.id} title={detailTask.goal}
           labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
           {task && !draft && <>
@@ -192,6 +206,12 @@ export function Workbench(props: OrganizationProps & {
             </section>
           </>}
           {task && !draft && <section className={taskWorkspaceStyles.detailSection}><IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} /></section>}
+          {task && !draft && pending.filter(item => item.assignment.taskId === task.id).map(item =>
+            <section key={item.request.id} className={taskWorkspaceStyles.detailSection}>
+              <p role="status">{t(item.request.kind === 'accept-delivery' ? 'review-pending' : 'taskActionNeeded')}</p>
+              {item.request.kind !== 'accept-delivery' && item.request.kind !== 'accept-assignment'
+              && <ExecutionHumanRequest {...props} request={item.request} assignment={item.assignment} refresh={loadRequests} />}
+            </section>)}
           {retainedTask && !draft && <section className={taskWorkspaceStyles.detailSection}><AssignmentPanel key={selected} {...props}
             task={retainedTask} projectId={props.project.id} current={!!task}
             {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} onAssignmentRevision={setAssignmentRevision} /></section>}

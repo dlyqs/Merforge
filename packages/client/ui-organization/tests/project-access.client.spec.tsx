@@ -16,8 +16,10 @@ afterEach(cleanup)
 function fixture() {
   const organizationId = brandString<OrganizationId>(randomUUID()), projectId = brandString<OrganizationProjectId>(randomUUID())
   const memberId = brandString<MembershipId>(randomUUID())
-  const project = { id: projectId, organizationId, name: 'Design project', version: 1 }
+  const project = { id: projectId, organizationId, name: 'Design project', version: 1,
+    createdBy: brandString<import('@deepseek-ai/dsh-organization/types').AccountId>(randomUUID()), background: '', summary: '', goal: '' }
   let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, generation: 1, revision: 1, mode: 'organization', phase: 'ready', organizationId,
+    principal: { serverId: brandString(randomUUID()), accountId: project.createdBy },
     organizations: [{ id: organizationId, name: 'Team', role: 'admin', version: 1, membershipId: memberId }],
     members: [{ id: memberId, username: 'Alice', accountId: brandString(randomUUID()), accountVersion: 1, accountEnabled: true, enabled: true, role: 'member', version: 1 }],
     projects: { items: [project], total: 1, offset: 0, revision: 1, cursor: brandString('cursor') } },
@@ -66,18 +68,18 @@ it('does not display an old permission result after the native identity generati
 })
 
 it('opens a newly created project immediately using the committed receipt', async () => {
-  const h = fixture(), openProjectTasks = vi.fn(), onClose = vi.fn()
+  const h = fixture(), openProject = vi.fn(), onClose = vi.fn()
   h.connection.mockImplementation(async (action) => {
     if (action.kind === 'command') return { receipt: { operationId: brandString(randomUUID()), revision: 9,
       projectId: h.project.id, organizationId: h.project.organizationId } }
     return {}
   })
-  render(<OrganizationDialog {...h.props} openProjectTasks={openProjectTasks} initialSection="projects" onClose={onClose} />)
+  render(<OrganizationDialog {...h.props} openProject={openProject} initialSection="projects" onClose={onClose} />)
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
   fireEvent.change(screen.getByLabelText(zh.projectName), { target: { value: 'New project' } })
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
-  await waitFor(() => { expect(openProjectTasks).toHaveBeenCalledExactlyOnceWith({
-    organizationId: h.project.organizationId, id: h.project.id, name: 'New project', version: 9,
+  await waitFor(() => { expect(openProject).toHaveBeenCalledExactlyOnceWith({
+    organizationId: h.project.organizationId, id: h.project.id, name: 'New project', version: 9, createdBy: h.project.createdBy, background: '', summary: '', goal: '',
   }) })
   expect(onClose).toHaveBeenCalledOnce()
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-tasks')).toBe(false)

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-spill-local",
-  "description": "Local-filesystem implementation of the DeepSeek Harness spill storage seam (private session-scoped files)",
+  "description": "Local-filesystem implementation of the Merforge spill storage seam (private session-scoped files)",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"

@@ -6,8 +6,12 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConversationRequest } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationProps } from './contract.ts'
+import type { ConversationStartTarget } from './ConversationEntry.tsx'
 /** Framework-owned modal visibility. */
-export interface NewConversationInjected { hooks: { creating: ObservableSnapshot<boolean> }; dismiss(): void }
+export interface NewConversationInjected {
+  hooks: { creating: ObservableSnapshot<boolean>; conversationStartTarget: ObservableSnapshot<ConversationStartTarget> }
+  dismiss(): void
+}
 /** @param props - Account identity, standard Session starter and modal hook. @returns Creation status or retry. */
 export function NewConversation(props: OrganizationProps & InjectFace<NewConversationInjected>) {
   const open = props.useCreating(value => value), c = props.useOrganization(s => s.connection)
@@ -16,6 +20,7 @@ export function NewConversation(props: OrganizationProps & InjectFace<NewConvers
 }
 function Starter(props: OrganizationProps & InjectFace<NewConversationInjected>) {
   const c = props.useOrganization(s => s.connection)
+  const target = props.useConversationStartTarget(value => value)
   const [conversationId] = useState(randomUUID() as ConversationRequest['conversationId'])
   const [attempt, setAttempt] = useState(0), [notice, setNotice] = useState('')
   useEffect(() => {
@@ -24,7 +29,8 @@ function Starter(props: OrganizationProps & InjectFace<NewConversationInjected>)
     if (c.phase !== 'ready' || !c.principal || !c.organizationId || !props.selectConversation) {
       setNotice(props.t('conversationUnavailable')); return
     }
-    void props.selectConversation({ ...c.principal, organizationId: c.organizationId, conversationId }).then(() => {
+    void props.selectConversation({ ...c.principal, organizationId: c.organizationId, conversationId,
+      ...(target.project ? { projectId: target.project.id } : {}), ...(target.botId ? { botId: target.botId } : {}) }).then(() => {
       if (active) { props.dismiss() }
     }, () => { if (active) setNotice(props.t('conversationFailure')) })
     return () => { active = false }

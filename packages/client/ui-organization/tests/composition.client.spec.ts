@@ -9,6 +9,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
 import type { AccountId, MembershipId, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { OrganizationTaskList, OrganizationTasks } from '../src/client/Tasks.tsx'
+import { OrganizationConversationEntry } from '../src/client/ConversationEntry.tsx'
 import { ConversationPanel } from '../../ui-conversation/src/client/skeleton/ConversationPanel.tsx'
 import { randomUUID } from 'node:crypto'
 import { createAssistantMessage, createSystemMessage, MessageId } from '@deepseek-ai/dsh-llm'
@@ -91,11 +92,13 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(mock.remote.session.create).not.toHaveBeenCalled()
     expect(selectPanel).toHaveBeenLastCalledWith(null)
     expect(app.ctx.slots.entries('main').filter(e => e.options.key === 'conversation')[0]?.component).toBe(ConversationPanel)
+    expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
     const sidebar = app.ctx.slots.entries('sidebar.personal').find(entry => entry.component === OrganizationSidebar)!
     const bind = sidebar.inject as (actions: BoundActions<ReturnType<typeof createConversationStore>>) => OrganizationInjected
     const actions = createConversationStore().create().actions
     const injected = bind(actions)
     await injected.selectConversation!(report.owner)
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
     const binding = app.ctx.sessions.binding(report.sharedSessionId!)!
     await vi.waitFor(() => { expect(binding.session.getSnapshot().openError).toBeNull(); expect(binding.session.getSnapshot().openState).toBe('open') })
     expect(binding.session.getSnapshot().sessionId).toBe(report.sharedSessionId!)
@@ -165,8 +168,11 @@ it('routes new and recent conversation navigation to the organization and replac
     publish?.({ ...snapshot, connection: { ...snapshot.connection, phase: 'ready', generation: 3, identityGeneration: 2 } })
     await vi.waitFor(() => { expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeDefined() })
     expect(mock.remote.session.prompt.mock.calls.length).toBe(prompts)
+    injected.showConversationStart?.()
+    expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, mode: 'personal', generation: 2 } })
     await vi.waitFor(() => { expect(app.ctx.slots.entries('sidebar.tasks').some(e => e.component === OrganizationTaskList)).toBe(false) })
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
     app.ctx.uiWorkspace.showConversation()
     expect(selectPanel).toHaveBeenLastCalledWith(null)
     expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeUndefined()

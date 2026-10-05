@@ -13,6 +13,7 @@ import { createOrganizationTaskStore } from '../src/client/task-store.ts'
 import { OrganizationHierarchy } from '../src/client/Hierarchy.tsx'
 import { MemberSelect } from '../src/client/MemberSelect.tsx'
 import { readNavigationProjects } from '../src/client/projects.ts'
+import { ProjectDetails } from '../src/client/Project.tsx'
 import { Workbench } from '../src/client/Workbench.tsx'
 import { OrganizationDialog } from '../src/client/OrganizationDialog.tsx'
 import { zh } from '../src/client/locales.ts'
@@ -22,7 +23,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 afterEach(cleanup)
 function fixture() {
   const organizationId = brandString<import('@deepseek-ai/dsh-organization/types').OrganizationId>(randomUUID())
-  const project = { id: brandString<import('@deepseek-ai/dsh-organization/types').OrganizationProjectId>(randomUUID()), organizationId, name: 'Shared project', version: 1 }
+  const project = { id: brandString<import('@deepseek-ai/dsh-organization/types').OrganizationProjectId>(randomUUID()), organizationId, name: 'Shared project', version: 1, createdBy: brandString<import('@deepseek-ai/dsh-organization/types').AccountId>(randomUUID()), background: 'Product background', summary: 'Project overview', goal: 'Release goal' }
   const member = brandString<import('@deepseek-ai/dsh-organization/types').MembershipId>(randomUUID())
   const version = workgraphVersionSchema.parse({ organizationId, projectId: project.id, planId: randomUUID(), revision: 1,
     createdBy: member, createdAt: 1,
@@ -32,7 +33,7 @@ function fixture() {
       acceptance: ['Review'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
     }] } })
   const page = workgraphPageSchema.parse({ items: [{ ...version.definition.tasks[0], planId: version.planId, revision: 1, phaseTitle: 'Preparation', assignable: false, hasUndisclosedPrerequisite: true }], total: 1, offset: 0, revision: 1, cursor: 'cursor' })
-  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId,
+  let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId, principal: { accountId: project.createdBy, serverId: brandString(randomUUID()) },
     organizations: [{ id: organizationId, membershipId: member, name: 'Team', role: 'member', version: 1 }], members: [],
     projects: { items: [project], offset: 0, total: 1, revision: 1, cursor: page.cursor } },
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
@@ -41,8 +42,10 @@ function fixture() {
     principal: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()), organizationId, membershipId: member, role: 'member' }, result,
   } })
   const connection = vi.fn<OrganizationProps['connection']>(async (action) => {
+    if (action.kind === 'project-page') return { generation: state.connection.generation, projects: state.connection.projects }
     if (action.kind === 'workgraph-tasks') return reply({ kind: 'tasks', value: page })
     if (action.kind === 'workgraph-read') return reply({ kind: 'plan', value: version })
+    if (action.kind === 'assignment-inbox') return { assignment: { generation: 1, result: { kind: 'inbox', value: { items: [], total: 0, unread: 0, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
     return {}
   })
   const context = vi.fn<OrganizationProps['context']>()
@@ -86,11 +89,11 @@ it('uses native context action and hides expired content including delayed resul
   await waitFor(() =>{  expect(screen.queryByText('Authorized scope')).toBeNull() })
   expect(screen.queryByText(zh.contextReadonly)).toBeNull()
 })
-it('opens project tasks in the main destination and removes the manual task workbench', async () => {
-  const h = fixture(), openProjectTasks = vi.fn(), onClose = vi.fn()
-  render(<OrganizationDialog {...h.props} openProjectTasks={openProjectTasks} initialSection="projects" onClose={onClose} />)
-  fireEvent.click(screen.getByRole('button', { name: zh.tasks }))
-  expect(openProjectTasks).toHaveBeenCalledWith(h.project)
+it('opens project information in the main destination and removes the manual task workbench', async () => {
+  const h = fixture(), openProject = vi.fn(), onClose = vi.fn()
+  render(<OrganizationDialog {...h.props} openProject={openProject} initialSection="projects" onClose={onClose} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.viewProject }))
+  expect(openProject).toHaveBeenCalledWith(h.project)
   expect(onClose).toHaveBeenCalledOnce()
   expect(screen.queryByRole('button', { name: zh.createTask })).toBeNull()
   expect(screen.queryByRole('button', { name: zh.taskPermissions })).toBeNull()
@@ -130,15 +133,20 @@ it('shows the saved context revision separately when the current task has change
 
 it('does not repeat a denied task request after native generation refresh and allows explicit retry', async () => {
   const h = fixture()
-  h.connection.mockRejectedValueOnce(new Error('forbidden'))
+  const base = h.connection.getMockImplementation()!
+  let denied = false
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks' && !denied) { denied = true; throw new Error('forbidden') }
+    return base(action)
+  })
   const view = render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
   await screen.findByText(zh.forbidden)
   h.setState({ generation: 2 })
   await act(async () => { view.rerender(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />) })
-  expect(h.connection).toHaveBeenCalledTimes(1)
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-tasks')).toHaveLength(1)
   fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
   await screen.findByRole('button', { name: 'Visible task' })
-  expect(h.connection).toHaveBeenCalledTimes(2)
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-tasks')).toHaveLength(2)
 })
 
 
@@ -160,6 +168,7 @@ it('selects a paginated authorized task node without assigning or starting it', 
       const request = action.request as { offset: number }
       return h.reply({ kind: 'tasks', value: { ...h.page, items: request.offset ? [second] : h.page.items, total: 2, offset: request.offset } })
     }
+    if (action.kind === 'assignment-inbox') return { assignment: { generation: 1, result: { kind: 'inbox', value: { items: [], total: 0, unread: 0, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
     return {}
   })
   const store = createOrganizationTaskStore().create(), openTasks = vi.fn()
@@ -230,4 +239,33 @@ it('selects task nodes in the main canvas and keeps assignment controls in the r
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command' || action.kind === 'execution-command')).toBe(false)
   h.setState({ generation: 2, phase: 'offline' }); view.rerender(<OrganizationTasks {...props} />)
   expect(screen.queryByRole('region', { name: zh.taskDetail })).toBeNull()
+})
+
+it('edits owner project information and opens a task from the project page', async () => {
+  const h = fixture(), openTask = vi.fn()
+  render(<ProjectDetails {...h.props} project={h.project} openTask={openTask} />)
+  const background = await screen.findByLabelText(zh.projectBackground)
+  expect(background.value).toBe('Product background')
+  fireEvent.change(background, { target: { value: 'Updated project background' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.save }))
+  await waitFor(() => { expect(h.connection.mock.calls.find(([action]) => action.kind === 'command')?.[0]).toMatchObject({ kind: 'command', command: {
+    kind: 'update-project', projectId: h.project.id, expectedVersion: 1, background: 'Updated project background', summary: 'Project overview', goal: 'Release goal',
+  } }) })
+  fireEvent.click(screen.getByRole('button', { name: 'Visible task' }))
+  expect(openTask).toHaveBeenCalledWith(h.project, h.page.items[0])
+})
+it('shows project context to participants with read-only fields and no save action', async () => {
+  const h = fixture()
+  h.project.createdBy = brandString(randomUUID())
+  render(<ProjectDetails {...h.props} project={h.project} />)
+  const background = await screen.findByLabelText(zh.projectBackground)
+  expect(background.readOnly).toBe(true)
+  expect(screen.getByLabelText(zh.projectName).readOnly).toBe(true)
+  expect(screen.queryByRole('button', { name: zh.save })).toBeNull()
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'command')).toBe(false)
+})
+it('removes the inbox tab from the organization workbench', () => {
+  const h = fixture()
+  render(<OrganizationDialog {...h.props} initialSection="projects" onClose={vi.fn()} />)
+  expect(screen.queryByRole('button', { name: '待我处理' })).toBeNull()
 })

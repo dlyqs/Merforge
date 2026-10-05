@@ -534,3 +534,21 @@ it.each(['forbidden', 'operation-pending', 'superseded', 'unavailable'])('report
     attached.lifetime.abort(); await attached.done
   } finally { await h?.close(); await connection.close(); await remote.close(); vi.restoreAllMocks() }
 }, 30000)
+
+it('records current project context in each ordinary conversation input and observes owner updates', async () => {
+  const h = await setup([textResponse('First answer'), textResponse('Second answer')])
+  try {
+    const project = h.authority.view.project!
+    project.background = 'Shared product background'; project.summary = 'Initial overview'; project.goal = 'Ship the release'
+    const first = await h.attach(), id = first.report.sharedSessionId!
+    await h.send(id, 'First question')
+    await vi.waitFor(() => { expect(h.ctx.agents.get(id)?.status).toBe('idle'); expect(h.model.requests).toHaveLength(1) })
+    expect(JSON.stringify(h.model.requests[0]?.messages)).toContain('Shared product background')
+    project.background = 'Updated project background'; project.version++
+    await h.send(id, 'Second question')
+    await vi.waitFor(() => { expect(h.ctx.agents.get(id)?.status).toBe('idle'); expect(h.model.requests).toHaveLength(2) })
+    expect(JSON.stringify(h.model.requests[1]?.messages)).toContain('Updated project background')
+    const inputs = h.ctx.agents.get(id)!.session.snapshotEvents().filter(event => event.type === 'organization/planning-input')
+    expect(inputs.map(event => event.data.authority.view.project?.background)).toEqual(['Shared product background', 'Updated project background'])
+  } finally { await h.close() }
+})

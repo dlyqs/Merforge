@@ -8,8 +8,8 @@
     - tab "Trajectory"
 - text: Stream one TypeScript fence for the highlighting snapshot. {{clock}}
 - button "Copy"
-- status: Deep diving...
-- button "Deep diving for {{duration}}" [disabled] [expanded]
+- status: Merforge working...
+- button "Merforge working for {{duration}}" [disabled] [expanded]
 - text: ts
 - button "Wrap lines" [pressed]
 - button "Copy"

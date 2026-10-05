@@ -44,7 +44,7 @@ Only the current Client binding's directory can publish its composer block. Clea
 
 ### Selection failures
 
-When another writer owns the Session, model-selection failures tell the user to quit other running DSH instances and retry.
+When another writer owns the Session, model-selection failures tell the user to quit other running Merforge instances and retry.
 
 ### Codex conversations
 

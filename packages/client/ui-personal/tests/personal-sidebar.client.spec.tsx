@@ -272,3 +272,15 @@ it('retains a Codex Bot draft while its modal is suspended for settings and neve
   expect((screen.getByLabelText(zh.backend)).value).toBe('codex')
   expect(b.createBot).not.toHaveBeenCalled()
 })
+
+it('selects the first conversation of the first ordered project on each navigation request', async () => {
+  const h = mount(list, 'projects', { navigationRevision: 1 })
+  await waitFor(() => { expect(h.openSession).toHaveBeenCalledWith(sessionId) })
+  h.view.rerender(<PersonalSidebar {...h.props} navigationRevision={2} />)
+  await waitFor(() => { expect(h.openSession).toHaveBeenCalledTimes(2) })
+})
+it('opens a real affiliated conversation when the first project has no conversations', async () => {
+  const h = mount({ ...list, ids: [], byId: {} }, 'projects', { navigationRevision: 1 })
+  await waitFor(() => { expect(h.createSession).toHaveBeenCalledWith({ projectId: projectA }) })
+  expect(h.openSession).not.toHaveBeenCalled()
+})

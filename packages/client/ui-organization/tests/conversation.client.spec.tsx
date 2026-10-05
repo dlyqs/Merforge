@@ -25,9 +25,10 @@ function fixture() {
     settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [{ role: 'assistant', text: 'Private report' }],
     goals: [], state: 'ready', truncated: false })
   const project = { id: result.owner.projectId!, organizationId: result.owner.organizationId, name: 'Reports', version: 1,
-    createdBy: result.owner.accountId }
+    createdBy: result.owner.accountId, background: '', summary: '', goal: '' }
   const { createdBy: _creator, ...planningProject } = project
-  const planning = planningViewSchema.parse({ project: planningProject, grant: null, eligible: false, canWrite: true, plans: [], serverTime: 0,
+  const planning = planningViewSchema.parse({ project: planningProject, grant: null, eligible: false,
+    canWrite: true, plans: [], serverTime: 0,
     policy: { models: [{ model: 'test-model', endpoint: 'https://example.test/v1' }], ttlMs: 1000, permitTtlMs: 1000, maxRequests: 10,
       maxInputBytes: 100000, maxOutputBytes: 100000, maxTotalBytes: 1000000, maxDurationMs: 10000 } })
   let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, phase: 'ready', mode: 'organization', revision: 1, generation: 1,
@@ -190,10 +191,50 @@ it('creates a projectless conversation from the global plus without showing a pr
   const h = fixture(), dismiss = vi.fn()
   const selectConversation = vi.fn<NonNullable<OrganizationProps['selectConversation']>>(async () => {})
   render(<NewConversation {...h.props} selectConversation={selectConversation} dismiss={dismiss}
-    useCreating={selector => selector(true)} />)
+    useConversationStartTarget={selector => selector({})} useCreating={selector => selector(true)} />)
   await waitFor(() => { expect(dismiss).toHaveBeenCalledOnce() })
   expect(selectConversation.mock.calls[0]?.[0]).toMatchObject({ organizationId: h.project.organizationId })
   expect(selectConversation.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
   expect(h.connection).not.toHaveBeenCalled()
   expect(screen.queryByRole('combobox')).toBeNull()
+})
+
+it('offers only project information and deletion in the project menu', async () => {
+  const h = fixture(), store = createConversationStore().create(), openProject = vi.fn()
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  render(<OrganizationBrowser {...h.props} section="projects" wide expandSidebar={vi.fn()} openProject={openProject} removeProject={vi.fn()}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  fireEvent.click(await screen.findByRole('button', { name: `${zh.more} ${h.project.name}` }))
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([zh.viewProject, zh.deleteProject])
+  fireEvent.click(screen.getByRole('menuitem', { name: zh.viewProject }))
+  expect(openProject).toHaveBeenCalledWith(h.project)
+})
+it.each(['projects', 'bots', 'recent'] as const)('selects the first %s conversation after a navigation request', async (section) => {
+  const h = fixture(), store = createConversationStore().create(), selectConversation = vi.fn(async () => {})
+  const botId = brandString<import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationRequest['botId']>(randomUUID())
+  h.result.catalog = { bots: [{ id: botId, name: 'First Bot', instructions: '', createdAt: 1, revision: 1 }],
+    conversations: [{ conversationId: h.result.owner.conversationId, title: 'First conversation', botId, createdAt: 2 }] }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project], total: 1, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  h.conversation.mockResolvedValue({ generation: 1, result: h.result })
+  render(<OrganizationBrowser {...h.props} section={section} wide expandSidebar={vi.fn()} navigationRevision={1}
+    selectConversation={selectConversation} actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  await waitFor(() => {
+    expect(selectConversation).toHaveBeenCalledWith(expect.objectContaining({ conversationId: h.result.owner.conversationId }))
+  })
+  expect(h.conversation.mock.calls.some(([request]) => request.kind === 'send')).toBe(false)
+})
+it('shows a working new conversation entry for an empty first project instead of falling through to another project', async () => {
+  const h = fixture(), store = createConversationStore().create(), showConversationStart = vi.fn(), selectConversation = vi.fn()
+  const second = { ...h.project, id: brandString<typeof h.project.id>(randomUUID()), name: 'Second project' }
+  h.connection.mockResolvedValue({ generation: 1, projects: { items: [h.project, second], total: 2, offset: 0, revision: 1, cursor: brandString('catalog') } })
+  h.conversation.mockImplementation(async (request) => {
+    const conversations = request.projectId === second.id
+      ? [{ conversationId: h.result.owner.conversationId, title: 'Second project chat', createdAt: 1 }] : []
+    return { generation: 1, result: { ...h.result, catalog: { bots: [], conversations } } }
+  })
+  render(<OrganizationBrowser {...h.props} section="projects" wide expandSidebar={vi.fn()} navigationRevision={1}
+    showConversationStart={showConversationStart} selectConversation={selectConversation}
+    actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
+  await waitFor(() => { expect(showConversationStart).toHaveBeenCalledWith(h.project, undefined) })
+  expect(selectConversation).not.toHaveBeenCalled()
 })

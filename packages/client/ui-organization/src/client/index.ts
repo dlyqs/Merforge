@@ -15,6 +15,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConversationSelection } from './conversation-store.ts'
 import { NewConversation } from './NewConversation.tsx'
+import { OrganizationProject, type ProjectSelection } from './Project.tsx'
+import { OrganizationConversationEntry, type ConversationStartTarget } from './ConversationEntry.tsx'
 import { ConversationManager } from './ConversationManager.tsx'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
@@ -66,6 +68,22 @@ export function apply(ctx: Context): void {
       if (c.mode !== 'organization' || c.organizationId !== project.organizationId || !c.principal) return
       taskActions?.selectProject({ ...c.principal, project }); ctx.layout.selectPanel('tasks' as MainPanelId)
     },
+    openProject: (project) => {
+      const c = state.getSnapshot().connection
+      if (c.phase !== 'ready' || c.mode !== 'organization' || c.organizationId !== project.organizationId || !c.principal) return
+      projectDetails.set({ ...c.principal, project }); ctx.layout.selectPanel('organization-project' as MainPanelId)
+    },
+    openTask: (project, task) => {
+      const c = state.getSnapshot().connection
+      if (c.phase !== 'ready' || c.mode !== 'organization' || c.organizationId !== project.organizationId || !c.principal) return
+      taskActions?.selectTask({ ...c.principal, organizationId: project.organizationId,
+        projectId: project.id, planId: task.planId, taskId: task.id })
+      ctx.layout.selectPanel('tasks' as MainPanelId)
+    },
+    showConversationStart: (project, botId) => {
+      conversationStartTarget.set({ ...(project ? { project } : {}), ...(botId ? { botId } : {}) })
+      void selectConversation(null)
+    },
     removeProject: async (project) => {
       const bridge = desktop
       if (!bridge) return unavailable()
@@ -110,6 +128,8 @@ export function apply(ctx: Context): void {
   let taskActions: BoundActions<typeof taskStore> | undefined
   const accountReference = createSnapshotStore<SessionReference | undefined>(undefined)
   const creating = createSnapshotStore(false)
+  const conversationStartTarget = createSnapshotStore<ConversationStartTarget>({})
+  const projectDetails = createSnapshotStore<ProjectSelection | null>(null)
   const management = createSnapshotStore<{ selected: ConversationSelection; action: 'manage' | 'delete' } | null>(null)
   let accountSession: AccountSession | undefined, openSequence = 0
   let currentSelection: ConversationSelection | null = null
@@ -205,11 +225,11 @@ export function apply(ctx: Context): void {
     return { ...bind(), openTasks: () => { ctx.layout.selectPanel('tasks' as MainPanelId) } }
   }
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'organization-new-conversation',
-    locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, creating },
+    locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, creating, conversationStartTarget },
       dismiss: () => { creating.set(false) } }) }, NewConversation))
   ctx.effect(() => ctx.uiWorkspace.registerSessionStarter(() => {
     if (state.getSnapshot().connection.mode !== 'organization') return false
-    creating.set(true); ctx.layout.selectPanel(null); return true
+    conversationStartTarget.set({}); creating.set(true); ctx.layout.selectPanel(null); return true
   }, () => {
     if (state.getSnapshot().connection.mode !== 'organization') return false
     ctx.layout.selectPanel(null); return true
@@ -225,6 +245,7 @@ export function apply(ctx: Context): void {
         retire()
         management.set(null)
         creating.set(false)
+        projectDetails.set(null); conversationStartTarget.set({})
         currentSelection = null
         conversationActions?.select(null)
         taskActions?.selectTask(null)
@@ -243,6 +264,10 @@ export function apply(ctx: Context): void {
         retire(); currentSelection = null; conversationActions?.select(null)
       }
       for (const projectId of c.removedProjects ?? []) taskActions?.removeProject(projectId)
+      const viewedProject = projectDetails.getSnapshot()
+      if (viewedProject && c.removedProjects?.includes(viewedProject.project.id)) {
+        projectDetails.set(null); ctx.layout.selectPanel(null)
+      }
       if (phase !== c.phase) {
         phase = c.phase
         if (organization && c.phase === 'ready' && currentSelection && !accountSession)
@@ -257,11 +282,27 @@ export function apply(ctx: Context): void {
           locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTaskList)),
         ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'tasks', priority: -10,
           locale: 'organization', store: taskStore, inject: bindTasks }, OrganizationTasks)),
+        ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'organization-project',
+          locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, projectDetails } }) }, OrganizationProject)),
       ] : []
     }
     const unsubscribe = state.subscribe(update); update()
     return () => { unsubscribe(); for (const dispose of stop) dispose() }
   }, 'organization.task-navigation')
+  ctx.effect(() => {
+    let visible = false, stop: (() => void) | undefined
+    const update = () => {
+      const empty = state.getSnapshot().connection.mode === 'organization' && !accountReference.getSnapshot()
+      if (empty === visible) return
+      visible = empty; stop?.()
+      stop = empty ? ctx.slots.inject('main.conversation.entry', () => ctx.slots.register({ name: 'main.conversation.entry',
+        locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, conversationStartTarget },
+          startConversation: () => { creating.set(true) } }) }, OrganizationConversationEntry)) : undefined
+    }
+    const unsubscribeState = state.subscribe(update), unsubscribeReference = accountReference.subscribe(update)
+    update()
+    return () => { unsubscribeState(); unsubscribeReference(); stop?.() }
+  }, 'organization.conversation-entry')
   ctx.effect(() => {
     let closed = false, tail = Promise.resolve()
     const isClosed = () => closed

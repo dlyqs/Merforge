@@ -331,7 +331,7 @@ it.each(['pending', 'held'])('preserves WorkGraph history and permanently retire
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 17 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 18 })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)
@@ -361,7 +361,7 @@ it.each(['pending', 'held'])('preserves WorkGraph history and permanently retire
 })
 
 
-it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining project grants', async (schema) => {
+it.each([2, 3, 17])('restores a schema v%s backup by upgrading staging and retaining project grants', async (schema) => {
   const h = await setup()
   const login = await h.app.authority.login({ username: 'owner', password })
   const organizationId = h.initialized.organizationId!
@@ -372,8 +372,9 @@ it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining
   const backup = backupOrganization(h.directory, join(h.root, 'legacy-backup'), 5000)
   const db = new DatabaseSync(join(backup, 'organization.sqlite'))
   try {
-    db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments')
+    if (schema < 17) db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE execution_human_requests; DROP TABLE execution_events; DROP TABLE execution_actions; DROP TABLE execution_runs; DROP TABLE execution_delegations; DROP TABLE device_actions; DROP TABLE assignment_leases; DROP TABLE organization_devices; DROP TABLE assignment_actions; DROP TABLE assignment_delegations; DROP TABLE assignment_notifications; DROP TABLE assignment_requests; DROP TABLE task_assignments')
     if (schema === 2) db.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans')
+    db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal')
     db.exec(`PRAGMA user_version=${schema}`)
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } finally { db.close() }
@@ -390,7 +391,22 @@ it.each([2, 3])('restores a schema v%s backup by upgrading staging and retaining
   const current = await restored.authority.login({ username: 'owner', password })
   await restored.authority.readProject(current.token, { organizationId, projectId: project.projectId }, (value) => {
     expect(value.name).toBe('Legacy project')
+    expect(value).toMatchObject({ background: '', summary: '', goal: '' })
   })
+})
+
+it('saves creator project context through the native command route and publishes its current fields', async () => {
+  const h = await setup(), organizationId = h.initialized.organizationId!
+  const content = { background: 'Product requirements', summary: 'Release overview', goal: 'Deliver a release' }
+  const created = await h.owner.perform({ kind: 'command', command: { kind: 'create-project', operationId: randomUUID(),
+    organizationId, name: 'Project context', ...content } })
+  const project = created.receipt
+  if (!project?.projectId) throw new Error('missing project receipt')
+  await h.owner.perform({ kind: 'command', command: { kind: 'update-project', operationId: randomUUID(), organizationId,
+    projectId: project.projectId, expectedVersion: project.revision, name: 'Updated project', ...content, background: 'Current requirements' } })
+  const page = await h.owner.perform({ kind: 'project-page', offset: 0 })
+  expect(page.projects?.items[0]).toMatchObject({ id: project.projectId, name: 'Updated project',
+    ...content, background: 'Current requirements' })
 })
 
 it('reports invalid addresses and clears the previous error when probing again', async () => {

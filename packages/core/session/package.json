@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-session",
-  "description": "Event-sourced session store for the DeepSeek Harness",
+  "description": "Event-sourced session store for the Merforge",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"

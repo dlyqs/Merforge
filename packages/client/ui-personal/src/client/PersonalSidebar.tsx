@@ -99,6 +99,23 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   }, [draft?.kind, loadModels, modelRefresh, modelCatalogRevision])
 
   const unassigned = useMemo(() => unassignedIds(sessions), [sessions])
+  const navigationHandled = useRef<number>()
+  useEffect(() => {
+    const request = props.navigationRevision
+    if (management || request === undefined || request === navigationHandled.current || records.phase !== 'ready' || sessions.phase !== 'ready'
+      || sessions.ids.some(id => sessions.byId[id]?.origin !== 'subagent' && sessions.byId[id]?.projectionValues?.personalAffiliation === undefined)) return
+    navigationHandled.current = request
+    props.onNavigationHandled?.()
+    const project = (sortByName.project ? [...records.projects].sort((a, b) => a.name.localeCompare(b.name)) : records.projects)[0]
+    const bot = (sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots)[0]
+    const entrance = section === 'projects' && project ? { kind: 'project' as const, id: project.id }
+      : section === 'bots' && bot ? { kind: 'bot' as const, id: bot.id } : undefined
+    const first = section === 'recent' ? unassigned[0] : entrance ? memberIds(sessions, entrance)[0] : undefined
+    if (entrance) setExpanded(new Set([`${entrance.kind}:${entrance.id}`]))
+    if (first) openSession(first)
+    else void perform(() => createSession(section === 'projects' && project ? { projectId: project.id }
+      : section === 'bots' && bot ? { botId: bot.id } : {}))
+  }, [props.navigationRevision, records, sessions, section, management])
   const affiliation: AffiliationProjection | undefined = selectedSession === null
     ? undefined
     : sessions.byId[selectedSession]?.projectionValues?.personalAffiliation

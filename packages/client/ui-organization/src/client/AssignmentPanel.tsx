@@ -7,6 +7,7 @@ import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionAction, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
 import { MemberSelect } from './MemberSelect.tsx'
+import { DeliveryPanel } from './DeliveryPanel.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
@@ -116,6 +117,7 @@ export function AssignmentPanel(props: OrganizationProps & {
     <h4>{t('assignmentTitle')}</h4><p>{t('preparationOnly')}</p>
     {notice && <p role="status">{notice}</p>}
     <Button disabled={!writable} onClick={() => { void load().catch((error: unknown) =>{  setNotice(t(workgraphError(error))) }) }}>{t('refreshAssignment')}</Button>
+    {current && <DeliveryPanel key={current.assignment.id} {...props} assignment={current.assignment} />}
     {currentHistory && !currentHistory.items.length && <p>{t('notDispatched')}</p>}
     {currentHistory && currentHistory.total > 1 && <details className={css.advanced}><summary>{t('assignmentHistory')}</summary><div className={css.actions}>
       {currentHistory.items.map(item => <Button key={item.id} disabled={!writable} onClick={() => {

@@ -64,7 +64,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Shared Project/Bot management used by sidebar and settings. */
     'personal.manager': {
       scope: 'root'
-      props: { wide: boolean; expandSidebar: () => void; management?: boolean; onNavigate?: () => void; section?: 'projects' | 'bots' | 'recent' }
+      props: { wide: boolean; expandSidebar: () => void; management?: boolean; onNavigate?: () => void; section?: 'projects' | 'bots' | 'recent'; navigationRevision?: number; onNavigationHandled?: () => void }
       children: { 'personal.manager.workflow': { kind: 'single'; scope: 'root' } }
       inject: PersonalInjected
       locale: 'personal'

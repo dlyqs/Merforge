@@ -4,6 +4,12 @@
 .entryText small { color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
 .avatar { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-secondary); }
 .settings { display: flex; flex-direction: column; gap: 24px; max-width: 800px; padding: 24px; color: var(--dsw-alias-label-primary); }
+.projectPage { display: flex; flex-direction: column; gap: 24px; height: 100%; overflow-y: auto; box-sizing: border-box; padding: 32px; color: var(--dsw-alias-label-primary); }
+.projectPage .card { width: min(900px, 100%); box-sizing: border-box; }
+.projectPage textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 12px; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; }
+.projectPage :is(input, textarea)[readonly] { color: var(--dsw-alias-label-secondary); }
+.conversationEntry { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: var(--dsw-alias-label-primary); }
+.conversationEntry p { color: var(--dsw-alias-label-secondary); }
 .heading { display: flex; align-items: center; gap: 16px; }
 .heading h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
 .heading p { margin: 6px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 13px; line-height: 21px; }

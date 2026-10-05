@@ -9,7 +9,11 @@ import { accountNavigationStyles as css } from '@deepseek-ai/dsh-client-ui-primi
  * @returns Personal navigation.
  */
 export function PersonalSidebarEntry(props: PropsRuntime<'sidebar.personal'> & PropsRenderFactories) {
-  return props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar, ...(props.section === undefined ? {} : { section: props.section }) })
+  return props.renderFactorySlot('personal.manager', { wide: props.wide, expandSidebar: props.expandSidebar,
+    ...(props.section === undefined ? {} : { section: props.section }),
+    ...(props.navigationRevision === undefined ? {} : {
+      navigationRevision: props.navigationRevision, onNavigationHandled: props.onNavigationHandled,
+    }) })
 }
 
 /** Expose persistent personal records and temporary workflow testing controls.

@@ -48,7 +48,7 @@ async function setup(authority: Record<string, number> = {}) {
     expect(result.status).toBe(200)
     return result.body as OrganizationProjectPage
   }
-  const rename = (project: Receipt, name: string, expectedVersion = project.revision, operationId = op(), token = aliceLogin.token) => {
+  const rename = (project: Receipt, name: string, expectedVersion = project.revision, operationId = op(), token = ownerLogin.token) => {
     const input = { operationId, kind: 'rename-project', organizationId: project.organizationId, projectId: project.projectId, expectedVersion, name }
     return call('POST', '/projects', input, token)
   }
@@ -77,8 +77,8 @@ it('uses explicit grants for detail, list totals, pagination and literal search,
   }
   expect((await h.call('GET', `/organizations/${h.organizationId}/search?q=Visible`, undefined, h.aliceLogin.token)).body).toMatchObject({ total: 2 })
   for (const projectId of [hidden.projectId, op()]) expect((await h.call('GET', `/projects/${projectId}?organizationId=${h.organizationId}`, undefined, h.aliceLogin.token)).status).toBe(403)
-  expect((await h.rename(first, 'forbidden write')).status).toBe(403)
-  expect((await h.call('POST', '/projects', { operationId: op(), kind: 'create-project', organizationId: h.organizationId, name: 'rogue' }, h.aliceLogin.token)).status).toBe(403)
+  expect((await h.rename(first, 'forbidden write', first.revision, op(), h.aliceLogin.token)).status).toBe(403)
+  expect((await h.call('POST', '/projects', { operationId: op(), kind: 'create-project', organizationId: h.organizationId, name: 'Member-owned project' }, h.aliceLogin.token)).status).toBe(200)
   expect((await h.call('POST', '/projects', { operationId: op(), kind: 'create-project', organizationId: h.organizationId, name: 'rogue', cwd: '/private' }, h.ownerLogin.token)).status).toBe(400)
   const injected = await h.call('GET', `/organizations/${h.organizationId}/projects?actor=owner`, undefined, h.aliceLogin.token)
   expect(injected.status).toBe(400)
@@ -105,10 +105,11 @@ it('rejects cross-organization reads, grants and cursor substitution', async () 
   expect((await h.call('GET', `/organizations/${beta.organizationId}/events?cursor=${own.cursor}`, undefined, h.ownerLogin.token)).status).toBe(409)
 }, 15000)
 
-it('checks write/grant versions and refuses receipt replay after write revocation', async () => {
+it('checks creator and grant versions and refuses receipt replay after the creator loses project read', async () => {
   const h = await setup()
   const project = await h.create()
   const grant = await h.grant(project, ['read', 'write'])
+  expect((await h.rename(project, 'Participant update', project.revision, op(), h.aliceLogin.token)).status).toBe(403)
   const operationId = op()
   const changed = await h.rename(project, 'Changed', project.revision, operationId)
   expect(changed.status).toBe(200)
@@ -120,6 +121,9 @@ it('checks write/grant versions and refuses receipt replay after write revocatio
   expect((await h.call('POST', '/grants', { operationId: op(), kind: 'set-grant', organizationId: h.organizationId, projectId: project.projectId,
     membershipId: h.alice.membershipId, expectedVersion: 0, actions: [] }, h.ownerLogin.token)).body).toMatchObject({ error: 'version-conflict' })
   await h.grant(project, [], grant.revision)
+  const [creator] = await h.app.authority.organizations(h.ownerLogin.token)
+  if (!creator) throw new Error('Missing creator membership')
+  await h.grant(project, [], project.revision, creator.membershipId)
   expect((await h.rename(project, 'Changed', project.revision, operationId)).status).toBe(403)
   expect((await h.page()).total).toBe(0)
 }, 15000)

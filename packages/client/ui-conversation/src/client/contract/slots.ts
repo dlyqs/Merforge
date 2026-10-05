@@ -129,6 +129,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Conversation shell beneath its root-scoped main-panel entry. */
     'main.conversation': { kind: 'single'; scope: 'session-maybe' }
+    /** Optional account-owned entry shown without a selected conversation. */
+    'main.conversation.entry': { kind: 'single'; scope: 'root' }
     /** Strict per-Session Conversation body. */
     'conversation.session': {
       kind: 'single'
