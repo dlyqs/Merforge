@@ -430,6 +430,7 @@ describe('track', () => {
 describe('programmatic source launcher', () => {
   it('opens only the requested source and reuses its ordinary pick span', async () => {
     const command = readySource('/', 'command', [{ name: 'goal' }])
+    const candidates = vi.spyOn(command.source, 'candidates')
     const skill = readySource('/', 'skill', [{ name: 'review' }])
     const { controller } = controllerBench([command.source, skill.source])
     const hit = {
@@ -444,6 +445,7 @@ describe('programmatic source launcher', () => {
     await tick()
 
     expect(controller.launcher.getSnapshot()).toBe('command')
+    expect(candidates.mock.calls[0]?.[1].launched).toBe(true)
     expect(controller.menu.getSnapshot()).toMatchObject({
       open: true,
       hit,

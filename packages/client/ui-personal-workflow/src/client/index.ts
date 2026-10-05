@@ -14,7 +14,7 @@ import { Execution } from './Execution.tsx'
 import { Mode } from './Mode.tsx'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { createWorkflowStore } from './store.ts'
-import { WorkflowList, WorkflowEntry, WorkflowIcon } from './WorkflowList.tsx'
+import { WorkflowList, WorkflowIcon } from './WorkflowList.tsx'
 import { Workflow } from './Workflow.tsx'
 import { en, zh } from './locales.ts'
 
@@ -51,9 +51,6 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.uiConversation.events.register(personalPlanDefinition), 'personal-workflow.conversation-node')
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'personal-plan',
     locale: 'personalWorkflow', inject: () => ({ list: workflowActions.list, save: (request: Parameters<WorkflowActions['save']>[0]) => workflowActions.save(request) }) }, ConversationPlan))
-  ctx.slots.inject('personal.manager.workflow', () => ctx.slots.register({
-    name: 'personal.manager.workflow', locale: 'personalWorkflow', inject: () => ({ openTasks }),
-  }, WorkflowEntry))
   ctx.slots.inject('sidebar.tasks', () => ctx.slots.register({
     name: 'sidebar.tasks', locale: 'personalWorkflow', store,
     inject: () => ({ list: workflowActions.list, openTasks }),

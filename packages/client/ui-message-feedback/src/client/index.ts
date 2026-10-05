@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { FeedbackDialog } from './FeedbackDialog.tsx'
 import { MessageFeedbackActions } from './MessageFeedbackActions.tsx'
+import { SessionFeedbackAction } from './SessionFeedbackAction.tsx'
 import type { FeedbackDialogInjected, MessageFeedbackInjected } from './slots.ts'
 import { FeedbackSurface } from './surface.ts'
 import { en, zh } from './locales.ts'
@@ -86,6 +87,11 @@ export function apply(ctx: ClientContext): void {
     openSession: (sessionId) => { surfaceFor(sessionId).dialog.open({ kind: 'session' }) },
   }
   ctx.provide('feedbackUi', feedbackUi)
+
+  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+    name: 'conversation.session.header.utilities', id: 'session-feedback', locale: NS,
+    inject: sessionId => ({ openFeedback: () => { feedbackUi.openSession(sessionId) } }),
+  }, SessionFeedbackAction))
 
   // A reconnect can only invalidate what was already read; a cold Session
   // stays cold until something asks for it.

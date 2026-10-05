@@ -59,7 +59,6 @@
     "@deepseek-ai/dsh-session-query": "workspace:*",
     "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-workspace": "workspace:*",
-    "@deepseek-ai/dsh-client-file-upload": "workspace:*",
-    "@deepseek-ai/dsh-session-log-export": "workspace:*"
+    "@deepseek-ai/dsh-client-file-upload": "workspace:*"
   }
 }

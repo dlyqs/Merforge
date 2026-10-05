@@ -35,7 +35,7 @@ export type ConnectionAction =
   | { kind: 'device-register'; name: string }
   | { kind: 'device-revoke'; expectedVersion: number }
   | { kind: 'device-read' }
-  | { kind: 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
+  | { kind: 'remove-plan' | 'workgraph-delete' | 'workgraph-removal' | 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
   | { kind: 'login'; username: string; password: string }
@@ -65,6 +65,8 @@ export interface ConnectionSnapshot {
   projects?: OrganizationProjectPage | undefined
   members: MemberView[]
   /** Local removals and authority deletions awaiting or completing private Host cleanup. */
+  /** Installation-local task-plan removals for the current identity. */
+  removedPlans?: import('@deepseek-ai/dsh-organization').OrganizationPlanId[] | undefined
   removedProjects?: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId[] | undefined
   hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema> | undefined
   username?: string | undefined
@@ -75,6 +77,7 @@ export interface ConnectionSnapshot {
 }
 /** Safe command result. Invitation secrets are returned only to the initiating local user. */
 export interface ConnectionResult {
+  planRemoval?: z.output<typeof import('@deepseek-ai/dsh-organization/workgraph').workgraphRemovalSchema>
   projects?: OrganizationProjectPage
   hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema>
 

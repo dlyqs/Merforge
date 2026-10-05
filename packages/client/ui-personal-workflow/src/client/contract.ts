@@ -22,8 +22,6 @@ export interface WorkflowActions {
 export type WorkflowProps = PropsRuntime<'main'> & PropsLocale<'personalWorkflow'> & WorkflowActions & PropsStore<ReturnType<typeof createWorkflowStore>>
 /** Shared task list selection and navigation. */
 export type WorkflowListProps = PropsRuntime<'sidebar.tasks'> & PropsLocale<'personalWorkflow'> & Pick<WorkflowActions, 'list'> & PropsStore<ReturnType<typeof createWorkflowStore>> & { openTasks(): void }
-/** Settings entry opens the same main task workspace. */
-export type WorkflowEntryProps = PropsRuntime<'personal.manager.workflow'> & PropsLocale<'personalWorkflow'> & { openTasks(): void }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {

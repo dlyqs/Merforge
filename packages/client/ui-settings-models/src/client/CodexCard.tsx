@@ -1,11 +1,12 @@
 /** Native-backend setup presentation, independent of API credential forms. */
 import { useEffect, useId } from 'react'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CodexSetupSnapshot, CodexSetupCategory } from '@deepseek-ai/dsh-agent-codex/setup-types'
 import type { CodexSetupSource } from './codex-source.ts'
 import type { ModelsKey } from './locales.ts'
 import css from './CodexCard.module.css'
+import styles from './ModelsSection.module.css'
 
 /** Plain operations and one renderer-bound Desktop observation. */
 export interface CodexCardInjected {
@@ -57,39 +58,43 @@ export function CodexCard(props: InjectFace<CodexCardInjected>) {
   const needsLogin = snapshot?.account.status === 'known' && snapshot.account.value.requiresOpenaiAuth && snapshot.account.value.kind === 'none'
   const categories = snapshot === undefined ? [] : [...new Set([
     snapshot.runtime.category, snapshot.account.status === 'error' ? snapshot.account.category : undefined,
-    snapshot.catalog.category, snapshot.login.category,
+    snapshot.catalog.category === 'login-required' && needsLogin ? undefined : snapshot.catalog.category, snapshot.login.category,
   ].filter((category): category is CodexSetupCategory => category !== undefined))]
   return (
-    <section id="codex" className={css.card} aria-labelledby={id} aria-busy={state.busy || active}>
-      <h3 id={id}>{t('codex.title')}</h3>
-      <p>{t('codex.description')}</p>
-      <dl className={css.facts}>
-        <dt>{t('codex.runtime')}</dt><dd>{snapshot?.runtime.version ?? t('codex.runtime.bundled')} · {t(`codex.runtime.${snapshot?.runtime.status ?? 'unknown'}`)}</dd>
-        <dt>{t('codex.account')}</dt><dd>{t(snapshot ? accountKey(snapshot) : 'codex.account.unknown')}</dd>
-        <dt>{t('codex.models')}</dt><dd>{t(`codex.models.${snapshot?.catalog.status ?? 'unknown'}`)}</dd>
-      </dl>
-      {snapshot?.account.status === 'known' && snapshot.account.value.kind !== 'none' && <p>{t('codex.reuse')}</p>}
-      <p role="status" aria-live="polite">{t(`codex.login.${login}`)}</p>
-      {snapshot?.login.cancellation && <p>{t(`codex.cancel.${snapshot.login.cancellation}`)}</p>}
-      {snapshot?.login.cleanup === 'failed' && <p role="alert">{t('codex.error.cleanup')}</p>}
-      {categories.map(category => <p role="alert" key={category}>{t(errorKeys[category])}</p>)}
-      {state.error && <p role="alert">{t(`codex.error.${state.error}`)}</p>}
-      {device && <div className={css.device}>
-        <label htmlFor={`${id}-code`}>{t('codex.code')}</label>
-        <input id={`${id}-code`} readOnly value={device.userCode} className={css.code} />
-        <p>{t('codex.codeHint')}</p>
-        <Button variant="outline" disabled={state.busy} onClick={() => { void copy() }}>{t(state.copied ? 'codex.copied' : 'codex.copy')}</Button>
-        <Button variant="primary" disabled={state.busy} onClick={() => { void openVerification() }}>{t('codex.open')}</Button>
-        <Button variant="outline" disabled={state.busy} onClick={() => { void cancel() }}>{t('codex.cancel')}</Button>
-      </div>}
-      {active && !device && <p>{t('codex.ownerWaiting')}</p>}
-      <div className={css.actions}>
-        <Button variant="outline" disabled={state.busy || active} onClick={() => { void detect() }}>{t(state.busy ? 'codex.detecting' : 'codex.detect')}</Button>
-        {needsLogin && !active && <Button variant="primary" disabled={state.busy || snapshot.runtime.status !== 'ready' || snapshot.login.cleanup === 'failed'} onClick={() => { void start() }}>{t('codex.start')}</Button>}
+    <section id="codex" className={css.section} aria-labelledby={id} aria-busy={state.busy || active}>
+      <h2 id={id} className={styles.title}>{t('codex.title')}</h2>
+      <div className={styles.rowCard}>
+        <div className={`${styles.rowHead} ${css.accountRow}`}>
+          <span className={styles.rowIdentity}>
+            <StateDot state={snapshot?.account.status === 'known' ? needsLogin ? 'warning' : 'done' : snapshot?.account.status === 'error' ? 'error' : 'idle'} />
+            <span className={styles.rowName}>{t(snapshot ? accountKey(snapshot) : 'codex.account.unknown')}</span>
+          </span>
+          <div className={styles.rowActions}>
+            <Button variant="ghost" size="sm" disabled={state.busy || active} onClick={() => { void detect() }}>{t(state.busy ? 'codex.detecting' : 'codex.detect')}</Button>
+            {needsLogin && !active && <Button variant="primary" size="sm" disabled={state.busy || snapshot.runtime.status !== 'ready' || snapshot.login.cleanup === 'failed'} onClick={() => { void start() }}>{t('codex.start')}</Button>}
+          </div>
+        </div>
+        <dl className={css.facts}>
+          <div><dt>{t('codex.runtime')}</dt><dd>{snapshot?.runtime.version ?? t('codex.runtime.bundled')} · {t(`codex.runtime.${snapshot?.runtime.status ?? 'unknown'}`)}</dd></div>
+          <div><dt>{t('codex.models')}</dt><dd>{t(`codex.models.${snapshot?.catalog.status ?? 'unknown'}`)}</dd></div>
+        </dl>
+        {login !== 'idle' && <p className={styles.intro} role="status" aria-live="polite">{t(`codex.login.${login}`)}</p>}
+        {snapshot?.login.cancellation && <p className={styles.intro}>{t(`codex.cancel.${snapshot.login.cancellation}`)}</p>}
+        {snapshot?.login.cleanup === 'failed' && <p className={styles.error} role="alert">{t('codex.error.cleanup')}</p>}
+        {categories.map(category => <p className={styles.error} role="alert" key={category}>{t(errorKeys[category])}</p>)}
+        {state.error && <p className={styles.error} role="alert">{t(`codex.error.${state.error}`)}</p>}
+        {device && <div className={css.device}>
+          <label htmlFor={`${id}-code`}>{t('codex.code')}</label>
+          <Input id={`${id}-code`} readOnly value={device.userCode} className={css.code ?? ''} />
+          <p className={styles.intro}>{t('codex.codeHint')}</p>
+          <div className={css.deviceActions}>
+            <Button variant="outline" disabled={state.busy} onClick={() => { void copy() }}>{t(state.copied ? 'codex.copied' : 'codex.copy')}</Button>
+            <Button variant="primary" disabled={state.busy} onClick={() => { void openVerification() }}>{t('codex.open')}</Button>
+            <Button variant="outline" disabled={state.busy} onClick={() => { void cancel() }}>{t('codex.cancel')}</Button>
+          </div>
+        </div>}
+        {active && !device && <p className={styles.intro}>{t('codex.ownerWaiting')}</p>}
       </div>
-      {snapshot?.catalog.models.length ? <ul aria-label={t('codex.modelList')}>
-        {snapshot.catalog.models.map(model => <li key={model.id}>{model.displayName} · {t('codex.efforts')}: {model.efforts.join(', ')}</li>)}
-      </ul> : null}
     </section>
   )
 }

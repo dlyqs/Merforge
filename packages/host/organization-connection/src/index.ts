@@ -15,8 +15,9 @@ import { OrganizationDeviceMaterial, type OrganizationDeviceVault } from './devi
 import { approvalReviewSchema, approvalReviewResultSchema, assignmentCommandSchema, participantCommandSchema, delegateSchema, assignmentReadSchema, taskAssignmentsQuerySchema, taskAssignmentsPageSchema, inboxQuerySchema, inboxPageSchema, preparationSchema, deviceCommandSchema, devicesSchema, claimSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { commandSchema, registerSchema, receiptSchema } from '@deepseek-ai/dsh-organization/protocol'
 import { projectCommandSchema, grantCommandSchema, projectViewSchema, deletedProjectsSchema } from '@deepseek-ai/dsh-organization/resources'
+import { PlanRemovals } from './plan-removals.ts'
 import { ProjectRemovals } from './project-removals.ts'
-import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
+import { workgraphDeleteSchema, workgraphRemovalSchema, workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema, workgraphVersionSchema, workgraphPageSchema, workgraphGrantViewSchema } from '@deepseek-ai/dsh-organization/workgraph'
 import type { AccountId, OperationId, LoginToken, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { actionSchema, connectionConfig, identitySchema, loginResultSchema, organizationsSchema, pageSchema, membersSchema, grantsSchema } from './schema.ts'
 import type { ConnectionAction, ConnectionSnapshot, ConnectionResult, OrganizationRequestId, OrganizationExecutionChannel,
@@ -59,6 +60,7 @@ export class OrganizationConnection {
   private readonly operations = new Set<Promise<unknown>>()
   private renewingMutation = false
   private readonly assignmentBatches: AssignmentBatches
+  private readonly planRemovals: PlanRemovals
   private readonly projectRemovals: ProjectRemovals
   private journalError = false
   private readonly config: z.output<typeof connectionConfig>
@@ -69,6 +71,8 @@ export class OrganizationConnection {
    */
   constructor(config: Config = {}, private readonly device?: { directory: string; vault: OrganizationDeviceVault }) {
     this.config = connectionConfig.parse(config)
+    this.planRemovals = new PlanRemovals(this.config.trustPath ? `${this.config.trustPath}.removed-plans` : undefined,
+      (path, rows) => { this.save(path, rows) })
     this.projectRemovals = new ProjectRemovals(this.config.trustPath ? `${this.config.trustPath}.removed-projects` : undefined,
       (path, rows) => { this.save(path, rows) })
     this.assignmentBatches = new AssignmentBatches(this.config.trustPath ? `${this.config.trustPath}.assignments` : undefined,
@@ -165,7 +169,7 @@ export class OrganizationConnection {
     this.generation++
     this.denialRefreshed = denialRefreshed
     this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
-      members: [], hierarchy: undefined, removedProjects: undefined, error: undefined, ...next })
+      members: [], hierarchy: undefined, removedProjects: undefined, removedPlans: undefined, error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
@@ -673,6 +677,20 @@ export class OrganizationConnection {
         case 'lease-claim':
         case 'lease-release':
         case 'lease-check': return await this.leaseAction(action.kind, action.request)
+        case 'workgraph-removal':
+        case 'remove-plan': {
+          const query = workgraphReadSchema.parse(action.request), principal = this.state.principal
+          this.assertOrganization(query.organizationId)
+          if (!principal) throw new Error('unavailable')
+          const permission = workgraphRemovalSchema.parse(await this.request('/workgraph/removal', query, generation))
+          if (action.kind === 'workgraph-removal') return { generation, planRemoval: permission }
+          if (!permission.local || permission.global) throw new Error('forbidden')
+          if (!this.config.trustPath) throw new Error('unavailable')
+          this.planRemovals.remember(principal, query.organizationId, [query.planId])
+          await this.refresh(this.reset({ phase: 'loading' }))
+          return { generation: this.generation }
+        }
+        case 'workgraph-delete': return await this.mutate(workgraphDeleteSchema.parse(action.request), undefined, 'delete')
         case 'workgraph-save': return await this.mutate(workgraphSaveSchema.parse(action.request), undefined, 'save')
         case 'workgraph-grant': return await this.mutate(workgraphGrantSchema.parse(action.request), undefined, 'grant')
         case 'workgraph-read':
@@ -700,7 +718,8 @@ export class OrganizationConnection {
       : action.kind === 'workgraph-tasks' ? workgraphTasksSchema : workgraphGrantsSchema).parse(action.request)
     if (request.organizationId !== organizationId) throw new Error('forbidden')
     const route = action.kind === 'workgraph-read' ? '/workgraph/read' : action.kind === 'workgraph-tasks' ? '/workgraph/tasks' : '/workgraph/grants'
-    const value = await this.request(route, request, generation)
+    const body = action.kind === 'workgraph-tasks' ? { ...request, excluded: this.planRemovals.list(principal, organizationId) } : request
+    const value = await this.request(route, body, generation)
     if (generation !== this.generation) throw new Error('superseded')
     const result: NonNullable<ConnectionResult['workgraph']>['result'] = action.kind === 'workgraph-read'
       ? { kind: 'plan', value: workgraphVersionSchema.parse(value) }
@@ -799,14 +818,14 @@ export class OrganizationConnection {
     return this.mutate(input, undefined, 'integration')
   }
 
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'integration' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'delete' | 'integration' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'device' | 'execution', material?: OrganizationDeviceMaterial): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
     const command = workgraph === 'integration' ? integrationCommandSchema.parse(input) : workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
       : workgraph === 'participant' ? participantCommandSchema.parse(input)
         : workgraph === 'device' ? deviceCommandSchema.parse(input)
-          : workgraph === 'save' ? workgraphSaveSchema.parse(input)
+          : workgraph === 'delete' ? workgraphDeleteSchema.parse(input) : workgraph === 'save' ? workgraphSaveSchema.parse(input)
             : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
     const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
@@ -890,7 +909,7 @@ export class OrganizationConnection {
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
     if (generation !== this.generation) return
-    this.publish({ organizations, projects, members, hierarchy, inbox, removedProjects: this.projectRemovals.list(principal, id), phase: 'ready', error: undefined })
+    this.publish({ organizations, projects, members, hierarchy, inbox, removedPlans: this.planRemovals.list(principal, id), removedProjects: this.projectRemovals.list(principal, id), phase: 'ready', error: undefined })
     this.follow(generation, id, projects, 'projects')
     this.follow(generation, id, projects, 'workgraph')
     this.follow(generation, id, inbox, 'inbox')

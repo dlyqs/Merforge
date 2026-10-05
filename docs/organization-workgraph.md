@@ -115,7 +115,7 @@ Phase 5–6 已落实下表的共享入口保护。保留 ID 在个人 SessionSt
 | `api/workspace-controller` 的 archiveSession/unarchiveSession/pinSession 与 `workspace/workspace` 归档/置顶 registry | 在实际写入前拒绝组织 ID，不把它写进个人归档/置顶集合 |
 | `session-query/session-query` 的 list/search/readEvent/readSurface/readTitleSnapshots/observeSession，SQLite query provider | 使用个人 corpus，拒绝组织 ID；新插件独立读句柄不会注册到个人索引；重建索引也不导入组织根 |
 | `context/session-reference` 的会话列表/引用展开、`session-query/tool-session-query` 的 search/read、`subagent` 历史、`ui-deliverables/src/present-open.ts` | 普通查询在源头拒绝组织命名空间，避免模型引用、搜索片段、交付物旁路 |
-| `session-query/session-log-export/src/index.ts`、`archive.ts` 的 `/api/session.export`，`session/session-log-deepseek` 上传、`session/session-telemetry-otel` 及 persistence export | 个人导出只枚举个人根；显式组织 ID 拒绝，禁止将组织历史上传/遥测；本期无组织导出消费者 |
+| `session/session-log-deepseek` 上传、`session/session-telemetry-otel` 及 persistence export | 个人导出只枚举个人根；显式组织 ID 拒绝，禁止将组织历史上传/遥测；本期无组织导出消费者 |
 | `client/file-upload/src/index.ts`、`http-route.ts`，Controller `file-references.ts`/`media-references.ts` 和 attachment admission | 上传和引用在解析 SessionId 后拒绝组织 ID；不允许复用个人 upload receipt；本期无组织附件路由 |
 | `api/workspace-files` 与 Controller openWorkspacePath/workspacePathApplications、`ui-deliverables` 打开文件 | 组织上下文没有 cwd，不可借任务文字作为可信本机路径；Session 选择动作明确拒绝组织 ID |
 | `core/agent` create/resolve/recovery、调度/jobs/subagent 触发、model-visible context 和 tools executor | 组织 Session 不进 Agent registry，保留 ID 在创建/恢复处拒绝；没有可执行 Agent 就不安装工具或模型上下文；不得依赖 pre-step 作为唯一拒绝 |

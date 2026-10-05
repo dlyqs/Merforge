@@ -116,6 +116,8 @@ export interface CandidateRequest {
   /** Whether the active @file token is an open quoted path. */
   readonly quoted?: boolean
   readonly position: TriggerPosition
+  /** Whether a composer button opened this menu instead of a typed trigger. */
+  readonly launched?: boolean
   /** Whether this menu was opened or last re-scoped by a drill pick; see {@link HeaderRequest.drilled}. */
   readonly drilled: boolean
   readonly signal: AbortSignal

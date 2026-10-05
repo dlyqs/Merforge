@@ -55,15 +55,17 @@ describe('Codex card', () => {
     fireEvent.click(screen.getByRole('button', { name: en['codex.detect'] }))
     expect(p.detect).toHaveBeenCalledOnce()
   })
-  it('shows safe waiting state in other windows and only observed model efforts', () => {
+  it('shows safe waiting state in other windows without a model list', () => {
     render(<CodexCard {...props({ busy: false, copied: false, view: { snapshot: {
       ...snapshot, login: { status: 'waiting' },
       account: { status: 'known', value: { kind: 'chatgpt', requiresOpenaiAuth: true } },
       catalog: { status: 'ready', models: [{ id: 'native', model: 'native', displayName: 'Native Model', isDefault: true, efforts: ['low', 'high'], defaultEffort: 'low' }] },
     } } })} />)
-    expect(screen.getByText(en['codex.reuse'])).toBeTruthy()
+    expect(screen.getByText(en['codex.account.chatgpt'])).toBeTruthy()
     expect(screen.getByText(en['codex.ownerWaiting'])).toBeTruthy()
     expect(screen.queryByLabelText(en['codex.code'])).toBeNull()
-    expect(screen.getByRole('list', { name: en['codex.modelList'] }).textContent).toContain('low, high')
+    expect(screen.queryByRole('list')).toBeNull()
+    expect(screen.queryByText('Native Model')).toBeNull()
+    expect(screen.getByText(en['codex.models.ready'])).toBeTruthy()
   })
 })

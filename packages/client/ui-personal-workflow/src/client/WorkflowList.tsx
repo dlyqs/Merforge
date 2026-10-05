@@ -1,8 +1,8 @@
-/** Secondary task browser and settings navigation entry. */
+/** Secondary task browser. */
 import { useEffect, useState } from 'react'
 import { Button, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PlanView } from '@deepseek-ai/dsh-personal-workflow/types'
-import type { WorkflowListProps, WorkflowEntryProps } from './contract.ts'
+import type { WorkflowListProps } from './contract.ts'
 import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** @param props - Shared selection and Host plan reader. @returns Scrollable task list. */
@@ -36,11 +36,6 @@ export function WorkflowList(props: WorkflowListProps) {
       </button>
     })}</nav>
   </div>
-}
-
-/** @param props - Task navigation callback and localized copy. @returns Settings task entry. */
-export function WorkflowEntry(props: WorkflowEntryProps) {
-  return <Button variant="ghost" className={css.planEntry} icon={<IconBranchOutlineRegular />} onClick={() => { props.openTasks(); props.onNavigate?.() }}>{props.t('plans')}</Button>
 }
 
 /** @returns Task navigation glyph. */

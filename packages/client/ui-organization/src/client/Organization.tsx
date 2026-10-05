@@ -1,5 +1,5 @@
 /** Compact organization entry points; all account and administration forms open in a centered dialog. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconUsersOutlineRegular, IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime, PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-personal/client'
@@ -12,6 +12,9 @@ import css from './Organization.module.css'
 /** @param props - Organization facts and personal factory seat. @returns Navigation and centered workspace dialog. */
 export function OrganizationSidebar(props: OrganizationProps & PropsRuntime<'sidebar.personal'> & PropsRenderFactories & ConversationSelectionProps) {
   const c = props.useOrganization(s => s.connection)
+  useEffect(() => {
+    if (c.mode === 'organization' && props.navigationRevision !== undefined) props.beginConversationNavigation?.()
+  }, [props.navigationRevision, c.mode])
   return <div className={css.sidebar}>
     {c.mode === 'organization'
       ? <OrganizationBrowser key={`${c.principal?.serverId}:${c.principal?.accountId}:${c.organizationId}:${c.identityGeneration}`} {...props} section={props.section ?? 'recent'} wide={props.wide} expandSidebar={props.expandSidebar} />

@@ -21,6 +21,7 @@ it('stays off until a gesture commits and preserves failed gesture identity for 
   const toggle = await screen.findByRole('switch')
   expect(toggle.getAttribute('aria-checked')).toBe('false')
   expect(setMode).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: zh.refresh })).toBeNull()
   fireEvent.click(toggle)
   await screen.findByRole('alert')
   expect(toggle.getAttribute('aria-checked')).toBe('false')

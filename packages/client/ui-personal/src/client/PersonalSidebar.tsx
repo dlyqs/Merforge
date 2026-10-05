@@ -37,7 +37,7 @@ function allowlist(value: string): string[] | undefined {
 /** Sidebar Project/Bot browser and editor. */
 export function PersonalSidebar(props: PersonalSidebarProps) {
   const {
-    management = false, section, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
+    section, wide, expandSidebar, t, useRecords, useSessions, useSessionStatus, useWorkspaces,
     refresh, loadModels, createProject, updateProject, deleteProject, pickDirectory, createBot, updateBot, deleteBot,
     createSession, deleteSession, moveSession, refreshAffiliation, openSession, unarchiveSession,
   } = props
@@ -102,7 +102,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
   const navigationHandled = useRef<number>()
   useEffect(() => {
     const request = props.navigationRevision
-    if (management || request === undefined || request === navigationHandled.current || records.phase !== 'ready' || sessions.phase !== 'ready'
+    if (request === undefined || request === navigationHandled.current || records.phase !== 'ready' || sessions.phase !== 'ready'
       || sessions.ids.some(id => sessions.byId[id]?.origin !== 'subagent' && sessions.byId[id]?.projectionValues?.personalAffiliation === undefined)) return
     navigationHandled.current = request
     props.onNavigationHandled?.()
@@ -115,7 +115,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     if (first) openSession(first)
     else void perform(() => createSession(section === 'projects' && project ? { projectId: project.id }
       : section === 'bots' && bot ? { botId: bot.id } : {}))
-  }, [props.navigationRevision, records, sessions, section, management])
+  }, [props.navigationRevision, records, sessions, section])
   const affiliation: AffiliationProjection | undefined = selectedSession === null
     ? undefined
     : sessions.byId[selectedSession]?.projectionValues?.personalAffiliation
@@ -241,19 +241,17 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
             { id: 'delete', label: t('delete'), icon: <IconTrashOutlineRegular />, danger: true, disabled: busy },
           ]}
           onSelect={(id) => { setMenu(null); setError(null); if (id === 'edit') edit(); else setDeleteTarget(target) }} />
-        {!management && <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
+        <Tooltip label={t('newSession')}><button type="button" className={css.rowAction} aria-label={`${t('newSession')} ${name}`}
           disabled={busy} onClick={() => { setError(null)
             setBotForNew('')
-            setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>}
+            setNewTarget(target) }}><IconNewChatOutlineRegular /></button></Tooltip>
       </>}>
-      {!management && ids.map(id => sessionRow(id, target.kind))}
+      {ids.map(id => sessionRow(id, target.kind))}
     </AccountNavigationGroup>
   }
 
   return <section className={wide ? css.root : `${css.root} ${css.rail}`} aria-label={t('section')}>
     {wide && <div className={css.body}>
-      {management && <h3>{t('tasks')}</h3>}
-      {management && props.renderSlot('personal.manager.workflow', { projectId: null, botId: null, ...(props.onNavigate === undefined ? {} : { onNavigate: props.onNavigate }) })}
       {records.phase === 'loading' && <p>{t('loading')}</p>}
       {records.phase === 'error' && <button type="button" onClick={() => { void refresh() }}>{t('retry')}</button>}
       {(section === undefined || section === 'projects') && <>
@@ -292,7 +290,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
         </div>
         {(sortByName.bot ? [...records.bots].sort((a, b) => a.name.localeCompare(b.name)) : records.bots).map(bot => groupRow({ kind: 'bot', id: bot.id }, bot.name, () => { setDraft(botDraft(bot)) }))}
       </>}
-      {!management && (section === undefined || section === 'recent') && <section aria-label={t('recent')}>
+      {(section === undefined || section === 'recent') && <section aria-label={t('recent')}>
         {section === undefined && <div className={css.groupHeading}><span>{t('recent')}</span></div>}
         {unassigned.map(id => sessionRow(id, 'recent'))}
       </section>}

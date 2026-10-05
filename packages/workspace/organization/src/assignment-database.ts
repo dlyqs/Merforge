@@ -63,7 +63,7 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
       if (assignment.reason === 'revision-changed' && (!['save-plan', 'reject-delivery'].includes(String(terminal?.kind))
         || !db.prepare('SELECT 1 FROM plan_revisions WHERE planId=? AND eventRevision=? AND revision>?')
           .get(assignment.planId, assignment.version, assignment.planRevision))) fail()
-      if (assignment.reason === 'authority-lost' && !['set-grant', 'set-task-grant', 'set-membership', 'set-account'].includes(String(terminal?.kind))) fail()
+      if (assignment.reason === 'authority-lost' && !['delete-plan', 'set-grant', 'set-task-grant', 'set-membership', 'set-account'].includes(String(terminal?.kind))) fail()
     }
   }
   for (const row of db.prepare('SELECT * FROM assignment_requests').all()) {

@@ -67,12 +67,7 @@ export function apply(ctx: Context): void {
       valueOf(await ctx.remote.session.personalDeleteBot(id))
       await ctx.sessions.refresh()
     }),
-    createSession: async (input) => {
-      const sessionId = await ctx.sessions.create(input)
-      await ctx.sessions.refreshProjections(sessionId)
-      ctx.uiWorkspace.openSession(sessionId)
-      return sessionId
-    },
+    createSession: (input) => { ctx.uiWorkspace.startPersonalSession(input); return Promise.resolve() },
     deleteSession: async (sessionId) => {
       valueOf(await ctx.remote.session.delete(sessionId))
       await ctx.sessions.refresh()
@@ -91,7 +86,6 @@ export function apply(ctx: Context): void {
   }), 'ui-personal: reconnect records')
   ctx.slots.registerFactory({
     name: 'personal.manager', scope: 'root', locale: 'personal',
-    children: { 'personal.manager.workflow': { kind: 'single', scope: 'root' } },
     inject: (): PersonalInjected => ({
       ...actions, hooks: { records, modelCatalogRevision, settingsNavigation: ctx.settingsNavigation.view },
     }),

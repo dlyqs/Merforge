@@ -24,6 +24,5 @@ it('loads personal records through the registered sidebar seat', async ({ mock, 
   const entry = c.ctx.slots.entries('sidebar.personal').find(item => item.component === PersonalSidebarEntry)
   expect(entry?.component).toBe(PersonalSidebarEntry)
   expect(c.ctx.slots.entries('settings.section').find(item => item.options.id === 'personal')?.component).toBe(PersonalSettings)
-  expect(JSON.stringify(c.ctx.slots.snapshot('factory:personal.manager'))).toContain('personal.manager.workflow')
   expect(c.ctx.slots.entries('settings.personal.testing')).toHaveLength(1)
 }, 60_000)

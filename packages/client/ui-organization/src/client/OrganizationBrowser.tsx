@@ -221,7 +221,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
       <Button variant="primary" disabled={!ready || busy} onClick={() => {
         const bot = newTarget.bot
           ?? items.find(item => item.project.id === newTarget.project.id)?.catalog.bots.find(bot => bot.id === newBot)
-        void open(newTarget.project, randomUUID() as ConversationRequest['conversationId'], bot?.id)
+        props.showConversationStart?.(newTarget.project, bot?.id); setNewTarget(undefined)
       }}>{props.t('newConversation')}</Button></>}>
     <div className={css.form}><p className={css.contextName}>{newTarget.bot?.name ?? newTarget.project.name}</p>
       {!newTarget.bot && <label>{props.t('bots')}<select value={newBot} disabled={busy} onChange={(event) => { setNewBot(event.target.value) }}>

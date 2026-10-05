@@ -138,3 +138,5 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. The cards project settings-provider and Desktop setup observations; the Host setup owner validates attempt lifetime and execution admission. The Client does not maintain a second account, catalog or credential authority. Snapshot ordering and registration disposal are covered by source and Loader tests.
+
+The Codex settings card shares the API provider card layout. It shows authentication, runtime and catalog availability with explicit detect and sign-in actions; model selection stays in conversations and Bot editors. Device-code verification, copying, cancellation and failure feedback remain available during sign-in.

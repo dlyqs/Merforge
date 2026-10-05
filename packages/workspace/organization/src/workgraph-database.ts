@@ -25,12 +25,21 @@ CREATE TRIGGER plan_revision_no_update BEFORE UPDATE ON plan_revisions BEGIN SEL
 CREATE TRIGGER plan_revision_no_delete BEFORE DELETE ON plan_revisions BEGIN SELECT RAISE(ABORT,'immutable plan revision'); END;
 `
 
+/** Schema v19 task-plan tombstones retain immutable business history. */
+export const workgraphDeletionDdl = `CREATE TABLE deleted_plans (
+  planId TEXT PRIMARY KEY REFERENCES organization_plans(id),
+  revision INTEGER UNIQUE NOT NULL REFERENCES organization_events(revision)) STRICT;`
+
 /**
  * Reject invalid graph history, identity reuse, stale heads and inconsistent authority references.
  * @param db - Open connection under its startup or maintenance transaction.
  */
 export function validateWorkgraphDatabase(db: DatabaseSync): void {
   const fail = () => { throw new OrganizationError('incompatible-store') }
+  if (db.prepare(`SELECT 1 FROM deleted_plans d JOIN organization_plans p ON p.id=d.planId
+    JOIN memberships m ON m.id=p.createdBy JOIN organization_events e ON e.revision=d.revision
+    WHERE e.kind<>'delete-plan' OR e.actorId<>m.accountId OR e.organizationId<>p.organizationId
+    OR NOT EXISTS (SELECT 1 FROM workgraph_events w WHERE w.planId=d.planId AND w.revision=d.revision) LIMIT 1`).get()) fail()
   for (const row of db.prepare('SELECT * FROM organization_plans').all()) {
     const plan = workgraphPlanSchema.parse(row)
     if (!db.prepare('SELECT id FROM organization_projects WHERE id=? AND organizationId=?').get(plan.projectId, plan.organizationId)
@@ -82,7 +91,7 @@ export function validateWorkgraphDatabase(db: DatabaseSync): void {
   }
   if (db.prepare(`SELECT 1 FROM workgraph_events w LEFT JOIN plan_revisions r ON r.eventRevision=w.revision AND r.planId=w.planId
     JOIN organization_events e ON e.revision=w.revision JOIN organization_plans p ON p.id=w.planId
-    WHERE (r.planId IS NULL AND e.kind NOT IN ('set-task-grant','approve-assignment','verify-integration','confirm-integration')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
+    WHERE (r.planId IS NULL AND e.kind NOT IN ('delete-plan','set-task-grant','approve-assignment','verify-integration','confirm-integration')) OR e.organizationId!=p.organizationId LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN workgraph_events w ON w.revision=e.revision
-    WHERE e.kind IN ('save-plan','save-planning-draft','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('delete-plan','save-plan','save-planning-draft','set-task-grant','reject-delivery','verify-integration','confirm-integration') AND w.revision IS NULL LIMIT 1`).get()) fail()
 }

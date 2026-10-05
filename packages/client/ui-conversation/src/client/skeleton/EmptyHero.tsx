@@ -85,11 +85,7 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
               fallback: <BrandMark size={34} className={css.brandMark} />,
             })}
           </span>
-          <span className={css.titleGroup}>
-            {/* Own element: keeps the headline text addressable apart from the badge. */}
-            <span>{t('hero.headline')}</span>
-            <span className={css.previewBadge}>{t('hero.preview')}</span>
-          </span>
+          <span>{t('hero.headline')}</span>
         </div>
         <div className={css.body}>
           {/* The composer remains mounted outside this component. */}

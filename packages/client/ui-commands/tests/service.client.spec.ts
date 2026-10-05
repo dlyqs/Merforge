@@ -360,7 +360,6 @@ describe('candidates', () => {
     /** First-party definitions plus an unrelated command, in Host registration order. */
     const SHIPPED: CommandDescriptor[] = [
       { definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-compact'), name: 'compact', description: 'Compact older conversation history' },
-      { definitionId: CommandDefinitionId('@deepseek-ai/dsh-session-log-export'), name: 'export', description: 'Download this Session log as a ZIP archive' },
       { definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-feedback'), name: 'feedback', description: 'Record feedback about this session', input: { hint: '<text>' } },
       { definitionId: CommandDefinitionId('@deepseek-ai/dsh-permission-presets'), name: 'permission', description: 'Switch the permission preset (sandbox mode + approval policy)', input: { hint: '<preset>' } },
       { name: 'deploy', description: 'third-party command' },
@@ -388,11 +387,11 @@ describe('candidates', () => {
       command.register(fileContribution())
       const rows = await source.candidates(proj('s1'), req(''))
       expect(rows.map(row => row.name)).toEqual([
-        'file', 'feedback', 'compact', 'permission', 'model', 'export', 'deploy',
+        'file', 'feedback', 'compact', 'permission', 'model', 'deploy',
       ])
       expect(rows.map(row => row.section)).toEqual([
         ...Array<string>(2).fill('command:section.add'),
-        ...Array<string>(5).fill('command:section.commands'),
+        ...Array<string>(4).fill('command:section.commands'),
       ])
       expect(rows[1]).toEqual({
         name: 'feedback',
@@ -405,7 +404,18 @@ describe('candidates', () => {
       expect(rows[0]).toEqual({ name: 'file', label: 'command:label.file', icon: Glyph, section: 'command:section.add' })
       expect(rows[4]).toMatchObject({ name: 'model', label: '模型', description: '选择本会话使用的模型', icon: Glyph })
       // A third-party command keeps its catalog text and gets no glyph.
-      expect(rows[6]).toEqual({ name: 'deploy', description: 'third-party command', section: 'command:section.commands' })
+      expect(rows[5]).toEqual({ name: 'deploy', description: 'third-party command', section: 'command:section.commands' })
+    })
+
+    it('the add button lists only file and feedback while typed slash keeps commands', async () => {
+      const { command, source } = await bench({ commands: () => Promise.resolve({ commands: SHIPPED }) })
+      command.register(modelContribution())
+      command.register(fileContribution())
+      const rows = await source.candidates(proj('s1'), { ...req(''), launched: true })
+      expect(rows.map(row => row.name)).toEqual(['file', 'feedback'])
+      expect(rows.every(row => row.section === 'command:section.add')).toBe(true)
+      expect((await source.candidates(proj('s1'), req(''))).map(row => row.name)).toContain('compact')
+      expect(await source.candidates(proj('s1'), { ...req('model'), launched: true })).toEqual([])
     })
 
     it('a same-name override keeps its own presentation even when it copies the first-party description', async () => {
@@ -445,7 +455,6 @@ describe('candidates', () => {
       const names = async (query: string) => (await source.candidates(proj('s1'), req(query))).map(c => c.name)
       await expect(names('模型')).resolves.toEqual(['model'])
       await expect(names('label.feedback')).resolves.toEqual(['feedback'])
-      await expect(names('ex')).resolves.toEqual(['export'])
       // Prefix hits lead; the empty-query section order no longer applies.
       await expect(names('pl')).resolves.toEqual(['deploy'])
       const rows = await source.candidates(proj('s1'), req('pl'))

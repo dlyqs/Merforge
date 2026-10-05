@@ -43,7 +43,6 @@ export function Mode(props: ModeProps) {
     {mode === null ? <Button variant="ghost" disabled={error === null} onClick={() => { setReload(value => value + 1) }}>{props.t(error === null ? 'modeLoading' : 'refresh')}</Button>
       : <Tooltip label={props.t('modeHint')}><span className={css.modePill} data-enabled={mode.enabled}><IconBranchOutlineRegular size={14} />{props.t('mode')}<Switch label={props.t('mode')} checked={mode.enabled} disabled={busy || running}
         onChange={(enabled) => { void select(enabled) }} /></span></Tooltip>}
-    {mode !== null && error === null && <Button variant="ghost" size="sm" disabled={busy || running} onClick={() => { setReload(value => value + 1) }}>{props.t('refresh')}</Button>}
     {error !== null && <><p className={css.error} role="alert">{props.t('error', { message: error })}</p>
       <Button variant="ghost" disabled={busy} onClick={() => {
         pending.current = null; setMode(null); setReload(value => value + 1)

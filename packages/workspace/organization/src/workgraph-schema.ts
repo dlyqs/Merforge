@@ -28,6 +28,10 @@ export const workgraphSaveSchema = z.object({
   operationId: id<OperationId>(), organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>(),
   planId: id<OrganizationPlanId>(), expectedRevision: z.number().int().nonnegative(), definition: workgraphDefinitionSchema,
 }).strict()
+/** Creator-only deletion of the complete task plan at its observed revision. */
+export const workgraphDeleteSchema = workgraphSaveSchema.omit({ definition: true })
+/** Current creator and assignment eligibility without task text. */
+export const workgraphRemovalSchema = z.object({ global: z.boolean(), local: z.boolean(), revision: planRevisionSchema }).strict()
 /** Exact historical or latest full-definition read; always rechecks current root permission. */
 export const workgraphReadSchema = z.object({
   organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>(), planId: id<OrganizationPlanId>(),
@@ -64,6 +68,7 @@ export const workgraphGrantSchema = workgraphGrantsSchema.extend({
 export const workgraphTasksSchema = z.object({
   organizationId: id<OrganizationId>(), projectId: id<OrganizationProjectId>(),
   planId: id<OrganizationPlanId>().optional(), taskId: taskId.optional(), revision: planRevisionSchema.optional(),
+  excluded: z.array(id<OrganizationPlanId>()).optional(),
   search: z.string().max(120).default(''), offset: z.number().int().nonnegative().default(0),
   cursor: z.string().max(2048).optional(),
 }).strict().refine(value => value.revision === undefined || value.planId !== undefined)

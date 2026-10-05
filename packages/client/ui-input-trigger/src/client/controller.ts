@@ -526,6 +526,7 @@ export class InputTriggerController {
           query: hit.query,
           quoted: hit.quoted,
           position: hit.position,
+          ...(this.launcher.getSnapshot() === null ? {} : { launched: true }),
           drilled: this.drilled,
           signal: controller.signal,
         })

@@ -331,7 +331,7 @@ it.each(['pending', 'held'])('preserves WorkGraph history and permanently retire
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 18 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 19 })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)
@@ -535,3 +535,41 @@ it('uses only in-memory login when secure OS encryption is unavailable', async (
   await next.restoreLogin()
   expect(next.snapshot().phase).toBe('signed-out')
 })
+
+it('persists assigned task removal on one installation and propagates creator task deletion over TLS', async () => {
+  const h = await setup(), organizationId = h.initialized.organizationId!
+  const invite = await h.owner.perform({ kind: 'invite', role: 'member' })
+  const first = await h.connect()
+  await first.perform({ kind: 'register', username: 'task-worker', password, invitationToken: invite.invitationToken! })
+  await first.perform({ kind: 'select', organizationId })
+  const second = await h.connect()
+  await second.perform({ kind: 'login', username: 'task-worker', password })
+  await second.perform({ kind: 'select', organizationId })
+  const login = await h.app.authority.login({ username: 'owner', password })
+  const project = await h.app.authority.projectCommand(login.token, { kind: 'create-project', operationId: randomUUID(),
+    organizationId, name: 'Removable task project' })
+  const planId = randomUUID(), taskId = randomUUID(), phaseId = randomUUID()
+  const query = { organizationId, projectId: project.projectId, planId }
+  await h.app.authority.savePlan(login.token, { ...query, operationId: randomUUID(), expectedRevision: 0,
+    definition: { taskId, phases: [{ id: phaseId, title: 'Phase' }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
+      goal: 'Task to remove', scope: 'Text', acceptance: ['Report'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null }] } })
+  await h.app.authority.assignmentCommand(login.token, { ...query, kind: 'approve-assignment', operationId: randomUUID(),
+    taskId, planRevision: 1, assigneeId: first.snapshot().organizations[0]!.membershipId })
+  for (const client of [h.owner, first, second]) await client.perform({ kind: 'reconnect' })
+  await expect(first.perform({ kind: 'workgraph-removal', request: query })).resolves.toMatchObject({ planRemoval: { global: false, local: true } })
+  await first.perform({ kind: 'remove-plan', request: query })
+  const tasks = { kind: 'workgraph-tasks' as const, request: { organizationId, projectId: project.projectId } }
+  expect((await first.perform(tasks)).workgraph?.result).toMatchObject({ kind: 'tasks', value: { total: 0 } })
+  expect((await second.perform(tasks)).workgraph?.result).toMatchObject({ kind: 'tasks', value: { total: 1 } })
+  await first.close()
+  const restarted = new OrganizationConnection({ trustPath: join(h.root, 'client-1.json'), reconnectMs: 100 })
+  cleanup.push(() => restarted.close())
+  await restarted.perform({ kind: 'login', username: 'task-worker', password })
+  await restarted.perform({ kind: 'select', organizationId })
+  expect((await restarted.perform(tasks)).workgraph?.result).toMatchObject({ kind: 'tasks', value: { total: 0 } })
+  const generation = second.snapshot().generation
+  await h.owner.perform({ kind: 'workgraph-delete', request: { ...query, operationId: randomUUID(), expectedRevision: 1 } })
+  await expect.poll(() => second.snapshot().generation).toBeGreaterThan(generation)
+  await expect.poll(() => second.snapshot().phase).toBe('ready')
+  expect((await second.perform(tasks)).workgraph?.result).toMatchObject({ kind: 'tasks', value: { total: 0 } })
+}, 30000)

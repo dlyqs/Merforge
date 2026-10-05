@@ -198,4 +198,4 @@ The generated Client inspect catalog is the exhaustive contract for each key: ca
 
 ## Personal management factory
 
-`ui-personal` registers the root-scoped `personal.manager` Factory for independent sidebar and settings occurrences. It owns `personal.manager.workflow`, occupied by ui-personal-workflow, and shares its records observable and mutation callbacks across occurrences. The personal settings section separately declares `settings.personal.testing` for user-only testing controls. The sidebar and settings do not declare duplicate copies of the workflow slot.
+`ui-personal` registers the root-scoped `personal.manager` Factory for main-interface Project/Bot navigation and editing. The personal settings section declares only `settings.personal.testing` for planning defaults and user-only testing controls; it does not mount the records Factory.

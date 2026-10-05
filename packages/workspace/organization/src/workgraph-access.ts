@@ -22,7 +22,7 @@ type Query = z.output<typeof workgraphTasksSchema>
  * @returns Matching plan head, or a uniform denial.
  */
 export function selectedPlan(db: DatabaseSync, principal: Principal, query: { projectId: string; planId: string }): Plan {
-  const row = db.prepare('SELECT * FROM organization_plans WHERE id=? AND projectId=? AND organizationId=?')
+  const row = db.prepare('SELECT * FROM organization_plans WHERE id=? AND projectId=? AND organizationId=? AND id NOT IN (SELECT planId FROM deleted_plans)')
     .get(query.planId, query.projectId, principal.organizationId ?? null)
   if (!row) throw new OrganizationError('forbidden')
   return workgraphPlanSchema.parse(row)
@@ -79,9 +79,10 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
 export function visibleTasks(db: DatabaseSync, principal: Principal, query: Query): OrganizationTaskView[] {
   authorizedProject(db, principal, query.projectId, 'read')
   const plans = query.planId ? [selectedPlan(db, principal, { projectId: query.projectId, planId: query.planId })]
-    : db.prepare('SELECT * FROM organization_plans WHERE projectId=? AND organizationId=? ORDER BY id')
+    : db.prepare('SELECT * FROM organization_plans WHERE projectId=? AND organizationId=? AND id NOT IN (SELECT planId FROM deleted_plans) ORDER BY id')
       .all(query.projectId, principal.organizationId ?? null).map(row => workgraphPlanSchema.parse(row))
-  const items = plans.flatMap(plan => project(db, principal, plan, query.revision ?? plan.currentRevision))
+  const items = plans.filter(plan => !query.excluded?.includes(plan.id))
+    .flatMap(plan => project(db, principal, plan, query.revision ?? plan.currentRevision))
   if (query.planId && !items.length || query.taskId && !items.some(task => task.id === query.taskId)) throw new OrganizationError('forbidden')
   const search = query.search.toLowerCase()
   return items.filter(task => (!query.taskId || task.id === query.taskId)
@@ -155,7 +156,8 @@ export function visibleWorkgraphEvents(db: DatabaseSync, principal: Principal, a
     const { eventRevision, ...head } = row
     const plan = workgraphPlanSchema.parse(head)
     const stored = db.prepare('SELECT revision FROM plan_revisions WHERE planId=? AND eventRevision=?').get(plan.id, Number(eventRevision))
-    if (!stored) return []
+    if (!stored) return db.prepare('SELECT 1 FROM deleted_plans WHERE planId=? AND revision=?').get(plan.id, Number(eventRevision))
+      && grants(db, principal, plan).length ? [{ revision: Number(eventRevision), planId: plan.id }] : []
     const revision = Number(stored.revision)
     const next = project(db, principal, plan, revision)
     if (!next.length) return []

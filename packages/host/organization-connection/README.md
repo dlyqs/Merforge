@@ -3,6 +3,8 @@ description: "Native organization transport, account selection and scoped projec
 kind: "package-library"
 ---
 
+The fixed `workgraph-removal` action reads creator and assignee removal eligibility. `workgraph-delete` uses the versioned creator-only shared deletion command. `remove-plan` requires current assigned-member eligibility and persists identity-scoped identifiers in the installation-local `.removed-plans` journal. Task navigation pages and totals exclude these plans across refreshes and restarts; other installations retain their shared access. The Client skips assignment conversation rematerialization for locally removed plans.
+
 # @deepseek-ai/dsh-organization-connection
 
 ## Summary

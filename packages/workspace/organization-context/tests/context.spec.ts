@@ -12,7 +12,6 @@ import * as Domain from '@deepseek-ai/dsh-storage-domain'
 import Sessions, { SessionId, Session } from '@deepseek-ai/dsh-session'
 import Query from '@deepseek-ai/dsh-session-query'
 import Projections from '@deepseek-ai/dsh-session-projection'
-import { readSessionLogText } from '@deepseek-ai/dsh-session-log-export'
 import Invariants from '@deepseek-ai/dsh-invariants'
 import * as ContextInvariant from '../src/invariant.ts'
 import Agents from '@deepseek-ai/dsh-agent'
@@ -102,7 +101,6 @@ it('refuses reserved IDs in personal hot, cold, fork and Agent execution entries
   await expect(ctx.sessionPersistence.open(sessionId, 'read')).rejects.toThrow('forbidden')
   await expect(ctx.sessionPersistence.stat(sessionId)).rejects.toThrow('forbidden')
   await expect(ctx.sessionPersistence.delete(sessionId)).rejects.toThrow('forbidden')
-  await expect(readSessionLogText(ctx.sessionPersistence, sessionId)).rejects.toThrow('forbidden')
   expect(() => ctx.sessionQuery.observeSession(sessionId)).toThrow('forbidden')
   await expect(ctx.sessionQuery.readSession(sessionId)).rejects.toThrow('forbidden')
   expect((await ctx.sessionQuery.filterSessions([])).map(value => value.header.id)).toEqual([personal.id])

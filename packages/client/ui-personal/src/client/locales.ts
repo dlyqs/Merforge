@@ -2,7 +2,7 @@
 export const zh = {
   'openCodexSettings': '打开 Codex 设置',
   settingsTitle: '任务、项目与 Bot',
-  settingsDescription: '集中管理任务计划、项目目录与 Bot 配置。',
+  settingsDescription: '配置任务规划偏好；项目和 Bot 可在主界面管理。',
   tasks: '任务',
   'section': '个人项目与 Bot',
   'expand': '展开个人项目与 Bot',
@@ -81,7 +81,7 @@ export type PersonalKey = keyof typeof zh
 export const en = {
   'openCodexSettings': 'Open Codex settings',
   settingsTitle: 'Tasks, Projects & Bots',
-  settingsDescription: 'Manage task plans, project directories and Bot configuration.',
+  settingsDescription: 'Configure task planning preferences. Manage projects and Bots in the main view.',
   tasks: 'Tasks',
   section: 'Personal projects and Bots',
   expand: 'Expand personal projects and Bots',

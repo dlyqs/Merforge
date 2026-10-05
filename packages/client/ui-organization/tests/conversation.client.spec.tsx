@@ -3,7 +3,6 @@
 import { useSyncExternalStore } from 'react'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ServerId, AccountId } from '@deepseek-ai/dsh-organization/types'
-import { NewConversation } from '../src/client/NewConversation.tsx'
 import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
 import { AccountSession } from '../src/client/account-session.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -185,18 +184,6 @@ it('opens projectless Recent conversations even when project enumeration fails',
   fireEvent.click(await screen.findByRole('button', { name: 'Ungrouped discussion' }))
   await waitFor(() => { expect(selectConversation).toHaveBeenCalledOnce() })
   expect(selectConversation.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
-})
-
-it('creates a projectless conversation from the global plus without showing a project selector', async () => {
-  const h = fixture(), dismiss = vi.fn()
-  const selectConversation = vi.fn<NonNullable<OrganizationProps['selectConversation']>>(async () => {})
-  render(<NewConversation {...h.props} selectConversation={selectConversation} dismiss={dismiss}
-    useConversationStartTarget={selector => selector({})} useCreating={selector => selector(true)} />)
-  await waitFor(() => { expect(dismiss).toHaveBeenCalledOnce() })
-  expect(selectConversation.mock.calls[0]?.[0]).toMatchObject({ organizationId: h.project.organizationId })
-  expect(selectConversation.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
-  expect(h.connection).not.toHaveBeenCalled()
-  expect(screen.queryByRole('combobox')).toBeNull()
 })
 
 it('offers only project information and deletion in the project menu', async () => {

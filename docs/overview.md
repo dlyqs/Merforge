@@ -106,4 +106,4 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 ## 个人管理设置
 
-设置 →“任务、项目与 Bot”集中提供计划查看/修改/审核、项目目录和 Bot 配置，侧栏与设置页复用 `ui-personal` 的 `personal.manager` Factory，任务插件占用 `personal.manager.workflow`。临时“每次任务强制拆分”开关默认关闭，保存到本机 `personal_workflow_testing` domain；开启后未绑定任务的新目标也必须拆分为至少两个必要子任务，已绑定执行任务不重复拆分。关闭恢复对话原模式；审批和显式领取保持独立。实现位于 `packages/client/ui-personal/src/client/PersonalSettings.tsx`、`packages/client/ui-personal-workflow/src/client/TestingPreferences.tsx`、personal-workflow 与 skill-dev-workflow；完整规则见[个人工作流](personal-workflow.md#集中设置与临时强制拆分)。
+设置 →“任务、项目与 Bot”仅提供规划和测试偏好；具体任务、项目和 Bot 的查看与管理位于主界面。临时“每次任务强制拆分”开关默认关闭，保存到本机 `personal_workflow_testing` domain；开启后未绑定任务的新目标也必须拆分为至少两个必要子任务，已绑定执行任务不重复拆分。关闭恢复对话原模式；审批和显式领取保持独立。实现位于 `packages/client/ui-personal/src/client/PersonalSettings.tsx`、`packages/client/ui-personal-workflow/src/client/TestingPreferences.tsx`、personal-workflow 与 skill-dev-workflow；完整规则见[个人工作流](personal-workflow.md#集中设置与临时强制拆分)。

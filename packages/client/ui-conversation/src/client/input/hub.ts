@@ -4,8 +4,9 @@
  * materialization (the 'input' standard-kit entry IS the
  * creation trigger) and torn down by the scope disposer (instance-and-scope
  * share one lifecycle). The hub registers the scoped input-mutation
- * listeners on each Session context and owns the default-sink choreography: every session is a
- * real host entity, so the sink is one unconditional prompt path.
+ * listeners on each Session context and owns the default-sink choreography.
+ * Ordinary Sessions and external drafts both expose the same prompt path.
+ * An external draft owns any persistence deferred until submission.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {
@@ -192,10 +193,9 @@ export class InputHub implements SessionInputResolver {
   }
 
   /**
-   * Default sink: optimistic clear + prompt. The session is always a real
-   * host entity (materialized when its workspace was picked), so there is
-   * exactly one path; a failed first prompt is an ordinary prompt failure
-   * (banner via promptError, draft restored only while untouched).
+   * Default sink: optimistic clear and prompt through the current Session face.
+   * External drafts materialize their account Session during prompt submission.
+   * A failed prompt restores the draft only while untouched.
    */
   private sink(
     session: SessionFace,

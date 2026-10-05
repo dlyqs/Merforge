@@ -162,3 +162,9 @@ None.
 ## Account presentation
 
 The main conversation uses the static `ConversationFrame` primitive and shared header, scrollport and input-card styles. Organization navigation selects the same main destination and supplies its private transcript and authorized actions to that presentation. Personal Session bindings, live conversation assembly and the existing composer lifecycle remain owned by this plugin.
+
+## Unsaved conversation entry
+
+`createConversationDraft` supplies the standard composer with a Client-memory Session face and local model/planning choices. It stays outside the durable catalog and materializes a retained Session only for a submitted nonempty prompt or command. Navigation and typing have no persistence effects. The first accepted submission transfers presentation to that Session; a failed submission retains the draft for an explicit retry.
+
+The empty-conversation headline is “Do Anything!” without a preview badge. The composer Add button lists file attachment and feedback actions; typed slash commands remain available.

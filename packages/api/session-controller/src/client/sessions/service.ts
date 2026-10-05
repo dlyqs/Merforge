@@ -577,7 +577,7 @@ export class ClientSessions implements ISessions {
     if (entry && entry.target.session !== target.session) {
       if (!entry.target.session.getSnapshot().removed) throw new Error(`Session ${id} already has another account transport`)
       entry.live = false; this.external.delete(id); entry.stop()
-      const drop = entry.fiber.dispose()
+      const drop = Promise.resolve(entry.fiber.dispose())
       this.scopeDrops.add(drop); void drop.finally(() => { this.scopeDrops.delete(drop) }).catch(() => {})
       entry = undefined
     }
@@ -608,7 +608,7 @@ export class ClientSessions implements ISessions {
           retainedBy: freezeRetainedBy(count > 1 ? { ...others, [source]: count - 1 } : others) }
         if (!account.retention.referenceCount) {
           account.live = false; this.external.delete(id); account.stop()
-          const drop = account.fiber.dispose()
+          const drop = Promise.resolve(account.fiber.dispose())
           this.scopeDrops.add(drop); void drop.finally(() => { this.scopeDrops.delete(drop) }).catch(() => {})
         }
         this.projectList(); this.publishRetention(id)
@@ -637,7 +637,8 @@ export class ClientSessions implements ISessions {
       if (count === 0) this.retireScope(id, record)
       else this.publishRetention(id)
     })
-    if (this.list.getSnapshot().byId[id] === undefined && this.manager.subagentAddress(id) !== undefined) {
+    if (this.list.getSnapshot().byId[id] === undefined
+      && (this.manager.subagentAddress(id) !== undefined || this.accountControls.has(id))) {
       this.projectList()
     }
     this.publishRetention(id)

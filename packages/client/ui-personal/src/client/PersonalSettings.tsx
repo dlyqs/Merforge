@@ -16,15 +16,14 @@ export function PersonalSidebarEntry(props: PropsRuntime<'sidebar.personal'> & P
     }) })
 }
 
-/** Expose persistent personal records and temporary workflow testing controls.
+/** Expose planning defaults and temporary workflow testing controls.
  * @param props - Settings shell, locale and authorized child renderers.
  * @returns Personal management settings.
  */
-export function PersonalSettings(props: PropsRuntime<'settings.section'> & PropsRenderFactories & PropsRenderSlots<'settings.personal.testing'> & PropsLocale<'personal'>) {
+export function PersonalSettings(props: PropsRuntime<'settings.section'> & PropsRenderSlots<'settings.personal.testing'> & PropsLocale<'personal'>) {
   return <section className={css.settings}>
     <h2>{props.t('settingsTitle')}</h2>
     <p>{props.t('settingsDescription')}</p>
     {props.renderSlot('settings.personal.testing', {})}
-    {props.renderFactorySlot('personal.manager', { wide: true, expandSidebar: () => {}, management: true, onNavigate: props.close })}
   </section>
 }

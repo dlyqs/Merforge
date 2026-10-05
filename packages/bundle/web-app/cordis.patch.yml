@@ -39,9 +39,6 @@
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
-    - id: session-log-download
-      name: '@deepseek-ai/dsh-session-log-export'
-
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
 

@@ -154,7 +154,7 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/(members|hierarchy)$/.exec(path)
-      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
+      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/integration/read', '/integration/command', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/challenge', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/delete', '/workgraph/removal', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation', '/device/challenge', '/device/command', '/device/list'].includes(path) ? 'POST'
         : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
@@ -197,6 +197,8 @@ export class OrganizationApiService extends Service {
       if (path === '/assignment/inbox') { await authority.readInbox(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/assignment/preparation') { await authority.readPreparation(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
       if (path === '/device/list') { await authority.readDevices(token, await this.body(req), (value) =>{  this.respond(res, 200, value) }); return }
+      if (path === '/workgraph/delete') { this.respond(res, 200, await authority.deletePlan(token, await this.body(req))); return }
+      if (path === '/workgraph/removal') { this.respond(res, 200, await authority.planRemoval(token, await this.body(req))); return }
       if (path === '/workgraph/save') { this.respond(res, 200, await authority.savePlan(token, await this.body(req))); return }
       if (path === '/workgraph/grant') { this.respond(res, 200, await authority.grantTask(token, await this.body(req))); return }
       if (path === '/workgraph/read') {

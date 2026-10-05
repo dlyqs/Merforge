@@ -76,6 +76,7 @@ async function bench(options: { recordResult?: unknown; recordCarrier?: unknown 
     children: {
       'conversation.chat.assistant-actions': { kind: 'list', scope: 'session' },
       'conversation.input.overlay': { kind: 'list', scope: 'session' },
+      'conversation.session.header.utilities': { kind: 'list', scope: 'session' },
     },
   } as never, (() => null) as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -144,6 +145,17 @@ describe('ui-message-feedback browser plugin', () => {
     const face = b.dialogEntry()!.inject!(sid('s1'))
     expect(face.hooks.dialog.getSnapshot()).toMatchObject({ target: null, toast: 0 })
     expect(face.dismissFailure).toBeTypeOf('function')
+  })
+
+  it('opens the existing Session dialog from the header feedback action', async () => {
+    const b = await bench()
+    await b.fiber.await()
+    const entry = b.ctx.slots.entries('conversation.session.header.utilities')[0]
+    expect(entry?.options.id).toBe('session-feedback')
+    const face = entry?.inject?.(sid('s1')) as { openFeedback(): void }
+    face.openFeedback()
+    expect(b.dialogEntry()!.inject!(sid('s1')).hooks.dialog.getSnapshot().target).toEqual({ kind: 'session' })
+    expect(b.calls).toEqual([])
   })
 
   it('opens one dialog per Session from the message entry and the decoration', async () => {
@@ -310,6 +322,7 @@ describe('ui-message-feedback browser plugin', () => {
 
     expect(b.ctx.slots.entries('conversation.chat.assistant-actions')).toHaveLength(0)
     expect(b.ctx.slots.entries('conversation.input.overlay')).toHaveLength(0)
+    expect(b.ctx.slots.entries('conversation.session.header.utilities')).toHaveLength(0)
     expect(b.decorations.size).toBe(0)
     expect(dialog.hooks.dialog.getSnapshot().target).toBeNull()
     // A disposed controller refuses further mutations, so no request outlives the fiber.

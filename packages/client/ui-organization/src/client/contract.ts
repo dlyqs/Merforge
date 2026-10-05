@@ -20,6 +20,8 @@ export interface OrganizationInjected {
   /** Select an exact project task in the task destination. */
   openTask?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView,
     task: import('@deepseek-ai/dsh-organization').OrganizationTaskView) => void
+  /** Clear the main conversation while navigation catalogs are loading. */
+  beginConversationNavigation?: () => void
   /** Show the real new-conversation entry for an empty navigation group. */
   showConversationStart?: (project?: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView,
     botId?: import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationRequest['botId']) => void

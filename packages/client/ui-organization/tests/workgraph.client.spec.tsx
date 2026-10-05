@@ -131,7 +131,7 @@ it('shows the saved context revision separately when the current task has change
 })
 
 
-it('does not repeat a denied task request after native generation refresh and allows explicit retry', async () => {
+it('does not repeat denied task reads during refresh and removes task search controls', async () => {
   const h = fixture()
   const base = h.connection.getMockImplementation()!
   let denied = false
@@ -144,9 +144,8 @@ it('does not repeat a denied task request after native generation refresh and al
   h.setState({ generation: 2 })
   await act(async () => { view.rerender(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />) })
   expect(h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-tasks')).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
-  await screen.findByRole('button', { name: 'Visible task' })
-  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'workgraph-tasks')).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: zh.searchAction })).toBeNull()
+  expect(screen.queryByRole('textbox')).toBeNull()
 })
 
 
@@ -268,4 +267,24 @@ it('removes the inbox tab from the organization workbench', () => {
   const h = fixture()
   render(<OrganizationDialog {...h.props} initialSection="projects" onClose={vi.fn()} />)
   expect(screen.queryByRole('button', { name: '待我处理' })).toBeNull()
+})
+
+it.each([true, false])('confirms task removal outside the canvas using current creator permission %s', async creator => {
+  const h = fixture(), base = h.connection.getMockImplementation()!, onBack = vi.fn()
+  h.connection.mockImplementation(async action => action.kind === 'workgraph-removal'
+    ? { generation: 1, planRemoval: { global: creator, local: !creator, revision: h.version.revision } } : base(action))
+  render(<Workbench {...h.props} project={h.project} planId={h.version.planId} initialTaskId={h.page.items[0]!.id} onBack={onBack} />)
+  const label = creator ? zh.deleteTask : zh.removeLocalTask
+  const button = await screen.findByRole('button', { name: label })
+  expect(button.closest('[data-task-canvas]')).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.back })).toBeNull()
+  expect(screen.queryByText(h.project.name)).toBeNull()
+  fireEvent.click(button)
+  const dialog = screen.getByRole('dialog')
+  expect(within(dialog).getByText(creator ? zh.deleteSharedTaskHint : zh.removeLocalTaskHint)).toBeTruthy()
+  fireEvent.click(within(dialog).getByRole('button', { name: label }))
+  await waitFor(() => { expect(onBack).toHaveBeenCalledOnce() })
+  expect(h.connection).toHaveBeenCalledWith({ kind: creator ? 'workgraph-delete' : 'remove-plan', request: {
+    organizationId: h.project.organizationId, projectId: h.project.id, planId: h.version.planId,
+    ...(creator ? { expectedRevision: h.version.revision, operationId: expect.any(String) } : {}) } })
 })

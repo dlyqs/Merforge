@@ -32,7 +32,6 @@ it('registers organization settings while retaining the personal management fact
   expect(app.ctx.slots.entries('sidebar.account')[0]?.component).toBe(AccountMenu)
   expect(app.ctx.slots.entries('sidebar.personal')[0]?.component).toBe(OrganizationSidebar)
   expect(app.ctx.slots.entries('settings.section').find(item => item.options.id === 'organization')?.component).toBe(OrganizationSettings)
-  expect(JSON.stringify(app.ctx.slots.snapshot('factory:personal.manager'))).toContain('personal.manager.workflow')
   expect(app.ctx.slots.entries('main').some(e => e.options.key === 'organization-conversation')).toBe(false)
   const slots = app.ctx.slots
   await app.ctx.fiber.dispose()
@@ -92,7 +91,8 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(mock.remote.session.create).not.toHaveBeenCalled()
     expect(selectPanel).toHaveBeenLastCalledWith(null)
     expect(app.ctx.slots.entries('main').filter(e => e.options.key === 'conversation')[0]?.component).toBe(ConversationPanel)
-    expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toMatch(/^conversation-draft:/)
     const sidebar = app.ctx.slots.entries('sidebar.personal').find(entry => entry.component === OrganizationSidebar)!
     const bind = sidebar.inject as (actions: BoundActions<ReturnType<typeof createConversationStore>>) => OrganizationInjected
     const actions = createConversationStore().create().actions
@@ -169,7 +169,29 @@ it('routes new and recent conversation navigation to the organization and replac
     await vi.waitFor(() => { expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeDefined() })
     expect(mock.remote.session.prompt.mock.calls.length).toBe(prompts)
     injected.showConversationStart?.()
-    expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
+    expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toMatch(/^conversation-draft:/)
+    const beforeDraft = nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open').length
+    for (let index = 0; index < 3; index++) {
+      injected.beginConversationNavigation?.(); injected.showConversationStart?.()
+      app.ctx.uiWorkspace.startSession()
+    }
+    expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open')).toHaveLength(beforeDraft)
+    const draftId = app.ctx.uiSession.adapter.current.getSnapshot().key as SessionId
+    const draftBinding = app.ctx.sessions.binding(draftId)!
+    expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(draftId)
+    mock.remote.commands.list.mockResolvedValue(ok([]))
+    mock.remote.skills.list.mockResolvedValue(ok({ skills: [] }))
+    const input = app.ctx.conversation.input.for(draftBinding.ctx)
+    input.actions.setDraft('First submitted message')
+    expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open')).toHaveLength(beforeDraft)
+    input.actions.submit()
+    await vi.waitFor(() => { expect(mock.remote.session.prompt.mock.calls.at(-1)?.[0]).toMatchObject({
+      sessionId: report.sharedSessionId, content: [{ type: 'text', text: 'First submitted message' }],
+    }) })
+    expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach')).toHaveLength(beforeDraft + 1)
+    expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId)
+
     publish?.({ ...snapshot, connection: { ...snapshot.connection, mode: 'personal', generation: 2 } })
     await vi.waitFor(() => { expect(app.ctx.slots.entries('sidebar.tasks').some(e => e.component === OrganizationTaskList)).toBe(false) })
     expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(0)

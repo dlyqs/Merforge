@@ -1,5 +1,7 @@
 # Organization HTTPS API
 
+`POST /workgraph/removal` returns current creator/assignee removal eligibility and the observed plan revision. `POST /workgraph/delete` commits creator-only deletion with `operationId` and `expectedRevision`. Task-list requests accept excluded plan identifiers for installation-local removals and apply them before counts and pagination.
+
 This Host-only service owns `ctx.organizationApi`, a dedicated HTTPS listener for the [organization authority](../../workspace/organization/README.md). The [organization design](../../../docs/organization-foundation.md) owns its protocol and isolation rules. Desktop's private organization process consumes this service; it never loads the personal profile, WebServer, Remote, Agent or Session services.
 
 Only `/organization/v1` identity, login, invitation registration, logout, organization/member listing strict authority commands, project registration/rename, explicit grants, authorized project list/detail/search, and cursor event reads are exposed. `GET /projects/:id/grants?organizationId=…` reads grant versions for managers without exposing project content. Initialization and recovery remain on parent IPC. Unknown routes and methods reject; unexpected storage errors become `unavailable` without SQL or paths. Cookie authentication is unsupported.

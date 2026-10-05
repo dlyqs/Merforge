@@ -70,7 +70,6 @@ export function OrganizationTasks(props: TaskProps) {
     && project.accountId === c.principal.accountId && project.project.organizationId === c.organizationId
   const navigationProject = current ? c.projects?.items.find(item => item.id === selected.projectId) : undefined
   return <section className={css.taskPage} aria-label={props.t('tasks')}><div className={css.body}>
-    <div className={css.toolbar}><div><h2>{props.t('tasks')}</h2><p className={css.muted}>{props.t('plansHint')}</p></div></div>
     {current ? <Workbench key={`${selected.serverId}:${selected.accountId}:${selected.planId}`} {...props}
       project={{ id: selected.projectId, organizationId: selected.organizationId, name: navigationProject?.name ?? props.t('tasks') }}
       planId={selected.planId} initialTaskId={selected.taskId}

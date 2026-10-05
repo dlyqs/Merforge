@@ -392,7 +392,6 @@ export function ModelSelect(
           aria-label={t('menu.aria')}
           aria-busy={state.status === 'loading' || busy}
         >
-          <p>{t('backend.newConversation')}</p>
           {native && <p>{t('backend.codexCapabilities')}</p>}
           {(native || state.failures.some(failure => failure.id === 'codex')) && <>
             <p>{t('backend.codexSetup')}</p>

@@ -47,7 +47,7 @@ function mount(sessionList: SessionListState = list, section?: PersonalSidebarPr
   const openSession = vi.fn()
   const moveSession = vi.fn(async () => {})
   const deleteSession = vi.fn(async () => {})
-  const createSession = vi.fn(async () => sessionId)
+  const createSession = vi.fn(async () => {})
   const createProject = vi.fn(async () => {})
   const createBot = vi.fn(async () => {})
   const pickDirectory = vi.fn(async () => '/tmp/picked-project')

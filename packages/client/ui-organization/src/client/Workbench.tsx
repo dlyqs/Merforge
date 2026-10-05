@@ -1,7 +1,7 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
 import { IntegrationPanel } from './IntegrationPanel.tsx'
-import { Button, Input, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
@@ -48,7 +48,10 @@ export function Workbench(props: OrganizationProps & {
   const [draft, setDraft] = useState<Draft>()
   const [assignmentRevision, setAssignmentRevision] = useState<number>()
   const [context, setContext] = useState<ContextReply>()
-  const [search, setSearch] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
+  const [removal, setRemoval] = useState<{ generation: number; global: boolean; local: boolean; revision: number }>()
+  const [deleting, setDeleting] = useState(false)
+  const deleteOperation = useRef(randomUUID())
   const loading = useRef(false)
   const loadSequence = useRef(0)
   const denied = useRef(false)
@@ -85,7 +88,7 @@ export function Workbench(props: OrganizationProps & {
     try { await work() } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
     finally { if (alive.current) setBusy(false) }
   }
-  const load = async (offset = 0, querySearch = search) => {
+  const load = async (offset = 0) => {
     const sequence = ++loadSequence.current
     loading.current = true
     denied.current = false
@@ -94,7 +97,7 @@ export function Workbench(props: OrganizationProps & {
       let nextOffset = offset, cursor = offset ? currentPage?.cursor : undefined
       let next: { generation: number; value: OrganizationTaskPage } | undefined
       while (true) {
-        const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, search: querySearch, offset: nextOffset,
+        const result = await props.connection({ kind: 'workgraph-tasks', request: { ...query, offset: nextOffset,
           ...(props.planId ? { planId: props.planId } : {}), ...(cursor ? { cursor } : {}) } })
         if (!alive.current || sequence !== loadSequence.current || result.workgraph?.result.kind !== 'tasks') return
         next = { generation: result.workgraph.generation, value: result.workgraph.result.value }
@@ -133,9 +136,9 @@ export function Workbench(props: OrganizationProps & {
           artifacts: item.artifacts.map(text => text.trim()).filter(Boolean) })) } } })
       if (!alive.current) return
       setSelected(draft.taskId); setContext(undefined); setAssignmentRevision(undefined); setDraft(undefined)
-      setNotice(t('taskSavedNext')); setSearch('')
+      setNotice(t('taskSavedNext'))
       if (props.onSaved) props.onSaved(draft.planId, draft.taskId)
-      else await load(0, '')
+      else await load()
     } catch (error) {
       if (alive.current && workgraphError(error) === 'version-conflict') setDraft(previous => previous && ({ ...previous, conflict: true }))
       throw error
@@ -162,6 +165,24 @@ export function Workbench(props: OrganizationProps & {
     await props.selectConversation({ ...query, serverId: c.principal.serverId, accountId: c.principal.accountId, conversationId,
       ...(props.assignmentId ? { assignmentId: props.assignmentId, planId: item.planId } : {}) })
   }
+  useEffect(() => {
+    let active = true
+    setRemoval(undefined); setDeleting(false); deleteOperation.current = randomUUID()
+    if (ready && props.planId) void props.connection({ kind: 'workgraph-removal', request: { ...query, planId: props.planId } })
+      .then((result) => { if (active && result.generation === c.generation && result.planRemoval)
+        setRemoval({ ...result.planRemoval, generation: result.generation }) },
+      (error: unknown) => { if (active) setNotice(t(workgraphError(error))) })
+    return () => { active = false }
+  }, [ready, c.generation, props.planId])
+  const canRemove = removal?.generation === c.generation && (removal.global || removal.local)
+  const removalLabel = t(removal?.global ? 'deleteTask' : 'removeLocalTask')
+  const remove = async () => {
+    if (!canRemove || !props.planId) return
+    await props.connection({ kind: removal.global ? 'workgraph-delete' : 'remove-plan', request: {
+      ...query, planId: props.planId,
+      ...(removal.global ? { expectedRevision: removal.revision, operationId: deleteOperation.current } : {}) } })
+    if (alive.current) { setDeleting(false); props.onBack() }
+  }
   const openContext = async (item: OrganizationTaskView) => {
     let operationId = contextOperations.current.get(item.id)
     if (!operationId) { operationId = randomUUID() as OperationId; contextOperations.current.set(item.id, operationId) }
@@ -169,15 +190,20 @@ export function Workbench(props: OrganizationProps & {
     if (alive.current) setContext(result)
   }
   return <section className={css.form} aria-busy={busy}>
-    <div className={css.cardHeading}><Button onClick={props.onBack}>{t('back')}</Button><h4>{props.project.name}</h4>{c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'project' ? null : 'project') }}>{t('projectMembers')}</Button>}</div>
+    <div className={css.actions} style={{ justifyContent: 'flex-end' }}>
+      {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'project' ? null : 'project') }}>{t('projectMembers')}</Button>}
+      {canRemove && <Button disabled={!writable || !!draft} onClick={() => { setDeleting(true) }}>{removalLabel}</Button>}
+    </div>
+    {deleting && <Modal open title={removalLabel} closeLabel={t('close')} onClose={() => { if (!busy) setDeleting(false) }}
+      footer={<><Button disabled={busy} onClick={() => { setDeleting(false) }}>{t('cancel')}</Button>
+        <Button variant="primary" disabled={!writable || !canRemove} onClick={() => { void run(remove) }}>{removalLabel}</Button></>}>
+      <p>{t(removal?.global ? 'deleteSharedTaskHint' : 'removeLocalTaskHint')}</p>
+      {notice && <p role="alert">{notice}</p>}
+    </Modal>}
     {access === 'project' && <section className={css.card}><h4>{t('projectMembers')}</h4><ProjectAccess {...props} projectId={props.project.id} /></section>}
     {!ready && c.phase !== 'loading' && <p role="status">{t(c.phase)}</p>}
     {notice && <p className={css.notice} role="status">{notice}</p>}
     {ready && !currentPage && <p>{t('taskStale')}</p>}
-    <form className={css.search} onSubmit={(event) => { event.preventDefault(); void run(() => load()) }}>
-      <Input aria-label={t('taskSearch')} value={search} onChange={(event) =>{  setSearch(event.target.value) }} />
-      <Button type="submit" disabled={!writable}>{t('searchAction')}</Button>
-    </form>
     {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}

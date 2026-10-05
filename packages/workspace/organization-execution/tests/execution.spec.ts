@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { readSessionLogText } from '@deepseek-ai/dsh-session-log-export'
 import { expect, it, vi } from 'vitest'
 import * as ExecutionInvariant from '../src/invariant.ts'
 import { executionResultSchema, executionReportSchema, type ExecutionRequest, type ExecutionReportRequest, type ExecutionCommand, type ExecutionAuthority, type ExecutionReadAuthority, type ExecutionResult, type ExecutionReport, executionRequestSchema, executionInputsDigest } from '../src/index.ts'
@@ -72,7 +71,6 @@ it('denies personal hot, cold, fork and Agent admission for execution IDs', asyn
   await expect(ctx.agents.create({ sessionId: result.sessionId })).rejects.toThrow('personal access forbidden')
   expect(await ctx.sessionPersistence.list()).toEqual([])
   expect(() => ctx.sessionQuery.observeSession(result.sessionId)).toThrow('personal access forbidden')
-  await expect(readSessionLogText(ctx.sessionPersistence, result.sessionId)).rejects.toThrow('forbidden')
 })
 it('recovers a reserved log after interruption, rejects generation changes and operation conflicts', async () => {
   const { request, authority } = fixture(), { service } = await boot()

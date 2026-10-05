@@ -43,7 +43,7 @@ export interface PersonalActions {
     allowedSkills: string[] | null
   }): Promise<void>
   deleteBot(id: BotId): Promise<void>
-  createSession(input: { projectId?: ProjectId; botId?: BotId }): Promise<SessionId>
+  createSession(input: { projectId?: ProjectId; botId?: BotId }): Promise<void>
   deleteSession(sessionId: SessionId): Promise<void>
   moveSession(input: { sessionId: SessionId; projectId?: ProjectId | null; botId?: BotId | null }): Promise<void>
   refreshAffiliation(sessionId: SessionId): Promise<void>
@@ -61,11 +61,10 @@ export type PersonalSidebarProps = Omit<FactoryComponentPropsOf<'personal.manage
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotFactoryMap {
-    /** Shared Project/Bot management used by sidebar and settings. */
+    /** Project/Bot navigation and editing in the main interface. */
     'personal.manager': {
       scope: 'root'
-      props: { wide: boolean; expandSidebar: () => void; management?: boolean; onNavigate?: () => void; section?: 'projects' | 'bots' | 'recent'; navigationRevision?: number; onNavigationHandled?: () => void }
-      children: { 'personal.manager.workflow': { kind: 'single'; scope: 'root' } }
+      props: { wide: boolean; expandSidebar: () => void; section?: 'projects' | 'bots' | 'recent'; navigationRevision?: number; onNavigationHandled?: () => void }
       inject: PersonalInjected
       locale: 'personal'
     }
@@ -74,8 +73,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Temporary personal workflow test controls within settings. */
     'settings.personal.testing': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
 
-    /** The single all-plans entry above personal navigation. */
-    'personal.manager.workflow': { kind: 'single'; scope: 'root'; owner: { projectId: ProjectId | null; botId: BotId | null; onNavigate?: () => void } }
   }
   interface LocaleNamespaceMap {
     /** Personal Project and Bot navigation copy. */

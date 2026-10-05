@@ -4,6 +4,8 @@ kind: "package-reference"
 ---
 # Session Controller
 
+An account adapter may retain an external client-memory draft for the standard composer. Its model and planning controls remain local until a submitted input authorizes attachment of the ordinary account Session. External drafts remain outside catalog IDs and own no Host history; their view owner releases them on navigation or transfer to the persisted Session.
+
 ## Summary
 
 `@deepseek-ai/dsh-api-session-controller` owns the Host `ctx.sessionController` service and the generated Client `session`, `skills`, and `fileReferences` Remote namespaces. It serves Session lifecycle and history, the Host-generation model catalog, human background-job kill, workspace-path opening, user-invocable skill discovery, and Agent-scoped file references. Use it through API Gateway when a Client needs operations addressed by a Session.

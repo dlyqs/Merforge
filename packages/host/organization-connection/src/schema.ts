@@ -49,7 +49,7 @@ export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('device-register'), name: z.string().trim().min(1).max(120) }).strict(),
   z.object({ kind: z.literal('device-revoke'), expectedVersion: z.number().int().positive() }).strict(),
   z.object({ kind: z.literal('device-read') }).strict(),
-  z.object({ kind: z.enum(['workgraph-save', 'workgraph-read', 'workgraph-tasks', 'workgraph-grant', 'workgraph-grants']), request: z.unknown() }).strict(),
+  z.object({ kind: z.enum(['remove-plan', 'workgraph-delete', 'workgraph-removal', 'workgraph-save', 'workgraph-read', 'workgraph-tasks', 'workgraph-grant', 'workgraph-grants']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('probe'), origin: z.string().max(2048) }).strict(),
   z.object({ kind: z.literal('trust'), fingerprint: z.string() }).strict(),
   z.object({ kind: z.literal('login'), username: z.string(), password: z.string() }).strict(),

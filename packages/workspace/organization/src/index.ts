@@ -35,7 +35,7 @@ import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
 import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema, deletedProjectsSchema } from './resource-schema.ts'
-import { workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
+import { workgraphDeleteSchema, workgraphRemovalSchema, workgraphSaveSchema, workgraphReadSchema, workgraphTasksSchema, workgraphGrantSchema, workgraphGrantsSchema } from './workgraph-schema.ts'
 import { authorizeWorkgraph, readWorkgraphVersion, saveWorkgraph, checkWorkgraphLimits } from './workgraph.ts'
 import { visibleTasks, setTaskGrant, taskGrants, selectedPlan, visibleWorkgraphEvents } from './workgraph-access.ts'
 import type { OrganizationTaskPage, OrganizationTaskGrant, OrganizationWorkgraphBatch, OrganizationPlanVersion } from './workgraph-types.ts'
@@ -158,6 +158,8 @@ export class OrganizationService extends Service {
         const manage = ['invite', 'set-membership', 'set-supervisor', 'create-project', 'set-grant', 'set-task-grant'].includes(String(event?.kind))
         const current = this.principal(db, token, receipt.organizationId, manage ? 'manage' : 'member')
         if (receipt.planning && receipt.projectId) authorizedProject(db, current, receipt.projectId, 'read')
+        if (event?.kind === 'delete-plan' && receipt.planId
+          && db.prepare('SELECT createdBy FROM organization_plans WHERE id=?').get(receipt.planId)?.createdBy !== current.membershipId) throw new OrganizationError('forbidden')
         if (event?.kind === 'save-plan' && receipt.projectId && receipt.planId) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
         if (receipt.integration) {
           const r = integrationRecordSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM organization_integrations WHERE id=?').get(receipt.integration.integrationId)?.data)))
@@ -586,6 +588,56 @@ export class OrganizationService extends Service {
 
   private head(db: DatabaseSync): number {
     return Number(db.prepare('SELECT coalesce(max(revision),0) AS revision FROM organization_events').get()?.revision)
+  }
+
+  /**
+   * Read creator deletion and assigned-member local removal eligibility.
+   * @param token - Current account credential.
+   * @param input - Exact project and plan selector.
+   * @returns Current removal permissions and observed plan revision.
+   */
+  planRemoval(token: LoginToken, input: unknown): Promise<import('zod').z.output<typeof workgraphRemovalSchema>> {
+    const query = parse(workgraphReadSchema, input)
+    return this.enqueue('plan-removal', db => transaction(db, () => {
+      const principal = this.principal(db, token, query.organizationId)
+      visibleTasks(db, principal, { ...query, search: '', offset: 0 })
+      const plan = selectedPlan(db, principal, query)
+      const local = !!db.prepare('SELECT 1 FROM task_assignments WHERE planId=? AND assigneeId=?')
+        .get(plan.id, principal.membershipId ?? null)
+      return { global: plan.createdBy === principal.membershipId, local, revision: plan.currentRevision }
+    }))
+  }
+
+  /**
+   * Tombstone a creator-owned task plan while preserving shared history.
+   * @param token - Current account credential.
+   * @param input - Exact plan, expected revision and durable operation identity.
+   * @returns Committed or reconciled deletion receipt.
+   */
+  deletePlan(token: LoginToken, input: unknown): Promise<Receipt> {
+    const request = parse(workgraphDeleteSchema, input)
+    return this.enqueue('delete-plan', async (db) => {
+      const principal = this.principal(db, token, request.organizationId), scope = `account:${principal.accountId}`
+      const fingerprint = await requestFingerprint(scope, request, false)
+      const result = transaction(db, () => {
+        const current = this.principal(db, token, request.organizationId)
+        const plan = db.prepare('SELECT * FROM organization_plans WHERE id=? AND projectId=? AND organizationId=?')
+          .get(request.planId, request.projectId, request.organizationId)
+        if (!plan || plan.createdBy !== current.membershipId) throw new OrganizationError('forbidden')
+        const previous = this.previous(db, scope, request.operationId, fingerprint)
+        if (previous) return { receipt: previous, committed: false }
+        authorizedProject(db, current, request.projectId, 'read')
+        if (db.prepare('SELECT 1 FROM deleted_plans WHERE planId=?').get(request.planId)) throw new OrganizationError('forbidden')
+        if (plan.currentRevision !== request.expectedRevision) throw new OrganizationError('version-conflict')
+        const receipt = this.mutate(db, scope, request, 'delete-plan', current.accountId, request.organizationId, fingerprint, (revision) => {
+          db.prepare('INSERT INTO deleted_plans VALUES (?,?)').run(request.planId, revision)
+          db.prepare('INSERT INTO workgraph_events VALUES (?,?)').run(revision, request.planId)
+          return { organizationId: request.organizationId, projectId: request.projectId, planId: request.planId }
+        })
+        return { receipt, committed: true }
+      })
+      return result.committed ? this.recordCommit(result.receipt) : result.receipt
+    })
   }
 
   /**

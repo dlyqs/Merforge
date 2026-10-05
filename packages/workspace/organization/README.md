@@ -1,5 +1,7 @@
 # Organization identity authority
 
+`planRemoval` returns current plan-creator deletion and assigned-member local-removal eligibility without task text. `deletePlan` checks the original creating membership and observed plan revision, then records a SQLite v19 tombstone in the receipt transaction. Every task read and edit refuses a deleted plan; assignment, delegation and lease invalidation runs before commit. Immutable definitions and business history remain stored. WorkGraph streams publish deletion identifiers to current task readers. Existing databases migrate to v19 without changing prior plan identifiers or revisions.
+
 `ctx.organization` owns one dedicated SQLite database for service-instance accounts, organizations, memberships, invitations, login sessions, operation receipts and audit events. It is a Host-only service combining its definition and SQLite implementation. The [organization design](../../../docs/organization-foundation.md) owns protocol, isolation, permission and product-flow decisions.
 
 The service is loaded by the real Loader in its tests. The private organization API and Electron process consume it through a dedicated Loader composition; this package is not mounted in the personal Desktop profile and has no application launcher, network listener or model tool.

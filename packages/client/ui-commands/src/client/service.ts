@@ -244,7 +244,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
         ...(contribution.icon === undefined ? {} : { icon: contribution.icon }),
       })
     }
-    const visible = rows.filter(c => req.position === 'leading' || c.hint === undefined)
+    const visible = rows.filter(c => (req.position === 'leading' || c.hint === undefined)
+      && (!req.launched || c.name === 'file' || c.name === 'feedback'))
     return req.query === '' ? sectionRows(visible, this.t) : rankByName(visible, req.query)
   }
 

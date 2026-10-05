@@ -1,5 +1,6 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { BoundActions } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -14,7 +15,7 @@ import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/c
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConversationSelection } from './conversation-store.ts'
-import { NewConversation } from './NewConversation.tsx'
+import { createConversationDraft } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { OrganizationProject, type ProjectSelection } from './Project.tsx'
 import { OrganizationConversationEntry, type ConversationStartTarget } from './ConversationEntry.tsx'
 import { ConversationManager } from './ConversationManager.tsx'
@@ -80,9 +81,11 @@ export function apply(ctx: Context): void {
         projectId: project.id, planId: task.planId, taskId: task.id })
       ctx.layout.selectPanel('tasks' as MainPanelId)
     },
+    beginConversationNavigation: () => { navigationLoading = true; void selectConversation(null) },
     showConversationStart: (project, botId) => {
+      navigationLoading = false
       conversationStartTarget.set({ ...(project ? { project } : {}), ...(botId ? { botId } : {}) })
-      void selectConversation(null)
+      showDraft()
     },
     removeProject: async (project) => {
       const bridge = desktop
@@ -102,7 +105,7 @@ export function apply(ctx: Context): void {
       conversationActions?.refresh()
     },
     manageConversation: (selected, action = 'manage') => { management.set({ selected, action }) },
-    selectConversation: selectConversation,
+    selectConversation: async (selected) => { await selectConversation(selected) },
     openConversation: () => { ctx.layout.selectPanel(null) }, available: !!desktop,
     loadModels,
     openCodexSettings: () => { ctx.settingsNavigation.open('models', 'codex') },
@@ -127,12 +130,12 @@ export function apply(ctx: Context): void {
   let conversationActions: BoundActions<typeof conversationStore> | undefined
   let taskActions: BoundActions<typeof taskStore> | undefined
   const accountReference = createSnapshotStore<SessionReference | undefined>(undefined)
-  const creating = createSnapshotStore(false)
   const conversationStartTarget = createSnapshotStore<ConversationStartTarget>({})
   const projectDetails = createSnapshotStore<ProjectSelection | null>(null)
   const management = createSnapshotStore<{ selected: ConversationSelection; action: 'manage' | 'delete' } | null>(null)
+  let draft: ReturnType<typeof createConversationDraft> | undefined
   let accountSession: AccountSession | undefined, openSequence = 0
-  let currentSelection: ConversationSelection | null = null
+  let currentSelection: ConversationSelection | null = null, navigationLoading = false
   const projectCleanup = new Map<string, Promise<void>>(), cleanedProjects = new Set<string>()
   const cleanupProject = (projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId,
     c: OrganizationDesktopSnapshot['connection']): Promise<void> => {
@@ -151,14 +154,18 @@ export function apply(ctx: Context): void {
   const retire = () => {
     openSequence++
     const reference = accountReference.getSnapshot()
-    accountReference.set(undefined); accountSession?.dispose(); accountSession = undefined; reference?.release()
+    accountReference.set(undefined); draft?.dispose(); draft = undefined
+    accountSession?.dispose(); accountSession = undefined; reference?.release()
   }
-  const selectConversation = async (selected: ConversationSelection | null) => {
+  const selectConversation = async (selected: ConversationSelection | null, publish = true) => {
     const c = state.getSnapshot().connection
     if (selected && (c.mode !== 'organization' || c.principal?.serverId !== selected.serverId
       || c.principal.accountId !== selected.accountId || c.organizationId !== selected.organizationId)) throw new Error('organization-conversation: superseded')
-    currentSelection = selected
-    retire(); conversationActions?.select(selected); ctx.layout.selectPanel(null)
+    if (publish) {
+      if (selected) navigationLoading = false
+      currentSelection = selected
+      retire(); conversationActions?.select(selected); ctx.layout.selectPanel(null)
+    }
     const sequence = openSequence
     if (!selected || !desktop || c.phase !== 'ready' || !selected.conversationId) return
     const query = { organizationId: selected.organizationId, projectId: selected.projectId, conversationId: selected.conversationId,
@@ -179,7 +186,7 @@ export function apply(ctx: Context): void {
     const sharedSessionId = reply.result.sharedSessionId
     if (!sharedSessionId || !reply.result.attachmentId) throw new Error('organization-conversation: shared-session-required')
     const projectId = selected.projectId
-    accountSession = new AccountSession(reply, query, desktop, state, () => { conversationActions?.refresh() }, (report) => {
+    const attached = new AccountSession(reply, query, desktop, state, () => { conversationActions?.refresh() }, (report) => {
       const a = report.assignment, proposal = report.goals.at(-1)?.proposal
       const taskId = report.execution?.target.taskId ?? a?.taskId ?? proposal?.definition?.taskId,
         planId = report.execution?.target.planId ?? a?.planId ?? proposal?.planId
@@ -189,11 +196,21 @@ export function apply(ctx: Context): void {
     }, () => { management.set({ selected, action: 'manage' }) }, loadModels,
     async (selection) => {
       const result = await ctx.remote.session.selectModel({ sessionId: sharedSessionId, ...selection })
-      if ('value' in result && result.value.sessionId !== undefined) await selectConversation(selected)
+      if (publish && 'value' in result && result.value.sessionId !== undefined) await selectConversation(selected)
       return result
     })
-    accountReference.set(ctx.sessions.retain(accountSession, { source: 'mainView' }))
-    conversationActions?.refresh()
+    const reference = ctx.sessions.retain(attached, { source: 'mainView' })
+    const commit = () => {
+      if (accountReference.getSnapshot() === reference) return
+      if (sequence !== openSequence) throw new Error('organization-conversation: superseded')
+      const previous = accountReference.getSnapshot()
+      draft?.dispose(); draft = undefined
+      accountSession = attached; currentSelection = selected; navigationLoading = false
+      conversationActions?.select(selected); accountReference.set(reference); previous?.release()
+      conversationActions?.refresh()
+    }
+    if (publish) commit()
+    return { reference, commit, dispose: () => { attached.dispose(); reference.release() } }
   }
   ctx.effect(() => () => { retire() }, 'organization.account-session')
   ctx.on('api-session/activity', (id) => { if (accountSession?.sessionId === id) conversationActions?.refresh() })
@@ -224,12 +241,55 @@ export function apply(ctx: Context): void {
     taskActions = actions
     return { ...bind(), openTasks: () => { ctx.layout.selectPanel('tasks' as MainPanelId) } }
   }
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'organization-new-conversation',
-    locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, creating, conversationStartTarget },
-      dismiss: () => { creating.set(false) } }) }, NewConversation))
+  const showDraft = () => {
+    const c = state.getSnapshot().connection, target = conversationStartTarget.getSnapshot()
+    if (c.mode !== 'organization' || c.phase !== 'ready' || !c.principal || !c.organizationId) return
+    retire(); currentSelection = null; conversationActions?.select(null)
+    const selected: ConversationSelection = { ...c.principal, organizationId: c.organizationId,
+      conversationId: randomUUID() as ConversationRequest['conversationId'],
+      ...(target.project ? { projectId: target.project.id } : {}), ...(target.botId ? { botId: target.botId } : {}) }
+    const sequence = openSequence
+    draft = createConversationDraft({ eventSource: ctx.sessions.createEventSource(), title: ctx.locale.bind('organization')('newConversation'),
+      loadModels: async () => {
+        const catalog = await loadModels()
+        if (!target.botId || !target.project || !desktop) return catalog
+        const result = await desktop.conversation({ kind: 'catalog', organizationId: selected.organizationId, projectId: target.project.id,
+          conversationId: randomUUID() as ConversationRequest['conversationId'], operationId: randomUUID() as ConversationRequest['operationId'] })
+        const bot = result.result.catalog?.bots.find(item => item.id === target.botId)
+        if (!bot || !('provider' in bot.selection)) return catalog
+        const choice = bot.selection
+        const selection = { provider: choice.provider, model: choice.model,
+          ...(choice.backend ? { backend: choice.backend } : {}),
+          ...(choice.reasoningEffort ? { reasoningEffort: choice.reasoningEffort } : {}) }
+        return { ...catalog, default: selection }
+      },
+      listTasks: async () => {
+        if (!target.project || !desktop) return []
+        const tasks: Awaited<ReturnType<import('@deepseek-ai/dsh-api-session-controller/client').SessionControls['listTasks']>>[number][] = []
+        let offset = 0, cursor: string | undefined
+        while (sequence === openSequence) {
+          const result = await desktop.connection({ kind: 'workgraph-tasks', request: { organizationId: selected.organizationId,
+            projectId: target.project.id, offset, ...(cursor ? { cursor } : {}) } })
+          if (sequence !== openSequence || result.workgraph?.result.kind !== 'tasks') throw new Error('organization-conversation: superseded')
+          const page = result.workgraph.result.value
+          tasks.push(...page.items.map(task => ({ id: brandString<import('@deepseek-ai/dsh-api-session-controller/client').SessionTaskChoiceId>(task.id),
+            title: task.goal, scope: task.scope, acceptance: task.acceptance, artifacts: task.artifacts })))
+          offset += page.items.length; cursor = page.cursor
+          if (!page.items.length || offset >= page.total) break
+        }
+        return tasks
+      },
+      openExecution: () => { ctx.layout.selectPanel('tasks' as MainPanelId) }, materialize: async () => {
+        if (sequence !== openSequence) throw new Error('organization-conversation: superseded')
+        const attached = await selectConversation(selected, false)
+        if (!attached) throw new Error('organization-conversation: unavailable')
+        return attached
+      } })
+    accountReference.set(ctx.sessions.retain(draft, { source: 'mainView' })); ctx.layout.selectPanel(null)
+  }
   ctx.effect(() => ctx.uiWorkspace.registerSessionStarter(() => {
     if (state.getSnapshot().connection.mode !== 'organization') return false
-    conversationStartTarget.set({}); creating.set(true); ctx.layout.selectPanel(null); return true
+    conversationStartTarget.set({}); navigationLoading = false; showDraft(); return true
   }, () => {
     if (state.getSnapshot().connection.mode !== 'organization') return false
     ctx.layout.selectPanel(null); return true
@@ -244,9 +304,8 @@ export function apply(ctx: Context): void {
         identity = nextIdentity
         retire()
         management.set(null)
-        creating.set(false)
         projectDetails.set(null); conversationStartTarget.set({})
-        currentSelection = null
+        currentSelection = null; navigationLoading = false
         conversationActions?.select(null)
         taskActions?.selectTask(null)
         if (changed) ctx.layout.selectPanel(null)
@@ -255,7 +314,8 @@ export function apply(ctx: Context): void {
         generation = c.generation
         conversationActions?.refresh()
       }
-      if (identityGeneration !== c.identityGeneration) {
+      const identityGenerationChanged = identityGeneration !== c.identityGeneration
+      if (identityGenerationChanged) {
         identityGeneration = c.identityGeneration
         retire()
       }
@@ -268,11 +328,11 @@ export function apply(ctx: Context): void {
       if (viewedProject && c.removedProjects?.includes(viewedProject.project.id)) {
         projectDetails.set(null); ctx.layout.selectPanel(null)
       }
-      if (phase !== c.phase) {
-        phase = c.phase
-        if (organization && c.phase === 'ready' && currentSelection && !accountSession)
-          void selectConversation(currentSelection).catch((_error: unknown) => { /* Reopening history never replays a prompt. */ })
-      }
+      const phaseChanged = phase !== c.phase
+      phase = c.phase
+      if (organization && c.phase === 'ready' && !currentSelection && !draft && !navigationLoading) showDraft()
+      if ((phaseChanged || identityGenerationChanged) && organization && c.phase === 'ready' && currentSelection && !accountSession)
+        void selectConversation(currentSelection).catch((_error: unknown) => { /* Reopening history never replays a prompt. */ })
       if (active === organization) return
       active = organization
       for (const dispose of stop) dispose()
@@ -296,8 +356,7 @@ export function apply(ctx: Context): void {
       if (empty === visible) return
       visible = empty; stop?.()
       stop = empty ? ctx.slots.inject('main.conversation.entry', () => ctx.slots.register({ name: 'main.conversation.entry',
-        locale: 'organization', inject: () => ({ ...bind(), hooks: { ...bind().hooks, conversationStartTarget },
-          startConversation: () => { creating.set(true) } }) }, OrganizationConversationEntry)) : undefined
+        locale: 'organization', inject: bind }, OrganizationConversationEntry)) : undefined
     }
     const unsubscribeState = state.subscribe(update), unsubscribeReference = accountReference.subscribe(update)
     update()
@@ -341,7 +400,7 @@ export function apply(ctx: Context): void {
           const value = page.assignment.result.value
           for (const item of value.items) {
             const a = item.assignment
-            if (c.removedProjects?.includes(a.projectId)) continue
+            if (c.removedProjects?.includes(a.projectId) || c.removedPlans?.includes(a.planId)) continue
             if (a.assigneeId !== member || !['pending', 'accepted'].includes(a.state)) continue
             if (isClosed() || state.getSnapshot().connection.generation !== c.generation) break
             await desktop.conversation({ kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'],

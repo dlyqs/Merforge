@@ -50,7 +50,7 @@ export function authorizeWorkgraph(
 ): Plan {
   authorizedProject(db, principal, projectId, 'read')
   if (edit) authorizedProject(db, principal, projectId, 'write')
-  const row = db.prepare('SELECT * FROM organization_plans WHERE id=? AND projectId=? AND organizationId=?')
+  const row = db.prepare('SELECT * FROM organization_plans WHERE id=? AND projectId=? AND organizationId=? AND id NOT IN (SELECT planId FROM deleted_plans)')
     .get(planId, projectId, principal.organizationId ?? null)
   if (!row) throw new OrganizationError('forbidden')
   const plan = workgraphPlanSchema.parse(row)
@@ -170,7 +170,7 @@ function commitWorkgraph(db: DatabaseSync, principal: Principal, request: Save, 
 export function saveWorkgraphSubtree(db: DatabaseSync, principal: Principal, request: Save, eventRevision: number,
   limits: WorkgraphLimits, root: import('./workgraph-types.ts').OrganizationTaskId): OrganizationPlanVersion {
   authorizedProject(db, principal, request.projectId, 'read')
-  const row = db.prepare("SELECT p.* FROM organization_plans p JOIN task_grants g ON g.planId=p.id WHERE p.id=? AND p.projectId=? AND p.organizationId=? AND g.taskId=? AND g.membershipId=? AND g.scope='subtree' AND g.canRead=1 AND g.canEdit=1 AND g.structureVersion=p.structureVersion")
+  const row = db.prepare("SELECT p.* FROM organization_plans p JOIN task_grants g ON g.planId=p.id WHERE p.id=? AND p.projectId=? AND p.organizationId=? AND g.taskId=? AND g.membershipId=? AND g.scope='subtree' AND g.canRead=1 AND g.canEdit=1 AND g.structureVersion=p.structureVersion AND p.id NOT IN (SELECT planId FROM deleted_plans)")
     .get(request.planId, request.projectId, request.organizationId, root, principal.membershipId ?? null)
   if (!row) throw new OrganizationError('forbidden')
   const plan = workgraphPlanSchema.parse(row)

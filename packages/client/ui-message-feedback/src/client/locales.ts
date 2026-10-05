@@ -2,6 +2,8 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'header.more': '更多操作',
+  'header.feedback': '反馈',
   'action.like': '好的回答',
   'action.likeActive': '取消标记',
   'action.dislike': '有问题的回答',
@@ -36,6 +38,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'header.more': 'More actions',
+  'header.feedback': 'Feedback',
   'action.like': 'Good response',
   'action.likeActive': 'Remove rating',
   'action.dislike': 'Bad response',
