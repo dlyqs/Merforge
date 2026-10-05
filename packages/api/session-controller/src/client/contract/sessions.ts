@@ -4,6 +4,7 @@
  * the concrete class. Widening this interface is the
  * explicit act of widening what features may do to the sessions domain.
  */
+import type { createConversationDraft, ConversationDraftOptions } from '../sessions/conversation-draft.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -62,6 +63,12 @@ export interface SessionRetainInfo {
 
 /** The sessions-service face injected as `ctx.sessions`. */
 export interface ISessions {
+  /**
+   * Assemble an uncatalogued composer that persists only on submitted input.
+   * @param options - Account-scoped readers and deferred Session attachment.
+   * @returns Local presentation; the caller disposes it when navigation retires it.
+   */
+  createDraft(options: ConversationDraftOptions): ReturnType<typeof createConversationDraft>
   /**
    * Create a standard event source for an authorized account transport.
    * @returns An initially empty event publisher owned by the transport.

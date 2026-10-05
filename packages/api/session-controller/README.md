@@ -157,3 +157,5 @@ Native account owners use the non-Remote `importSession` method to adopt validat
 The Client `AccountSessionTarget` contributes task controls to an ordinary Controller-owned Session. It supplies no message transport or event window. Account retention withdraws old scopes and clears their history and projections on replacement or identity loss. Account rows are available by ID to the common panel without joining personal sidebar IDs.
 
 Backend switching creates an empty successor through the ordinary Controller. Account successors inherit the source as their durable parent before publication. The Host-only serial `api-session/backend-replaced` event lets the account owner persist task metadata and navigation before returning the replacement ID. Message history is not copied by this event.
+
+`ctx.sessions.createDraft(options)` creates an uncatalogued Client-memory Session face with local model and planning choices. Only submitted nonempty prompts or commands invoke the caller's deferred attachment; navigation and typing create no Host records. The navigation owner disposes the draft when its account or selection retires.

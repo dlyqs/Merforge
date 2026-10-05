@@ -149,3 +149,5 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(() => async () => { await control.dispose() }, 'session-controller.client.control')
 }
+
+export type { ConversationDraftOptions } from './sessions/conversation-draft.ts'

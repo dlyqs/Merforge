@@ -1,4 +1,5 @@
 /** Test-owned Session Controller faces over declarative fixtures. */
+import { createConversationDraft } from '@deepseek-ai/dsh-api-session-controller/src/client/sessions/conversation-draft.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { AttachmentIdType } from '@deepseek-ai/dsh-attachment'
 import {
@@ -304,6 +305,7 @@ export class TestSessions implements ISessions {
    * Create a standard source for fixture-controlled events.
    * @returns An empty event publisher.
    */
+  createDraft: ISessions['createDraft'] = createConversationDraft
   createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   /** The useSessions catalog feed, independent of view ownership. */
   readonly list: SnapshotStore<SessionListState>

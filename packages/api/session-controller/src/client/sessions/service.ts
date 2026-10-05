@@ -1,4 +1,5 @@
 /** Client catalog and source-labelled ownership of exact Session generations. */
+import { createConversationDraft, type ConversationDraftOptions } from './conversation-draft.ts'
 import { MutableSessionEventSource } from '../contract/events.ts'
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
@@ -302,6 +303,10 @@ export class ClientSessions implements ISessions {
    * Create the standard event publisher without opening a Host Session.
    * @returns An empty account-owned event source.
    */
+  createDraft(options: ConversationDraftOptions): ReturnType<typeof createConversationDraft> {
+    return createConversationDraft(options)
+  }
+
   createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   retain(target: SessionTarget, options: SessionRetainOptions): SessionReference {
     const { source, signal } = options

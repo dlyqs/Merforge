@@ -2,7 +2,7 @@
 import { expect, it, vi } from 'vitest'
 import type { SessionFace, SessionReference, SessionControls } from '@deepseek-ai/dsh-api-session-controller/client'
 import { MutableSessionEventSource } from '@deepseek-ai/dsh-api-session-controller/client'
-import { createConversationDraft } from '../src/client/conversation-draft.ts'
+import { createConversationDraft } from '../src/client/sessions/conversation-draft.ts'
 function fixture() {
   const materialize = vi.fn(async () => { throw new Error('offline') })
   const loadModels = vi.fn(async () => ({ default: { provider: 'test', model: 'test' }, groups: [], failures: [], routableProviders: ['test'] }))

@@ -11,11 +11,10 @@ import { createConversationStore } from './conversation-store.ts'
 import { organizationPlanDefinition } from './conversation-node.ts'
 import { OrganizationPlanNode } from './OrganizationPlanNode.tsx'
 import { AccountSession } from './account-session.ts'
-import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ISessions, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConversationSelection } from './conversation-store.ts'
-import { createConversationDraft } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { OrganizationProject, type ProjectSelection } from './Project.tsx'
 import { OrganizationConversationEntry, type ConversationStartTarget } from './ConversationEntry.tsx'
 import { ConversationManager } from './ConversationManager.tsx'
@@ -133,7 +132,7 @@ export function apply(ctx: Context): void {
   const conversationStartTarget = createSnapshotStore<ConversationStartTarget>({})
   const projectDetails = createSnapshotStore<ProjectSelection | null>(null)
   const management = createSnapshotStore<{ selected: ConversationSelection; action: 'manage' | 'delete' } | null>(null)
-  let draft: ReturnType<typeof createConversationDraft> | undefined
+  let draft: ReturnType<ISessions['createDraft']> | undefined
   let accountSession: AccountSession | undefined, openSequence = 0
   let currentSelection: ConversationSelection | null = null, navigationLoading = false
   const projectCleanup = new Map<string, Promise<void>>(), cleanedProjects = new Set<string>()
@@ -249,7 +248,7 @@ export function apply(ctx: Context): void {
       conversationId: randomUUID() as ConversationRequest['conversationId'],
       ...(target.project ? { projectId: target.project.id } : {}), ...(target.botId ? { botId: target.botId } : {}) }
     const sequence = openSequence
-    draft = createConversationDraft({ eventSource: ctx.sessions.createEventSource(), title: ctx.locale.bind('organization')('newConversation'),
+    draft = ctx.sessions.createDraft({ eventSource: ctx.sessions.createEventSource(), title: ctx.locale.bind('organization')('newConversation'),
       loadModels: async () => {
         const catalog = await loadModels()
         if (!target.botId || !target.project || !desktop) return catalog

@@ -10,7 +10,6 @@ import type {
   SessionListState,
   SessionControls,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import { createConversationDraft } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type {
@@ -144,7 +143,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   )
   private readonly sessionStarters = new Map<() => boolean, (() => boolean) | undefined>()
   private mainReference: SessionReference | undefined
-  private draft: ReturnType<typeof createConversationDraft> | undefined
+  private draft: ReturnType<ISessions['createDraft']> | undefined
 
   /**
    * @param ctx - Client root Context.
@@ -264,7 +263,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       if (!result.ok) throw new Error(result.error.message)
       return result.value
     }
-    const draft = createConversationDraft({
+    const draft = this.sessions.createDraft({
       eventSource: this.sessions.createEventSource(), title: this.ctx.locale.bind('workspace')('actions.newSession'),
       loadModels: async () => {
         const catalog = unwrap(await this.ctx.remote.session.modelCatalog())

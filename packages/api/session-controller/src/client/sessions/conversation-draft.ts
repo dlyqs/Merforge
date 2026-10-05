@@ -2,8 +2,10 @@
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ExternalSessionTarget, SessionFace, SessionReference, SessionControls, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ModelCatalog, ModelSelection, SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ExternalSessionTarget, SessionReference } from '../contract/sessions.ts'
+import type { SessionFace, SessionControls } from '../contract/session.ts'
+import type { SessionSnapshot } from '../contract/snapshot.ts'
+import type { ModelCatalog, ModelSelection, SessionRequestId } from '../../types.ts'
 
 type Materialized = { reference: SessionReference; controls?: SessionControls; dispose(): void; commit(): void }
 /** Draft dependencies capture one account and navigation lifetime. */

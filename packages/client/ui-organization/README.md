@@ -62,6 +62,8 @@ The employee-only native report presents known text and tool fields, authoritati
 
 Project and task conversations use the ordinary API/Codex model directory and execution capabilities. Backend successors retain the same organization selection and task controls; private messages follow the ordinary backend handoff behavior. Advanced finite Run execution retains its separate deployment limits.
 
+The injected `sessions.createDraft` service supplies account-scoped unsaved composers; navigation owns their disposal.
+
 `AccountSession` adapts the native authorized conversation to the existing Session Controller. `ui-session.registerMainSource` selects that binding in the existing `conversation` main destination. Organization mode uses the actual `ConversationPanel`, Chat assembler, Trajectory, message components, Lexical composer, model selector and planning/task controls. There is no organization conversation panel or alternate input implementation. Authorized planning events contribute an organization plan node to the normal Chat assembly. Task selection opens the current task's settings in the main task area.
 
 The shared sidebar conversation menu offers Manage and Delete on hover or keyboard focus. Management persists rename and same-project Bot association; assignment Sessions keep their immutable assignment selector. Delete persists a tombstone before removing the private JSONL, hides the catalog entry and prevents assignment synchronization from recreating the deleted conversation. Account switches close management/creation dialogs, retire Session data and reject delayed results. Same-ID replacement retires old Controller references without affecting the replacement binding.

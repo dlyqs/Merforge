@@ -165,6 +165,6 @@ The main conversation uses the static `ConversationFrame` primitive and shared h
 
 ## Unsaved conversation entry
 
-`createConversationDraft` supplies the standard composer with a Client-memory Session face and local model/planning choices. It stays outside the durable catalog and materializes a retained Session only for a submitted nonempty prompt or command. Navigation and typing have no persistence effects. The first accepted submission transfers presentation to that Session; a failed submission retains the draft for an explicit retry.
+`ctx.sessions.createDraft(options)` supplies the standard composer with a Client-memory Session face and local model/planning choices. It stays outside the durable catalog and materializes a retained Session only for a submitted nonempty prompt or command. Navigation and typing have no persistence effects. The first accepted submission transfers presentation to that Session; a failed submission retains the draft for an explicit retry.
 
 The empty-conversation headline is “Do Anything!” without a preview badge. The composer Add button lists file attachment and feedback actions; typed slash commands remain available.

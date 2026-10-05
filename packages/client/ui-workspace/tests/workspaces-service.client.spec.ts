@@ -1,3 +1,4 @@
+import { createConversationDraft } from '../../../api/session-controller/src/client/sessions/conversation-draft.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -132,6 +133,7 @@ interface RetainedSession {
 }
 
 class FakeSessions implements ISessions {
+  createDraft: ISessions['createDraft'] = createConversationDraft
   createEventSource(): MutableSessionEventSource { return new MutableSessionEventSource() }
   readonly list: MutableSource<SessionListState>
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
