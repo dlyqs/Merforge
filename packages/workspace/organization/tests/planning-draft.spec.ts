@@ -51,8 +51,6 @@ it('merges an editable leaf, preserves hidden siblings and invalidates the old a
     projectId: h.save.projectId, planId: h.save.planId, taskId: target, planRevision: 1, assigneeId: h.member.membershipId,
     kind: 'approve-assignment', operationId: randomUUID() })).body)
   expect(assignment.assignmentId).toBeDefined()
-  expect((await h.call('/workgraph/grant', { ...h.grant, operationId: randomUUID(), actions: ['read', 'edit'],
-    expectedVersion: h.receipt.revision })).status).toBe(200)
   const selected = { ...h.query, kind: 'read-planning-plan', planId: h.save.planId, taskId: target }
   const before = planningPlanViewSchema.parse((await h.call('/planning/plan', selected, h.member.token)).body)
   expect(JSON.stringify(before)).not.toMatch(/HIDDEN_ROOT|HIDDEN_TASK/)
@@ -199,6 +197,35 @@ it('migrates v15 event ownership without losing saved drafts, receipts or charge
     expect(JSON.parse(String(migrated.prepare('SELECT response FROM operation_receipts WHERE operationId=?')
       .get(h.draft.operationId)?.response))).toEqual(saved)
   } finally { migrated.close() }
+}, 20000)
+
+it('upgrades v16 grantless drafts while preserving their project ownership, history and receipts', async () => {
+  const h = await setup(false)
+  const saved = await h.call('/planning/command', h.draft)
+  expect(saved.status).toBe(200)
+  await h.app.close()
+  const path = join(h.root, 'service', 'organization.sqlite'), old = new DatabaseSync(path)
+  const events = old.prepare('SELECT * FROM planning_events ORDER BY revision').all()
+  const receipts = old.prepare('SELECT * FROM operation_receipts ORDER BY scope,operationId').all()
+  try {
+    expect(events).toHaveLength(1)
+    expect(old.prepare('SELECT count(*) AS n FROM planning_grants').get()?.n).toBe(0)
+    old.exec('DROP TABLE organization_project_lifecycle; PRAGMA user_version=16')
+  } finally { old.close() }
+  const migrated = openOrganizationDatabase(path, 5000)
+  try {
+    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
+    expect(migrated.prepare('SELECT * FROM planning_events ORDER BY revision').all()).toEqual(events)
+    expect(migrated.prepare('SELECT * FROM operation_receipts ORDER BY scope,operationId').all()).toEqual(receipts)
+    expect(migrated.prepare('SELECT count(*) AS n FROM planning_grants').get()?.n).toBe(0)
+    expect(migrated.prepare('SELECT createdBy,deletedRevision FROM organization_project_lifecycle WHERE projectId=?')
+      .get(h.query.projectId)).toMatchObject({ createdBy: h.owner.accountId, deletedRevision: null })
+    expect(JSON.parse(String(migrated.prepare('SELECT response FROM operation_receipts WHERE operationId=?')
+      .get(h.draft.operationId)?.response))).toEqual(saved.body)
+  } finally { migrated.close() }
+  const reopened = openOrganizationDatabase(path, 5000)
+  try { expect(reopened.prepare('SELECT * FROM planning_events ORDER BY revision').all()).toEqual(events) }
+  finally { reopened.close() }
 }, 20000)
 
 it('rejects corrupted project and actor evidence for drafts saved without legacy grants', async () => {

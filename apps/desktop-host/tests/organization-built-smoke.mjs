@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
 import { DesktopOrganizationProcess } from '../../desktop/lib/types/organization-process.js'
 import { organizationRequest, probeOrganizationCertificate, followOrganizationEvents } from '../../../packages/api/organization-api/lib/types/transport.js'
 
@@ -56,13 +57,48 @@ try {
     await reset
     cancelStream.abort()
     assert.equal((await call('GET', `/organizations/${receipt.organizationId}/projects`)).body.total, 0)
+    const migrationProject = await call('POST', '/projects', { operationId: randomUUID(), kind: 'create-project',
+      organizationId: receipt.organizationId, name: 'Migration project' })
+    assert.equal(migrationProject.status, 200)
+    const taskId = randomUUID(), phaseId = randomUUID()
+    const query = { organizationId: receipt.organizationId, projectId: migrationProject.body.projectId, conversationId: randomUUID() }
+    const draft = { ...query, kind: 'save-planning-draft', operationId: randomUUID(), goalId: randomUUID(),
+      assessmentId: randomUUID(), settingsRevision: 0, planId: randomUUID(), expectedRevision: 0,
+      definition: { taskId, phases: [{ id: phaseId, title: 'Migration' }], tasks: [{ id: taskId, phaseId, parentTaskId: null,
+        goal: 'Preserved draft', scope: 'Migration smoke', acceptance: ['Draft remains readable'], artifacts: [],
+        required: true, dependsOn: [], suggestedMembershipId: null }] } }
+    const saved = await call('POST', '/planning/command', draft)
+    assert.equal(saved.status, 200)
     await controller.stop()
     assert.equal(controller.status().phase, 'disabled')
     await assert.rejects(organizationRequest(trust, 'GET', '/organization/v1/identity'))
+    const old = new DatabaseSync(join(directory, 'organization.sqlite'))
+    let history
+    try {
+      assert.equal(old.prepare('SELECT count(*) AS n FROM planning_grants').get().n, 0)
+      history = old.prepare('SELECT * FROM planning_events ORDER BY revision').all()
+      old.exec('DROP TABLE organization_project_lifecycle; PRAGMA user_version=16')
+    } finally { old.close() }
     const reopened = await controller.start(config(directory))
     assert.equal(reopened.fingerprint, ready.fingerprint)
+    const restartedTrust = { ...trust, origin: `https://127.0.0.1:${reopened.port}` }
+    const restartCall = (path, body) => organizationRequest(restartedTrust, body === undefined ? 'GET' : 'POST',
+      '/organization/v1' + path, body, login.body.token)
+    const projects = await restartCall(`/organizations/${receipt.organizationId}/projects`)
+    assert.equal(projects.status, 200)
+    assert.equal(projects.body.total, 1)
+    assert.equal(projects.body.items[0].createdBy, receipt.accountId)
+    const preserved = await restartCall('/planning/plan', { ...query, kind: 'read-planning-plan', planId: draft.planId, taskId })
+    assert.equal(preserved.status, 200)
+    assert.equal(preserved.body.version.definition.tasks[0].goal, 'Preserved draft')
+    assert.deepEqual((await restartCall('/planning/command', draft)).body, saved.body)
+    const migrated = new DatabaseSync(join(directory, 'organization.sqlite'), { readOnly: true })
+    try {
+      assert.equal(migrated.prepare('PRAGMA user_version').get().user_version, 17)
+      assert.deepEqual(migrated.prepare('SELECT * FROM planning_events ORDER BY revision').all(), history)
+    } finally { migrated.close() }
     await controller.stop()
-    console.log(`organization built smoke: ${executable === process.execPath ? 'Node' : 'Electron Node'} TLS/login/resources/replay/revocation/reopen/stop passed`)
+    console.log(`organization built smoke: ${executable === process.execPath ? 'Node' : 'Electron Node'} TLS/login/resources/replay/revocation/v16 grantless-draft upgrade/reopen/stop passed`)
   }
   const cancel = new DesktopOrganizationProcess(process.execPath, root, 20000)
   controllers.push(cancel)

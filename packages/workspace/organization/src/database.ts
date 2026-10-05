@@ -117,7 +117,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (stamp < 13) db.exec(planningDdl)
         if (stamp < 14) db.exec(planningDraftDdl)
         if (stamp < 15) db.exec(hierarchyDdl)
-        if (stamp >= 13) migratePlanningV15(db)
+        if (stamp >= 13 && stamp < 16) migratePlanningV15(db)
         db.exec(projectLifecycleDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
         db.exec(`INSERT OR IGNORE INTO organization_project_lifecycle (projectId,createdBy)
           SELECT p.id,e.actorId FROM organization_projects p JOIN resource_events r ON r.projectId=p.id
