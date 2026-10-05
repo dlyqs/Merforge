@@ -6,7 +6,9 @@ import type { z } from 'zod'
 import { membershipSchema, metadataSchema } from './schema.ts'
 import { OrganizationError } from './error.ts'
 import { authorizeWorkgraph, readWorkgraphVersion } from './workgraph.ts'
-import { visibleTasks } from './workgraph-access.ts'
+import { visibleTasks, setTaskGrant } from './workgraph-access.ts'
+import { taskGrantRowSchema } from './workgraph-schema.ts'
+import { grantSchema } from './resource-schema.ts'
 import { assignmentSchema, type assignmentCommandSchema, type assignmentReadSchema, type approvalReviewSchema } from './assignment-schema.ts'
 import type { OrganizationAssignment } from './assignment-types.ts'
 import type { MembershipId, Principal } from './types.ts'
@@ -47,11 +49,11 @@ export function selectedAssignment(db: DatabaseSync, query: z.output<typeof assi
 }
 
 /**
- * Check the exact leaf definition and the proposed employee's existing read grants.
+ * Check the exact leaf definition, issuer authority and reporting relationship.
  * @param db - Current authority transaction.
  * @param principal - Current root editor with project write access.
  * @param query - Exact revision, leaf and proposed employee.
- * @returns Whether the employee already has all required visibility; no grant is changed.
+ * @returns Whether the task can be assigned; approval supplies employee access atomically.
  */
 export function reviewAssignment(db: DatabaseSync, principal: Principal, query: z.output<typeof approvalReviewSchema>): boolean {
   const plan = authorizeWorkgraph(db, principal, query.projectId, query.planId, true)
@@ -62,12 +64,7 @@ export function reviewAssignment(db: DatabaseSync, principal: Principal, query: 
   const task = definition.tasks.find(item => item.id === query.taskId)
   if (!task || definition.tasks.some(item => item.parentTaskId === task.id)) throw new OrganizationError('invalid-input')
   authorizeHierarchyAssignment(db, principal, query.assigneeId)
-  const target = memberPrincipal(db, principal, query.assigneeId)
-  try { visibleTasks(db, target, { ...query, revision: query.planRevision, search: '', offset: 0 }) }
-  catch (error) {
-    if (error instanceof OrganizationError && error.code === 'forbidden') return false
-    throw error
-  }
+  memberPrincipal(db, principal, query.assigneeId)
   return true
 }
 
@@ -77,9 +74,12 @@ export function reviewAssignment(db: DatabaseSync, principal: Principal, query: 
  * @param principal - Current root editor, checked again by this executor.
  * @param command - Validated action and exact version.
  * @param revision - Audit event allocated for this action.
+ * @param maxGrants - Deployment ceiling for retained task access records.
  * @returns Approval identity and version for the receipt.
  */
-export function changeAssignment(db: DatabaseSync, principal: Principal, command: Command, revision: number): OrganizationAssignment {
+export function changeAssignment(
+  db: DatabaseSync, principal: Principal, command: Command, revision: number, maxGrants: number,
+): OrganizationAssignment {
   const plan = authorizeWorkgraph(db, principal, command.projectId, command.planId, true)
   if (command.kind === 'revoke-assignment') {
     const assignment = selectedAssignment(db, command)
@@ -91,6 +91,22 @@ export function changeAssignment(db: DatabaseSync, principal: Principal, command
   if (!reviewAssignment(db, principal, command)) throw new OrganizationError('forbidden')
   if (db.prepare("SELECT id FROM task_assignments WHERE planId=? AND taskId=? AND state IN ('pending','accepted')").get(plan.id, command.taskId)) {
     throw new OrganizationError('version-conflict')
+  }
+  const projectRow = db.prepare('SELECT * FROM resource_grants WHERE projectId=? AND membershipId=?')
+    .get(command.projectId, command.assigneeId)
+  const projectAccess = projectRow && grantSchema.parse(projectRow)
+  if (!projectAccess?.canRead || !projectAccess.canWrite) {
+    db.prepare(`INSERT INTO resource_grants VALUES (?,?,1,1,?) ON CONFLICT(projectId,membershipId)
+      DO UPDATE SET canRead=1,canWrite=1,version=excluded.version`).run(command.projectId, command.assigneeId, revision)
+    db.prepare('INSERT INTO resource_events VALUES (?,?)').run(revision, command.projectId)
+  }
+  const taskRow = db.prepare("SELECT * FROM task_grants WHERE planId=? AND taskId=? AND membershipId=? AND scope='subtree'")
+    .get(plan.id, command.taskId, command.assigneeId)
+  const taskAccess = taskRow && taskGrantRowSchema.parse(taskRow)
+  if (!taskAccess?.canRead || !taskAccess.canEdit || taskAccess.structureVersion !== plan.structureVersion) {
+    setTaskGrant(db, principal, { organizationId: command.organizationId, projectId: command.projectId, planId: plan.id,
+      taskId: command.taskId, membershipId: command.assigneeId, scope: 'subtree', actions: ['read', 'edit'],
+      expectedVersion: taskAccess?.version ?? 0, operationId: command.operationId }, revision, maxGrants)
   }
   const assignment = assignmentSchema.parse({ id: randomUUID(), organizationId: command.organizationId, projectId: command.projectId,
     planId: plan.id, planRevision: command.planRevision, taskId: command.taskId, approvedBy: principal.membershipId,

@@ -15,7 +15,6 @@ import { MemberSelect } from '../src/client/MemberSelect.tsx'
 import { readNavigationProjects } from '../src/client/projects.ts'
 import { Workbench } from '../src/client/Workbench.tsx'
 import { OrganizationDialog } from '../src/client/OrganizationDialog.tsx'
-import { TaskGrants } from '../src/client/TaskGrants.tsx'
 import { zh } from '../src/client/locales.ts'
 import { taskRows } from '../src/client/workgraph-view.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -94,16 +93,8 @@ it('opens project tasks in the main destination and removes the manual task work
   expect(openProjectTasks).toHaveBeenCalledWith(h.project)
   expect(onClose).toHaveBeenCalledOnce()
   expect(screen.queryByRole('button', { name: zh.createTask })).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.taskPermissions })).toBeNull()
   expect(h.connection.mock.calls.some(([a]) => a.kind === 'workgraph-save')).toBe(false)
-})
-it('administers grants from identifiers without requesting task content', async () => {
-  const h = fixture()
-  h.connection.mockImplementation(async action => action.kind === 'workgraph-grants' ? h.reply({ kind: 'grants', value: [] }) : {})
-  render(<TaskGrants {...h.props} projectId={h.project.id} />)
-  fireEvent.change(screen.getByLabelText(zh.planId), { target: { value: h.version.planId } })
-  fireEvent.click(screen.getByRole('button', { name: zh.inspectGrants }))
-  await waitFor(() =>{  expect(h.connection).toHaveBeenCalledTimes(1) })
-  expect(h.connection.mock.calls[0]![0].kind).toBe('workgraph-grants')
 })
 it('orders visible children after their parent without inventing off-page ancestors', () => {
   const h = fixture(), root = h.page.items[0]!
@@ -116,6 +107,7 @@ it('offers model-created tasks without a manual create task action', async () =>
   render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
   await screen.findByRole('button', { name: 'Visible task' })
   expect(screen.queryByRole('button', { name: zh.createTask })).toBeNull()
+  expect(screen.queryByRole('button', { name: zh.taskPermissions })).toBeNull()
   expect(h.connection.mock.calls.some(([a]) => a.kind === 'workgraph-save')).toBe(false)
 })
 
@@ -149,26 +141,6 @@ it('does not repeat a denied task request after native generation refresh and al
   expect(h.connection).toHaveBeenCalledTimes(2)
 })
 
-
-it('edits selected task access using names and the displayed grant version without identifier inputs', async () => {
-  const h = fixture(), task = h.page.items[0]!, memberId = h.version.createdBy
-  h.setState({ members: [{ id: memberId, accountId: brandString(randomUUID()), username: 'Alice', enabled: true,
-    accountEnabled: true, accountVersion: 1, role: 'member', version: 1 }] })
-  h.connection.mockImplementation(async action => action.kind === 'workgraph-grants' ? h.reply({ kind: 'grants', value: [{
-    planId: task.planId, taskId: task.id, membershipId: memberId, scope: 'node', actions: ['read'], active: true, version: 8,
-  }] }) : {})
-  render(<TaskGrants {...h.props} projectId={h.project.id} task={task} />)
-  fireEvent.click(await screen.findByRole('button', { name: /Alice/ }))
-  expect(screen.queryByLabelText(zh.planId)).toBeNull()
-  expect(screen.queryByLabelText(zh.taskId)).toBeNull()
-  fireEvent.change(screen.getByRole('combobox', { name: zh.accessLevel }), { target: { value: 'none' } })
-  fireEvent.click(screen.getByRole('button', { name: zh.saveAccess }))
-  await screen.findByText(zh.accessSaved)
-  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-grant')?.[0]).toMatchObject({ request: {
-    planId: task.planId, taskId: task.id, membershipId: memberId, scope: 'node', actions: [], expectedVersion: 8,
-  } })
-  expect(h.connection.mock.calls.some(([action]) => action.kind === 'workgraph-read')).toBe(false)
-})
 
 it('loads navigation pages with a consistent cursor independently of workspace search and rejects late identities', async () => {
   const h = fixture(), second = { ...h.project, id: brandString<typeof h.project.id>(randomUUID()), name: 'Second project' }

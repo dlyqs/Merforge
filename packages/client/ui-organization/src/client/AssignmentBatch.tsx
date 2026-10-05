@@ -43,7 +43,7 @@ export function AssignmentBatch(props: OrganizationProps & { proposal: Proposal;
       for (const task of leaves.filter(t => selected.includes(t.id))) {
         const r = await props.connection({ kind: 'assignment-review', request: { ...query, taskId: task.id, assigneeId: task.suggestedMembershipId } })
         if (!alive.current || sequence !== epoch.current) return
-        if (r.assignment?.result.kind !== 'review' || !r.assignment.result.value.assigneeCanRead) throw new Error('forbidden')
+        if (r.assignment?.result.kind !== 'review' || !r.assignment.result.value.canAssign) throw new Error('forbidden')
         reviewed.push(task.id)
       }
       setReviews({ generation: c.generation, tasks: reviewed })

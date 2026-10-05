@@ -655,7 +655,7 @@ export class OrganizationService extends Service {
         if (previous) return { receipt: previous, committed: false }
         const receipt = this.mutate(
           db, scope, request, request.kind, current.accountId, request.organizationId, fingerprint, (revision) => {
-            const assignment = changeAssignment(db, current, request, revision)
+            const assignment = changeAssignment(db, current, request, revision, this.config.workgraphMaxGrants)
             return { organizationId: assignment.organizationId, projectId: assignment.projectId, planId: assignment.planId,
               planRevision: assignment.planRevision, assignmentId: assignment.id }
           })
@@ -780,17 +780,17 @@ export class OrganizationService extends Service {
   }
 
   /**
-   * Review assignee visibility before explicit approval, without changing grants.
+   * Review assignment eligibility before approval, without changing employee access.
    * @param token - Current root editor credential.
    * @param input - Exact definition and proposed employee.
    * @param deliver - Synchronous authorized handoff.
-   * @returns Completion after current membership and visibility checks.
+   * @returns Completion after current membership, reporting and issuer authority checks.
    */
   readApproval(token: LoginToken, input: unknown, deliver: (value: z.output<typeof import('./assignment-schema.ts').approvalReviewResultSchema>) => void): Promise<void> {
     return this.enqueue('approval-review', (db) => {
       const query = parse(approvalReviewSchema, input)
       const result = transaction(db, () => ({ planRevision: query.planRevision, assigneeId: query.assigneeId,
-        assigneeCanRead: reviewAssignment(db, this.principal(db, token, query.organizationId), query) }))
+        canAssign: reviewAssignment(db, this.principal(db, token, query.organizationId), query) }))
       deliver(result)
     })
   }

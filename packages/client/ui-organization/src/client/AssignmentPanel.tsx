@@ -38,7 +38,6 @@ export function AssignmentPanel(props: OrganizationProps & {
   const blockedReview = useRef(false)
   const alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false; reviewSequence.current++ } }, [])
-  const isAlive = () => alive.current
   const ready = props.current && c.phase === 'ready' && c.mode === 'organization'
   const query = { organizationId: c.organizationId, projectId: props.projectId, planId: task.planId, taskId: task.id }
   const currentHistory = ready && history?.generation === c.generation ? history.value : undefined
@@ -100,44 +99,6 @@ export function AssignmentPanel(props: OrganizationProps & {
       if (sequence === reviewSequence.current) blockedReview.current = true
       if (alive.current && sequence === reviewSequence.current) setNotice(t(workgraphError(error)))
     } finally { if (alive.current) setReviewBusy(false) }
-  }
-  const shareAccess = async () => {
-    setBusy(true); setNotice(''); setReview(undefined); setConfirmedRevision(undefined)
-    let changed = false
-    try {
-      const project = await props.connection({ kind: 'grants', projectId: props.projectId })
-      if (!isAlive()) return
-      if (!project.grants) throw new Error('unavailable')
-      const grant = project.grants.find(row => row.membershipId === assignee)
-      if (!grant?.actions.includes('read')) {
-        await props.connection({ kind: 'command', command: { kind: 'set-grant', organizationId: c.organizationId,
-          projectId: props.projectId, membershipId: assignee, expectedVersion: grant?.version ?? 0,
-          actions: grant?.actions.includes('write') ? ['read', 'write'] : ['read'], operationId: randomUUID() } })
-        if (!isAlive()) return
-        changed = true
-      }
-      const check = await props.connection({ kind: 'assignment-review', request: { ...query, planRevision: task.revision, assigneeId: assignee } })
-      if (!isAlive()) return
-      if (check.assignment?.result.kind !== 'review') throw new Error('unavailable')
-      if (!check.assignment.result.value.assigneeCanRead) {
-        const result = await props.connection({ kind: 'workgraph-grants', request: { organizationId: c.organizationId, projectId: props.projectId, planId: task.planId } })
-        if (!isAlive()) return
-        if (result.workgraph?.result.kind !== 'grants') throw new Error('unavailable')
-        const node = result.workgraph.result.value.find(row => row.membershipId === assignee && row.taskId === task.id && row.scope === 'node')
-        await props.connection({ kind: 'workgraph-grant', request: { ...query, membershipId: assignee, scope: 'node', actions: ['read'],
-          expectedVersion: node?.version ?? 0, operationId: randomUUID() } })
-        if (!isAlive()) return
-        changed = true
-      }
-      const verified = await props.connection({ kind: 'assignment-review', request: { ...query, planRevision: task.revision, assigneeId: assignee } })
-      if (!isAlive()) return
-      if (verified.assignment?.result.kind !== 'review') throw new Error('unavailable')
-      blockedReview.current = false
-      setReview({ ...verified.assignment.result.value, generation: verified.assignment.generation })
-    } catch (error) {
-      blockedReview.current = true
-      if (alive.current) setNotice(`${changed ? t('partialAccessSaved') + ' ' : ''}${t(workgraphError(error))}`)
-    } finally { if (alive.current) setBusy(false) }
   }
   const canReview = !!currentHistory && !currentHistory.items.some(item => item.state === 'pending' || item.state === 'accepted')
   useEffect(() => {
@@ -229,12 +190,9 @@ export function AssignmentPanel(props: OrganizationProps & {
         reviewSequence.current++; blockedReview.current = false; setReview(undefined); setAssignee(value); setConfirmedRevision(undefined)
       }} />
       {!reviewCurrent && <Button disabled={!writable || !assignee} onClick={() => { void reviewApproval() }}>{t('reviewApprovalAccess')}</Button>}
-      {reviewCurrent && <p role="status">{t(review.assigneeCanRead ? 'approvalAccessReady' : 'approvalAccessMissing')}</p>}
-      {reviewCurrent && !review.assigneeCanRead && c.organizations.find(org => org.id === c.organizationId)?.role === 'admin' && <div className={css.notice}>
-        <p>{t('shareAccessHint')}</p><Button disabled={!writable} onClick={() => { void shareAccess() }}>{t('shareTaskAccess')}</Button>
-      </div>}
-      <label><input type="checkbox" disabled={!reviewCurrent || !review.assigneeCanRead} checked={confirmedRevision === task.revision} onChange={(event) =>{  setConfirmedRevision(event.target.checked ? task.revision : undefined) }} />{t('confirmApproval', { revision: task.revision })}</label>
-      <Button type="submit" disabled={!writable || !reviewCurrent || !review.assigneeCanRead || confirmedRevision !== task.revision}>{t('approveAssignment')}</Button>
+      {reviewCurrent && <p role="status">{t(review.canAssign ? 'approvalAccessReady' : 'approvalAccessMissing')}</p>}
+      <label><input type="checkbox" disabled={!reviewCurrent || !review.canAssign} checked={confirmedRevision === task.revision} onChange={(event) =>{  setConfirmedRevision(event.target.checked ? task.revision : undefined) }} />{t('confirmApproval', { revision: task.revision })}</label>
+      <Button type="submit" disabled={!writable || !reviewCurrent || !review.canAssign || confirmedRevision !== task.revision}>{t('approveAssignment')}</Button>
     </form>}
   </section>
 }

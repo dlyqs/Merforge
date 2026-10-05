@@ -10,7 +10,6 @@ import type { OrganizationProps } from './contract.ts'
 import { AssignmentPanel } from './AssignmentPanel.tsx'
 import { TaskEditor } from './TaskEditor.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
-import { TaskGrants } from './TaskGrants.tsx'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -41,7 +40,7 @@ export function Workbench(props: OrganizationProps & {
   const { t } = props
   const [page, setPage] = useState<{ generation: number; value: OrganizationTaskPage }>()
   const [selected, setSelected] = useState<OrganizationTaskId | undefined>(props.initialTaskId)
-  const [access, setAccess] = useState<'project' | 'task' | null>(null)
+  const [access, setAccess] = useState<'project' | null>(null)
   const [draft, setDraft] = useState<Draft>()
   const [assignmentRevision, setAssignmentRevision] = useState<number>()
   const [context, setContext] = useState<ContextReply>()
@@ -176,10 +175,9 @@ export function Workbench(props: OrganizationProps & {
           <div className={css.actions}><Button disabled={!writable || !props.selectConversation} onClick={() => { void run(() => openConversation(task)) }}>{t('executeInConversation')}</Button>
             <Button disabled={!writable || !!draft} onClick={() => { void run(() => edit(task)) }}>{t('editTask')}</Button>
             <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
-            {c.organizations.find(item => item.id === c.organizationId)?.role === 'admin' && <Button disabled={!writable} onClick={() => { setAccess(access === 'task' ? null : 'task') }}>{t('taskPermissions')}</Button>}</div>
+          </div>
         </section>}
         {task && !draft && <IntegrationPanel key={`${c.principal?.accountId}:${task.id}`} {...props} task={task} projectId={props.project.id} />}
-        {task && access === 'task' && <TaskGrants key={task.id} {...props} projectId={props.project.id} task={task} />}
         {retainedTask && !draft && <AssignmentPanel key={selected} {...props}
           task={retainedTask} projectId={props.project.id} current={!!task}
           {...(props.assignmentId ? { assignmentId: props.assignmentId } : {})} onAssignmentRevision={setAssignmentRevision} />}

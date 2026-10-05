@@ -90,9 +90,9 @@ export function visibleTasks(db: DatabaseSync, principal: Principal, query: Quer
 }
 
 /**
- * Save or revoke an explicit node/subtree grant after administrator authorization.
+ * Save node/subtree access after the caller authorizes administration or assignment.
  * @param db - Active receipt transaction.
- * @param principal - Current administrator.
+ * @param principal - Current administrator or authorized task issuer.
  * @param request - Strict grant mutation.
  * @param revision - New event position.
  * @param maxGrants - Maximum retained grant records per plan.

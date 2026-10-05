@@ -78,7 +78,7 @@ function fixture(approved: boolean, admin = false) {
   server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
   const reply = (result: NonNullable<ConnectionResult['assignment']>['result']): ConnectionResult => ({ assignment: { generation: state.connection.generation, result } })
   const connection = vi.fn<OrganizationProps['connection']>(async (action) => {
-    if (action.kind === 'assignment-review') return reply({ kind: 'review', value: { planRevision: task.revision, assigneeId: memberId, assigneeCanRead: true } })
+    if (action.kind === 'assignment-review') return reply({ kind: 'review', value: { planRevision: task.revision, assigneeId: memberId, canAssign: true } })
     if (action.kind === 'assignment-tasks') return reply({ kind: 'tasks', value: history })
     if (action.kind === 'assignment-preparation') return reply({ kind: 'preparation', value: prep })
     if (action.kind === 'device-read') return reply({ kind: 'device', value: null })
@@ -141,11 +141,11 @@ it('marks a persistent notification read without answering and queries the proce
   })
 })
 
-it('keeps dispatch disabled when the assignee has a visibility gap', async () => {
+it('keeps dispatch disabled when assignment eligibility fails', async () => {
   const h = fixture(false), base = h.connection.getMockImplementation()!
   h.connection.mockImplementation(async (action) => {
     const result = await base(action)
-    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = false
+    if (result.assignment?.result.kind === 'review') result.assignment.result.value.canAssign = false
     return result
   })
   render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
@@ -155,50 +155,15 @@ it('keeps dispatch disabled when the assignee has a visibility gap', async () =>
 })
 
 
-it('grants only missing read access in place, preserves project write and still requires explicit dispatch', async () => {
-  const h = fixture(false, true), base = h.connection.getMockImplementation()!
-  let shared = false
-  h.connection.mockImplementation(async (action) => {
-    if (action.kind === 'grants') return { grants: [{
-      projectId: h.projectId, membershipId: h.prep.assignment.assigneeId, actions: ['write'], version: 7,
-    }] }
-    if (action.kind === 'workgraph-grants') return { workgraph: { generation: 1, requestId: brandString(randomUUID()),
-      organizationId: h.prep.assignment.organizationId,
-      principal: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()) },
-      result: { kind: 'grants', value: [] } } }
-    if (action.kind === 'workgraph-grant') { shared = true; return {} }
-    const result = await base(action)
-    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = shared
-    return result
-  })
+it('lets an ordinary leader confirm dispatch without separate permission commands', async () => {
+  const h = fixture(false)
   render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
-  expect(await screen.findByRole('option', { name: /Alice/ })).toBeTruthy()
-  fireEvent.click(await screen.findByRole('button', { name: zh.shareTaskAccess }))
   await screen.findByText(zh.approvalAccessReady)
-  expect(h.connection.mock.calls.find(([action]) => action.kind === 'command')?.[0]).toMatchObject({ command: {
-    kind: 'set-grant', membershipId: h.prep.assignment.assigneeId, actions: ['read', 'write'], expectedVersion: 7,
-  } })
-  expect(h.connection.mock.calls.find(([action]) => action.kind === 'workgraph-grant')?.[0]).toMatchObject({ request: {
-    taskId: h.task.id, planId: h.task.planId, membershipId: h.prep.assignment.assigneeId, scope: 'node', actions: ['read'], expectedVersion: 0,
-  } })
-  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.approveAssignment }).disabled).toBe(true)
-  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
-})
-
-it('reports a partial access update without dispatching or replaying the failed write', async () => {
-  const h = fixture(false, true), base = h.connection.getMockImplementation()!
-  h.connection.mockImplementation(async (action) => {
-    if (action.kind === 'grants') return { grants: [] }
-    if (action.kind === 'workgraph-grants') throw new Error('unavailable')
-    const result = await base(action)
-    if (result.assignment?.result.kind === 'review') result.assignment.result.value.assigneeCanRead = false
-    return result
-  })
-  render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
-  fireEvent.click(await screen.findByRole('button', { name: zh.shareTaskAccess }))
-  await screen.findByText(`${zh.partialAccessSaved} ${zh.unavailable}`)
-  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'command')).toHaveLength(1)
-  expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-command')).toBe(false)
+  expect(screen.queryByText('授予必要查看权限')).toBeNull()
+  fireEvent.click(screen.getByRole('checkbox', { name: zh.confirmApproval.replace('{revision}', String(h.task.revision)) }))
+  fireEvent.click(screen.getByRole('button', { name: zh.approveAssignment }))
+  await waitFor(() => { expect(h.connection.mock.calls.some(([a]) => a.kind === 'assignment-command')).toBe(true) })
+  expect(h.connection.mock.calls.some(([a]) => ['grants', 'workgraph-grant', 'workgraph-grants', 'command'].includes(a.kind))).toBe(false)
 })
 
 it('selects native Codex without endpoint or file-tool controls and retains the exact failed grant draft', async () => {

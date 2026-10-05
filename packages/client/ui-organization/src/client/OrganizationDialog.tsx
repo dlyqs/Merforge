@@ -11,7 +11,6 @@ import css from './Organization.module.css'
 import { OrganizationHierarchy } from './Hierarchy.tsx'
 import { Inbox } from './Inbox.tsx'
 import { ProjectAccess } from './ProjectAccess.tsx'
-import { TaskGrants } from './TaskGrants.tsx'
 type Section = 'connection' | 'projects' | 'members' | 'server' | 'inbox' | 'hierarchy'
 type Task = 'login' | 'register' | 'accept' | 'createOrg' | 'passwordChange' | 'createProject' | 'permissions' | 'configure' | 'initialize' | 'recover' | 'restore'
 
@@ -209,10 +208,6 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
               {projects?.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select></label>
             {value('projectId') && <ProjectAccess key={value('projectId')} {...props} projectId={value('projectId')} />}
-            <details className={css.advanced}><summary>{t('advancedAccess')}</summary>
-              <p className={css.muted}>{t('advancedAccessHint')}</p>{input('projectId')}
-              {value('projectId') && <TaskGrants key={value('projectId')} {...props} projectId={value('projectId')} />}
-            </details>
           </>}
           {!task && section === 'members' && <>
             <p className={css.muted}>{t('membersDescription')}</p>

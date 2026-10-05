@@ -88,8 +88,8 @@ export const delegationSchema = z.object({
   createdRevision: z.number().int().positive(), version: z.number().int().positive(),
 }).strict()
 
-/** Approval preview rechecks definition and visibility without granting or dispatching. */
+/** Approval preview rechecks definition, issuer authority and reporting without dispatching. */
 export const approvalReviewSchema = approveAssignmentSchema.omit({ kind: true, operationId: true }).strict()
-/** Visibility result is bound to the reviewed member and immutable revision. */
+/** Assignment eligibility is bound to the reviewed member and immutable revision. */
 export const approvalReviewResultSchema = approvalReviewSchema.pick({ planRevision: true, assigneeId: true })
-  .extend({ assigneeCanRead: z.boolean() }).strict()
+  .extend({ canAssign: z.boolean() }).strict()

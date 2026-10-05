@@ -27,7 +27,7 @@
 
 | 动作 / 阶段 | 输入与前置条件 | 原子结果与拒绝 |
 | --- | --- | --- |
-| approve-assignment / 2 | planRevision、taskId、assigneeId。当前项目 read+write、计划根 subtree read+edit；目标为当前版本叶子（前置在执行准入时检查）；目标成员/账号有效且有项目 read 和 task read | 分配 pending、接受请求 pending、通知和回执；已有 pending 返回 version-conflict；旧版本 version-conflict；非叶子 invalid-input；缺权限/无效成员 forbidden |
+| approve-assignment / 2 | planRevision、taskId、assigneeId。下发人拥有当前项目 read+write、计划根 subtree read+edit；目标为当前版本叶子（前置在执行准入时检查）；目标成员/账号有效且符合直属分配规则 | 同一事务补齐责任人项目 read/write 与目标叶子 subtree read/edit，并保存分配 pending、接受请求 pending、通知和回执；已有 pending 返回 version-conflict；旧版本 version-conflict；非叶子 invalid-input；下发人缺权限/无效成员 forbidden |
 | revoke-assignment / 2–3 | assignmentId、expectedVersion；当前项目 read+write 与根 subtree read+edit。允许具有这些权限的另一编辑者撤销 | pending/accepted → revoked；仅未答复请求 cancelled，已答复历史保留；委托/租约失效 |
 | accept / reject / 3 | requestId、expectedVersion、显式 answer；当前处理人、任务 read、项目 read、有效版本/请求期限 | 一次答复、assignment accepted/rejected、回执和通知；非本人 forbidden，旧状态 version-conflict；不同 operationId 竞争只成功一次 |
 | delegate / revoke-delegation / 3 | assignmentId、expectedVersion、deviceId、内建 executorId、能力子集、有限 budget/expiresAt；本人 accepted、当前查看权及批准范围；设备属于本人且有效 | 独立委托/撤销及回执；超范围 invalid-input，身份/设备 forbidden，旧状态 version-conflict；不启动 Agent |
@@ -72,11 +72,11 @@
 
 验证使用 `organization/tests` 的真实 Loader + 临时 SQLite，直接通过 service 进行双身份、回执、竞争和重开断言，独立数据库读取原子事实；offline restore 用真实 TLS 身份与维护函数。后续跨进程复用 `apps/desktop-host/tests/organization-workgraph.spec.ts`，不新建应用启动器。测试政策见 [testing](testing.md)，事务与关闭规则见 [defensive-patterns](defensive-patterns.md)。
 
-Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment/planRevision/delegation/device/serverEpoch/fencingEpoch/expiry 与能力预算；模型请求、工具调用、提交和产物验收分别消费资格，拒绝陈旧代次，并记录在途 unknown 副作用。当前没有该执行接口；组织 Session 保持本人隔离、准确旧版本、只读预执行 JSONL。批准不创建员工 Session，接受不委托，领取不运行。
+真实动作入口的在线资格查询返回 assignment/planRevision/delegation/device/serverEpoch/fencingEpoch/expiry 与能力预算；模型请求、工具调用、提交和产物验收分别消费资格，拒绝陈旧代次，并记录在途 unknown 副作用。组织 Session 保持本人隔离并引用准确任务版本。下发后员工在线同步建立本人任务对话，接受不委托，领取不运行。
 
 ## 固定传输与工作台消费
 
-严格协议由组织包 `./assignment` 提供。`POST /assignment/review` 核验准确叶子版本、批准者权限和目标成员查看权，只返回绑定版本/成员的检查结果；不增加 grant，也不创建分配。`/assignment/command`、`/assignment/participant` 消费批准、撤销、答复、已读和委托。`/assignment/tasks` 按当前任务查看权分页读取历史；`/assignment/inbox` 按本人请求授权后搜索、计数和分页；`/assignment/preparation` 让当前任务查看者读取批准、请求、委托和领取状态。准备查询还返回服务端时间与委托 Config 上限，不能当作执行资格。
+严格协议由组织包 `./assignment` 提供。`POST /assignment/review` 核验准确叶子版本、下发人权限、有效成员和直属分配关系，只返回绑定版本/成员的 `canAssign` 结果；预览不修改权限或创建分配。员工已有查看权不再是下发前提。`/assignment/command`、`/assignment/participant` 消费批准、撤销、答复、已读和委托。`/assignment/tasks` 按当前任务查看权分页读取历史；`/assignment/inbox` 按本人请求授权后搜索、计数和分页；`/assignment/preparation` 让当前任务查看者读取批准、请求、委托和领取状态。准备查询还返回服务端时间与委托 Config 上限，不能当作执行资格。
 
 `POST /device/challenge`、`/device/command`、`/device/list` 仅消费固定设备协议，JSON 外层也拒绝多余字段。原生 `assignment-delegate` 接收时长，不接受 deviceId/绝对到期；`lease-claim/release/check` 不接受设备证明、fencingEpoch 或 serverEpoch，而是从本机密钥和线上准备查询构造。`device-register/revoke/read` 使用当前成员的本机材料。原生待核对 journal 增加 organizationId 和登记/撤销动作类型，仍不存令牌、任务正文或私钥。登记丢响应可按原 operationId 恢复本机绑定；撤销丢响应先查回执，重新登记也须线上确认旧设备已撤销才轮换。
 
@@ -84,7 +84,7 @@ Phase 7A 必须新增真实动作入口的在线资格查询，返回 assignment
 
 原生连接当前一次协调一个任务的续租，`renewalFraction` 默认 0.5（允许 0.1–0.8），按服务端返回剩余租期安排下一次核对。每次续租重新读取并签名；退出、休眠、离线、其他代次失效停止计时，不恢复旧 owner。仍有效的本机 held 租约可由用户明确核对并恢复续租；已过期、服务重启或被替代的 owner 只能重新明确领取。进程关闭等待事件、在途动作和续租任务结算，不激活 Agent。
 
-工作台提供核验查看权→确认版本/责任人→批准、持久待处理/已处理和独立接受/拒绝、登记设备→指定能力/时长/预算→有限委托→显式领取。标记已读不答复。原始上下文只读，版本与当前任务或分配不同会提示，不改写 JSONL。账号/组织切换清除草稿和正文；暂时失败保留同身份合法草稿，版本冲突清除批准确认并重读。
+工作台提供核验下发资格→确认版本/责任人→下发并自动授权、持久待处理/已处理和独立接受/拒绝、登记设备→指定能力/时长/预算→有限委托→显式领取。标记已读不答复。原始上下文只读，版本与当前任务或分配不同会提示，不改写 JSONL。账号/组织切换清除草稿和正文；暂时失败保留同身份合法草稿，版本冲突清除批准确认并重读。
 
 ## 验证与下一阶段交接
 
@@ -98,6 +98,8 @@ SQLite v7 retains preparation delegations without expanding `task-read` or `draf
 
 ## 组织层级与分发权限
 
-SQLite v15 的 organization_hierarchy 独立保存成员的直属上级及版本，由组织管理员明确修改。普通成员只能向自己及直属下属分配；不能向同级或间接下属分配。管理员可以向本组织任意启用成员分配。以上规则叠加现有项目 read/write、任务 read/edit、负责人 read 和准确版本校验，不因层级关系自动补授权。审核和实际批准均由服务端校验。
+SQLite v15 的 organization_hierarchy 独立保存成员的直属上级及版本，由组织管理员明确修改。普通成员只能向自己及直属下属分配；不能向同级或间接下属分配。管理员可以向本组织任意启用成员分配。下发人仍须具备当前项目 read/write、计划根 subtree read/edit 和准确版本权限。责任人无需预先取得项目或任务授权；实际下发在同一事务补齐项目 read/write 和所选叶子 subtree read/edit，保留其他任务权限。底层访问记录供任务投影和编辑检查使用，Client 不提供独立任务授权管理界面。审核和实际下发均由服务端校验。
+
+员工进入组织模式时，原生 Inbox 同步器按 assignmentId 创建本人任务对话；离线员工下次连接时补建，重复同步复用同一对话。项目沿用同一权威 projectId，任务正文引用同一准确版本；领导私有对话不复制。下发不自动接受、委托、领取或执行任务。
 
 修改上级会重新检查原下发人的分配权限；不再符合规则的分配及其委托、租约和新执行资格失效，保留原有历史回执。组织任务视图可选节点并使用原有分配审核与确认控件；打开节点不自动下发。组织工作台的组织架构页按直属上级画树，管理员选择成员后修改上级并保存，拒绝循环、跨组织关系和过期版本。

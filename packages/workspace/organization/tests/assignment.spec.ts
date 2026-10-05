@@ -62,7 +62,8 @@ it('revokes once, preserves history and permits a fresh approval without revivin
   const h = await setup()
   const receipt = await h.service.assignmentCommand(h.owner.token, h.approve)
   const revoke = { ...h.query, kind: 'revoke-assignment', operationId: operationId(), assignmentId: receipt.assignmentId, expectedVersion: receipt.revision }
-  await expect(h.service.assignmentCommand(h.other.token, revoke)).rejects.toMatchObject({ code: 'forbidden' })
+  const outsider = await addMember(h.service, h.owner.token, h.owner.organizationId, 'outsider')
+  await expect(h.service.assignmentCommand(outsider.token, revoke)).rejects.toMatchObject({ code: 'forbidden' })
   const revoked = await h.service.assignmentCommand(h.owner.token, revoke)
   expect(await h.service.assignmentCommand(h.owner.token, revoke)).toEqual(revoked)
   expect((await h.read(receipt.assignmentId!)).state).toBe('revoked')
@@ -87,7 +88,7 @@ it.each(['project', 'task', 'member', 'account', 'author'] as const)('permanentl
     await h.projectGrant(member, ['read', 'write'], revoked.revision)
   } else if (mode === 'task') {
     const input = { ...h.query, operationId: operationId(), taskId: h.approve.taskId, membershipId: h.other.membershipId,
-      scope: 'node', actions: [] as string[], expectedVersion: h.taskGrant.revision }
+      scope: 'subtree', actions: [] as string[], expectedVersion: h.taskGrant.revision }
     const revoked = await h.service.grantTask(h.owner.token, input)
     await expect(h.read(receipt.assignmentId!, h.other.token)).rejects.toMatchObject({ code: 'forbidden' })
     await h.service.grantTask(h.owner.token, { ...input, operationId: operationId(), actions: ['read'], expectedVersion: revoked.revision })
@@ -105,12 +106,11 @@ it.each(['project', 'task', 'member', 'account', 'author'] as const)('permanentl
   const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
 })
 
-it('denies admin approval without root edit, recipient missing read and stale revisions', async () => {
+it('denies issuer approval without root edit, stale revisions and cross-organization requests', async () => {
   const h = await setup()
   const admin = await addMember(h.service, h.owner.token, h.owner.organizationId, 'admin2', 'admin')
   await h.projectGrant(admin.membershipId!, ['read', 'write'])
   await expect(h.service.assignmentCommand(admin.token, h.approve)).rejects.toMatchObject({ code: 'forbidden' })
-  await expect(h.service.assignmentCommand(h.owner.token, { ...h.approve, assigneeId: admin.membershipId })).rejects.toMatchObject({ code: 'forbidden' })
   await expect(h.service.assignmentCommand(h.owner.token, { ...h.approve, planRevision: 2 })).rejects.toMatchObject({ code: 'version-conflict' })
   const receipt = await h.service.assignmentCommand(h.owner.token, h.approve)
   await expect(h.read(receipt.assignmentId!, admin.token)).rejects.toMatchObject({ code: 'forbidden' })
@@ -183,11 +183,10 @@ it.each(['request', 'notification', 'author', 'receipt', 'state'])('refuses dama
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow('incompatible-store')
 })
 
-it.each(['member', 'account', 'project'])('refuses approval when target %s authority is already absent', async (mode) => {
+it.each(['member', 'account'])('refuses approval when target %s authority is already absent', async (mode) => {
   const h = await setup()
   const member = (await h.service.members(h.owner.token, h.owner.organizationId)).find(value => value.id === h.other.membershipId)!
-  if (mode === 'project') await h.projectGrant(member.id, [], h.otherGrant.revision)
-  else {
+  {
     const command = mode === 'member'
       ? { kind: 'set-membership', organizationId: h.owner.organizationId, membershipId: member.id, role: 'member', expectedVersion: member.version }
       : { kind: 'set-account', accountId: member.accountId, expectedVersion: member.accountVersion }
@@ -311,12 +310,35 @@ it('delivers only authorized inbox invalidations and requires a snapshot after r
   await expect(h.service.readInboxEvents(h.other.token, { organizationId: h.query.organizationId, cursor }, () => {})).rejects.toMatchObject({ code: 'snapshot-required' })
 })
 
-it('previews a visibility gap without granting access or creating an approval', async () => {
+it('reviews an eligible assignee without existing access and grants access only when assignment commits', async () => {
   const h = await setup()
-  const { kind: _kind, operationId: _operationId, ...review } = h.approve
-  await h.service.readApproval(h.owner.token, review, (value) => { expect(value.assigneeCanRead).toBe(true) })
-  await h.projectGrant(h.other.membershipId!, [], h.otherGrant.revision)
-  await h.service.readApproval(h.owner.token, review, (value) => { expect(value.assigneeCanRead).toBe(false) })
-  expect(h.db.prepare('SELECT COUNT(*) AS count FROM task_assignments').get()?.count).toBe(0)
-  await expect(h.service.assignmentCommand(h.owner.token, h.approve)).rejects.toMatchObject({ code: 'forbidden' })
+  const employee = await addMember(h.service, h.owner.token, h.owner.organizationId, 'new-employee')
+  const command = { ...h.approve, assigneeId: employee.membershipId }
+  const { kind: _kind, operationId: _operationId, ...review } = command
+  await h.service.readApproval(h.owner.token, review, (value) => { expect(value.canAssign).toBe(true) })
+  expect(h.db.prepare('SELECT * FROM resource_grants WHERE membershipId=?').get(employee.membershipId!)).toBeUndefined()
+  expect(h.db.prepare('SELECT * FROM task_grants WHERE membershipId=?').get(employee.membershipId!)).toBeUndefined()
+  const receipt = await h.service.assignmentCommand(h.owner.token, command)
+  expect(h.db.prepare('SELECT * FROM resource_grants WHERE membershipId=?').get(employee.membershipId!))
+    .toMatchObject({ projectId: h.query.projectId, canRead: 1, canWrite: 1, version: receipt.revision })
+  expect(h.db.prepare('SELECT * FROM task_grants WHERE membershipId=?').get(employee.membershipId!))
+    .toMatchObject({ taskId: h.approve.taskId, scope: 'subtree', canRead: 1, canEdit: 1, version: receipt.revision })
+  await h.service.readProjects(employee.token, { organizationId: h.query.organizationId }, (page) => {
+    expect(page.items.map(p => p.id)).toEqual([h.query.projectId])
+  })
+  expect(await h.read(receipt.assignmentId!, employee.token)).toMatchObject({ state: 'pending' })
+  await h.service.readPlanningPlan(employee.token, { ...h.query, taskId: h.approve.taskId,
+    kind: 'read-planning-plan', conversationId: receipt.assignmentId }, (view) => { expect(view.canEdit).toBe(true) })
+  expect(await h.service.assignmentCommand(h.owner.token, command)).toEqual(receipt)
+  const reopened = openOrganizationDatabase(h.path, 100); reopened.close()
+})
+
+it('rolls back automatic employee access when assignment persistence fails', async () => {
+  const h = await setup()
+  const employee = await addMember(h.service, h.owner.token, h.owner.organizationId, 'new-employee')
+  h.db.exec("CREATE TRIGGER reject_receipt BEFORE INSERT ON operation_receipts BEGIN SELECT RAISE(ABORT,'injected disk fault'); END")
+  await expect(h.service.assignmentCommand(h.owner.token, { ...h.approve, assigneeId: employee.membershipId })).rejects.toThrow('injected disk fault')
+  expect(h.db.prepare('SELECT * FROM resource_grants WHERE membershipId=?').get(employee.membershipId!)).toBeUndefined()
+  expect(h.db.prepare('SELECT * FROM task_grants WHERE membershipId=?').get(employee.membershipId!)).toBeUndefined()
+  expect(h.db.prepare('SELECT COUNT(*) AS n FROM task_assignments').get()?.n).toBe(0)
 })

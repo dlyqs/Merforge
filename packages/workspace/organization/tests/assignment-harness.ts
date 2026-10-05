@@ -20,7 +20,7 @@ export async function assignmentHarness(cleanup: (() => Promise<unknown>)[], con
   const projectGrant = (membershipId: string, actions: string[], expectedVersion = 0) => h.service.grant(owner.token,
     { organizationId: query.organizationId, projectId: query.projectId, kind: 'set-grant', operationId: operationId(), membershipId, actions, expectedVersion })
   const ownerGrant = await projectGrant(owner.membershipId, ['read', 'write'], project.revision)
-  const otherGrant = await projectGrant(other.membershipId!, ['read'])
+  const otherGrant = await projectGrant(other.membershipId!, ['read', 'write'])
   const taskId = randomUUID(), phaseId = randomUUID()
   const save = { ...query, operationId: operationId(), expectedRevision: 0, definition: {
     taskId, phases: [{ id: phaseId, title: 'Prepare' }], tasks: [{ id: taskId, phaseId, parentTaskId: null as string | null,
@@ -29,7 +29,7 @@ export async function assignmentHarness(cleanup: (() => Promise<unknown>)[], con
   } }
   await h.service.savePlan(owner.token, save)
   const taskGrant = await h.service.grantTask(owner.token, { ...query, operationId: operationId(), taskId,
-    membershipId: other.membershipId, scope: 'node', actions: ['read'], expectedVersion: 0 })
+    membershipId: other.membershipId, scope: 'subtree', actions: ['read', 'edit'], expectedVersion: 0 })
   const approve = { ...query, kind: 'approve-assignment', operationId: operationId(), planRevision: 1, taskId, assigneeId: other.membershipId }
   const db = new DatabaseSync(h.path)
   cleanup.push(async () => { db.close() })

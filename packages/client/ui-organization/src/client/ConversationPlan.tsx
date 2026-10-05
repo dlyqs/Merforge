@@ -97,7 +97,7 @@ export function ConversationPlan(props: OrganizationProps & {
             planId: proposal.planId, planRevision: proposal.revision, taskId: task.id, assigneeId: task.suggestedMembershipId,
           } }).then((r) => {
             if (!alive.current || epoch !== reviewEpoch.current) return
-            if (r.assignment?.result.kind === 'review') setNotice(t(r.assignment.result.value.assigneeCanRead ? 'approvalAccessReady' : 'approvalAccessMissing'))
+            if (r.assignment?.result.kind === 'review') setNotice(t(r.assignment.result.value.canAssign ? 'approvalAccessReady' : 'approvalAccessMissing'))
           }, () => { if (alive.current && epoch === reviewEpoch.current) setNotice(t('conversationDetailsRestricted')) })
         }}>{t('reviewApprovalAccess')}</Button>}
         {proposal.status === 'shared' && !props.assignmentId && <AssignmentBatch key={`${proposal.planId}:${proposal.revision}`} {...props} proposal={proposal} projectId={props.query.projectId} />}

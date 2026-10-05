@@ -22,7 +22,14 @@ it('allows self and direct reports, refuses peers and indirect reports, and reti
   await h.service.execute(h.owner.token, { ...link, membershipId: manager.membershipId,
     supervisorId: lead.membershipId, operationId: operationId() })
   await expect(h.service.assignmentCommand(lead.token, h.approve)).rejects.toMatchObject({ code: 'forbidden' })
+  await h.projectGrant(h.other.membershipId!, [], h.otherGrant.revision)
+  await h.service.grantTask(h.owner.token, { ...h.query, operationId: operationId(), taskId: h.approve.taskId,
+    membershipId: h.other.membershipId, scope: 'subtree', actions: [], expectedVersion: h.taskGrant.revision })
   const receipt = await h.service.assignmentCommand(manager.token, h.approve)
+  expect(h.db.prepare('SELECT canRead,canWrite FROM resource_grants WHERE membershipId=?').get(h.other.membershipId!))
+    .toMatchObject({ canRead: 1, canWrite: 1 })
+  expect(h.db.prepare('SELECT canRead,canEdit FROM task_grants WHERE membershipId=?').get(h.other.membershipId!))
+    .toMatchObject({ canRead: 1, canEdit: 1 })
   expect((await h.read(receipt.assignmentId!)).state).toBe('pending')
   await h.service.execute(h.owner.token, { ...link, supervisorId: null, expectedVersion: linked.revision,
     operationId: operationId() })

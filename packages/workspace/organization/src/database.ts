@@ -141,7 +141,7 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
       for (const row of db.prepare('SELECT * FROM resource_events').all()) resourceEventSchema.parse(row)
       if (db.prepare(`SELECT 1 FROM resource_events r JOIN organization_events e ON e.revision=r.revision
         JOIN organization_projects p ON p.id=r.projectId WHERE e.organizationId<>p.organizationId
-        OR e.kind NOT IN ('create-project','rename-project','set-grant') LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
+        OR e.kind NOT IN ('create-project','rename-project','set-grant','approve-assignment') LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
       if (db.prepare(`SELECT 1 FROM resource_grants g JOIN organization_projects p ON p.id=g.projectId
         JOIN memberships m ON m.id=g.membershipId WHERE p.organizationId<>m.organizationId LIMIT 1`).get()) throw new OrganizationError('incompatible-store')
     }

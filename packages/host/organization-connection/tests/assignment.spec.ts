@@ -58,7 +58,7 @@ async function setup(native = false) {
   const owner = await connect('owner', 'owner'), worker = await connect('employee', 'worker')
   await vi.waitFor(() =>{  expect(owner.snapshot().phase).toBe('ready') })
   const review = await owner.perform({ kind: 'assignment-review', request: { ...query, taskId, planRevision: 1, assigneeId: employee.membershipId } })
-  expect(review.assignment?.result).toMatchObject({ kind: 'review', value: { assigneeCanRead: true } })
+  expect(review.assignment?.result).toMatchObject({ kind: 'review', value: { canAssign: true } })
   const approved = await owner.perform({ kind: 'assignment-command', request: { ...query, kind: 'approve-assignment', taskId,
     assigneeId: employee.membershipId, planRevision: 1, operationId: randomUUID() } })
   await vi.waitFor(() =>{  expect(worker.snapshot().inbox?.items).toHaveLength(1) })
@@ -209,9 +209,13 @@ it('keeps revoked read authority terminal after granting it again and clears inb
   const login = await h.app.authority.login({ username: 'owner', password })
   let grants: OrganizationTaskGrant[] = []
   await h.app.authority.readTaskGrants(login.token, h.query, (value) => { grants = value })
-  const previous = grants.find(item => item.membershipId === h.employee.membershipId)!
-  const request = { ...h.query, taskId: h.taskId, membershipId: h.employee.membershipId, scope: 'node', operationId: randomUUID() }
-  const revoked = await h.app.authority.grantTask(login.token, { ...request, actions: [], expectedVersion: previous.version })
+  const previous = grants.find(item => item.membershipId === h.employee.membershipId && item.scope === 'subtree')!
+  const request = { ...h.query, taskId: h.taskId, membershipId: h.employee.membershipId, scope: 'subtree', operationId: randomUUID() }
+  const legacy = grants.find(item => item.membershipId === h.employee.membershipId && item.scope === 'node')
+  if (legacy) await h.app.authority.grantTask(login.token, { ...request, scope: 'node',
+    actions: [], expectedVersion: legacy.version })
+  const revoked = await h.app.authority.grantTask(login.token, { ...request, operationId: randomUUID(),
+    actions: [], expectedVersion: previous.version })
   await h.worker.perform({ kind: 'reconnect' })
   expect(h.worker.snapshot().inbox?.total).toBe(0)
   await expect(h.worker.perform({ kind: 'assignment-preparation', request: h.selector })).rejects.toThrow('forbidden')
