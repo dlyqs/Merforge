@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Modal, IconUserOutlineRegular, IconUsersOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OrganizationProps } from './contract.ts'
 import { OrganizationDialog } from './OrganizationDialog.tsx'
+import { avatarFileError } from './avatar-file.ts'
+import type { OrganizationKey } from './locales.ts'
 import { AvatarCrop } from './AvatarCrop.tsx'
 import css from './AccountMenu.module.css'
 
@@ -11,7 +13,7 @@ export function AccountMenu(props: OrganizationProps) {
   const c = props.useOrganization(s => s.connection)
   const [view, setView] = useState<'closed' | 'account' | 'manage'>('closed')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<OrganizationKey | null>(null)
   const [file, setFile] = useState<File>()
   const [personalAvatar, setPersonalAvatar] = useState(() => localStorage.getItem('merforge.personal.avatar'))
   const picker = useRef<HTMLInputElement>(null)
@@ -35,15 +37,15 @@ export function AccountMenu(props: OrganizationProps) {
   const close = () => { if (!busy) setView('closed') }
   const select = async (action: Parameters<OrganizationProps['connection']>[0]) => {
     setBusy(true)
-    setError(false)
+    setError(null)
     try { await props.connection(action); setView('closed') }
-    catch (_error) { setError(true) }
+    catch (_error) { setError('failure') }
     finally { setBusy(false) }
   }
   return <>
     <Tooltip label={props.t('accountCenter')} side="right"><button ref={avatar} type="button" className={css.avatar}
       aria-label={props.t('accountCenter')} aria-haspopup="dialog" aria-expanded={view !== 'closed'}
-      onClick={() => { setError(false); setView('account') }}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <IconUserOutlineRegular size={22} />}</button></Tooltip>
+      onClick={() => { setError(null); setView('account') }}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <IconUserOutlineRegular size={22} />}</button></Tooltip>
     <Modal open={view === 'account' && !file} onClose={close} title={props.t('accountCenter')} closeLabel={props.t('close')}
       className={css.dialog ?? ''} onKeyDownCapture={(event) => {
         if (event.key !== 'Tab') return
@@ -56,7 +58,7 @@ export function AccountMenu(props: OrganizationProps) {
       }}>
       <div className={css.content} aria-busy={busy}>
         <div ref={identity} tabIndex={-1} className={css.identity}>
-          <button type="button" className={css.portrait} disabled={busy || !!c.principal && c.phase !== 'ready'} aria-label={props.t('changeAvatar')}
+          <button type="button" className={css.portrait} disabled={busy || !!c.principal && c.phase !== 'ready'} aria-label={props.t('changeAvatar')} title={props.t('avatarFormatsHint')}
             onClick={() => { picker.current?.click() }}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <IconUserOutlineRegular size={28} />}</button>
           <div><strong>{c.username ?? props.t('personal')}</strong><small>{props.t(c.phase)}</small></div>
         </div>
@@ -74,15 +76,17 @@ export function AccountMenu(props: OrganizationProps) {
             {c.mode === 'organization' && c.organizationId === org.id && <span className={css.selected}>{props.t('currentSpace')}</span>}
           </button>)}
         </div>
-        {error && <p role="alert">{props.t('failure')}</p>}
+        {error && <p role="alert">{props.t(error)}</p>}
         <Button variant="outline" disabled={busy} onClick={() => { setView('manage') }}>{props.t('account')}</Button>
       </div>
     </Modal>
-    <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
+    <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/x-icon,image/vnd.microsoft.icon,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.avif,.ico" hidden onChange={(event) => {
       const selected = event.target.files?.[0]
       event.target.value = ''
       if (!selected) return
-      if (selected.size > 10 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) { setError(true); return }
+      const rejection = avatarFileError(selected)
+      setError(rejection)
+      if (rejection) return
       setFile(selected)
     }} />
     {file && <AvatarCrop key={`${file.name}:${file.lastModified}`} file={file} t={props.t} busy={busy} onClose={() => { setFile(undefined) }} onSave={saveAvatar} />}

@@ -524,6 +524,11 @@ it('loads an idle draft model catalog when the composer seat binds, without open
     await vi.waitFor(() => { expect(seat.directory.getSnapshot()).toMatchObject({ status: 'ready',
       current: { provider: 'deepseek-official', model: 'deepseek-v4-pro' } }) })
     expect(loadModels).toHaveBeenCalledOnce()
+    const selected = { provider: 'codex', backend: 'codex', model: 'native', reasoningEffort: 'medium' } as const
+    const selectModel = vi.spyOn(draft.controls, 'selectModel')
+    await seat.select(selected)
+    expect(selectModel).toHaveBeenCalledExactlyOnceWith(selected)
+    expect(draft.session.projections.faceOf('modelSelection').getSnapshot()).toEqual({ lastUsed: null, next: selected })
     expect(materialize).not.toHaveBeenCalled()
   } finally { draft.dispose(); await b.ctx.fiber.dispose() }
 })

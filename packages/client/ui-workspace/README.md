@@ -71,6 +71,8 @@ New Session, personal Project/Bot navigation, and the hero Workspace picker sele
 
 On an empty installation, startup shows an unsaved composer without a Project or Bot. Project creation and optional directory selection happen in `ui-personal`; startup does not create a Workspace or Session.
 
+On first submission, model selection addresses the newly persisted Session. When choosing a Codex backend replaces that Session, the draft retains the returned Session before sending the prompt and transfers the main reference to it after admission.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

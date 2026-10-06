@@ -60,6 +60,13 @@ export const zh = {
   rootTask: '主任务', requiredNode: '必要', optionalNode: '可选',
   expandBranch: '展开「{goal}」的子任务', collapseBranch: '收起「{goal}」的子任务',
   invalidHierarchy: '草稿存在循环或未连接的父子关系，相关节点单独展示。请调整父任务后再保存。',
+  avatarTooLarge: '图片不能超过 50 MB，请压缩后重试。',
+  avatarUnsupported: '请选择 PNG、JPG、JPEG、JFIF、WebP、GIF、BMP、AVIF 或 ICO 图片。',
+  avatarDecodeFailed: '无法读取这张图片，请尝试重新导出为 PNG 或 JPG 后选择。',
+  avatarEncodeFailed: '头像裁剪处理失败，请重新选择图片。',
+  avatarSaveFailed: '头像保存失败，请检查组织服务连接或本地存储后重试。',
+  avatarFormatsHint: '支持 PNG、JPG、WebP、GIF、BMP、AVIF、ICO，最大 50 MB。',
+  avatarLoading: '正在处理图片…',
   changeAvatar: '更换头像', cropAvatar: '截取头像', avatarPreview: '头像预览', avatarCropHint: '滚轮缩放，拖拽调整位置', saveAvatar: '保存头像',
   'bots': 'Bots',
   'recentConversations': '最近对话',
@@ -399,6 +406,13 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  avatarTooLarge: 'Images must be 50 MB or smaller. Compress this image and try again.',
+  avatarUnsupported: 'Choose a PNG, JPG, JPEG, JFIF, WebP, GIF, BMP, AVIF or ICO image.',
+  avatarDecodeFailed: 'This image could not be decoded. Try exporting it as PNG or JPG.',
+  avatarEncodeFailed: 'The crop could not be processed. Select the image again.',
+  avatarSaveFailed: 'The avatar could not be saved. Check the organization connection or local storage and try again.',
+  avatarFormatsHint: 'PNG, JPG, WebP, GIF, BMP, AVIF and ICO; up to 50 MB.',
+  avatarLoading: 'Processing image…',
   changeAvatar: 'Change avatar', cropAvatar: 'Crop avatar', avatarPreview: 'Avatar preview', avatarCropHint: 'Scroll to zoom, drag to reposition', saveAvatar: 'Save avatar',
   deliveryBytes: 'bytes', deliverySubmittedAt: 'Submitted {time}', deliveryModifiedUnknown: 'Modification time unavailable', deliveryModifiedAt: 'Modified: {time}', deliveryDateLocale: 'en-US',
   deliveryAddFiles: 'Add attachments', deliveryContentHint: 'Describe the result, commit record, URL or delivery notes. Attachments are optional.',

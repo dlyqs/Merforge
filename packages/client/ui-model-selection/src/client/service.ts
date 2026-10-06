@@ -82,7 +82,7 @@ export class ModelDirectoryResolver extends Service {
     if (existing !== undefined) return existing
     const controls = binding.controls
     const directory = new ModelDirectory(
-      controls ? { selectModel: request => controls.selectModel(request) } : this.modelHost,
+      controls ? { selectModel: ({ sessionId: _sessionId, ...selection }) => controls.selectModel(selection) } : this.modelHost,
       sessionId,
       () => sessions.subagentAddress(sessionId) === undefined,
       binding.controls?.catalog ?? this.catalog,

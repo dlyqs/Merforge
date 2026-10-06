@@ -882,3 +882,29 @@ it('loads and selects a personal draft model through a caller without the sessio
   } }).await()
   expect(modelCatalog).toHaveBeenCalledOnce()
 })
+
+it.each([false, true])('sends a selected personal draft using the durable Session (backend replacement: %s)', async (replaceBackend) => {
+  const backing = persistSelection({})
+  const b = bench()
+  const selected = { provider: 'codex', backend: 'codex', model: 'native', reasoningEffort: 'medium' } as const
+  const replacementId = sid('created-codex')
+  const selectModel = vi.fn<ClientRemote['session']['selectModel']>(async (request) => {
+    expect(request).toEqual({ ...selected, sessionId: sid('created-none') })
+    return { ok: true, value: { selected, ...(replaceBackend ? { sessionId: replacementId } : {}) } }
+  })
+  Object.assign(new TestRemote(b.ctx), { session: { selectModel } })
+  b.uiWorkspace.startPersonalSession({})
+  const target = b.sessions.retain.mock.calls.at(-1)![0]
+  if (typeof target === 'string' || !('kind' in target) || target.kind !== 'external') throw new Error('expected draft')
+  // The directory's addressed request previously reached the local model controls intact.
+  const addressedSelection = { sessionId: target.session.sessionId, ...selected }
+  await target.controls.selectModel(addressedSelection)
+  expect(b.sessions.create).not.toHaveBeenCalled()
+  expect(selectModel).not.toHaveBeenCalled()
+  await target.session.prompt([{ type: 'text', text: 'First Codex prompt' }], 'queue')
+  expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({})
+  expect(selectModel).toHaveBeenCalledOnce()
+  expect(b.sessions.retained.at(-1)!.reference.sessionId).toBe(replaceBackend ? replacementId : sid('created-none'))
+  expect(b.sessions.prompt).toHaveBeenCalledExactlyOnceWith([{ type: 'text', text: 'First Codex prompt' }], 'queue', undefined, undefined)
+  expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: replaceBackend ? replacementId : sid('created-none') })
+})

@@ -1,6 +1,7 @@
 /** Local image decoding, crop preview and bounded PNG portrait encoding. */
 import { useEffect, useRef, useState } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { OrganizationKey } from './locales.ts'
 import type { OrganizationProps } from './contract.ts'
 import css from './AccountMenu.module.css'
 
@@ -20,19 +21,44 @@ function constrainCrop(image: HTMLImageElement, crop: Crop): Crop {
  */
 export function AvatarCrop({ file, busy, onClose, onSave, t }: Props) {
   const [image, setImage] = useState<HTMLImageElement>()
-  const [failed, setFailed] = useState(false)
+  const [error, setError] = useState<OrganizationKey | null>(null)
   const [crop, setCrop] = useState<Crop>({ zoom: 1, x: 0, y: 0 })
   const preview = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   useEffect(() => {
-    let active = true
-    const url = URL.createObjectURL(file), decoded = new Image()
-    decoded.onload = () => {
-      if (active) { setImage(decoded); setCrop({ zoom: 1, x: 0, y: 0 }) }
+    const controller = new AbortController(), urls = new Set<string>()
+    const load = async () => {
+      try {
+        const sourceUrl = URL.createObjectURL(file), decoded = new Image()
+        urls.add(sourceUrl)
+        decoded.src = sourceUrl
+        await decoded.decode()
+        controller.signal.throwIfAborted()
+        const scale = Math.min(1, 2048 / Math.max(decoded.naturalWidth, decoded.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(decoded.naturalWidth * scale))
+        canvas.height = Math.max(1, Math.round(decoded.naturalHeight * scale))
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('avatar-decode-failed')
+        context.drawImage(decoded, 0, 0, canvas.width, canvas.height)
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((value) => {
+            if (value) resolve(value)
+            else reject(new Error('avatar-decode-failed'))
+          }, 'image/png')
+        })
+        controller.signal.throwIfAborted()
+        const url = URL.createObjectURL(blob), normalized = new Image()
+        urls.add(url)
+        normalized.src = url
+        await normalized.decode()
+        URL.revokeObjectURL(sourceUrl); urls.delete(sourceUrl)
+        controller.signal.throwIfAborted()
+        setImage(normalized); setCrop({ zoom: 1, x: 0, y: 0 })
+      } catch (_error) { if (!controller.signal.aborted) setError('avatarDecodeFailed') }
     }
-    decoded.onerror = () => { if (active) setFailed(true) }
-    decoded.src = url
-    return () => { active = false; URL.revokeObjectURL(url) }
+    void load()
+    return () => { controller.abort(); for (const url of urls) URL.revokeObjectURL(url) }
   }, [file])
   useEffect(() => {
     const element = preview.current
@@ -50,13 +76,18 @@ export function AvatarCrop({ file, busy, onClose, onSave, t }: Props) {
   const top = image ? (image.naturalHeight - side) / 2 + crop.y : 0
   const save = async () => {
     if (!image) return
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 128
-    const context = canvas.getContext('2d')
-    if (!context) { setFailed(true); return }
-    context.drawImage(image, left, top, side, side, 0, 0, 128, 128)
-    try { await onSave(canvas.toDataURL('image/png')) }
-    catch (_error) { setFailed(true) }
+    setError(null)
+    let avatarUrl: string
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 128
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('avatar-encode-failed')
+      context.drawImage(image, left, top, side, side, 0, 0, 128, 128)
+      avatarUrl = canvas.toDataURL('image/png')
+    } catch (_error) { setError('avatarEncodeFailed'); return }
+    try { await onSave(avatarUrl) }
+    catch (_error) { setError('avatarSaveFailed') }
   }
   return <Modal open onClose={() => { if (!busy) onClose() }} title={t('cropAvatar')} closeLabel={t('close')} className={css.dialog ?? ''}>
     <div className={css.content} aria-busy={busy}>
@@ -85,8 +116,8 @@ export function AvatarCrop({ file, busy, onClose, onSave, t }: Props) {
           left: `${-left / side * 100}%`, top: `${-top / side * 100}%`,
         }} />}
       </div>
-      <p className={css.cropHint}>{t('avatarCropHint')}</p>
-      {failed && <p role="alert">{t('failure')}</p>}
+      <p className={css.cropHint}>{t(image ? 'avatarCropHint' : error ? 'avatarFormatsHint' : 'avatarLoading')}</p>
+      {error && <p role="alert">{t(error)}</p>}
       <Button variant="primary" disabled={!image || busy} onClick={() => { void save() }}>{t('saveAvatar')}</Button>
     </div>
   </Modal>

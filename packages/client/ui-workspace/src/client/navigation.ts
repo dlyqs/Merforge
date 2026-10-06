@@ -296,7 +296,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         const controls: SessionControls = {
           ...draft.controls,
           selectModel: async (selection) => {
-            const result = await this.draftHost.selectModel({ sessionId: reference.sessionId, ...selection })
+            const result = await this.draftHost.selectModel({ ...selection, sessionId: reference.sessionId })
             if (result.ok && result.value.sessionId) durableId = result.value.sessionId
             return result
           },
