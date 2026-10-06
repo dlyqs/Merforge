@@ -37,7 +37,7 @@ Plugins register `sidebar.panellist` icons with an `id`, optional `order`, and l
 
 Collapsing removes the secondary browser while keeping the primary rail on macOS, Windows and other clients. Choosing Tasks, Projects, Bots or Recent expands the browser when needed. The collapse button lives in the secondary header; the collapsed rail provides the reopen control and its optional `shell.navigation.badge`.
 
-On macOS the rail reserves its top 52px for native traffic lights. Fullscreen releases that top reservation. The secondary header has no traffic-light inset. Window drag regions remain owned by the frame; controls exclude themselves from dragging.
+The Desktop rail reserves its top 52px for traffic lights: native controls on macOS and Desktop-owned controls on Windows. macOS fullscreen releases that top reservation. The secondary header has no traffic-light inset. Window drag regions remain owned by the frame; controls exclude themselves from dragging.
 
 ### Scrollbars
 

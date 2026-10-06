@@ -1,4 +1,3 @@
-import { WINDOWS_TITLEBAR_HEIGHT } from '../../lib/types/windows-layout.js'
 /** Real Electron main entry, preload, shared Web Host, and local updater; no installer executes. */
 import { mandatoryFrameDriver } from './mandatory-frame.mjs'
 import assert from 'node:assert/strict'
@@ -292,7 +291,7 @@ async function qualify() {
     if (process.platform === 'win32') {
       const viewport = await mandatory.webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })')
       const bounds = mainWindow.getContentBounds()
-      assert.deepEqual(viewport, { width: bounds.width, height: bounds.height - WINDOWS_TITLEBAR_HEIGHT })
+      assert.deepEqual(viewport, { width: bounds.width, height: bounds.height })
     }
     mandatory.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
     mandatory.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })

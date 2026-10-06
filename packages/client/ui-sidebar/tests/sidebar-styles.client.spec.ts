@@ -13,7 +13,7 @@ const css = readFileSync(fileURLToPath(new URL('../src/client/SidebarRoot.module
 function declarations(selector: string): Map<string, string> | undefined {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, ' ')
   for (const [, selectorList = '', body = ''] of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (!selectorList.split(',').map(value => value.trim()).includes(selector)) continue
+    if (selectorList.trim() !== selector) continue
     const found = new Map<string, string>()
     for (const part of body.split(';')) {
       const colon = part.indexOf(':')
@@ -33,8 +33,8 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.footArea')?.get('margin-top')).toBe('auto')
   })
 
-  it('keeps the avatar below macOS traffic lights', () => {
-    expect(declarations(":global(html[data-platform='darwin']) .rail")?.get('padding-top')).toBe('52px')
-    expect(declarations(":global(html[data-platform='darwin'][data-fullscreen]) .rail")?.get('padding-top')).toBe('20px')
+  it('keeps the avatar below Desktop traffic lights', () => {
+    expect(declarations(":global(html:is([data-platform='darwin'], [data-platform='win32'])) .rail")?.get('padding-top')).toBe('52px')
+    expect(declarations(":global(html:is([data-platform='darwin'], [data-platform='win32'])[data-fullscreen]) .rail")?.get('padding-top')).toBe('20px')
   })
 })

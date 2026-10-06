@@ -33,7 +33,8 @@ export function PlatformOverlay({ bridge, page, backLabel, loadingLabel, failure
     const element = viewport.current as HTMLDivElement
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const background = Array.from(document.body.children).filter((element): element is HTMLElement =>
-      element instanceof HTMLElement && element !== layer.current).map(element => ({ element, inert: element.inert }))
+      element instanceof HTMLElement && element !== layer.current
+      && !element.hasAttribute('data-windows-window-controls')).map(element => ({ element, inert: element.inert }))
     for (const { element } of background) element.inert = true
     back.current?.focus()
     let closed = false

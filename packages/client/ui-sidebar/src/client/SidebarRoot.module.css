@@ -22,8 +22,8 @@
   border-right: 0.5px solid var(--dsw-alias-border-l3);
   background: var(--dsw-alias-bg-module-platform);
 }
-:global(html[data-platform='darwin']) .rail { padding-top: 52px; }
-:global(html[data-platform='darwin'][data-fullscreen]) .rail { padding-top: 20px; }
+:global(html:is([data-platform='darwin'], [data-platform='win32'])) .rail { padding-top: 52px; }
+:global(html:is([data-platform='darwin'], [data-platform='win32'])[data-fullscreen]) .rail { padding-top: 20px; }
 
 .createButton, .navButton {
   display: inline-flex;

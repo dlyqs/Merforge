@@ -47,9 +47,9 @@ function setup() {
   return { publish, view, root, frame, focus, host: root.host as HTMLElement }
 }
 
-it('uses an in-page frame below the caption and reuses it on updates', () => {
+it('covers the full content area and reuses its frame on updates', () => {
   const f = setup()
-  expect(f.host.style.top).toBe('40px')
+  expect(f.host.style.top).toBe('0px')
   expect(f.host.style.bottom).toBe('0px')
   expect(f.frame.src).toBe('dsh-app://shell/mandatory-update.html')
   expect(dom.window.document.body.style.filter).toBe('')

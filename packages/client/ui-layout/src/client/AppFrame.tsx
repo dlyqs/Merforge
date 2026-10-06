@@ -181,7 +181,7 @@ export function AppFrame({
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
   const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
-  const darwin = document.documentElement.dataset.platform === 'darwin'
+  const desktopChrome = ['darwin', 'win32'].includes(document.documentElement.dataset.platform ?? '')
   const collapsedWidth = SIDEBAR_COLLAPSED
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
@@ -269,8 +269,6 @@ export function AppFrame({
       ref={frameRef}
       className={css.frame}
       style={{
-        ...(document.documentElement.hasAttribute('data-windows-titlebar')
-          ? { '--dsh-windows-sidebar-width': `${cols.sidebar}px` } : {}),
         gridTemplateColumns:
           `${cols.sidebar}px minmax(${cols.rightbar === 0 ? 0 : CENTER_MIN}px, 1fr) minmax(0px, ${rightbarMax}px)`,
       }}
@@ -284,7 +282,7 @@ export function AppFrame({
       {/* First child: app-regions compose in document order, so everything
           mounted later (chrome controls, overlays) subtracts its no-drag
           from this band. */}
-      {darwin && <div className={css.leadingBand} data-shell-leading-band />}
+      {desktopChrome && <div className={css.leadingBand} data-shell-leading-band />}
       <ConversationMarker usePanelInfo={usePanelInfo} frameRef={frameRef} />
       <DocumentTitle
         productTitle={productTitle}

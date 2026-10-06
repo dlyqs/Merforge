@@ -70,7 +70,7 @@ The product UI retains Web actions, including "Open In..." through the shared au
 
 Electron chooses typed English or Chinese shell copy from its application locale and falls back to English. The macOS application bundle declares English and Simplified Chinese in `CFBundleLocalizations`, allowing macOS to match the initial application language to the user’s preferred languages. Saved Client UI language preferences still take precedence for the main interface. On Windows, the main document's language updates desktop menus, recovery and update prompts. The repository Client UI i18n gate checks desktop sources.
 
-Windows uses a 40-DIP caption with native window controls and colors synchronized from the application palette. Localized Application and Edit entries beside the sidebar toggle open native popup menus. They mount only after the application frame publishes its shell overlay seat, and remain absent during startup loading. Application provides Check for Updates and Exit; Edit provides undo, redo, cut, copy, paste, delete, and select all by sending the corresponding keys to the focused editor. No separate native menu row appears on Alt. Other platforms retain their native menus. Editable fields retain keyboard commands and a context menu without shortcut labels; Chromium supplies command availability, and selected read-only text offers Copy.
+Windows uses a frameless main window with red, yellow and green controls in the persistent left navigation rail. They close, minimize, and toggle maximize/restore; labels follow the document language. The three application columns extend to the window top, with a shared drag band and inline control clearance matching macOS. No native caption buttons or separate native menu row appear. Editable fields retain keyboard commands and a context menu without shortcut labels; Chromium supplies command availability, and selected read-only text offers Copy.
 
 On macOS the custom application menu also declares the standard File, Window, and application menus, because replacing Electron's default menu drops Close Window (⌘W), Minimize (⌘M), and Hide (⌘H). Linux keeps the application and Edit menus.
 
@@ -394,7 +394,7 @@ Preload product API v2 adds fixed `codexSetup` snapshot/detect/start/cancel/open
 
 These are transport capabilities for the Codex settings plan. The settings card and first-use guide remain Phase 4–5 work. Real device login, visible window behavior and platform persistence require user acceptance; engineering tests use isolated external peers without a window.
 
-Windows has no Application or Edit caption-menu buttons or popup IPC handler. Caption colors and native window controls remain synchronized with the document. Update controls remain in Settings. The macOS native traffic-light group starts 6px from the left edge, leaving clearance before the 72px primary rail divider.
+Windows has no Application or Edit caption-menu buttons or popup IPC handler. Custom traffic-light labels remain synchronized with the document language. Update controls remain in Settings. The macOS native traffic-light group starts 6px from the left edge, leaving clearance before the 72px primary rail divider.
 
 ## Local Codex CLI
 

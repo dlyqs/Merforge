@@ -158,11 +158,17 @@ it.each([en, zh])('shows the signed-out settings prompt without balance or Platf
 
 
 it('opens usage inside Desktop and returns to the same Account settings', async () => {
+  const windowControls = document.createElement('div')
+  windowControls.dataset.windowsWindowControls = ''
+  document.body.append(windowControls)
+  onTestFinished(() => { windowControls.remove() })
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   const platform: PlatformBridge = { open: vi.fn(async () => {}), setBounds: vi.fn(async () => {}), close: vi.fn(async () => {}) }
   mount({ status: 'credential-stored', attempt: null }, en, undefined, platform)
   await act(async () => { fireEvent.click(screen.getByRole('link', { name: en.usage })) })
   expect(platform.open).toHaveBeenCalledWith('usage', { x: 0, y: 0, width: 0, height: 0 })
+  expect(windowControls.inert).not.toBe(true)
+  expect(screen.getByRole('region', { name: en.nav, hidden: true }).closest<HTMLElement>('body > div')?.inert).toBe(true)
   const back = screen.getByRole('button', { name: en.backToHarness })
   await expect(`${back.parentElement!.parentElement!.textContent}\n`).toMatchFileSnapshot('./expected/platform-header-en.txt')
   await act(async () => { fireEvent.click(back) })

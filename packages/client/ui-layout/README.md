@@ -29,9 +29,9 @@ Global panels occupy the root-scoped `main` keyed slot; `conversation` is the re
 
 ### Window-chrome seat
 
-The primary navigation rail remains visible when the secondary browser collapses, on every platform. Native macOS traffic lights stay over this rail, so no controls float over the main panel. The frame publishes `--dsh-frame-top-clearance` (48px) for macOS overlays. Its 52px window drag band extends to 76px when the Conversation header displays view tabs; interactive controls remain excluded from dragging.
+The primary navigation rail remains visible when the secondary browser collapses, on every platform. Native macOS traffic lights stay over this rail, so no controls float over the main panel. The frame publishes `--dsh-frame-top-clearance` (48px) for Desktop overlays. Its 52px window drag band extends to 76px when the Conversation header displays view tabs; interactive controls remain excluded from dragging.
 
-Windows Electron's `data-windows-titlebar` marker reserves the caption height above all columns. The frame publishes `--dsh-windows-content-radius` and `--dsh-windows-sidebar-width` for the right panel's fullscreen placement.
+Windows Electron uses the same full-height columns, navigation-rail clearance and window drag band as macOS. Desktop-owned red, yellow and green controls occupy the top of the persistent rail.
 
 ### Theme presentation
 

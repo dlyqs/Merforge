@@ -369,7 +369,7 @@ export function RightbarSeat({
   // of the gesture: once at the flip, once after the slide settles and the
   // stylesheet's delayed visibility flip (0.3s) has landed.
   useEffect(() => {
-    if (!active || document.documentElement.dataset.platform !== 'darwin') return
+    if (!active || !['darwin', 'win32'].includes(document.documentElement.dataset.platform ?? '')) return
     const panel = panelRef.current
     if (panel === null) return
     let raf: number | null = null

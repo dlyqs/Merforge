@@ -242,18 +242,17 @@ describe('AppFrame', () => {
   })
 
   it('retains the primary rail when the Windows secondary browser closes', () => {
-    document.documentElement.setAttribute('data-windows-titlebar', '')
+    document.documentElement.dataset.platform = 'win32'
     try {
       const { frame, instance, sidebarOwner, getByTestId, queryByTestId } = mountFrame()
       act(() => { instance.actions.toggleSidebar() })
       expect(tracks(frame)[0]).toBe(72)
       expect(sidebarOwner()).toMatchObject({ collapsed: true, width: 72 })
       expect(getByTestId('sidebar-content')).toBeTruthy()
-      // The caption row keeps the reopen controls; the darwin-only
-      // shell.leading seat must not mount a duplicate set.
+      // Window controls stay in the rail when the secondary browser closes.
       expect(queryByTestId('shell.leading-content')).toBeNull()
     } finally {
-      document.documentElement.removeAttribute('data-windows-titlebar')
+      delete document.documentElement.dataset.platform
     }
   })
 
@@ -269,8 +268,8 @@ describe('AppFrame', () => {
     expect(frame.querySelector('[data-shell-leading-band]')).toBeNull()
   })
 
-  it('keeps macOS window controls in the persistent rail during collapse', () => {
-    document.documentElement.dataset.platform = 'darwin'
+  it.each(['darwin', 'win32'])('keeps %s window controls in the persistent rail during collapse', (platform) => {
+    document.documentElement.dataset.platform = platform
     const { frame, instance, sidebarOwner, queryByTestId } = mountFrame()
     // The window drag band composes app-regions in DOM order: it must render
     // before all column content so every later no-drag subtracts from it.

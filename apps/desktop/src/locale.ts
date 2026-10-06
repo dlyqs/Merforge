@@ -2,6 +2,9 @@
 
 export const en = {
   application: 'Application',
+  windowClose: 'Close window',
+  windowMinimize: 'Minimize window',
+  windowMaximize: 'Maximize or restore window',
   aboutMenu: 'About Merforge',
   aboutProduct: 'Merforge',
   aboutVersion: 'Version V{version}',
@@ -102,6 +105,9 @@ export type DesktopMessages = { readonly [Key in keyof typeof en]: string }
 
 export const zh = {
   application: '应用',
+  windowClose: '关闭窗口',
+  windowMinimize: '最小化窗口',
+  windowMaximize: '最大化或还原窗口',
   aboutMenu: '关于 Merforge',
   aboutProduct: 'Merforge',
   aboutVersion: '版本 V{version}',

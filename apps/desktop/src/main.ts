@@ -5,7 +5,6 @@ import type { ExecutionRequest, ExecutionAuthority, ExecutionCommand, ExecutionR
 import { assertOrganizationSender, assertOrganizationResult } from './organization-ipc.ts'
 import { openOrganizationContext } from './organization-context.ts'
 import { type ContextRequest, type ContextAuthority } from '@deepseek-ai/dsh-organization-context/protocol'
-import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 
 import { mkdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -172,8 +171,7 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
 /**
  * Opaque chrome fallback matching the built-in sidebar palette (the resolved
  * `--dsw-static-neutral-bluish-900` / `-50` tokens). An approximation for
- * custom themes: Windows swaps in the renderer's measured palette over the
- * windowsAppearance IPC, and macOS shows it only while minimized or hidden.
+ * custom themes; macOS shows it only while minimized or hidden.
  * @returns the sidebar fill hex for the active system color scheme.
  */
 function chromeFallbackFill(): string {
@@ -188,9 +186,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     minHeight: 600,
     show,
     ...(process.platform === 'win32' && primary ? {
-      titleBarStyle: 'hidden' as const,
-      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-        symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+      frame: false,
     } : {}),
     // Compact native controls fit the primary rail; sidebar vibrancy
     // needs a transparent window background to show through the page.
@@ -879,19 +875,30 @@ async function main(): Promise<void> {
   installMenu()
 
   if (process.platform === 'win32') {
-    ipcMain.on(DESKTOP_IPC.windowsAppearance, (event, language: unknown, color: unknown, symbolColor: unknown) => {
+    ipcMain.on(DESKTOP_IPC.windowsAppearance, (event, language: unknown) => {
       if (mainWindow === undefined || event.sender !== mainWindow.webContents
         || event.senderFrame !== mainWindow.webContents.mainFrame) return
       if (!event.senderFrame.url.startsWith(`${SCHEME}://app/`)) return
       if (typeof language === 'string' && /^[a-zA-Z]+(?:-[a-zA-Z0-9]+)*$/u.test(language)) {
         windowsLanguage = language
       }
-      // Empty colors precede client stylesheet installation; only CSS color values cross IPC.
-      const validColor = (value: unknown): value is string => typeof value === 'string'
-        && /^(?:#[\da-f]{3,8}|rgba?\([\d.,%\s]+\))$/iu.test(value)
-      if (validColor(color) && validColor(symbolColor)) mainWindow.setTitleBarOverlay({ color, symbolColor })
     })
   }
+
+  ipcMain.on(DESKTOP_IPC.windowControl, (event, action: unknown) => {
+    if (process.platform !== 'win32' || mainWindow === undefined
+      || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return
+    if (!event.senderFrame.url.startsWith(`${SCHEME}://app/`)) return
+    switch (action) {
+      case 'close': mainWindow.close(); break
+      case 'minimize': mainWindow.minimize(); break
+      case 'maximize':
+        if (mainWindow.isMaximized()) mainWindow.unmaximize()
+        else mainWindow.maximize()
+        break
+      default: return // Renderer IPC accepts only the three fixed window actions.
+    }
+  })
 
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)

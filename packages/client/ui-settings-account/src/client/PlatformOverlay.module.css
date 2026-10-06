@@ -7,12 +7,6 @@
   background: var(--dsw-alias-bg-base);
 }
 
-/* Windows Electron: the Desktop caption menu owns the window's top strip, so
-   the return bar and the native Platform view start below it. */
-:global([data-windows-titlebar]) .overlay {
-  padding-top: var(--dsh-windows-titlebar-height);
-}
-
 .header {
   box-sizing: border-box;
   height: 48px;
@@ -36,7 +30,7 @@
   flex: none;
 }
 
-:global(html[data-platform="darwin"]) .trafficLights {
+:global(html:is([data-platform="darwin"], [data-platform="win32"])) .trafficLights {
   display: block;
 }
 

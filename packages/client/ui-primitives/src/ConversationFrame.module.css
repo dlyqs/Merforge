@@ -39,26 +39,26 @@
   margin-left: auto;
 }
 
-/* Only the macOS titlebar needs reserved drag space before a Session exists. */
-:global(html:not([data-platform='darwin'])) .headerSessionless {
+/* Desktop titlebars need reserved drag space before a Session exists. */
+:global(html:not([data-platform='darwin'], [data-platform='win32'])) .headerSessionless {
   padding-top: 0;
 }
 
-:global(html:not([data-platform='darwin'])) .headerSessionless .titleRow {
+:global(html:not([data-platform='darwin'], [data-platform='win32'])) .headerSessionless .titleRow {
   min-height: 0;
 }
 
-/* macOS hiddenInset titlebar: window dragging comes from ui-layout's
+/* Desktop titlebars: window dragging comes from ui-layout's
    .leadingBand (the frame's first child), never from this header. Electron
    composes app-regions in document order ignoring stacking, so a drag rule
    here would keep eating clicks through overlays mounted earlier in the DOM
    (the settings modal lives in the sidebar column). The title-row clusters
    overlap the band and subtract their whole boxes; individual controls are
    covered by the base.css interactive-element rule. */
-:global([data-platform='darwin']) .headerLeading,
-:global([data-platform='darwin']) .headerActions,
-:global([data-platform='darwin']) .headerUtilities,
-:global([data-platform='darwin']) .headerCorner {
+:global(:is([data-platform='darwin'], [data-platform='win32'])) .headerLeading,
+:global(:is([data-platform='darwin'], [data-platform='win32'])) .headerActions,
+:global(:is([data-platform='darwin'], [data-platform='win32'])) .headerUtilities,
+:global(:is([data-platform='darwin'], [data-platform='win32'])) .headerCorner {
   -webkit-app-region: no-drag;
 }
 
