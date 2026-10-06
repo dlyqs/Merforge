@@ -1,5 +1,5 @@
 /**
- * macOS drag-band subtraction, asserted against dockkit.module.css on disk:
+ * Desktop drag-band subtraction, asserted against dockkit.module.css on disk:
  * an embedder may pin the surface under the window's top drag band, and
  * Electron composes app-regions from geometry in DOM order — every box that
  * must stay usable subtracts itself. The divider must be listed explicitly:
@@ -13,16 +13,17 @@ import { describe, expect, it } from 'vitest'
 
 const css = readFileSync(resolve(import.meta.dirname, '../src/components/dockkit.module.css'), 'utf8')
 
-describe('macOS app-region subtraction', () => {
-  it('subtracts the chip run, strip-end chrome, pane body, and divider; never declares drag', () => {
+describe('Desktop app-region subtraction', () => {
+  it.each(['darwin', 'win32'])('subtracts %s tabs, controls, pane bodies, floating panels and dividers; never declares drag', (platform) => {
     const rules = [...css.matchAll(/(?<sel>[^{}]+)\{(?<body>[^{}]*)\}/g)]
       .map(match => [match.groups!['sel']!.trim(), match.groups!['body']!] as const)
       .filter(([, body]) => body.includes('-webkit-app-region'))
     expect(rules).toHaveLength(1)
     const [selector, body] = rules[0]!
     expect(/-webkit-app-region:\s*([^;]+);/.exec(body)?.[1]?.trim()).toBe('no-drag')
-    for (const part of ['.stripTabs', '.stripChrome', '.paneBody', '.divider']) {
-      expect(selector, part).toContain(`:global(html[data-platform='darwin']) ${part}`)
+    for (const part of ['.stripTabs', '.stripChrome', '.paneBody', '.float', '.divider']) {
+      expect(selector, part).toContain(`:global(html:is([data-platform='darwin'], [data-platform='win32'])) ${part}`)
+      expect(selector).toContain(`[data-platform='${platform}']`)
     }
   })
 })

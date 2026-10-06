@@ -136,6 +136,8 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
+  private readonly draftHost: Pick<ClientRemote['session'], 'modelCatalog' | 'personalList' | 'selectModel' | 'workflowMode' | 'workflowSetMode'>
+    & { permissionCatalog: ClientRemote['permissionPresets']['catalog'] }
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
   private readonly selection = createSnapshotStore<MainSelection>(
@@ -160,6 +162,15 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     private readonly view: Pick<WorkspaceViewStoreActions, 'pinSessionOrder'>,
   ) {
     super(ctx, 'uiWorkspace')
+    // Draft callbacks retain the provider's declared Remote namespaces across service callers.
+    this.draftHost = {
+      modelCatalog: (...args) => ctx.remote.session.modelCatalog(...args),
+      personalList: (...args) => ctx.remote.session.personalList(...args),
+      selectModel: (...args) => ctx.remote.session.selectModel(...args),
+      workflowMode: (...args) => ctx.remote.session.workflowMode(...args),
+      workflowSetMode: (...args) => ctx.remote.session.workflowSetMode(...args),
+      permissionCatalog: (...args) => ctx.remote.permissionPresets.catalog(...args),
+    }
     ctx.effect(() => {
       const stop = this.watchNavigation()
       return () => {
@@ -266,16 +277,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const draft = this.sessions.createDraft({
       eventSource: this.sessions.createEventSource(), title: this.ctx.locale.bind('workspace')('actions.newSession'),
       loadModels: async () => {
-        const catalog = unwrap(await this.ctx.remote.session.modelCatalog())
+        const catalog = unwrap(await this.draftHost.modelCatalog())
         if (!options?.botId) return catalog
-        const bot = unwrap(await this.ctx.remote.session.personalList()).bots.find(item => item.id === options.botId)
+        const bot = unwrap(await this.draftHost.personalList()).bots.find(item => item.id === options.botId)
         const model = bot?.defaultModel
         return model ? { ...catalog, default: { provider: model.provider, model: model.model,
           ...(model.backend ? { backend: model.backend } : {}),
           ...(model.reasoningEffort ? { reasoningEffort: model.reasoningEffort } : {}),
         } } : catalog
       },
-      loadPermissions: async () => unwrap(await this.ctx.remote.permissionPresets.catalog()),
+      loadPermissions: async () => unwrap(await this.draftHost.permissionCatalog()),
       listTasks: () => Promise.resolve([]), openExecution: () => { this.ctx.layout.selectPanel('tasks' as import('@deepseek-ai/dsh-client-ui-layout/client').MainPanelId) },
       materialize: async () => {
         assertCurrent()
@@ -285,12 +296,12 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         const controls: SessionControls = {
           ...draft.controls,
           selectModel: async (selection) => {
-            const result = await this.ctx.remote.session.selectModel({ sessionId: reference.sessionId, ...selection })
+            const result = await this.draftHost.selectModel({ sessionId: reference.sessionId, ...selection })
             if (result.ok && result.value.sessionId) durableId = result.value.sessionId
             return result
           },
-          readMode: async () => unwrap(await this.ctx.remote.session.workflowMode(reference.sessionId)),
-          setMode: async (enabled, expectedRevision, operationId) => unwrap(await this.ctx.remote.session.workflowSetMode({
+          readMode: async () => unwrap(await this.draftHost.workflowMode(reference.sessionId)),
+          setMode: async (enabled, expectedRevision, operationId) => unwrap(await this.draftHost.workflowSetMode({
             sessionId: reference.sessionId, enabled, expectedRevision, operationId,
           })),
         }

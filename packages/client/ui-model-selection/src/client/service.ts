@@ -15,6 +15,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
@@ -39,6 +40,7 @@ export class ModelDirectoryResolver extends Service {
 
   private readonly live: LiveState = { directories: new WeakMapWithValues() }
   private readonly catalog: ModelCatalogDirectory
+  private readonly modelHost: Pick<ClientRemote['session'], 'selectModel'>
 
   /** Localized composer-block copy; this plugin owns the string it raises. */
   private readonly blockReason: () => string
@@ -49,6 +51,7 @@ export class ModelDirectoryResolver extends Service {
    */
   constructor(ctx: Context, config: { blockReason: () => string }) {
     super(ctx, 'modelDirectories')
+    this.modelHost = { selectModel: (...args) => ctx.remote.session.selectModel(...args) }
     this.blockReason = config.blockReason
     this.catalog = new ModelCatalogDirectory(ctx)
     void this.catalog.load().catch(() => { /* selectors expose the shared error */ })
@@ -79,7 +82,7 @@ export class ModelDirectoryResolver extends Service {
     if (existing !== undefined) return existing
     const controls = binding.controls
     const directory = new ModelDirectory(
-      controls ? { selectModel: request => controls.selectModel(request) } : this.ctx.remote.session,
+      controls ? { selectModel: request => controls.selectModel(request) } : this.modelHost,
       sessionId,
       () => sessions.subagentAddress(sessionId) === undefined,
       binding.controls?.catalog ?? this.catalog,

@@ -1,5 +1,5 @@
 import { createConversationDraft } from '../../../api/session-controller/src/client/sessions/conversation-draft.ts'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -11,7 +11,7 @@ import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
-import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -853,4 +853,32 @@ it('shows the Host permission default on a new personal draft and applies a loca
   expect(b.sessions.command).toHaveBeenCalledExactlyOnceWith('/permission workspace-write')
   expect(b.sessions.prompt).toHaveBeenCalledOnce()
   await b.ctx.fiber.dispose()
+})
+
+it('loads and selects a personal draft model through a caller without the session Remote injection', async () => {
+  const b = bench()
+  const selected = { provider: 'codex', backend: 'codex', model: 'native', reasoningEffort: 'medium' } as const
+  const modelCatalog = vi.fn(async () => ({ ok: true as const, value: {
+    default: selected, groups: [], failures: [], routableProviders: ['codex'],
+  } }))
+  const sessionRemote = { modelCatalog }
+  const permissionRemote = { catalog: vi.fn(async () => ({ ok: true as const, value: {
+    defaultPreset: 'read-only', options: [], defaultOptions: [],
+  } })) }
+  const remote = Object.assign(new TestRemote(b.ctx), { session: sessionRemote, permissionPresets: permissionRemote })
+  Object.defineProperty(remote, Service.tracker, { value: { property: 'ctx', associate: 'remote' } })
+  await b.ctx.plugin((scope: Context) => {
+    scope.provide('remote.session', sessionRemote)
+    scope.provide('remote.permissionPresets', permissionRemote)
+  }).await()
+  await b.ctx.plugin({ inject: ['uiWorkspace', 'layout', 'locale', 'remote', 'remote.permissionPresets'], apply: async (scope: Context) => {
+    expect(() => scope.remote.session).toThrow('without inject')
+    scope.uiWorkspace.startPersonalSession({})
+    const target = b.sessions.retain.mock.calls.at(-1)![0]
+    if (typeof target === 'string' || !('kind' in target) || target.kind !== 'external') throw new Error('expected draft')
+    expect((await target.controls.catalog.load()).default).toEqual(selected)
+    expect(await target.controls.selectModel(selected)).toMatchObject({ ok: true, value: { selected } })
+    expect(b.sessions.create).not.toHaveBeenCalled()
+  } }).await()
+  expect(modelCatalog).toHaveBeenCalledOnce()
 })

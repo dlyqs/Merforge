@@ -107,3 +107,5 @@ None.
 </details>
 
 **Runtime invariant:** No companion is published. The plugin registers a single command contribution, and the HMR-safety spec proves that the registration is disposed correctly. The plugin emits no Cordis events and owns no cross-plugin mutable state.
+
+Retained personal model submission captures the model-selection provider’s Remote method. Consumers of `modelDirectories` do not need `remote.session` injection; external drafts continue to submit through their binding controls.

@@ -220,3 +220,5 @@ None.
 ## Identity-specific conversation gestures
 
 `uiWorkspace.registerSessionStarter(start, show?)` registers synchronous consumers for the new-conversation and return-to-conversation gestures. A consumer returns true only when its current identity owns the gesture; its disposer restores ordinary Session navigation. `startSession()` consults these consumers before personal Session creation. `showConversation()` consults the optional show consumers before selecting the personal main panel. The organization UI consumes both gestures while organization mode is selected.
+
+Personal draft model, permission and workflow callbacks retain the Workspace provider’s injected Remote methods. Calling Workspace navigation from another UI domain does not require that domain to inject the draft’s Remote namespaces.

@@ -35,6 +35,17 @@ describe('web shell base.css', () => {
     expect(baseCss).not.toContain(THEME_PACKAGE)
   })
 
+  it.each(['darwin', 'win32'])('excludes controls and portalled overlays from the %s window drag band', (platform) => {
+    const rules = [...baseCss.replaceAll(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , body = '']) => /-webkit-app-region:\s*no-drag;/.test(body))
+    expect(rules).toHaveLength(2)
+    for (const [, selector = ''] of rules) expect(selector).toContain(`[data-platform='${platform}']`)
+    expect(rules[0]![1]).toContain('body > :not(#root)')
+    for (const control of ['button', "[role='menu']", "[role='menuitem']", "[role='tab']", '[tabindex]']) {
+      expect(rules[1]![1]).toContain(control)
+    }
+  })
+
   it('auto-spaces prose while preserving literal content', () => {
     expect(baseCss).toMatch(/body\s*\{[^}]*text-autospace:\s*normal;/)
     expect(normalizedCss).toContain(

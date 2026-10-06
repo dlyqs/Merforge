@@ -9,7 +9,7 @@
  * Scope disposal drops the directory (HMR safety).
  */
 import { createConversationDraft } from '../../../api/session-controller/src/client/sessions/conversation-draft.ts'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { MutableSessionEventSource, type SessionControls } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createScope } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -105,7 +105,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     },
   }
   const remote = Object.assign(new TestRemote(ctx), { session: sessionRemote })
-  ctx.reflect.provide('remote.session', sessionRemote)
+  await ctx.plugin((scope: Context) => { scope.provide('remote.session', sessionRemote) }).await()
   const blocks = new Map<SessionId, { reason: string } | undefined>()
   ctx.provide('conversation', {
     blocks: {
@@ -526,4 +526,19 @@ it('loads an idle draft model catalog when the composer seat binds, without open
     expect(loadModels).toHaveBeenCalledOnce()
     expect(materialize).not.toHaveBeenCalled()
   } finally { draft.dispose(); await b.ctx.fiber.dispose() }
+})
+
+it('submits a retained personal model through a consumer without the session Remote injection', async () => {
+  const b = await bench()
+  b.mint('personal-caller')
+  Object.defineProperty(b.remote, Service.tracker, { value: { property: 'ctx', associate: 'remote' } })
+  try {
+    await b.ctx.plugin({ inject: ['modelDirectories', 'sessions', 'remote'], apply: async (scope: Context) => {
+      expect(() => scope.remote.session).toThrow('without inject')
+      const directory = scope.modelDirectories.directoryFor(sid('personal-caller'))
+      await directory.load()
+      expect(await directory.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })).toMatchObject({ ok: true })
+    } }).await()
+    expect(b.calls.select).toBe(1)
+  } finally { await b.ctx.fiber.dispose() }
 })
