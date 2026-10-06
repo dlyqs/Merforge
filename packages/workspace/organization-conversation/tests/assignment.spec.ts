@@ -177,3 +177,43 @@ it('refuses employee approvals, stale revisions and simultaneous confirmation wi
   const history = await h.owner.perform({ kind: 'assignment-tasks', request: { ...h.remote.query, taskId: h.command.taskId } })
   expect(history.assignment?.result).toMatchObject({ kind: 'tasks', value: { total: 1 } })
 }, 20000)
+
+it('materializes one issuer review conversation from an authorized submission without running a model', async () => {
+  const h = await setup()
+  const approved = await h.owner.perform({ kind: 'assignment-command', request: h.command })
+  const assignmentId = approved.receipt!.assignmentId!
+  const worker = await h.connect('worker-review', 'reader')
+  const query = { ...h.remote.query, assignmentId }
+  const preparation = await worker.perform({ kind: 'assignment-preparation', request: query })
+  if (preparation.assignment?.result.kind !== 'preparation') throw new Error('missing preparation')
+  await worker.perform({ kind: 'assignment-participant', request: { ...query, kind: 'answer-assignment',
+    operationId: randomUUID(), requestId: preparation.assignment.result.value.request.id, expectedVersion: preparation.assignment.result.value.assignment.version, answer: 'accepted' } })
+  const summary = 'https://example.com/result · commit abc123'
+  const submitted = await worker.perform({ kind: 'delivery-command', request: { ...query, runId: null,
+    planRevision: 1, kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [], summary, target: '', confirmed: true } })
+  const submissionId = submitted.receipt!.delivery!.submissionId!
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items.some(item => item.request.id === submissionId)).toBe(true) })
+  const page = await h.owner.perform({ kind: 'delivery-read', request: query })
+  expect(page.delivery?.submissions[0]).toMatchObject({ id: submissionId, summary, reviewState: 'pending' })
+  const root = join(h.remote.root, 'review-host'); await mkdir(root)
+  const local = await boot(root); cleanup.push(local.close)
+  const request = conversationRequestSchema.parse({ kind: 'open-review', operationId: randomUUID(),
+    organizationId: h.query.organizationId, projectId: h.query.projectId, conversationId: submissionId,
+    review: { planId: h.query.planId, assignmentId, submissionId } })
+  const perform = () => organizationConversation(h.owner, local.host, request, () => {}, new AbortController().signal)
+  const fetch = vi.spyOn(globalThis, 'fetch')
+  const one = await perform(), two = await perform()
+  expect(two.result.sessionId).toBe(one.result.sessionId)
+  expect(two.result.entries[0]?.text).toContain(summary)
+  expect(two.result.execution?.target.taskId).toBe(h.command.taskId)
+  expect(two.result.assignment).toBeUndefined()
+  expect(two.result.history.filter(event => event.type === 'assistant/message'
+    && event.data.message.source.provider === 'organization-delivery')).toHaveLength(1)
+  expect(fetch.mock.calls.some(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).includes('/chat/completions'))).toBe(false)
+  const catalog = await organizationConversation(h.owner, local.host, conversationRequestSchema.parse({
+    kind: 'catalog', operationId: randomUUID(), organizationId: h.query.organizationId,
+    projectId: h.query.projectId, conversationId: randomUUID() }), () => {}, new AbortController().signal)
+  expect(catalog.result.catalog?.conversations.find(item => item.conversationId === submissionId)?.title).toContain(summary)
+  await expect(organizationConversation(worker, local.host, request, () => {}, new AbortController().signal)).rejects.toThrow('forbidden')
+  await local.service.verifyBindings()
+}, 20000)

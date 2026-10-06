@@ -448,13 +448,16 @@ export function apply(ctx: Context): void {
           for (const item of value.items) {
             const a = item.assignment
             if (c.removedProjects?.includes(a.projectId) || c.removedPlans?.includes(a.planId)) continue
-            if (a.assigneeId !== member || !['pending', 'accepted'].includes(a.state)) continue
+            const review = item.request.kind === 'accept-delivery' && item.request.handlerId === member
+              && item.request.reviewState === 'pending' ? item.request : undefined
+            if (!review && (a.assigneeId !== member || !['pending', 'accepted'].includes(a.state))) continue
             if (isClosed() || state.getSnapshot().connection.generation !== c.generation) break
-            await desktop.conversation({ kind: 'open', operationId: randomUUID() as ConversationRequest['operationId'],
+            await desktop.conversation({ operationId: randomUUID() as ConversationRequest['operationId'],
               organizationId: a.organizationId, projectId: a.projectId,
-              conversationId: String(a.id) as ConversationRequest['conversationId'],
-              assignment: { planId: a.planId,
-                assignmentId: a.id } }).catch((_error: unknown) => {
+              ...(review ? { kind: 'open-review', conversationId: String(review.id) as ConversationRequest['conversationId'],
+                review: { planId: a.planId, assignmentId: a.id, submissionId: review.id } }
+                : { kind: 'open', conversationId: String(a.id) as ConversationRequest['conversationId'],
+                  assignment: { planId: a.planId, assignmentId: a.id } }) }).catch((_error: unknown) => {
               /* Deleted or revoked Sessions do not stop the remaining assignments. */
             })
           }

@@ -83,7 +83,7 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       return
     }
     const runs = await props.connection({ kind: 'execution-list', request: { ...selector, offset } })
-    if (p.assignment?.result.kind !== 'preparation' || !runs.executions || runs.generation === undefined) return
+    if (!runs.executions || runs.generation === undefined) return
     const items: OrganizationExecutionView[] = []
     for (const run of runs.executions.items) {
       const read = await props.connection({ kind: 'execution-read', request: { ...selector, runId: run.id } })
@@ -198,25 +198,25 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   }
   const currentViews = ready && views?.generation === c.generation ? views : undefined
   if (props.section === 'delivery') {
-    const selected = currentViews?.items.find(item => item.run.id === selectedRun)
+    const selected = views?.items.find(item => item.run.id === selectedRun)
     return <section className={css.panel}>
       <h4>{t('deliveryTitle')}</h4>
       {!ready && <p role="status">{t('qualificationRecheck')}</p>}
       {notice && <p className={css.notice} role="status">{notice}</p>}
-      {currentViews && preparation ? <>
-        {currentViews.items.length > 0 && <label className={css.form}>{t('executionRun')}<select value={selectedRun}
+      {views && preparation ? <div hidden={!currentViews}>
+        {views.items.length > 0 && <label className={css.form}>{t('executionRun')}<select value={selectedRun}
           onChange={(event) => { setSelectedRun(event.target.value) }}>
-          <option value="">{t('taskManualDelivery')}</option>{currentViews.items.map(item => <option key={item.run.id} value={item.run.id}>{t(`run-${item.run.state}`)} · {item.run.id.slice(0, 8)}</option>)}
+          <option value="">{t('taskManualDelivery')}</option>{views.items.map(item => <option key={item.run.id} value={item.run.id}>{t(`run-${item.run.state}`)} · {item.run.id.slice(0, 8)}</option>)}
         </select></label>}
         <DeliveryPanel key={selected?.run.id ?? preparation.assignment.id} {...props} assignment={preparation.assignment}
           {...(selected ? { run: selected.run, submissionReady: !selected.actions.some(action => ['reserved', 'unknown'].includes(action.state))
             && !selected.humanRequests.some(request => request.state === 'pending') } : {})} />
-        {currentViews.total > currentViews.items.length && <div className={css.actions}>
+        {views.total > views.items.length && <div className={css.actions}>
           <Button disabled={pages.length === 1} onClick={() => { setPages(value => value.slice(0, -1)) }}>{t('previous')}</Button>
-          <Button disabled={!currentViews.items.length || currentViews.offset + currentViews.items.length >= currentViews.total}
-            onClick={() => { setPages(value => [...value, currentViews.offset + currentViews.items.length]) }}>{t('next')}</Button>
+          <Button disabled={!views.items.length || views.offset + views.items.length >= views.total}
+            onClick={() => { setPages(value => [...value, views.offset + views.items.length]) }}>{t('next')}</Button>
         </div>}
-      </> : ready && <div className={css.empty}><strong>{t('taskDeliveryEmpty')}</strong><p>{t('taskDeliveryEmptyHint')}</p></div>}
+      </div> : ready && <div className={css.empty}><strong>{t('taskDeliveryEmpty')}</strong><p>{t('taskDeliveryEmptyHint')}</p></div>}
     </section>
   }
   return <><p hidden={ready} role="status">{t('qualificationRecheck')}</p>

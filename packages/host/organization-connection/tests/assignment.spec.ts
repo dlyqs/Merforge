@@ -291,6 +291,8 @@ it('shares and approves manual employee work over HTTPS without a Run, including
     operationId: randomUUID(), artifactIds: [artifactId], summary: 'Completed report', target: 'Review CSV before import', confirmed: true } })
   await vi.waitFor(() =>{  expect(h.owner.snapshot().inbox?.items.some(i => i.request.kind === 'accept-delivery'
     && i.request.id === submitted.receipt!.delivery!.submissionId)).toBe(true) })
+  expect((await h.owner.perform({ kind: 'delivery-read', request: h.selector })).delivery?.submissions[0])
+    .toMatchObject({ id: submitted.receipt!.delivery!.submissionId, summary: 'Completed report', artifactIds: [artifactId], reviewState: 'pending' })
   const result = await h.owner.perform({ kind: 'delivery-download', request: { ...h.selector, artifactId } })
   const output = join(h.root, 'received.csv')
   await writeFile(output, Buffer.from(result.artifact!.bytes, 'base64'))

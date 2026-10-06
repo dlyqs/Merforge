@@ -256,7 +256,7 @@ export default class OrganizationConversation extends Service {
       && b.owner.conversationId === owner.conversationId)
     if (binding && ownerKey(binding.owner) !== ownerKey(owner)) throw new Error('organization-conversation: owner-mismatch')
     if (!binding) {
-      if (!['open', 'catalog', 'bot-save'].includes(request.kind)) throw new Error('organization-conversation: open-required')
+      if (!['open', 'open-review', 'catalog', 'bot-save'].includes(request.kind)) throw new Error('organization-conversation: open-required')
       binding = { owner, sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }
       await state.set({ ...state.get(), bindings: [...state.get().bindings, binding], controls: controls() })
     }
@@ -289,7 +289,7 @@ export default class OrganizationConversation extends Service {
       this.ctx.logger.info('organization component=conversation bindingId=%s assignmentId=%s result=ready',
         binding.sessionId, owner.assignment?.assignmentId ?? '')
     }
-    if (request.kind === 'open' && !state.get().controls.some(sameOperation))
+    if ((request.kind === 'open' || request.kind === 'open-review') && !state.get().controls.some(sameOperation))
       await state.set({ ...state.get(), controls: controls() })
     const navigation = this.navigation
     if (!navigation) throw new Error('organization-conversation: unavailable')
@@ -354,6 +354,7 @@ export default class OrganizationConversation extends Service {
       await state.set({ ...state.get(), controls: controls() })
     }
     if (owner.assignment && request.kind === 'open') await this.seedAssignment(binding, bridge)
+    if (request.kind === 'open-review') await this.seedReview(binding, bridge, request)
     const sameProject = (candidate: Binding['owner']) => preferenceKey(candidate) === preferenceKey(owner)
       && candidate.projectId === owner.projectId
     if (request.kind === 'bot-save') {
@@ -572,6 +573,46 @@ export default class OrganizationConversation extends Service {
       }
     } finally { await handle.close() }
     await this.events(binding)
+  }
+  private async seedReview(binding: Binding, bridge: ConversationBridge,
+    request: Extract<ConversationRequest, { kind: 'open-review' }>): Promise<void> {
+    const delivery = (await bridge()).delivery
+    if (!delivery || delivery.submission.id !== request.review.submissionId
+      || delivery.assignment.id !== request.review.assignmentId) throw new Error('organization-conversation: submission-required')
+    const { assignment, submission, artifacts } = delivery
+    const target = { kind: 'read-planning-plan' as const, organizationId: binding.owner.organizationId,
+      projectId: conversationProjectId(binding.owner), conversationId: binding.owner.conversationId,
+      planId: assignment.planId, taskId: assignment.taskId }
+    const plan = (await bridge(target)).plan
+    const task = plan?.version.definition.tasks.find(item => item.id === assignment.taskId)
+    if (!task) throw new Error('organization-conversation: task-required')
+    const text = [task.goal, submission.summary, submission.target,
+      ...artifacts.map(item => `${item.path} · ${item.description}`)].filter(Boolean).join('\n\n')
+    const navigation = this.navigation
+    if (!navigation) throw new Error('organization-conversation: unavailable')
+    if (!navigation.get().metadata.some(item => ownerKey(item.owner) === ownerKey(binding.owner)))
+      await navigation.set({ ...navigation.get(), metadata: [...navigation.get().metadata,
+        { owner: binding.owner, title: `${task.goal} · ${submission.summary}`.slice(0, 120) }] })
+    if ((await this.events(binding)).some(event => event.type === 'assistant/message'
+      && event.data.message.source.provider === 'organization-delivery')) return
+    const digest = createHash('sha256').update(JSON.stringify(target)).digest('hex')
+    const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+    try {
+      const events = (await handle.read()).events
+      await handle.append([{ type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(),
+        data: { owner: binding.owner, target, operationId: request.operationId, digest } },
+      { type: 'turn/start', seq: SessionSeq(events.length + 1), time: Date.now(), data: { turn: 1 } },
+      { type: 'step/start', seq: SessionSeq(events.length + 2), time: Date.now(), data: { turn: 1, step: 1 } },
+      { type: 'system/message', seq: SessionSeq(events.length + 3), time: Date.now(), surfaceOp: 'append',
+        data: { turn: 1, step: 1, message: createSystemMessage('') } },
+      { type: 'assistant/message', seq: SessionSeq(events.length + 4), time: Date.now(), surfaceOp: 'append',
+        data: { turn: 1, step: 1, stream: [], message: createAssistantMessage({ content: [{ type: 'text', text }],
+          source: { provider: 'organization-delivery', model: 'Agent' } }) } },
+      { type: 'step/end', seq: SessionSeq(events.length + 5), time: Date.now(), data: { turn: 1, step: 1 } },
+      { type: 'turn/end', seq: SessionSeq(events.length + 6), time: Date.now(), data: { turn: 1, reason: { kind: 'completed' } } }])
+      await handle.flush()
+    } finally { await handle.close() }
+
   }
   private async seedAssignment(binding: Binding, bridge: ConversationBridge): Promise<void> {
     if (!binding.owner.assignment) return

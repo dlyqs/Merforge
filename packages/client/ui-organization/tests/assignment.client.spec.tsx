@@ -11,6 +11,7 @@ import type { ConnectionResult, OrganizationDesktopSnapshot } from '@deepseek-ai
 import type { OrganizationProps } from '../src/client/contract.ts'
 import { AssignmentPanel } from '../src/client/AssignmentPanel.tsx'
 import { DeliveryPanel } from '../src/client/DeliveryPanel.tsx'
+import { Workbench } from '../src/client/Workbench.tsx'
 import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
 import { executionViewSchema, executionCommandSchema, executionRunSchema } from '@deepseek-ai/dsh-organization/execution'
 import { ConversationTask } from '../src/client/ConversationTask.tsx'
@@ -534,4 +535,78 @@ it('keeps oversized attachments visible and explains why submission is blocked u
   expect(screen.getByText('small.pdf')).toBeTruthy()
   fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
   expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(false)
+})
+
+it('refreshes the issuer delivery panel after an employee submission changes the native generation', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment, handlerId = a.assigneeId
+  a.approvedBy = handlerId; a.assigneeId = brandString(randomUUID()); a.state = 'accepted'
+  let submitted = false
+  const submission = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, planRevision: a.planRevision, runId: null, id: randomUUID(), employeeId: a.assigneeId,
+    handlerId, kind: 'accept-delivery', state: 'submitted', artifactIds: [], summary: 'Employee result after refresh',
+    target: '', createdRevision: 4, reviewState: 'pending', acceptance: null }
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'delivery-read') return { generation: h.generation(), delivery: deliveryPageSchema.parse({
+      artifacts: [], submissions: submitted ? [submission] : [], total: submitted ? 1 : 0, offset: 0,
+      limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } }) }
+    return base(action)
+  })
+  const view = render(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current section="delivery" />)
+  await screen.findByText(zh.taskDeliveryEmpty)
+  submitted = true; h.refresh()
+  view.rerender(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current section="delivery" />)
+  await screen.findByText(submission.summary)
+  expect(screen.getByRole('button', { name: zh.reviewAccept })).toBeTruthy()
+})
+
+it.each(['panel', 'workbench'] as const)('continues uploading and submitting through native refreshes in %s', async (surface) => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const a = h.prep.assignment; a.state = 'accepted'
+  const page = deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+    limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } })
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, planRevision: a.planRevision, runId: null }
+  const props = { ...h.props, task: h.task, projectId: h.projectId, current: true, section: 'delivery' as const }
+  let refreshView = () => {}, deliveryReads = 0
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks') return { workgraph: { generation: h.generation(), requestId: brandString(randomUUID()),
+      principal: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()) }, organizationId: a.organizationId,
+      result: { kind: 'tasks', value: workgraphPageSchema.parse({ items: [h.task], total: 1, offset: 0, revision: 1, cursor: 'tasks' }) } } }
+    if (action.kind === 'execution-list') return { generation: h.generation(), executions: { items: [], total: 0, offset: 0 } }
+    if (action.kind === 'delivery-read') { deliveryReads++; return { generation: h.generation(), delivery: { ...page } } }
+    if (action.kind === 'delivery-command') {
+      const command = deliveryCommandSchema.parse(action.request)
+      const id = brandString(randomUUID())
+      if (command.kind === 'publish-artifact') page.artifacts.push({ ...selector, id,
+        employeeId: a.assigneeId, kind: command.artifactKind, path: command.path, description: command.description,
+        mediaType: command.mediaType, size: command.size, sha256: command.sha256, createdRevision: 4 })
+      else if (command.kind === 'submit-delivery') {
+        page.submissions.push({ ...selector, id, employeeId: a.assigneeId, handlerId: a.approvedBy,
+          kind: 'accept-delivery', state: 'submitted', artifactIds: command.artifactIds, summary: command.summary,
+          target: command.target, createdRevision: 5, reviewState: 'pending', acceptance: null })
+        page.total++
+      }
+      const previousReads = deliveryReads
+      act(() => { h.refresh(); refreshView() })
+      await waitFor(() => { expect(deliveryReads).toBeGreaterThan(previousReads) })
+      return { generation: h.generation(), receipt: { operationId: command.operationId,
+        organizationId: a.organizationId, revision: 5, delivery: command.kind === 'publish-artifact' ? { artifactId: id } : { submissionId: id } } }
+    }
+    return base(action)
+  })
+  const content = () => surface === 'panel' ? <ExecutionPanel {...props} /> : <Workbench {...h.props}
+    project={{ id: h.projectId, organizationId: a.organizationId, name: 'Team project' }} initialTaskId={h.task.id} onBack={() => {}} />
+  const view = render(content()); refreshView = () => { view.rerender(content()) }
+  if (surface === 'workbench') fireEvent.click(await screen.findByRole('tab', { name: zh.taskDeliveryTab }))
+  const input = await screen.findByLabelText(zh.deliveryFiles)
+  const file = new File(['Result'], 'refresh-result.txt')
+  Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('Result').buffer })
+  fireEvent.change(input, { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Result survives refresh' } })
+  fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
+  fireEvent.click(screen.getByRole('button', { name: zh.deliverySubmit }))
+  await screen.findByText(zh.deliverySubmitted)
+  expect(page.submissions[0]).toMatchObject({ summary: 'Result survives refresh', artifactIds: [page.artifacts[0]?.id] })
+  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command')).toHaveLength(2)
 })

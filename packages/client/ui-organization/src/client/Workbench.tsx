@@ -73,14 +73,14 @@ export function Workbench(props: OrganizationProps & {
   }, [ready, c.generation])
   const currentPage = ready && page?.generation === c.generation ? page.value : undefined
   const pageTasks = currentPage?.items ?? []
-  const task = currentPage?.items.find(item => item.id === selected)
+  const task = (ready || c.mode === 'organization' && c.phase === 'loading' ? page?.value : undefined)
+    ?.items.find(item => item.id === selected)
   const canvasTasks = draft ? draft.definition.tasks.map(item => ({ ...item,
     phaseTitle: draft.definition.phases.find(phase => phase.id === item.phaseId)?.title ?? '' })) : pageTasks
   const phases = draft?.definition.phases ?? [...new Map(pageTasks.map(item =>
     [item.phaseId, { id: item.phaseId, title: item.phaseTitle }])).values()]
   const detailTask = draft ? draft.definition.tasks.find(item => item.id === draft.taskId) : task
   const names = (ids: readonly OrganizationTaskId[]) => ids.map(id => canvasTasks.find(item => item.id === id)?.goal).filter(Boolean).join(' · ') || t('noDependencies')
-  const retainedTask = page?.value.items.find(item => item.id === selected)
   const writable = ready && !busy && !c.pendingOperation
   const draftCurrent = draft?.expectedRevision === 0 || draft?.generation === c.generation
   const run = async (work: () => Promise<void>) => {
@@ -207,12 +207,13 @@ export function Workbench(props: OrganizationProps & {
     {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
-    {(page?.value.items.length || draft) && <div className={taskWorkspaceStyles.body}><div className={taskWorkspaceStyles.workspace}>
+    {(page?.value.items.length || draft) && <div className={taskWorkspaceStyles.body} hidden={!currentPage && !draft}><div
+      className={taskWorkspaceStyles.workspace}>
       <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}
         introduction={page?.value.items[0] && <TaskSharing key={`${c.principal?.accountId}:${page.value.items[0].planId}`} {...props}
           projectId={props.project.id} planId={props.planId ?? page.value.items[0].planId} />}>
         {task && !draft && detailsOpen && <TaskInspector key={task.id} {...props} task={task}
-          projectId={props.project.id} current={!!retainedTask}
+          projectId={props.project.id} current={!!currentPage}
           onClose={() => { setDetailsOpen(false) }} onAssignmentRevision={setAssignmentRevision}
           onExecute={() => { void run(() => openConversation(task)) }} executeDisabled={!writable || !props.selectConversation}
           overview={<>
@@ -233,7 +234,7 @@ export function Workbench(props: OrganizationProps & {
                 <Button disabled={!writable} onClick={() => { void run(() => openContext(task)) }}>{t('myContext')}</Button>
               </div>
             </section>
-            {ready && context?.generation === c.generation && task?.id === context.result.snapshot.id && <section className={css.card}>
+            {ready && context?.generation === c.generation && task.id === context.result.snapshot.id && <section className={css.card}>
               <h4>{t('myContext')}</h4><p>{t('contextReadonly')}</p>
               {(context.result.snapshot.revision !== task.revision || assignmentRevision !== undefined && context.result.snapshot.revision !== assignmentRevision) && <p role="alert">{t('contextOldVersion')}</p>}<p>{t('taskVersion', { revision: context.result.snapshot.revision })}</p>
               <h4>{context.result.snapshot.goal}</h4><p>{context.result.snapshot.scope}</p>
@@ -249,7 +250,7 @@ export function Workbench(props: OrganizationProps & {
           </>} />}
         {draft && detailTask && detailsOpen && <TaskDetail taskId={detailTask.id} title={detailTask.goal}
           labels={{ taskDetail: t('taskDraft'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
-          {draft && <section className={css.card}>
+          <section className={css.card}>
             <h4>{t('taskDraft')}</h4>
             {!draftCurrent && <><p>{t('draftRetained')}</p><Button disabled={!writable} onClick={() => { void run(revalidate) }}>{t('revalidateDraft')}</Button></>}
             {ready && draftCurrent && <>
@@ -261,7 +262,7 @@ export function Workbench(props: OrganizationProps & {
                 save={() => { void run(save) }} />
             </>}
             <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('discardDraft')}</Button>
-          </section>}
+          </section>
         </TaskDetail>}
       </TaskCanvas>
       <TaskStages phases={phases} tasks={canvasTasks} selected={draft?.taskId ?? selected ?? null}

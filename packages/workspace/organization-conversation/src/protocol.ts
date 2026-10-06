@@ -1,6 +1,7 @@
 /** Private project conversation operations and correlated native authorization messages. */
 import { z } from 'zod'
 import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
+import { artifactSchema, submissionViewSchema } from '@deepseek-ai/dsh-organization/delivery'
 import { assignmentReadSchema, assignmentSchema } from '@deepseek-ai/dsh-organization/assignment'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { assertV4RowAdmission } from '@deepseek-ai/dsh-session-format-current'
@@ -16,6 +17,8 @@ export const conversationAuthoritySchema = z.object({ serverId: uuid<Branded<'Or
   accountId: uuid<Branded<'OrganizationAccountId'>>(), generation: z.number().int().nonnegative(),
   view: accountConversationViewSchema, assignment: assignmentSchema.optional(),
   candidates: planningCandidatesPageSchema.optional(), plan: planningPlanViewSchema.optional(),
+  delivery: z.object({ assignment: assignmentSchema, submission: submissionViewSchema,
+    artifacts: z.array(artifactSchema) }).strict().optional(),
   receipt: planningMutationReceiptSchema.optional() }).strict()
 /** Exact assignment selector; the native owner derives the task and original participants online. */
 export const conversationAssignmentSchema = assignmentReadSchema.pick({ planId: true, assignmentId: true })
@@ -41,6 +44,9 @@ const base = accountConversationReadSchema.extend({ operationId: planningOpenSch
 export const conversationGoalSchema = uuid<Branded<'OrganizationConversationGoalId'>>()
 /** Fixed selectors; opening/reading never wakes a model. */
 export const conversationRequestSchema = z.discriminatedUnion('kind', [
+  base.extend({ projectId: planningReadSchema.shape.projectId, kind: z.literal('open-review'),
+    review: assignmentReadSchema.pick({ planId: true, assignmentId: true })
+      .extend({ submissionId: submissionViewSchema.shape.id }).strict() }).strict(),
   base.extend({ projectId: planningReadSchema.shape.projectId, kind: z.literal('project-remove') }).strict(),
   base.extend({ kind: z.enum(['open', 'read', 'stop', 'catalog', 'attach']) }).strict(),
   base.extend({ kind: z.literal('detach'), attachmentId: planningOpenSchema.shape.operationId }).strict(),
@@ -58,6 +64,8 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
     route: z.enum(['new_goal', 'clarification', 'modify', 'query']), goalId: conversationGoalSchema.optional(),
     target: planningPlanReadSchema.pick({ planId: true, taskId: true }).optional() }).strict(),
 ]).superRefine((request, ctx) => {
+  if (request.kind === 'open-review' && (request.assignment || request.botId || String(request.conversationId) !== String(request.review.submissionId)))
+    ctx.addIssue({ code: 'custom', message: 'Review conversation identity must equal its submission and cannot select an assignment or Bot' })
   if (request.kind === 'project-remove' && (request.assignment || request.botId))
     ctx.addIssue({ code: 'custom', message: 'Project removal cannot select a task or Bot' })
   if (!request.projectId && (request.assignment || request.botId || ['bot-save', 'select-task', 'select-model', 'suggest'].includes(request.kind)))

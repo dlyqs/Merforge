@@ -66,6 +66,29 @@ export async function organizationConversation(connection: OrganizationConnectio
         || command.kind === 'save-planning-draft' && (command.planId !== assignment.planId || command.definition.taskId !== assignment.taskId)))
         throw new Error('forbidden')
     }
+    let delivery
+    if (request.kind === 'open-review') {
+      const query = { organizationId: request.organizationId, projectId: request.projectId,
+        planId: request.review.planId, assignmentId: request.review.assignmentId }
+      const prepared = (await connection.perform({ kind: 'assignment-preparation', request: query })).assignment
+      if (prepared?.result.kind !== 'preparation') throw new Error('forbidden')
+      const member = connection.snapshot().organizations.find(o => o.id === request.organizationId)?.membershipId
+      let offset = 0
+      for (;;) {
+        const page = (await connection.perform({ kind: 'delivery-read', request: { ...query, offset } })).delivery
+        current()
+        if (!page) throw new Error('unavailable')
+        const submission = page.submissions.find(item => item.id === request.review.submissionId)
+        if (submission) {
+          if (submission.handlerId !== member) throw new Error('forbidden')
+          delivery = { assignment: prepared.result.value.assignment, submission,
+            artifacts: page.artifacts.filter(item => submission.artifactIds.includes(item.id)) }
+          break
+        }
+        offset += page.submissions.length
+        if (!page.submissions.length || offset >= page.total) throw new Error('forbidden')
+      }
+    }
     if (command?.kind === 'save-planning-draft') draft.sent = true
     const plan = command?.kind === 'read-planning-plan' ? channel ? await channel.plan(command)
       : (await connection.perform({ kind: 'planning-plan', request: command })).planningPlan : undefined
@@ -81,7 +104,7 @@ export async function organizationConversation(connection: OrganizationConnectio
     if (!view) throw new Error('superseded')
     return conversationAuthoritySchema.parse({ serverId: principal.serverId, accountId: principal.accountId,
       generation: initial.generation, view,
-      ...(assignment ? { assignment } : {}),
+      ...(assignment ? { assignment } : {}), ...(delivery ? { delivery } : {}),
       ...(receipt ? { receipt } : {}), ...(plan ? { plan } : {}), ...(candidates ? { candidates } : {}) })
   }
   const unsubscribe = connection.subscribe(() => {

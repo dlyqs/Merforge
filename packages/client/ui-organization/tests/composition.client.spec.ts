@@ -268,12 +268,17 @@ it('synchronizes paginated assignments for the current member without selecting 
     request: { id: randomUUID(), assignmentId: id, kind: 'accept-assignment', state: 'pending', expiresAt: null, answeredRevision: null },
     notificationId: null, readAt: null }
   }
-  const items = [item(), item(brandString<MembershipId>(randomUUID())), item(membershipId, 'revoked'), item()]
+  const approval = item(brandString<MembershipId>(randomUUID()), 'accepted')
+  const review = { ...approval, request: { organizationId, projectId, planId, assignmentId: approval.assignment.id,
+    planRevision: 1, runId: null, id: randomUUID(), employeeId: approval.assignment.assigneeId,
+    handlerId: membershipId, kind: 'accept-delivery', state: 'submitted', artifactIds: [],
+    summary: 'Employee delivery for review', target: '', createdRevision: 2, reviewState: 'pending', acceptance: null } }
+  const items = [item(), item(brandString<MembershipId>(randomUUID())), item(membershipId, 'revoked'), item(), review]
   const connection = vi.fn<OrganizationDesktopBridge['connection']>(async (action) => {
     if (action.kind !== 'assignment-inbox') return {}
     const offset = inboxQuerySchema.parse(action.request).offset
     return { assignment: { generation: 1, result: { kind: 'inbox', value: inboxPageSchema.parse({ items: items.slice(offset, offset + 2),
-      total: 4, unread: 4, offset, revision: 1, cursor: 'assignments' }) } } }
+      total: 5, unread: 5, offset, revision: 1, cursor: 'assignments' }) } } }
   })
   const report = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
     owner: { ...snapshot.connection.principal, organizationId, projectId, conversationId: items[3]!.assignment.id },
@@ -290,16 +295,19 @@ it('synchronizes paginated assignments for the current member without selecting 
   mock.remote.session.create.mockResolvedValue(ok({ sessionId: 'sync-personal' as SessionId }))
   try {
     const app = await start()
-    await vi.waitFor(() => { expect(conversation).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => { expect(conversation).toHaveBeenCalledTimes(3) })
     expect(connection.mock.calls.filter(([action]) => action.kind === 'assignment-inbox').map(([action]) =>
-      action.kind === 'assignment-inbox' ? inboxQuerySchema.parse(action.request).offset : undefined)).toEqual([0, 2])
-    expect(conversation.mock.calls.map(([request]) => request.conversationId)).toEqual([items[0]!.assignment.id, items[3]!.assignment.id])
-    expect(conversation.mock.calls.every(([request]) => request.kind === 'open' && request.assignment)).toBe(true)
+      action.kind === 'assignment-inbox' ? inboxQuerySchema.parse(action.request).offset : undefined)).toEqual([0, 2, 4])
+    expect(conversation.mock.calls.map(([request]) => request.conversationId))
+      .toEqual([items[0]!.assignment.id, items[3]!.assignment.id, review.request.id])
+    expect(conversation.mock.calls.slice(0, 2).every(([request]) => request.kind === 'open' && request.assignment)).toBe(true)
+    expect(conversation.mock.calls[2]?.[0]).toMatchObject({ kind: 'open-review', review: {
+      planId, assignmentId: approval.assignment.id, submissionId: review.request.id } })
     expect(execution).not.toHaveBeenCalled()
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).not.toBe(report.sessionId)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, revision: 2 } })
     await Promise.resolve(); await Promise.resolve()
-    expect(conversation).toHaveBeenCalledTimes(2)
+    expect(conversation).toHaveBeenCalledTimes(3)
     await app.ctx.fiber.dispose()
   } finally {
     if (previous === undefined) delete globalObject.dshDesktop
