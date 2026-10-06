@@ -53,7 +53,9 @@ function fixture() {
   })
   const context = vi.fn<OrganizationProps['context']>()
   const props: OrganizationProps = { connection, context, available: true, server: vi.fn(), secret: vi.fn(),
-    t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state) }
+    t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0),
+    useTaskExecutionRevision: selector => selector(0),
+    useOrganization: selector => selector(state) }
   return { props, project, page, version, connection, context, reply,
     setState: (patch: Partial<typeof state.connection>) => { state = { ...state, connection: { ...state.connection, ...patch } } } }
 }

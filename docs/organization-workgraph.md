@@ -4,7 +4,7 @@
 
 ## 共享任务背景与完整树申请
 
-当前组织数据库版本为 v21。自动提案通过 `sharedContext` 提炼创建者对话中的任务动机、整体目标、已有决策、约束和资源，初次保存任务时写入独立的共享背景记录。背景对每个当前任务读者可见，即使其只获分配一个节点；只有原创建者可凭准确背景版本修改。修改背景不产生新的任务定义 revision，不撤销已有分配资格。旧库升级以原始根节点 scope 初始化背景。
+当前组织数据库版本为 v22。自动提案通过 `sharedContext` 提炼创建者对话中的任务动机、整体目标、已有决策、约束和资源，初次保存任务时写入独立的共享背景记录。背景对每个当前任务读者可见，即使其只获分配一个节点；只有原创建者可凭准确背景版本修改。修改背景不产生新的任务定义 revision，不撤销已有分配资格。旧库升级以原始根节点 scope 初始化背景。
 
 任务导图展示共享背景、创建者编辑入口、员工「申请查看完整任务树」入口及申请状态。当前 pending/accepted 分配的员工才能申请；创建者通过持久请求批准或拒绝，其他管理员和根节点编辑者无代批权。批准在同一事务重新校验员工身份、分配及当前读取权限，并增加根子树 read；编辑、执行、接受和交付仍遵循各自授权。批准后保留真实父子关系，并在员工获分配的节点显示「分配给我」。拒绝保留原节点视图，员工可重新申请。结构变化后需重新申请。
 
@@ -47,7 +47,7 @@
 
 `savePlan(token, {operationId,organizationId,projectId,planId,expectedRevision,definition})` 是领域方法；0 创建，正整数更新。创建需项目 read+write，事务写入创建者的根范围 read+edit。更新还需当前根 subtree read+edit。完整定义读取 `readPlan(token,{organizationId,projectId,planId,revision?},deliver)` 要求项目 read 与当前根 subtree read；deliver 必须同步交付。没有任务 grant 的管理员和建议责任人也被拒绝。此方法返回完整编辑材料，不能拿局部 TaskView 调用保存。
 
-旧库启动时校验已有结构，事务内补齐后续表并验证当前版本；失败回滚，未知版本、外来 application_id、损坏图、跨组织引用、历史断档或错误索引拒绝打开。不开启个人 Session 数据迁移。停服备份使用同一验证器；新 manifest 写 schema=21，恢复接受 schema=2–21，先核对 manifest 与实际 user_version，再在 staging 升级。恢复仍撤销全部登录和邀请、清除回执并轮换恢复凭据，旧目录保留。
+旧库启动时校验已有结构，事务内补齐后续表并验证当前版本；失败回滚，未知版本、外来 application_id、损坏图、跨组织引用、历史断档或错误索引拒绝打开。不开启个人 Session 数据迁移。停服备份使用同一验证器；新 manifest 写 schema=22，恢复接受 schema=2–22，先核对 manifest 与实际 user_version，再在 staging 升级。恢复仍撤销全部登录和邀请、清除回执并轮换恢复凭据，旧目录保留。
 
 `Config.workgraphMaxTasks=1000` 同时限制任务和阶段条目；`workgraphMaxDepth=100`；`workgraphMaxBytes=1048576` 限制完整版本 JSON 的 UTF-8 字节（含作者、时间和版本元数据）。写入和读取均应用限额；超限明确失败，不截断图。Phase 3 查询在这些限额外应用 pageSize，Phase 4 还需核对 HTTP response 包装及原生 maxResponseBytes，过大返回失败。配置缩小不破坏磁盘历史校验，但可能阻止读取较大的版本。
 

@@ -88,7 +88,7 @@ it('migrates v10 without manufacturing target evidence and rolls back a failed m
   expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(10)
   h.db.exec('DROP TABLE organization_integrations')
   const db = openOrganizationDatabase(h.path, 100)
-  expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
+  expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
   expect(db.prepare('SELECT count(*) AS n FROM organization_integrations').get()?.n).toBe(0)
   db.close()
 }, 15000)

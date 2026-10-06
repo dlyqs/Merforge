@@ -5,6 +5,7 @@ import type { OrganizationTaskView, OrganizationAssignmentId } from '@deepseek-a
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
 import { AssignmentPanel } from './AssignmentPanel.tsx'
+import { TaskExecutionStatus } from './TaskExecutionStatus.tsx'
 import { ExecutionPanel } from './ExecutionPanel.tsx'
 import { IntegrationPanel } from './IntegrationPanel.tsx'
 import css from './TaskInspector.module.css'
@@ -36,6 +37,7 @@ export function TaskInspector(props: OrganizationProps & {
         {props.assignmentTools}
       </div> },
       { id: 'execution', label: t('taskExecutionTab'), content: <div className={css.pane}>
+        <TaskExecutionStatus {...props} />
         <p className={css.hint}>{t('taskExecutionRouteHint')}</p>
         {props.onExecute && <div className={css.actions}><Button variant="primary" disabled={props.executeDisabled} onClick={props.onExecute}>{t('executeInConversation')}</Button></div>}
         {props.requests}

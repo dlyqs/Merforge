@@ -40,7 +40,9 @@ export interface OrganizationInjected {
   context: OrganizationDesktopBridge['context']
   execution: OrganizationDesktopBridge['execution']
   executionReport: OrganizationDesktopBridge['executionReport']
-  hooks: { organization: ObservableSnapshot<OrganizationDesktopSnapshot>; modelCatalogRevision: ObservableSnapshot<number> }
+  hooks: { organization: ObservableSnapshot<OrganizationDesktopSnapshot>
+    modelCatalogRevision: ObservableSnapshot<number>
+    taskExecutionRevision: ObservableSnapshot<number> }
 }
 /** Registered component props supplied by the slot renderer. */
 export type OrganizationProps = InjectFace<OrganizationInjected> & PropsLocale<'organization'>

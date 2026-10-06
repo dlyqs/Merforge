@@ -21,7 +21,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 21
+export const ORGANIZATION_SCHEMA_VERSION = 22
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -136,6 +136,8 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (!db.prepare('PRAGMA table_info(organization_projects)').all().some(row => row.name === 'background')) db.exec(projectContentDdl)
         if (stamp < 20) db.exec(workgraphSharingDdl)
         migrateAssignmentExecution(db)
+        db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
+      } else if (stamp === 21 && app === applicationId) {
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')

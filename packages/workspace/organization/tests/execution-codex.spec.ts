@@ -121,7 +121,7 @@ it('rechecks current native policy after restart while retaining original native
   const before = api.db.prepare('SELECT data FROM execution_runs WHERE id=?').get(api.run.runId)?.data
   api.db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=11')
   const upgraded = openOrganizationDatabase(api.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
   expect(upgraded.prepare('SELECT data FROM execution_runs WHERE id=?').get(api.run.runId)?.data).toBe(before)
   upgraded.close()
   const h = await setup(); await h.transition('running')

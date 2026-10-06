@@ -594,6 +594,11 @@ it('waits for employee acceptance and an explicit prompt before using the ordina
     expect(h.errors).toEqual([])
     expect(execute).toHaveBeenCalledTimes(1)
     expect(h.model.requests).toHaveLength(2)
+    const observed = await h.ctx.organizationConversation.perform({ ...h.request, kind: 'read' }, h.bridge, h.signal)
+    expect(observed.running).toBe(false)
+    expect(observed.history.some(event => event.type === 'organization/planning-input' && event.data.request.kind === 'send'
+      && event.data.request.target?.taskId === assignment.taskId)).toBe(true)
+    expect(observed.history.some(event => event.type === 'step/start' && event.data.turn > 1)).toBe(true)
     h.authority.assignment!.state = 'revoked'
     await h.send(id, 'Continue the revoked task')
     await h.ctx.agents.get(id)!.whenIdle()

@@ -50,6 +50,9 @@ export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsN
 export function apply(ctx: Context): void {
   const desktop = (globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }).dshDesktop?.organization
   const modelCatalogRevision = createSnapshotStore(0)
+  const taskExecutionRevision = createSnapshotStore(0)
+  ctx.remote.$on('api-session/status', () => { taskExecutionRevision.set(taskExecutionRevision.getSnapshot() + 1) })
+  ctx.remote.$on('api-session/activity', () => { taskExecutionRevision.set(taskExecutionRevision.getSnapshot() + 1) })
   ctx.remote.$on('api-session/model-catalog-changed', (revision) => { modelCatalogRevision.set(revision) })
   const state = createSnapshotStore<OrganizationDesktopSnapshot>({ connection: { revision: 0, generation: 0, identityGeneration: 0,
     phase: 'disconnected',
@@ -125,7 +128,7 @@ export function apply(ctx: Context): void {
     context: request => desktop ? desktop.context(request) : unavailable(),
     executionReport: request => desktop ? desktop.executionReport(request) : unavailable(),
     execution: request => desktop ? desktop.execution(request) : unavailable(),
-    hooks: { organization: state, modelCatalogRevision } })
+    hooks: { organization: state, modelCatalogRevision, taskExecutionRevision } })
   ctx.effect(() => ctx.locale.register('organization', { zh, en }), 'organization.locale')
   ctx.effect(() => {
     if (!desktop) return () => {}

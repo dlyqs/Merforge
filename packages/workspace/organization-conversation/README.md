@@ -92,3 +92,5 @@ Rename and same-project Bot affiliation persist account-private navigation metad
 Reports include validated standard Session history for the common Client renderer. The legacy selector remains account-owned; its durable common alias uses ordinary Controller Remote calls and the ordinary Client Session.
 
 Account-private conversations may omit their project identifier. Native membership reads authorize their ordinary Session attachment, prompt admission and reopen; project planning tools remain unavailable until a project-scoped conversation is selected. These conversations stay isolated from personal history and appear in the account Recent catalog. Catalog reads do not reserve bindings or write Session logs. A common Session title or first user message supplies the navigation title.
+
+Authorized ordinary conversation reads include the current Agent running observation. Task detail consumers combine it with exact-task input, dispatched steps and settled turns to distinguish execution from task selection and generated introductions; an unsettled turn in a stopped Agent remains interrupted.

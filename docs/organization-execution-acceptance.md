@@ -19,7 +19,7 @@ node apps/desktop-host/tests/organization-execution-built-smoke.mjs
 node packages/workspace/organization/tests/built-smoke.mjs
 ```
 
-私有组织服务与员工 Host IPC smoke 使用发布代码，在 Node 和 Electron Node mode 中运行并等待进程退出。测试不读取用户 Desktop 数据。SQLite 当前为 v21；历史设备资格升级时退役，已有成果、审批和日志保留。真实平台、OS safeStorage 和网络仍需用户验收。
+私有组织服务与员工 Host IPC smoke 使用发布代码，在 Node 和 Electron Node mode 中运行并等待进程退出。测试不读取用户 Desktop 数据。SQLite 当前为 v22；历史设备资格升级时退役，已有成果、审批和日志保留。真实平台、OS safeStorage 和网络仍需用户验收。
 
 ## 真实模型 smoke
 

@@ -172,9 +172,9 @@ export default class OrganizationConversation extends Service {
     return this.report(binding, authorize)
   }
   private commonHost() {
-    const sessions = this.ctx.get('sessions'), persistence = this.ctx.get('sessionPersistence'), controller = this.ctx.get('sessionController')
-    if (!sessions || !persistence || !controller) throw new Error('organization-conversation: common-runtime-required')
-    return { sessions, persistence, controller }
+    const sessions = this.ctx.get('sessions'), persistence = this.ctx.get('sessionPersistence'), controller = this.ctx.get('sessionController'), agents = this.ctx.get('agents')
+    if (!sessions || !persistence || !controller || !agents) throw new Error('organization-conversation: common-runtime-required')
+    return { sessions, persistence, controller, agents }
   }
   private enqueue(request: ConversationRequest, authorize: ConversationBridge, signal: AbortSignal,
     cancel: AbortController): Promise<ConversationResult> {
@@ -692,6 +692,7 @@ export default class OrganizationConversation extends Service {
     const selection = events.findLast(event => event.type === 'model/selection')
     const title = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(binding.owner))?.title
     const result: ConversationResult = { history,
+      ...(binding.sharedSessionId ? { running: this.commonHost().agents.get(binding.activeSessionId ?? binding.sharedSessionId)?.status === 'running' } : {}),
       ...(binding.sharedSessionId ? { sharedSessionId: binding.activeSessionId ?? binding.sharedSessionId } : {}),
       ...(title ? { title } : {}),
       ...(!binding.sharedSessionId && selection?.type === 'model/selection' ? { selection: { endpoint: selection.data.provider,

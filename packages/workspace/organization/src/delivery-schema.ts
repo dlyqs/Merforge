@@ -26,7 +26,7 @@ export const gitChangeSchema = z.object({ format: z.literal(1), baseCommit: z.st
   files: z.array(z.object({ path: artifactPathSchema, operation: z.enum(['add', 'modify', 'delete']),
     oldSha256: hash.nullable(), newSha256: hash.nullable(), bytes: z.string().nullable() }).strict()).min(1),
 }).strict()
-const evidence = z.array(z.object({ artifactId: id<OrganizationArtifactId>(), sha256: hash }).strict()).min(1)
+const evidence = z.array(z.object({ artifactId: id<OrganizationArtifactId>(), sha256: hash }).strict())
 const decision = selector.extend({ operationId: id<OperationId>(), submissionId: id<OrganizationSubmissionId>(),
   artifacts: evidence, confirmed: z.literal(true) }).strict()
 /** Closed human delivery mutations; no model-facing tool consumes these commands. */
@@ -37,14 +37,14 @@ export const deliveryCommandSchema = z.discriminatedUnion('kind', [
   selector.extend({ ...metadata.shape, kind: z.literal('publish-artifact'), artifactKind: metadata.shape.kind,
     operationId: id<OperationId>(), bytes: z.string() }).strict(),
   selector.extend({ kind: z.literal('submit-delivery'), operationId: id<OperationId>(),
-    artifactIds: z.array(id<OrganizationArtifactId>()).min(1), summary: z.string().trim().min(1).max(8192),
-    target: z.string().trim().min(1).max(8192), confirmed: z.literal(true) }).strict(),
+    artifactIds: z.array(id<OrganizationArtifactId>()), summary: z.string().trim().min(1).max(8192),
+    target: z.string().trim().max(8192), confirmed: z.literal(true) }).strict(),
 ])
 /** Immutable employee decision and issuer's durable pending acceptance notification. */
 export const submissionSchema = selector.extend({ id: id<OrganizationSubmissionId>(), kind: z.literal('accept-delivery'),
   employeeId: id<MembershipId>(), handlerId: id<MembershipId>(), state: z.literal('submitted'),
-  artifactIds: z.array(id<OrganizationArtifactId>()).min(1), summary: z.string().min(1).max(8192),
-  target: z.string().min(1).max(8192), createdRevision: integer.positive() }).strict()
+  artifactIds: z.array(id<OrganizationArtifactId>()), summary: z.string().min(1).max(8192),
+  target: z.string().max(8192), createdRevision: integer.positive() }).strict()
 /** Issuer decision binds immutable hashes; rejection links the newly authored whole-plan revision. */
 export const acceptanceSchema = selector.extend({ id: id<OrganizationAcceptanceId>(), submissionId: id<OrganizationSubmissionId>(),
   issuerId: id<MembershipId>(), artifacts: evidence, createdRevision: integer.positive(),

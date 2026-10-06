@@ -139,7 +139,7 @@ it('migrates v19 plans with background without altering task revisions', async (
   try { old.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=19') } finally { old.close() }
   const migrated = openOrganizationDatabase(path, 5000)
   try {
-    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
+    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
     expect(migrated.prepare('SELECT sharedContext FROM plan_contexts WHERE planId=?').get(h.query.planId)?.sharedContext).toBe('scope')
     expect(migrated.prepare('SELECT currentRevision FROM organization_plans WHERE id=?').get(h.query.planId)?.currentRevision).toBe(1)
   } finally { migrated.close() }

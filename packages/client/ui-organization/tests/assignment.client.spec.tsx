@@ -18,6 +18,10 @@ import { AssignmentBatch } from '../src/client/AssignmentBatch.tsx'
 import { assignmentBatchRequestSchema } from '../../../host/organization-connection/src/assignment-batch.ts'
 import { readTaskRequests } from '../src/client/task-requests.ts'
 import { deliveryCommandSchema, deliveryPageSchema } from '@deepseek-ai/dsh-organization/delivery'
+import { TaskExecutionStatus } from '../src/client/TaskExecutionStatus.tsx'
+import { taskExecutionState } from '../src/client/task-execution-view.ts'
+import { fileSize } from '../src/client/delivery-view.ts'
+import { conversationResultSchema } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import { zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
@@ -121,7 +125,7 @@ it('keeps execution drafts and the selected section when task authority refreshe
   expect(h.props.execution).not.toHaveBeenCalled()
 })
 
-it.each([false, true])('requires a separate completion confirmation after artifact upload with isolated Run=%s', async (withRun) => {
+it.each([false, true])('publishes optional attachments only after confirming the result with isolated Run=%s', async (withRun) => {
   const h = fixture(true), base = h.connection.getMockImplementation()!
   const a = h.prep.assignment
   a.state = 'accepted'
@@ -139,7 +143,8 @@ it.each([false, true])('requires a separate completion confirmation after artifa
         id: brandString(randomUUID()), employeeId: a.assigneeId, kind: command.artifactKind,
         path: command.path, mediaType: command.mediaType, description: command.description,
         size: command.size, sha256: command.sha256, createdRevision: 4 })
-      return {}
+      return { receipt: { operationId: brandString(command.operationId), organizationId: a.organizationId, revision: 4,
+        delivery: { artifactId: page.artifacts.at(-1)!.id } } }
     }
     return base(action)
   })
@@ -148,20 +153,15 @@ it.each([false, true])('requires a separate completion confirmation after artifa
   const file = new File(['Task result'], 'report.txt', { type: 'text/plain' })
   Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('Task result').buffer })
   fireEvent.change(input, { target: { files: [file] } })
-  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliveryUpload }).disabled).toBe(true)
-  fireEvent.click(screen.getByLabelText(zh.taskUploadConfirm))
-  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: zh.deliveryUpload }))
-  const artifact = await screen.findByRole('checkbox', { name: 'report.txt' })
-  expect(h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command')).toHaveLength(1)
-  fireEvent.click(artifact)
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-command')).toBe(false)
   fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
   fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
   expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
   fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
   fireEvent.click(screen.getByRole('button', { name: zh.deliverySubmit }))
   await waitFor(() => {
-    const writes = h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command').map(([action]) => action.request)
+    const writes = h.connection.mock.calls.flatMap(([action]) => action.kind === 'delivery-command'
+      ? [deliveryCommandSchema.parse(action.request)] : [])
     expect(writes).toHaveLength(2)
     expect(writes[1]).toMatchObject({ kind: 'submit-delivery', runId: run?.id ?? null, artifactIds: [page.artifacts[0]?.id],
       summary: 'Completed and checked', target: 'Project report', confirmed: true })
@@ -245,7 +245,9 @@ function fixture(approved: boolean, admin = false) {
   })
   const props: OrganizationProps = { connection, context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
     available: true, server: vi.fn(), secret: vi.fn(),
-    t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state) }
+    t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0),
+    useTaskExecutionRevision: selector => selector(0),
+    useOrganization: selector => selector(state) }
   return { props, task, projectId, connection, prep, generation: () => state.connection.generation,
     refresh: () => { state = { ...state, connection: { ...state.connection, generation: state.connection.generation + 1 } } },
     offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }
@@ -433,4 +435,59 @@ it('keeps task conversation Run reads on the original assignment after a later r
   for (const [action] of h.connection.mock.calls) if (action.kind === 'assignment-preparation' || action.kind === 'execution-list')
     expect(action.request).toMatchObject({ assignmentId: h.prep.assignment.id })
   expect(h.props.execution).not.toHaveBeenCalled()
+})
+
+
+it.each(['commit abc123: fix task', 'https://example.test/result'])('submits a text-only result without uploading files: %s', async (content) => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.prep.assignment.state = 'accepted'
+  h.connection.mockImplementation(async action => action.kind === 'delivery-read' ? { generation: 1,
+    delivery: deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+      limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1024 ** 2, artifactMaxTotalBytes: 1024 ** 3 } }) } : base(action))
+  render(<DeliveryPanel {...h.props} assignment={h.prep.assignment} />)
+  fireEvent.change(await screen.findByLabelText(zh.deliverySummary), { target: { value: content } })
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
+  fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
+  fireEvent.click(screen.getByRole('button', { name: zh.deliverySubmit }))
+  await waitFor(() => {
+    const writes = h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command')
+    expect(writes).toHaveLength(1)
+    expect(deliveryCommandSchema.parse(writes[0]![0].request)).toMatchObject({ kind: 'submit-delivery', summary: content, target: '', artifactIds: [], runId: null })
+  })
+  expect(screen.getByText(/单文件 1 MB，总计 1 GB/)).toBeTruthy()
+  expect(fileSize(1024 ** 3)).toBe('1 GB')
+})
+
+it('refreshes task conversation execution from authorized records and ignores generated introductions', async () => {
+  const h = fixture(true)
+  const report = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+    owner: { serverId: randomUUID(), accountId: randomUUID(), organizationId: h.prep.assignment.organizationId,
+      projectId: h.projectId, conversationId: h.prep.assignment.id,
+      assignment: { planId: h.task.planId, assignmentId: h.prep.assignment.id } },
+    settings: { enabled: false, granularity: 'balanced', revision: 0 }, entries: [], goals: [], truncated: false, state: 'ready',
+    history: [{ type: 'step/start', seq: 0, time: 1, data: { step: 1, turn: 1 } },
+      { type: 'turn/end', seq: 1, time: 1, data: { turn: 1, reason: { kind: 'completed' } } }] })
+  const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async () => ({ generation: 1, result: report }))
+  let revision = 0
+  const props = { ...h.props, conversation,
+    useTaskExecutionRevision: h.props.useTaskExecutionRevision }
+  props.useTaskExecutionRevision = selector => selector(revision)
+  const view = render(<TaskExecutionStatus {...props} task={h.task} projectId={h.projectId} current />)
+  await screen.findByText(zh['taskConversation-unstarted'])
+  const input = { type: 'organization/planning-input' as const, seq: 2, time: 2, data: {
+    request: { kind: 'send' as const, target: { taskId: h.task.id, planId: h.task.planId } },
+    authority: { plan: { version: { revision: h.task.revision } } } } }
+  // Native reports are validated by the Host; the fixture supplies the consumed task fields.
+  const history = [...report.history, input, { type: 'step/start', seq: 3, time: 2, data: { step: 1, turn: 2 } }]
+  report.history = history as typeof report.history
+  report.running = true; revision++
+  view.rerender(<TaskExecutionStatus {...props} task={h.task} projectId={h.projectId} current />)
+  await screen.findByText(zh['taskConversation-running'])
+  report.history.push({ type: 'turn/end', seq: 4, time: 3, data: { turn: 2, reason: { kind: 'completed' } } })
+  report.running = false; revision++
+  view.rerender(<TaskExecutionStatus {...props} task={h.task} projectId={h.projectId} current />)
+  await screen.findByText(zh['taskConversation-executed'])
+  expect(taskExecutionState(report.history, { ...h.task, revision: 2 }, false)).toBe('unstarted')
+  expect(taskExecutionState(report.history.slice(0, -1), h.task, false)).toBe('interrupted')
+  expect(conversation.mock.calls.every(([request]) => request.kind === 'read')).toBe(true)
 })

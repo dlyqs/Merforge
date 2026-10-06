@@ -19,6 +19,7 @@ it('shows member management only for administrators and leaves that section when
       { id: organizationId, membershipId, name: 'Team', version: 1, role: 'member' },
     ] }, server: { phase: 'disabled', settings: { host: 'localhost', port: 19487, names: [], restoreOnLaunch: false } } }
   const props: OrganizationProps = { available: true, t: makeTranslate(zh), useModelCatalogRevision: selector => selector(0),
+    useTaskExecutionRevision: selector => selector(0),
     useOrganization: selector => selector(state), connection: vi.fn(), context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
     secret: vi.fn(), server: vi.fn() }
   const view = render(<OrganizationDialog {...props} onClose={vi.fn()} />)
@@ -40,7 +41,9 @@ it('deduplicates native and operation failures, clears on editing and expires fe
     server: { phase: 'disabled', settings: { host: '0.0.0.0', port: 19487, names: [], restoreOnLaunch: false } },
   }
   const props: OrganizationProps = { available: true, t: makeTranslate(zh),
-    useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(state),
+    useModelCatalogRevision: selector => selector(0),
+    useTaskExecutionRevision: selector => selector(0),
+    useOrganization: selector => selector(state),
     context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(), server: vi.fn(), secret: vi.fn(),
     connection: vi.fn(async () => { state.connection.error = 'connection-refused'; throw new Error('connection-refused') }),
   }

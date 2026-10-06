@@ -101,6 +101,7 @@ export const conversationResultSchema = z.object({
   attachmentId: planningOpenSchema.shape.operationId.optional(),
   owner: conversationOwnerSchema, assignment: assignmentSchema.optional(), settings: conversationSettingsSchema,
   history: z.array(historyEventSchema).default([]),
+  running: z.boolean().optional(),
   title: z.string().max(120).optional(),
   selection: planningOpenSchema.shape.selection.optional(),
   execution: z.object({ target: planningPlanReadSchema.pick({ planId: true, taskId: true }), title: z.string() }).strict().optional(),

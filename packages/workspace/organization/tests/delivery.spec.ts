@@ -115,7 +115,7 @@ it('validates Git baselines and byte hashes, and migrates the delivery tables fr
   expect(empty.db.prepare("SELECT name FROM sqlite_master WHERE name='organization_artifacts'").get()).toBeUndefined()
   empty.db.exec('DROP TABLE organization_submissions')
   const upgraded = openOrganizationDatabase(empty.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(21)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
   upgraded.close()
 }, 15000)
 
@@ -142,4 +142,30 @@ it('rejects missing referenced evidence at startup and rolls back a submission w
   h.db.prepare('DELETE FROM organization_artifacts WHERE id=?').run(artifactId)
   await h.close()
   expect(() => openOrganizationDatabase(h.path, 100)).toThrow()
+}, 15000)
+
+it.each(['accept-delivery', 'reject-delivery'] as const)('persists text-only results through %s and upgrades a v21 database without losing records', async (kind) => {
+  const h = await fixture()
+  const command = { ...h.base, runId: null, kind: 'submit-delivery', operationId: operationId(),
+    artifactIds: [], summary: 'commit abc123\nhttps://example.test/result', target: '', confirmed: true }
+  await expect(h.service.deliveryCommand(h.other.token, { ...command, summary: '  ' })).rejects.toMatchObject({ code: 'invalid-input' })
+  const receipt = await h.service.deliveryCommand(h.other.token, command)
+  expect(await h.service.deliveryCommand(h.other.token, command)).toEqual(receipt)
+  const submissionId = receipt.delivery!.submissionId!
+  expect(h.db.prepare('SELECT count(*) AS n FROM organization_artifacts').get()?.n).toBe(0)
+  const review = { ...h.base, runId: null, kind, operationId: operationId(), submissionId, artifacts: [], confirmed: true,
+    ...(kind === 'reject-delivery' ? { reason: 'Need additional evidence', requirements: 'Include result details' } : {}) }
+  await expect(h.service.deliveryCommand(h.other.token, review)).rejects.toMatchObject({ code: 'forbidden' })
+  await h.service.deliveryCommand(h.owner.token, review)
+  await h.service.readDelivery(h.owner.token, h.selector, (page) => {
+    expect(page.submissions).toEqual([expect.objectContaining({ summary: command.summary, target: '', artifactIds: [], reviewState: kind === 'accept-delivery' ? 'accepted' : 'rejected' })])
+  })
+  await h.close()
+  h.db.exec('PRAGMA user_version=21')
+  const cold = await openHarness(h.root); cleanup.push(cold.close)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
+  const owner = await cold.service.login({ username: 'owner', password })
+  await cold.service.readDelivery(owner.token, h.selector, (page) => {
+    expect(page.submissions[0]).toMatchObject({ summary: command.summary, artifactIds: [] })
+  })
 }, 15000)

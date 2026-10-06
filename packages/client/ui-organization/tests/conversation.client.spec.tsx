@@ -38,7 +38,9 @@ function fixture() {
     result: request.projectId ? result : { ...result, catalog: { bots: [], conversations: [] } } }))
   const connection = vi.fn<OrganizationProps['connection']>(async () => ({ generation: 1, planning }))
   const props: OrganizationProps = { available: true, conversation, connection, server: vi.fn(), secret: vi.fn(), context: vi.fn(),
-    execution: vi.fn(), executionReport: vi.fn(), t: makeTranslate(zh), useModelCatalogRevision: f => f(0), useOrganization: f => f(state) }
+    execution: vi.fn(), executionReport: vi.fn(), t: makeTranslate(zh), useModelCatalogRevision: f => f(0),
+    useTaskExecutionRevision: f => f(0),
+    useOrganization: f => f(state) }
   return { result, props, project, conversation, connection, identity: createSnapshotStore(state), change: (generation: number) => {
     state = { ...state, connection: { ...state.connection, generation, phase: 'offline' } }
   } }

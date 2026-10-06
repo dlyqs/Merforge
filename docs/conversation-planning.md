@@ -85,13 +85,13 @@ organization/conversation-owner、organization/planning-input、organization/pla
 
 发送沿用普通 AgentLoop、标准模型提供方与工具。组织方法通过现有 pre-step 扩展记录任务事实和 Bot 指令，按有效设置提供 workflow_assess/workflow_propose；共享草案经当前组织权限提交。native attach 保留授权寿命，Common Session follow 直接推送实时 assistant chunks。组织任务详情保留右侧分配控件，“在对话中执行”打开同一套对话并选中节点，不另启隔离执行 Run。Desktop 可见验收由用户检查。
 
-SQLite 当前 v21，任务流程与历史迁移见[执行协议](organization-execution.md)。v15 保存直属上级关系，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
+SQLite 当前 v22，任务流程与历史迁移见[执行协议](organization-execution.md)。v15 保存直属上级关系，planning_goals 保存本人 conversation/goal 到 plan/task 的唯一关联，planning_reapprovals 保存细分后的原批准责任；v13 迁移不重置模型累计用量。`/planning/plan` 返回归一化子树；保存前持久 proposal 意图，已发送未知结果先通过回执与 goal 关联核对。自己的保存触发 generation 更新时，只在身份仍相同时只读恢复，不重发输入、建树或模型。私有建议和冲突修改保留在本人 JSONL；共享展示每次重读权威版本。历史中任何任务失权都会阻止旧正文再次进入模型，并隐藏旧内容或拒绝读取。结构变更不自动续 grant；重新批准仍需当前查看/编辑资格。
 
 ## 对话分配与执行消费者
 
 组织主入口同时提供项目对话和持久 Inbox。共享树的叶子可逐项审核并确认，或选中多项、审核各自当前权限后批量明确确认。正式分配原子补齐员工项目与任务访问权。原生 `assignment-batch` 按当前 server/account/organization 与 plan/revision 保存逐项 operationId、终态和回执；每项发送前先落盘。成功项不重发，冲突/拒绝逐项呈现，未知项只查回执并停止后续发送，未发送项保留未确认。重开通过 `assignment-batch-read` 恢复结果，不自动续发。
 
-原有 assignment、accept-assignment request 和 notification 的原子关联就是员工离线期间的待建立标识，不新增共享聊天表或第二份通知。员工从组织对话入口或 Inbox 点击打开时，以 assignmentId 作为稳定 conversationId，并携带只含 planId/assignmentId 的 selector。Electron 每次授权都重读 preparation，验证当前成员是该原分配的 assignee；Host 先保留本人绑定再写 JSONL，失败后恢复同一 Session。双方账号、目标对话、员工对话与 Run 转录相互独立。界面显示原下发人、原任务与分配版本；打开不接受或执行。员工明确接受后等待主动输入，普通 Agent 请求、准备及工具调用复核 accepted 状态；设备登记、准备授权和领取不参与流程。
+原有 assignment、accept-assignment request 和 notification 的原子关联就是员工离线期间的待建立标识，不新增共享聊天表或第二份通知。员工从组织对话入口或 Inbox 点击打开时，以 assignmentId 作为稳定 conversationId，并携带只含 planId/assignmentId 的 selector。Electron 每次授权都重读 preparation，验证当前成员是该原分配的 assignee；Host 先保留本人绑定再写 JSONL，失败后恢复同一 Session。双方账号、目标对话、员工对话与 Run 转录相互独立。界面显示原下发人、原任务与分配版本；打开不接受或执行。任务浮层的执行区域读取员工本人获准的任务对话日志，按当前 planId、taskId、revision 的输入及实际 step/start、turn/end 显示未执行、执行中、已执行或中断；自动介绍和选择节点不计为执行，已执行不代表成果已经审批。普通 Session 活动及运行状态变化触发重新读取。员工明确接受后等待主动输入，普通 Agent 请求、准备及工具调用复核 accepted 状态；设备登记、准备授权和领取不参与流程。
 
 分配任务对话固定同一任务范围，其他任务 selector 被拒绝。普通 Agent 通过已有能力执行选中节点；组织模型工具只提交当前获准的业务写入，不能代替真人批准或验收。权限失效停止普通 Agent，历史读取也需当前任务权限；新版本或改派通过新的通知和 assignment 对话取得新资格，旧 Session 不转换身份。
 

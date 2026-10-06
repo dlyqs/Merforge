@@ -228,7 +228,7 @@ describe('organization WorkGraph definitions', () => {
     await migrated.service.readProject(h.owner.token, { organizationId: h.owner.organizationId, projectId: h.request.projectId }, (value) => { expect(value.name).toBe('CSV report') })
     await migrated.service.savePlan(h.owner.token, h.request)
     const db = new DatabaseSync(h.path)
-    try { expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(21) } finally { db.close() }
+    try { expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(22) } finally { db.close() }
   })
 
   it('refuses damaged graph data and unknown database versions on open', async () => {

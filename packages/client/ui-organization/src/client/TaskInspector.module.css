@@ -53,3 +53,6 @@
 .transcriptLog { display: grid; gap: 16px; max-height: 24rem; min-width: 0; overflow: auto; overscroll-behavior: contain; padding: 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-1); }
 .panel :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
 @media (max-width: 480px) { .grid { grid-template-columns: minmax(0, 1fr); } .record { padding: 12px; } }
+.deliveryComposer { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.deliveryComposer > label { flex: 1; }
+.deliveryComposer > button { flex: none; margin-top: 27px; }

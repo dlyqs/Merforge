@@ -1,6 +1,6 @@
 # 组织执行与交付协议
 
-员工接受分配后，可主动使用普通 Agent 或自行执行，再上传成果并提交汇报。设备登记、设备准备能力授权、设备领取和独占租约不参与当前流程。组织 SQLite v21 保存共享业务事实，Desktop 私有 Host 保存员工本机对话与执行日志。
+员工接受分配后，可主动使用普通 Agent 或自行执行，再上传成果并提交汇报。设备登记、设备准备能力授权、设备领取和独占租约不参与当前流程。组织 SQLite v22 保存共享业务事实，Desktop 私有 Host 保存员工本机对话与执行日志。
 
 ## 主流程与审批
 
@@ -39,7 +39,7 @@
 
 产物索引与 BLOB 字节在同一事务发布。服务端验证规范 base64、长度、SHA-256、相对路径、类型和说明；不按共享路径读取本机文件。绝对路径、反斜线、冒号、空段和 `.`/`..` 被拒绝。失败上传不产生可引用记录。员工只共享自己选中的文件，不自动上传仓库、私人 Session、凭据或 Bot 配置。
 
-`artifactMaxFiles` 默认每 assignment/run 范围 20 个，`artifactMaxFileBytes` 默认 256 KiB，`artifactMaxTotalBytes` 默认每范围或提交 1 MiB。已发布但未提交文件计入额度。API 和原生响应/请求上限仍适用，配置须计入 base64 和 JSON 开销。提交至少引用一份产物，路径唯一，并填写 summary、target 和 confirmed=true。
+`artifactMaxFiles` 默认每 assignment/run 范围 20 个，`artifactMaxFileBytes` 默认 256 KiB，`artifactMaxTotalBytes` 默认每范围或提交 1 MiB。已发布但未提交文件计入额度。API 和原生响应/请求上限仍适用，配置须计入 base64 和 JSON 开销。提交允许不引用文件；summary 保存必填的成果文字、commit 记录或网址链接，target 为可选补充说明，confirmed=true 仍必填。文件附件路径必须唯一。Client 使用同一输入区填写成果和选择附件，确认提交后按稳定 operationId 发布附件并引用其回执；部分上传成功后的重试复用已发布附件。界面将文件大小与限额显示为 MB/GB，传输仍使用字节。
 
 `delivery-command/read/download` 是固定真人动作。原下发人审批绑定 Submission 和完整 artifactId/SHA-256 集合，服务端重新核验字节。读取、事件、下载和回执逐次裁剪权限。备份包括产物字节，损坏或缺失证据拒绝启动、下载、提交和恢复。
 
@@ -96,6 +96,6 @@ executionCodex 默认空数组。当前 backend 使用 `{ kind: codex, dispatch:
 
 ## 历史与验证
 
-SQLite v21 允许无 Run 成果，并退役旧设备、准备授权和租约。历史执行 JSON 中的旧字段与 device-native dispatch 仅供持久记录读取；当前新执行使用 local。升级、备份和恢复验证外键、作者、事件/回执、成果哈希和返工版本关系。Session 日志格式不变。
+SQLite v22 允许无 Run 成果，并退役旧设备、准备授权和租约。历史执行 JSON 中的旧字段与 device-native dispatch 仅供持久记录读取；当前新执行使用 local。升级、备份和恢复验证外键、作者、事件/回执、成果哈希和返工版本关系。Session 日志格式不变。
 
 确定性测试覆盖 Loader、SQLite、HTTPS、私有 IPC、普通 Agent 和受控文件；外部模型由脚本替代。静态检查与构建不替代用户侧 Desktop 可见验收、真实模型、OS 凭据保险库及跨机测试。操作剧本见[验收指南](organization-execution-acceptance.md)。

@@ -455,3 +455,33 @@ it('carries native backend grants and scheduling permits through authenticated H
   expect(channel.signal.aborted).toBe(true)
   await expect(channel.read()).rejects.toThrow()
 }, 20000)
+
+
+it('submits and approves a URL and commit record over HTTPS with no file upload', async () => {
+  const h = await setup()
+  await acceptAssignment(h)
+  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
+  const base = { ...h.selector, runId: null, planRevision: 1 }
+  const summary = 'commit abc123\nhttps://example.test/result'
+  const submitted = await h.worker.perform({ kind: 'delivery-command', request: { ...base,
+    kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [], summary, target: '', confirmed: true } })
+  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
+  const accepted = await h.owner.perform({ kind: 'delivery-command', request: { ...base,
+    kind: 'accept-delivery', operationId: randomUUID(), submissionId: submitted.receipt!.delivery!.submissionId,
+    artifacts: [], confirmed: true } })
+  await vi.waitFor(async () => {
+    const result = await h.worker.perform({ kind: 'delivery-read', request: h.selector })
+    expect(result.delivery?.artifacts).toEqual([])
+    expect(result.delivery?.submissions[0]).toMatchObject({ summary, target: '', artifactIds: [], reviewState: 'accepted' })
+  })
+  await h.worker.close(); await h.owner.close(); await h.app.close()
+  const servicePath = join(h.root, 'server'), backup = join(h.root, 'text-backup')
+  backupOrganization(servicePath, backup, 100)
+  restoreOrganization(backup, servicePath, 100)
+  const restarted = await bootOrganization({ api: { directory: servicePath, host: '127.0.0.1', port: 0, names: ['127.0.0.1'] } })
+  cleanup.push(restarted.close)
+  const login = await restarted.authority.login({ username: 'owner', password })
+  await restarted.authority.readDelivery(login.token, h.selector, (page) => {
+    expect(page.submissions[0]).toMatchObject({ summary, artifactIds: [], acceptance: { id: accepted.receipt!.delivery!.acceptanceId } })
+  })
+}, 20000)

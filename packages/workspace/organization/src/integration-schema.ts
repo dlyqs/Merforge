@@ -17,7 +17,7 @@ export const integrationReadSchema = workgraphReadSchema.omit({ revision: true }
 export const integrationInputSchema = z.object({ assignmentId: z.uuid().transform(brandString<OrganizationAssignmentId>),
   taskId: workgraphDefinitionSchema.shape.taskId,
   submissionId: z.uuid().transform(brandString<OrganizationSubmissionId>),
-  artifacts: z.array(z.object({ artifactId: z.uuid().transform(brandString<OrganizationArtifactId>), sha256: hash }).strict()).min(1),
+  artifacts: z.array(z.object({ artifactId: z.uuid().transform(brandString<OrganizationArtifactId>), sha256: hash }).strict()),
 }).strict()
 /** Portable file evidence has no local directory name or file body. */
 export const integrationFileSchema = z.object({ path: z.string().min(1).max(512).refine(v =>

@@ -22,7 +22,9 @@ it('returns to the previously selected organization after the native personal ac
   const connection = vi.fn<OrganizationProps['connection']>().mockResolvedValue({})
   const props: OrganizationProps = { available: true, connection, server: vi.fn(), secret: vi.fn(),
     context: vi.fn(), execution: vi.fn(), executionReport: vi.fn(),
-    useModelCatalogRevision: selector => selector(0), useOrganization: selector => selector(snapshot), t: makeTranslate(zh) }
+    useModelCatalogRevision: selector => selector(0),
+    useTaskExecutionRevision: selector => selector(0),
+    useOrganization: selector => selector(snapshot), t: makeTranslate(zh) }
   const view = render(<AccountMenu {...props} />)
   fireEvent.click(screen.getByRole('button', { name: zh.accountCenter }))
   fireEvent.click(screen.getByRole('button', { name: new RegExp(zh.personalDescription) }))
