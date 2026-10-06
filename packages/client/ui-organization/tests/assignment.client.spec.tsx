@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Explicit preparation gestures and stale-content behavior without opening a browser. */
 import { afterEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { randomUUID } from 'node:crypto'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -490,4 +490,48 @@ it('refreshes task conversation execution from authorized records and ignores ge
   expect(taskExecutionState(report.history, { ...h.task, revision: 2 }, false)).toBe('unstarted')
   expect(taskExecutionState(report.history.slice(0, -1), h.task, false)).toBe('interrupted')
   expect(conversation.mock.calls.every(([request]) => request.kind === 'read')).toBe(true)
+})
+
+it('retains selected files when clearing the native file input before batched state updates commit', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.prep.assignment.state = 'accepted'
+  h.connection.mockImplementation(async action => action.kind === 'delivery-read' ? { generation: 1,
+    delivery: deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+      limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1024 ** 2, artifactMaxTotalBytes: 1024 ** 3 } }) } : base(action))
+  render(<DeliveryPanel {...h.props} assignment={h.prep.assignment} />)
+  const input = await screen.findByLabelText<HTMLInputElement>(zh.deliveryFiles)
+  let files = [new File(['Result'], 'native-result.pdf', { type: 'application/pdf' })]
+  Object.defineProperty(input, 'files', { configurable: true, get: () => files })
+  Object.defineProperty(input, 'value', { configurable: true, get: () => '', set: (value: string) => { if (!value) files = [] } })
+  act(() => {
+    fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Native selection result' } })
+    fireEvent.change(input)
+  })
+  expect(input.files).toHaveLength(0)
+  expect(screen.getByText('native-result.pdf')).toBeTruthy()
+  fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(false)
+})
+
+it('keeps oversized attachments visible and explains why submission is blocked until removal', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.prep.assignment.state = 'accepted'
+  h.connection.mockImplementation(async action => action.kind === 'delivery-read' ? { generation: 1,
+    delivery: deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+      limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1024 ** 2, artifactMaxTotalBytes: 1024 ** 3 } }) } : base(action))
+  render(<DeliveryPanel {...h.props} assignment={h.prep.assignment} />)
+  const input = await screen.findByLabelText(zh.deliveryFiles)
+  expect(screen.getByText(zh.deliverySummaryRequired)).toBeTruthy()
+  fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Result with attachment' } })
+  fireEvent.change(input, { target: { files: [new File([new Uint8Array(1024 ** 2 + 1)], 'too-large.pdf')] } })
+  expect(screen.getByText('too-large.pdf')).toBeTruthy()
+  expect(screen.getByRole('alert').textContent).toBe(zh.deliveryFileExceeded.replace('{bytes}', '1 MB'))
+  expect(screen.getByLabelText<HTMLInputElement>(zh.taskSubmitConfirm).disabled).toBe(true)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: zh.taskRemoveFile }))
+  expect(screen.queryByRole('alert')).toBeNull()
+  fireEvent.change(input, { target: { files: [new File(['Result'], 'small.pdf')] } })
+  expect(screen.getByText('small.pdf')).toBeTruthy()
+  fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(false)
 })

@@ -113,11 +113,17 @@ export function DeliveryPanel(props: OrganizationProps & {
   const stopped = !run || ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false
   const runArtifacts = value?.artifacts.filter(file => file.runId === (run?.id ?? null)) ?? []
   const submissions = value?.submissions.filter(submission => !run || submission.runId === run.id) ?? []
-  const uploadValid = !!value && runArtifacts.length + selected.length <= value.limits.artifactMaxFiles
-    && chosen.length + selected.length <= value.limits.artifactMaxFiles
-    && selected.every(item => item.file.size <= value.limits.artifactMaxFileBytes && item.description.trim())
-    && selected.reduce((total, item) => total + item.file.size,
-      runArtifacts.reduce((total, item) => total + item.size, 0)) <= value.limits.artifactMaxTotalBytes
+  const uploadError = !value ? ''
+    : runArtifacts.length + selected.length > value.limits.artifactMaxFiles
+      || chosen.length + selected.length > value.limits.artifactMaxFiles
+      ? t('deliveryCountExceeded', { count: value.limits.artifactMaxFiles })
+      : selected.some(item => item.file.size > value.limits.artifactMaxFileBytes)
+        ? t('deliveryFileExceeded', { bytes: fileSize(value.limits.artifactMaxFileBytes) })
+        : selected.reduce((total, item) => total + item.file.size,
+          runArtifacts.reduce((total, item) => total + item.size, 0)) > value.limits.artifactMaxTotalBytes
+          ? t('deliveryTotalExceeded', { total: fileSize(value.limits.artifactMaxTotalBytes) })
+          : selected.some(item => !item.description.trim()) ? t('deliveryDescriptionRequired') : ''
+  const uploadValid = !!value && !uploadError
   return <section className={css.panel} aria-busy={busy}>
     <p className={css.hint}>{t('deliveryHint')}</p>
     {notice && <p className={css.notice} role="status">{notice}</p>}
@@ -133,10 +139,11 @@ export function DeliveryPanel(props: OrganizationProps & {
               disabled={busy} onChange={(event) => { setSummary(event.target.value); setConfirmed(false) }} /></label>
             <input ref={fileInput} type="file" multiple hidden aria-label={t('deliveryFiles')} disabled={busy || !!c.pendingOperation}
               onChange={(event) => {
-                setSelected(items => [...items, ...Array.from(event.target.files ?? [], file => ({
+                const additions = Array.from(event.currentTarget.files ?? [], file => ({
                   operationId: randomUUID(), file, kind: 'file' as const, description: file.name,
-                }))])
-                setConfirmed(false); event.target.value = ''
+                }))
+                setSelected(items => [...items, ...additions])
+                setConfirmed(false); event.currentTarget.value = ''
               }} />
           </div>
           <p className={css.hint}>{t('deliveryLimits', { count: value.limits.artifactMaxFiles,
@@ -172,6 +179,8 @@ export function DeliveryPanel(props: OrganizationProps & {
             <details className={css.advanced}><summary>{t('taskEvidenceDetails')}</summary><code>{file.sha256}</code></details>
           </div>)}
           <label>{t('deliveryTarget')}<textarea value={target} maxLength={8192} disabled={busy} onChange={(event) => { setTarget(event.target.value); setConfirmed(false) }} /></label>
+          {uploadError && <p className={css.notice} role="alert">{uploadError}</p>}
+          {!summary.trim() && <p className={css.hint}>{t('deliverySummaryRequired')}</p>}
           <Checkbox label={t('taskSubmitConfirm')} checked={confirmed} disabled={busy || !stopped || !uploadValid || !summary.trim()} onChange={setConfirmed} />
           <div className={css.footer}><Button variant="primary" disabled={busy || !!c.pendingOperation || !confirmed || !uploadValid || !summary.trim() || !stopped}
             onClick={() => { void submit() }}>{t('deliverySubmit')}</Button></div>
