@@ -8,7 +8,7 @@ import type { CodexSetupOwnerId } from '../src/setup-types.ts'
 import { fixture } from './harness.ts'
 export const owner = brandString<CodexSetupOwnerId>('11111111-1111-4111-8111-111111111111')
 export const other = brandString<CodexSetupOwnerId>('22222222-2222-4222-8222-222222222222')
-export async function setup(mode: Record<string, boolean> = {}, loginTimeoutMs = 300000) {
+export async function setup(mode: Record<string, boolean | string> = {}, loginTimeoutMs = 300000) {
   const { ctx, root } = await fixture(false, false, 300000, loginTimeoutMs)
   await writeFile(join(root, 'setup-mode.json'), JSON.stringify(mode))
   vi.spyOn(ctx.subprocess, 'spawn').mockRestore()

@@ -19,7 +19,7 @@ const thread = { id: threadId, cwd: process.cwd(), model: model.model, cliVersio
 const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() })
 
-function harness(overrides: Partial<CodexRuntimeLimits> = {}) {
+function harness(overrides: Partial<CodexRuntimeLimits> = {}, runtimeVersion = '0.153.4') {
   const input = new PassThrough()
   const output = new PassThrough()
   const stderr = new PassThrough()
@@ -36,7 +36,7 @@ function harness(overrides: Partial<CodexRuntimeLimits> = {}) {
     calls.push({ method, params })
     if (handler !== undefined) return handler(method, params)
     switch (method) {
-      case 'initialize': return { userAgent: 'codex-cli 0.153.4', platformFamily: 'unix', platformOs: 'macos', codexHome: '/private/native-home' }
+      case 'initialize': return { userAgent: `Codex Desktop/${runtimeVersion} (fixture) merforge`, platformFamily: 'unix', platformOs: 'macos', codexHome: '/private/native-home' }
       case 'account/read': return { account: { type: 'chatgpt', email: 'secret@example.test', planType: 'secret-plan', accessToken: 'secret-token' }, requiresOpenaiAuth: true }
       case 'model/list': return { data: params.cursor === null ? [model] : [], nextCursor: params.cursor === null ? 'second' : null }
       case 'thread/start': case 'thread/read': case 'thread/resume': return { thread }
@@ -77,6 +77,15 @@ describe('persistent Codex runtime', () => {
     h.peer.notify('account/updated', {})
     await runtime.catalog()
     expect(h.calls.filter(c => c.method === 'account/read')).toHaveLength(2)
+  })
+
+  it('reports the current CLI version while resuming a thread created by an older CLI', async () => {
+    const h = harness({}, '0.160.1'), runtime = await ready(h)
+    expect(runtime.capabilities.version).toBe('0.160.1')
+    const resumed = await runtime.resumeThread(threadId, selection)
+    expect(resumed.runtimeVersion).toBe('0.153.4')
+    expect(resumed.id).toBe(threadId)
+    expect(h.calls.some(call => call.method === 'thread/start')).toBe(false)
   })
 
   it('rejects controlled/organization modes before creating any native thread', async () => {
@@ -449,3 +458,8 @@ it('reserves every execution connection before spawn and refuses it while login 
   await runtime.dispose()
   acquireCodexActivity('login')()
 })
+
+vi.mock('../src/process.ts', async original => ({
+  ...await original<typeof import('../src/process.ts')>(),
+  codexAppServerArgv: () => ['/fixture/codex', 'app-server', '--stdio'],
+}))

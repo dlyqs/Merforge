@@ -62,6 +62,7 @@ export async function buildModelCatalog(
     try {
       const discovered = await provider.catalog()
       return { kind: 'group' as const, group: { id: provider.kind, backend: provider.kind, name: 'Codex',
+        ...(discovered.runtimeVersion === undefined ? {} : { runtimeVersion: discovered.runtimeVersion }),
         models: discovered.models.map(model => ({ id: model.id, name: model.name,
           reasoning: { efforts: model.efforts.map(id => ({ id, name: id })), defaultEffort: model.defaultEffort } })) } }
     } catch (error: unknown) {

@@ -173,6 +173,7 @@ export class DesktopHostProcess {
     ], {
       cwd: this.projectDir,
       env: desktopNodeEnvironment(this.node, undefined, this.environment),
+      windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     this.child = child
@@ -516,7 +517,7 @@ export class DesktopHostProcess {
     this.setupQueries.clear()
     if (this.setupSnapshot) {
       this.setupSnapshot = { ...this.setupSnapshot, revision: this.setupSnapshot.revision + 1,
-        runtime: { version: '0.153.4', status: 'error', category: 'closed' },
+        runtime: { version: null, status: 'error', category: 'closed' },
         account: { status: 'unknown' }, catalog: { status: 'unknown', models: [] },
         login: { status: 'failed', category: 'closed' } }
       for (const listener of this.setupListeners) {

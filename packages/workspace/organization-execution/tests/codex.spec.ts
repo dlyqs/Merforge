@@ -14,16 +14,16 @@ const limits = { maxActions: 5, maxSteps: 5, maxDurationMs: 10000, maxBytes: 100
 const nativeLimits = { startupTimeoutMs: 2000, rpcTimeoutMs: 2000, turnTimeoutMs: 10000, humanTimeoutMs: 2000,
   interruptTimeoutMs: 500, disposeGraceMs: 100, maxFrameBytes: 1000000, maxEarlyEvents: 100, maxTurnBytes: 1000000,
   modelCacheMs: 1000, modelPageSize: 100, maxModelPages: 10 }
-async function setup(maxTurns = 2) {
+async function setup(maxTurns = 2, runtimeVersion = '0.153.4') {
   const local = await boot(undefined, limits, undefined, nativeLimits), directory = join(local.root, 'work')
   await mkdir(directory); await writeFile(join(directory, 'private.txt'), 'UNSELECTED_PRIVATE_MATERIAL')
-  const backend = { kind: 'codex', dispatch: 'local', runtimeVersion: '0.153.4', model: 'scripted-csv', effort: 'medium', maxTurns,
+  const backend = { kind: 'codex', dispatch: 'local', runtimeVersion, model: 'scripted-csv', effort: 'medium', maxTurns,
     maxDurationMs: 10000 } as const
   const inputs = executionRequestSchema.shape.inputs.parse({ model: backend.model, backend, capabilities: ['codex-turn'],
     execution: { directory, maxActions: maxTurns, maxSteps: maxTurns, maxDurationMs: 10000 },
     materials: ['SELECTED_MATERIAL'], messages: ['EMPLOYEE_INPUT'] })
   const remote = await setupExecution(cleanups, maxTurns, executionInputsDigest(inputs), ['codex-turn'], undefined,
-    { backend, policy: [{ runtimeVersion: '0.153.4', model: backend.model, efforts: ['medium'], maxTurns, maxDurationMs: 10000 }] })
+    { backend, policy: [{ runtimeVersion, model: backend.model, efforts: ['medium'], maxTurns, maxDurationMs: 10000 }] })
   const request = executionRequestSchema.parse({ ...remote.selector, runId: remote.run.runId,
     operationId: randomUUID(), inputs, start: true })
   const original = fixture().authority
@@ -179,4 +179,17 @@ it('refuses historical dispatch for new native inputs while retaining recovery p
   expect(() => executionRequestSchema.parse(legacy)).toThrow()
   expect(executionRequestSchema.parse({ ...legacy, resume: { baselineDigest: 'a'.repeat(64) } }).inputs.backend?.dispatch)
     .toBe('device-native')
+})
+
+vi.mock('../../../subagent/codex-runtime/src/process.ts', async original => ({
+  ...await original<typeof import('../../../subagent/codex-runtime/src/process.ts')>(),
+  codexAppServerArgv: () => ['/fixture/codex', 'app-server', '--stdio'],
+}))
+
+it('refuses an installed CLI version outside the approved native request before creating a thread', async () => {
+  const h = await setup(1, '0.160.1')
+  await expect(h.service.executeConfigured(h.request, h.bridge, signal())).rejects.toThrow('native-selection-mismatch')
+  expect(await readdir(h.root)).not.toContain('native-history.json')
+  expect((await h.remote.read()).actions).toEqual([])
+  for (const child of h.children) expect(await child.waitForExit(1)).toBe(true)
 })

@@ -115,7 +115,7 @@ Startup and offline backup/restore validate independent references, receipt snap
 
 ## Codex scheduling authority
 
-`executionCodex` is a separate native allowlist, defaulting to an empty array. Each entry fixes runtimeVersion `0.153.4`, model, supported efforts, maxTurns and maxDurationMs. Explicit grants and Runs carry `backend: { kind: codex, dispatch: local, runtimeVersion, model, effort, maxTurns, maxDurationMs }`; strict parsers reject account/token/home/endpoint fields. API grants omit backend and keep their model-route semantics.
+`executionCodex` is a separate native allowlist, defaulting to an empty array. Each entry fixes an approved local CLI runtimeVersion, model, supported efforts, maxTurns and maxDurationMs. Explicit grants and Runs carry `backend: { kind: codex, dispatch: local, runtimeVersion, model, effort, maxTurns, maxDurationMs }`; strict parsers reject account/token/home/endpoint fields. API grants omit backend and keep their model-route semantics.
 
 Native settings admit only codex-turn, with budget no larger than maxTurns. Start, reserve and explicit resume recheck exact task/version, readable accepted prerequisites, employee acceptance, current execution settings and native policy. Reserved or unknown native dispatch blocks another dispatch. Each application turn consumes one unit, including not-issued or unknown outcomes. The original employee may report historical results while retaining task access.
 

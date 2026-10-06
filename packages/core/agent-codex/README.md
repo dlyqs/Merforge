@@ -9,7 +9,7 @@ kind: "package-reference"
 
 Desktop loads this Host plugin beside `dsh-agent-loop`. It registers the `codex` driver in `ctx.agents`, not another factory or an LLM adapter. The existing factory retains unpublished setup, publication rollback, one Session writer and scoped teardown. The [core subsystem](../../../docs/subsystems/core.md) owns the Agent API; [Codex backend rules](../../../docs/codex-backend.md) own native protocol support.
 
-Create with `agentOptions.backend = { kind: 'codex', model, effort, runtimeVersion: '0.153.4' }` and an explicit Session cwd. Resolve model and effort through `ctx.agents.driver('codex').resolve()` first. Desktop discovery reads the native account and model list without exposing account identity or credentials. Missing runtime, login, model or effort rejects; an empty native model list is reported as unavailable and requires an explicit refresh after account access changes. There is no API fallback. Native authentication and tool permissions remain in the user's Codex configuration.
+Create with `agentOptions.backend = { kind: 'codex', model, effort, runtimeVersion: '<detected CLI version>' }` and an explicit Session cwd. Resolve model and effort through `ctx.agents.driver('codex').resolve()` first. Desktop discovery reads the native account and model list without exposing account identity or credentials. Missing runtime, login, model or effort rejects; an empty native model list is reported as unavailable and requires an explicit refresh after account access changes. There is no API fallback. Native authentication and tool permissions remain in the user's Codex configuration.
 
 `followup()` queues text; `cancel()` requests interruption; `whenIdle()` awaits the owned process cleanup. A native connection is opened lazily for each turn and disposed afterward. The persistent native thread is resumed on the next turn. Steering, attachments, native fork, application slash commands and application compaction are unavailable. Before dispatch, the real `agent/pre-step` waterfall adds selected-task or enabled-method messages to the durable input. General `inject()` remains unsupported. Codex owns native tools and context; Harness tool restrictions do not govern those tools. Provider unload cancels and drains model discovery, active conversations and callback writes before closing the Session turn.
 
@@ -37,7 +37,7 @@ The fixed callbacks are `item/tool/call`, `item/tool/requestUserInput`, `item/co
 
 ## Configuration
 
-Config owns startup/RPC/turn/human/interrupt/disposal timeouts, frame/event/turn limits, model cache/pagination limits, login lifetime and setup cache limits. The fixed command and protocol version come from `dsh-codex-runtime`. All process launches use `ctx.subprocess`; the Renderer receives catalog and Session projections, not arbitrary process or protocol access.
+Config owns startup/RPC/turn/human/interrupt/disposal timeouts, frame/event/turn limits, model cache/pagination limits, login lifetime and setup cache limits. The local command and negotiated runtime version come from `dsh-codex-runtime`. All process launches use `ctx.subprocess`; the Renderer receives catalog and Session projections, not arbitrary process or protocol access.
 
 ## Model Experience
 

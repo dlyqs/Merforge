@@ -193,3 +193,5 @@ This Dev Note is working context for maintainers; it is explicitly non-authorita
 </details>
 
 Personal operations reject the reserved `organization-context:` Session namespace. Organization pre-execution contexts use the independent [organization-context owner](../../workspace/organization-context/README.md) and cannot enter this personal service.
+
+External driver catalogs may include the observed `runtimeVersion`; native backend selections persist that CLI version as a string. Existing Codex version records remain readable after local CLI upgrades.

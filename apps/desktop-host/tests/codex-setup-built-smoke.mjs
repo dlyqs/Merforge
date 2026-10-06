@@ -1,9 +1,9 @@
 /** Built private control, Loader and real managed subprocess; no window or account access. */
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, copyFile, chmod, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, delimiter } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { Context } from '../../../vendor/cordis/lib/index.js'
@@ -23,21 +23,18 @@ const Codex = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-agent
 const { codexSetupNativeMessageSchema } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-agent-codex/setup-protocol')).href)
 const resolveCodex = createRequire(require.resolve('@deepseek-ai/dsh-agent-codex/package.json'))
 const { codexAppServerArgv } = await import(pathToFileURL(resolveCodex.resolve('@deepseek-ai/dsh-codex-runtime')).href)
+const root = await mkdtemp(join(tmpdir(), 'codex-setup-built-'))
 const previousPath = process.env.PATH
-try {
-  process.env.PATH = ''
-  const argv = codexAppServerArgv()
-  assert.equal(argv[0], process.execPath)
-  assert.deepEqual(argv.slice(-2), ['app-server', '--stdio'])
-  await readFile(argv[1])
-} finally {
-  if (previousPath === undefined) delete process.env.PATH
-  else process.env.PATH = previousPath
-}
-const root = await mkdtemp(join(tmpdir(), 'codex-setup-built-')), ctx = new Context()
+const localCli = join(root, process.platform === 'win32' ? 'codex.exe' : 'codex')
+
+const ctx = new Context()
 const fixture = fileURLToPath(new URL('../../../packages/core/agent-codex/tests/fixtures/setup-peer.mjs', import.meta.url))
 const channel = new EventEmitter(), output = [], children = []
 try {
+  await copyFile(process.execPath, localCli)
+  await chmod(localCli, 0o700)
+  process.env.PATH = `${root}${delimiter}${previousPath ?? ''}`
+  assert.deepEqual(codexAppServerArgv(), [await realpath(localCli), 'app-server', '--stdio'])
   const modules = new Map([['llm', Llm], ['sessions', Sessions], ['projections', Projections], ['agents', Agents],
     ['tools', Tools], ['prompt', Prompt], ['loop', Loop], ['subprocess', Subprocess], ['codex', Codex]])
   const path = join(root, 'cordis.yml')
@@ -96,5 +93,10 @@ try {
   assert.equal(calls.filter(method => method === 'account/login/start').length, 2)
   assert.equal(calls.some(method => /thread|turn/.test(method)), false)
   for (const child of children) assert.equal(await child.waitForExit(), true)
-  console.log('codex setup built smoke: fixed private IPC, owner view, endpoint, cancellation, confirmed login, catalog, fixed payload without PATH and real child cleanup passed')
-} finally { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) }
+  console.log('codex setup built smoke: fixed private IPC, owner view, endpoint, cancellation, confirmed login, catalog, local executable on PATH and real child cleanup passed')
+} finally {
+  await ctx.fiber.dispose()
+  if (previousPath === undefined) delete process.env.PATH
+  else process.env.PATH = previousPath
+  await rm(root, { recursive: true, force: true })
+}

@@ -1,8 +1,8 @@
 /** Published Desktop driver composition under plain Node; no native login or window. */
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, copyFile, chmod, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, delimiter } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { PassThrough } from 'node:stream'
@@ -24,13 +24,20 @@ const resolveHost = createRequire(process.env.MERFORGE_CODEX_PACKED_RESOLVER ?? 
 const resolveCodex = createRequire(resolveHost.resolve('@deepseek-ai/dsh-agent-codex/package.json'))
 const { JsonRpcLineTransport, codexAppServerArgv } = await import(pathToFileURL(resolveCodex.resolve('@deepseek-ai/dsh-codex-runtime')).href)
 const Codex = await import(pathToFileURL(resolveHost.resolve('@deepseek-ai/dsh-agent-codex')).href)
-assert.deepEqual(codexAppServerArgv().slice(-2), ['app-server', '--stdio'])
 const root = await mkdtemp(join(tmpdir(), 'codex-built-smoke-'))
+const previousPath = process.env.PATH
+const localCli = join(root, process.platform === 'win32' ? 'codex.exe' : 'codex')
+
+
 const ctx = new Context()
 const calls = []
 const children = []
 const callbackErrors = []
 try {
+  await copyFile(process.execPath, localCli)
+  await chmod(localCli, 0o700)
+  process.env.PATH = `${root}${delimiter}${previousPath ?? ''}`
+  assert.deepEqual(codexAppServerArgv(), [await realpath(localCli), 'app-server', '--stdio'])
   const modules = new Map([['agents', Agents], ['loop', Loop], ['sessions', Sessions], ['projections', Projections],
     ['jsonl', Jsonl], ['llm', Llm], ['tools', Tools], ['prompt', Prompt], ['subprocess', Subprocess], ['codex', Codex],
     ['questions', Questions]])
@@ -108,5 +115,7 @@ try {
   console.log('codex built smoke: private Host resolution, Loader, two turns, human callbacks, JSONL and cleanup passed')
 } finally {
   await ctx.fiber.dispose()
+  if (previousPath === undefined) delete process.env.PATH
+  else process.env.PATH = previousPath
   await rm(root, { recursive: true, force: true })
 }

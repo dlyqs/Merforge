@@ -121,6 +121,10 @@ export class ModelDirectoryResolver extends Service {
       directory.dispose()
       live.directories.delete(binding)
     }, 'ui-model-selection: session directory')
+    if (binding.controls?.catalog.store.getSnapshot().status === 'idle'
+      && sessions.subagentAddress(sessionId) === undefined) {
+      void directory.load().catch((_error: unknown) => { /* The directory exposes the load failure. */ })
+    }
     return directory
   }
 }

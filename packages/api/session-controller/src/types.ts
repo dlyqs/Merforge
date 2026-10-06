@@ -146,6 +146,9 @@ export interface ModelCatalogModel {
 
 /** One provider and its successfully loaded model catalog. */
 export interface ModelProviderGroup {
+  /** Native executor version observed alongside this catalog. */
+  readonly runtimeVersion?: string
+
   readonly backend?: 'harness-api' | 'codex'
   readonly id: string
   readonly name: string

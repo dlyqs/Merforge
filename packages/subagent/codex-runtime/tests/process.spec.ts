@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -61,3 +62,8 @@ describe('offline app-server over the real subprocess owner', () => {
     }
   })
 })
+
+vi.mock('../src/process.ts', async original => ({
+  ...await original<typeof import('../src/process.ts')>(),
+  codexAppServerArgv: () => ['/fixture/codex', 'app-server', '--stdio'],
+}))

@@ -1,7 +1,6 @@
 /** Narrow the external JSON protocol and redact account information. */
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CodexAccount, CodexAccountNotification, CodexDeviceCode, CodexLoginId, CodexEffort, CodexModel, CodexThread, CodexThreadId } from './types.ts'
-import { CODEX_RUNTIME_VERSION } from './process.ts'
 
 /**
  * Require a protocol JSON object without echoing its contents.
@@ -79,7 +78,7 @@ export function parseThread(value: unknown): CodexThread {
     throw new Error('codex-runtime: incomplete thread history')
   }
   const thread = protocolObject(response.thread)
-  if (thread.ephemeral !== false || thread.cliVersion !== CODEX_RUNTIME_VERSION || thread.historyMode !== 'legacy' || !Array.isArray(thread.turns)) {
+  if (thread.ephemeral !== false || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u.test(protocolString(thread.cliVersion)) || thread.historyMode !== 'legacy' || !Array.isArray(thread.turns)) {
     throw new Error('codex-runtime: incompatible persistent thread')
   }
   const turns = thread.turns.map((value: unknown) => {
@@ -91,7 +90,7 @@ export function parseThread(value: unknown): CodexThread {
     return turn
   })
   return { id: brandString<CodexThreadId>(protocolString(thread.id)), cwd: protocolString(thread.cwd), model: protocolString(thread.model),
-    ephemeral: false, runtimeVersion: CODEX_RUNTIME_VERSION, turns }
+    ephemeral: false, runtimeVersion: protocolString(thread.cliVersion), turns }
 }
 
 /**

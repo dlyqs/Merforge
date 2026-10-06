@@ -269,7 +269,7 @@ export class CodexAgent implements ScopedAgentDriver {
         await this.flush()
         signal.throwIfAborted()
         const thread = await runtime.startThread({ mode: 'native', model: selection.model, effort })
-        this.session.append('codex/thread-bound', { threadId: thread.id, cwd, runtimeVersion: selection.runtimeVersion,
+        this.session.append('codex/thread-bound', { threadId: thread.id, cwd, runtimeVersion: runtime.capabilities.version,
           dynamicTools: dynamicTools.map(tool => tool.name) })
         await this.flush()
       } else {

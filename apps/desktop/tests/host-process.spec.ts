@@ -248,7 +248,7 @@ process.on('message', message => {
     organizationId: request.organizationId, generation: 1, requestId: randomUUID(), task: {
       id: request.taskId, planId: request.planId, revision: 1, parentTaskId: null, phaseId: randomUUID(), phaseTitle: 'Phase',
       goal: 'Goal', scope: 'Scope', acceptance: ['Accepted'], artifacts: [], required: true, dependsOn: [],
-      suggestedMembershipId: null, assignable: false, hasUndisclosedPrerequisite: false,
+      suggestedMembershipId: null, status: 'pending', assignable: false, hasUndisclosedPrerequisite: false,
     } })
   const read = await host.openOrganizationContext(request, async () => authority, 2000, new AbortController().signal)
   expect(read.owner.accountId).toBe(authority.accountId)

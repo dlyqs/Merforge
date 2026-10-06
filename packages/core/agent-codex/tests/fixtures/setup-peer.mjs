@@ -18,7 +18,7 @@ createInterface({ input: process.stdin }).on('line', line => {
   appendFileSync(join(root, 'calls.jsonl'), JSON.stringify(method) + '\n', { mode: 0o600 })
   let result
   switch (method) {
-    case 'initialize': result = { userAgent: 'codex-cli 0.153.4', platformFamily: 'unix', platformOs: 'fixture', codexHome: '/fixture-private-home' }; break
+    case 'initialize': result = { userAgent: `Codex Desktop/${mode.runtimeVersion ?? '0.153.4'} (fixture) merforge`, platformFamily: 'unix', platformOs: 'fixture', codexHome: '/fixture-private-home' }; break
     case 'account/read': result = { account: existsSync(auth) ? { type: 'chatgpt', email: 'fixture-private-email', planType: 'pro', token: 'fixture-private-token' } : null, requiresOpenaiAuth: !mode.noAuth }; break
     case 'model/list':
       if (mode.catalogFailure) { write({ id, error: { code: 5, message: 'fixture-private-error' } }); return }

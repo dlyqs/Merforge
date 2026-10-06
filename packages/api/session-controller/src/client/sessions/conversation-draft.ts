@@ -14,6 +14,8 @@ export interface ConversationDraftOptions {
   title: string
   /** @returns Current read-only model directory. */
   loadModels(): Promise<ModelCatalog>
+  /** @returns Selectable permissions and the default for this draft; omitted when unavailable. */
+  loadPermissions?(): Promise<{ defaultPreset: string; options: readonly { value: string }[] }>
   /** @returns Retained Session owned by the first submitted input. */
   materialize(): Promise<Materialized>
   listTasks: SessionControls['listTasks']
@@ -41,6 +43,12 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
   let taskId: SessionControls['taskId'], taskTitle: string | undefined
   let model: ModelSelection | undefined, enabled = true, modeRevision = 0, modeChanged = false
   let active = true, materialized: Materialized | undefined, opening: Promise<Materialized> | undefined
+  let permission: string | undefined
+  const permissions = options.loadPermissions?.().then((value) => {
+    if (active) projection('permissions').set({ currentValue: permission ?? value.defaultPreset })
+    return value
+  })
+  void permissions?.catch((_error: unknown) => { /* An unavailable permission catalog hides the draft control. */ })
   const submissions = new Map<SessionRequestId, Parameters<SessionFace['beginSubmission']>[0]>()
   const assertActive = () => { if (!active) throw new Error('conversation-draft: superseded') }
   const load = async () => {
@@ -73,6 +81,11 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
           controls = (value.controls ?? value.reference.binding.controls)
           if (!controls) throw new Error('conversation-draft: controls-required')
         }
+      }
+      if (permission !== undefined) {
+        const result = await value.reference.binding.session.command(`/permission ${permission}`)
+        if (!result.ok) throw new Error(result.error.message)
+        if (!result.value.matched) throw new Error('conversation-draft: permission-command-required')
       }
       if (taskId) { await controls.listTasks(); await controls.selectTask(taskId) }
       if (modeChanged) {
@@ -123,6 +136,16 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
     },
     command: async (line) => {
       if (!line.trim()) return { ok: true, value: { matched: false } }
+      const permissionCommand = /^\/permission(?:\s+(\S+))?\s*$/.exec(line.trim())
+      if (permissions && permissionCommand) {
+        const catalog = await permissions; assertActive()
+        const preset = permissionCommand[1]
+        if (preset !== undefined) {
+          if (!catalog.options.some(option => option.value === preset)) throw new Error('conversation-draft: unknown-permission-preset')
+          permission = preset; projection('permissions').set({ currentValue: preset })
+        }
+        return { ok: true, value: { matched: true } }
+      }
       const value = await open(), result = await value.reference.binding.session.command(line)
       if (result.ok) { materialized = undefined; value.commit() }
       return result

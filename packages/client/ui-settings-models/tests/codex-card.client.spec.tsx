@@ -69,3 +69,16 @@ describe('Codex card', () => {
     expect(screen.getByText(en['codex.models.ready'])).toBeTruthy()
   })
 })
+
+it('displays the detected local CLI version and installation guidance when no CLI is found', () => {
+  const p = props({ busy: false, copied: false, view: { snapshot: {
+    ...snapshot, runtime: { version: '0.160.1', status: 'ready' },
+  } } })
+  const view = render(<CodexCard {...p} />)
+  expect(screen.getByText(/0\.160\.1/)).toBeTruthy()
+  view.rerender(<CodexCard {...props({ busy: false, copied: false, view: { snapshot: {
+    ...snapshot, runtime: { version: null, status: 'error', category: 'payload' },
+  } } })} />)
+  expect(screen.getByText(en['codex.error.payload'])).toBeTruthy()
+  expect(screen.queryByText(/0\.153\.4/)).toBeNull()
+})

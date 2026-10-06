@@ -1,5 +1,5 @@
 /** Real setup lifecycle with an external fixture peer, without account access. */
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import { acquireCodexActivity } from '@deepseek-ai/dsh-codex-runtime'
@@ -118,4 +118,16 @@ it('removes driver contributions and drains the login child when the Loader prov
   expect(h.ctx.get('codexSetup')).toBeUndefined()
   for (const child of h.children) expect(await child.waitForExit()).toBe(true)
   acquireCodexActivity('login')()
+})
+
+it('reports the local handshake version and refreshes it after a CLI upgrade', async () => {
+  const h = await setup({ authenticated: true, runtimeVersion: '0.160.1' })
+  expect(h.service.snapshot().runtime.version).toBeNull()
+  expect((await h.service.detect()).runtime).toEqual({ version: '0.160.1', status: 'ready' })
+  await writeFile(join(h.root, 'setup-mode.json'), JSON.stringify({ authenticated: true, runtimeVersion: '0.161.0' }))
+  expect((await h.service.detect(false)).runtime.version).toBe('0.160.1')
+  expect((await h.service.detect(true)).runtime.version).toBe('0.161.0')
+  const catalog = await h.ctx.agents.driver('codex').catalog()
+  expect(catalog.runtimeVersion).toBe('0.161.0')
+  expect((await h.ctx.agents.driver('codex').resolve('fixture', 'medium')).runtimeVersion).toBe('0.161.0')
 })

@@ -13,6 +13,9 @@ export interface ScopedAgentDriver extends Agent {
 
 /** Safe external model choices, independent of API adapter routes. */
 export interface AgentDriverCatalog {
+  /** Version observed from the native executor, absent for providers without version discovery. */
+  readonly runtimeVersion?: string
+
   readonly models: readonly {
     readonly id: string
     readonly name: string
@@ -56,7 +59,7 @@ export function readAgentBackend(events: readonly SessionEvent[]): AgentBackendS
     if (selected !== undefined) throw new Error('Session has multiple backend selections')
     selected = z.object({ kind: z.literal('codex'), model: z.string().min(1),
       effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']),
-      runtimeVersion: z.literal('0.153.4') }).parse(event.data)
+      runtimeVersion: z.string().max(100).regex(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u) }).parse(event.data)
   }
   return selected
 }

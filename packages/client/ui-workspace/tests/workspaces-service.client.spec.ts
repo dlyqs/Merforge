@@ -139,13 +139,14 @@ class FakeSessions implements ISessions {
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
   readonly fork = vi.fn<ISessions['fork']>(async () => sid('forked'))
   readonly retained: RetainedSession[] = []
+  readonly command = vi.fn<SessionFace['command']>(async () => ({ ok: true, value: { matched: true } }))
   readonly prompt = vi.fn<SessionFace['prompt']>(async () => ({ ok: true, value: { accepted: true } }))
   readonly refreshProjections = vi.fn<ISessions['refreshProjections']>(() => Promise.resolve())
   readonly retain = vi.fn<ISessions['retain']>((target) => {
     const release = vi.fn<() => void>()
-    const sessionId = typeof target === 'string' ? target : 'kind' in target ? target.session.sessionId : target.childSessionId
-    const binding = { sessionId, session: typeof target !== 'string' && 'kind' in target ? target.session
-      : { prompt: this.prompt }, } as SessionReference['binding']
+    const sessionId = typeof target === 'string' ? target : 'kind' in target ? target.kind === 'external' ? target.session.sessionId : target.sessionId : target.childSessionId
+    const binding = { sessionId, session: typeof target !== 'string' && 'kind' in target && target.kind === 'external' ? target.session
+      : { prompt: this.prompt, command: this.command } } as SessionReference['binding']
     const reference: SessionReference = {
       sessionId,
       binding,
@@ -835,4 +836,21 @@ describe('UiWorkspaceService', () => {
       rpcError: { code: 'directory-picker/exists' },
     })
   })
+})
+
+it('shows the Host permission default on a new personal draft and applies a local change on first send', async () => {
+  const b = bench()
+  const catalog = vi.fn(async () => ({ ok: true as const, value: { defaultPreset: 'read-only',
+    options: [{ value: 'read-only' }, { value: 'workspace-write' }], defaultOptions: [] } }))
+  b.ctx.provide('remote', { permissionPresets: { catalog } })
+  b.uiWorkspace.startPersonalSession({})
+  const target = b.sessions.retain.mock.calls.at(-1)![0]
+  if (typeof target === 'string' || !('kind' in target) || target.kind !== 'external') throw new Error('expected external draft')
+  await vi.waitFor(() => { expect(target.session.projections.faceOf('permissions').getSnapshot()).toEqual({ currentValue: 'read-only' }) })
+  await target.session.command('/permission workspace-write')
+  expect(b.sessions.create).not.toHaveBeenCalled()
+  await target.session.prompt([{ type: 'text', text: 'Start' }], 'queue')
+  expect(b.sessions.command).toHaveBeenCalledExactlyOnceWith('/permission workspace-write')
+  expect(b.sessions.prompt).toHaveBeenCalledOnce()
+  await b.ctx.fiber.dispose()
 })

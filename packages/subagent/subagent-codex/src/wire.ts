@@ -1,5 +1,5 @@
 /**
- * Minimal Codex app-server 0.153.4 protocol adapter. The local JSON-RPC
+ * Minimal user-installed Codex app-server protocol adapter. The local JSON-RPC
  * transport owns framing and request correlation; this module owns only the
  * product methods, current thread/turn association, unattended approval
  * responses, and terminal-answer selection.

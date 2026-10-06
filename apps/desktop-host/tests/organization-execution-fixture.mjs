@@ -1,9 +1,9 @@
 /** Deterministic model input; all authority, native transport, tools and persistence remain real. */
 import assert from 'node:assert/strict'
 import { randomUUID, randomBytes, createHash } from 'node:crypto'
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, delimiter } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
@@ -111,6 +111,7 @@ export async function localExecution(kit, root) {
 /** Complete CSV revision/review/join using the same real native operations used by Desktop. */
 export async function executionScenario(kit, createHost = root => localExecution(kit, root), fault) {
   const root = await mkdtemp(join(tmpdir(), 'desktop-execution-'))
+  const previousPath = process.env.PATH
   const clients = [], hosts = []
   let app
   let localRoot = join(root, 'employee-host'), work = join(root, 'employee-git')
@@ -118,6 +119,11 @@ export async function executionScenario(kit, createHost = root => localExecution
   const git = (directory, ...args) => execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   async function active(client, action) { await until(() => client.snapshot().phase === 'ready'); return client.perform(action) }
   try {
+    if (kit.native) {
+      const localCli = join(root, process.platform === 'win32' ? 'codex.exe' : 'codex')
+      await copyFile(process.execPath, localCli); await chmod(localCli, 0o700)
+      process.env.PATH = `${root}${delimiter}${previousPath ?? ''}`
+    }
     for (const directory of [localRoot, work]) await mkdir(directory)
     for (const directory of [work]) {
       git(directory, 'init'); git(directory, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline')
@@ -391,7 +397,11 @@ export async function executionScenario(kit, createHost = root => localExecution
   } finally {
     const results = await Promise.allSettled([...hosts.map(h => h.close()), ...(kit.planningHooks ? [kit.planningHooks.close()] : [])])
     const nativeResults = await Promise.allSettled(clients.map(c => c.close()))
-    try { await app?.close() } finally { await rm(root, { recursive: true, force: true }) }
+    try { await app?.close() } finally {
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
+      await rm(root, { recursive: true, force: true })
+    }
     for (const result of [...results, ...nativeResults]) if (result.status === 'rejected') throw result.reason
   }
 }

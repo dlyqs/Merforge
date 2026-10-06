@@ -30,7 +30,7 @@ export interface CodexModel {
 }
 /** Fixed protocol support, separate from unverified controlled execution. */
 export interface CodexCapabilities {
-  readonly version: '0.153.4'
+  readonly version: string
   readonly persistentText: boolean
   readonly controlledTools: false
   readonly organizationExecution: false
@@ -98,7 +98,7 @@ export interface CodexThread {
   readonly cwd: string
   readonly model: string
   readonly ephemeral: false
-  readonly runtimeVersion: '0.153.4'
+  readonly runtimeVersion: string
   /** Native typed history used for reconciliation, not a complete model request log. */
   readonly turns: readonly Record<string, unknown>[]
 }

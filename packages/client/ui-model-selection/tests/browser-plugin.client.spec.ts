@@ -8,8 +8,10 @@
  * (and the reverse), the one-shared-state contract of the dual entry.
  * Scope disposal drops the directory (HMR safety).
  */
+import { createConversationDraft } from '../../../api/session-controller/src/client/sessions/conversation-draft.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
+import { MutableSessionEventSource, type SessionControls } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createScope } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -138,6 +140,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     sessionId: SessionId
     session: { sessionId: SessionId; projections: { faceOf: () => SnapshotStore<ModelSelectionProjection | undefined> } }
     ctx: Context
+    controls?: SessionControls
   }>()
   const addressed = new Set<SessionId>()
   ctx.provide('sessions', {
@@ -151,7 +154,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   await ctx.plugin(function probe() {}).await()
-  const mint = (key: string) => {
+  const mint = (key: string, controls?: SessionControls) => {
     const id = sid(key)
     const handle = createScope(ctx, id)
     scopes.set(id, handle.ctx)
@@ -164,6 +167,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       sessionId: id,
       session: { sessionId: id, projections: { faceOf: () => projection } },
       ctx: handle.ctx,
+      ...(controls ? { controls } : {}),
     }
     bindings.set(id, binding)
     handle.ctx.effect(() => () => {
@@ -505,4 +509,21 @@ describe('ui-model-selection dual entry', () => {
     await Promise.resolve()
     expect(b.calls).toEqual({ models: 2, select: 0 })
   })
+})
+
+it('loads an idle draft model catalog when the composer seat binds, without opening its menu', async () => {
+  const b = await bench()
+  const loadModels = vi.fn(async () => ({ default: { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+    groups: GROUPS, failures: [], routableProviders: ['deepseek-official'] }))
+  const materialize = vi.fn(async () => { throw new Error('must remain a draft') })
+  const draft = createConversationDraft({ eventSource: new MutableSessionEventSource(), title: 'Draft', loadModels,
+    materialize, listTasks: async () => [], openExecution: vi.fn() })
+  try {
+    b.mint('draft', draft.controls)
+    const seat = b.seat().inject!(sid('draft'))
+    await vi.waitFor(() => { expect(seat.directory.getSnapshot()).toMatchObject({ status: 'ready',
+      current: { provider: 'deepseek-official', model: 'deepseek-v4-pro' } }) })
+    expect(loadModels).toHaveBeenCalledOnce()
+    expect(materialize).not.toHaveBeenCalled()
+  } finally { draft.dispose(); await b.ctx.fiber.dispose() }
 })

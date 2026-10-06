@@ -75,7 +75,7 @@ API 高级执行通过普通 loop、独立模型适配器与受控 read_file/wri
 
 ## Codex 高级执行
 
-executionCodex 默认空数组。当前 backend 使用 `{ kind: codex, dispatch: local, runtimeVersion: 0.153.4, model, effort, maxTurns, maxDurationMs }`，只允许 codex-turn，budget 不超过 maxTurns；API Run 省略 backend。Host 和组织策略均须允许模型及限额。模型/推理选项来自本机安全 catalog，无 endpoint/key 表单。
+executionCodex 默认空数组。当前 backend 使用 `{ kind: codex, dispatch: local, runtimeVersion: <本机检测版本>, model, effort, maxTurns, maxDurationMs }`，只允许 codex-turn，budget 不超过 maxTurns；API Run 省略 backend。Host 和组织策略均须允许模型及限额。模型/推理选项来自本机安全 catalog，无 endpoint/key 表单。
 
 每次应用派发 turn 消耗一个单位；Codex 内部模型与原生工具不计入 Harness 动作额度。首次 running 保存 startedAt，暂停和人工等待不重置时长。nativeActive 核验已运行 turn 的访问、依赖、策略、设置和累计时长，最后一个 turn 可在预算用尽后结算；权限或时长丢失时中止并等待进程退出。
 

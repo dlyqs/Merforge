@@ -1,16 +1,14 @@
+import { codexExecutableArgv, codexAppServerArgv } from '@deepseek-ai/dsh-codex-runtime'
 import { execFile } from 'node:child_process'
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { delimiter, dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -33,15 +31,11 @@ import {
 import { cleanupRealProduct } from './real-product-cleanup.ts'
 
 const execFileAsync = promisify(execFile)
-const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const codexBinDir = join(packageRoot, 'node_modules', '.bin')
-const codexPackageJson = createRequire(import.meta.url).resolve('@openai/codex/package.json')
-const codexPackage = JSON.parse(readFileSync(
-  codexPackageJson,
-  'utf8',
-)) as { version: string; bin: { codex: string } }
-const codexEntry = resolve(dirname(codexPackageJson), codexPackage.bin.codex)
-const codexPackageRoot = dirname(dirname(codexEntry))
+const localCommand = (() => {
+  try { return codexExecutableArgv() }
+  catch (error) { void error; return undefined /* Real-product tests require a user-installed CLI. */ }
+})()
+
 
 const roots: string[] = []
 const fixtures: ResponsesFixture[] = []
@@ -101,7 +95,7 @@ async function realInstanceFixture(
     CODEX_HOME: codexHome,
     HOME: root,
     XDG_CONFIG_HOME: join(root, 'xdg'),
-    PATH: `${codexBinDir}${delimiter}${process.env.PATH ?? ''}`,
+    PATH: process.env.PATH ?? '',
     HTTP_PROXY: '',
     HTTPS_PROXY: '',
     ALL_PROXY: '',
@@ -208,22 +202,21 @@ function responseInputTexts(body: Record<string, unknown>): string[] {
   })
 }
 
-describe('real @openai/codex 0.153.4 product', () => {
+describe.runIf(localCommand !== undefined)('real user-installed Codex product', () => {
   it('starts approve-for-me through the real app-server and returns exact text', async () => {
     const sentinel = 'REAL_CODEX_SENTINEL_0_149_1'
     const task = 'Return the fixture sentinel exactly.'
     const { harness, fixture } = await realHarness([
       { kind: 'complete', text: sentinel },
     ], 'approve-for-me')
-    expect(codexPackage.version).toBe('0.153.4')
-    const version = await execFileAsync(process.execPath, [codexEntry, '--version'], {
+    const version = await execFileAsync(localCommand![0]!, [...localCommand!.slice(1), '--version'], {
       env: { ...process.env, ...harness.env },
     })
-    expect(version.stdout.trim()).toBe('codex-cli 0.153.4')
+    expect(version.stdout.trim()).toMatch(/^codex-cli \d+\.\d+\.\d+/)
     const schemaRoot = mkdtempSync(join(tmpdir(), 'dsh-codex-schema-'))
     roots.push(schemaRoot)
-    await execFileAsync(process.execPath, [
-      codexEntry,
+    await execFileAsync(localCommand![0]!, [
+      ...localCommand!.slice(1),
       'app-server',
       'generate-json-schema',
       '--out',
@@ -253,12 +246,7 @@ describe('real @openai/codex 0.153.4 product', () => {
     })
     await run.dispose()
 
-    expect(harness.spawnSpecs[0]?.argv).toEqual([
-      process.execPath,
-      codexEntry,
-      'app-server',
-      '--stdio',
-    ])
+    expect(harness.spawnSpecs[0]?.argv).toEqual(codexAppServerArgv(harness.env))
 
     expect(fixture.requests).toHaveLength(1)
     const recorded = fixture.requests[0]!
@@ -269,24 +257,6 @@ describe('real @openai/codex 0.153.4 product', () => {
     expect(responseInputTexts(recorded.body)).toContain(task)
     await expectQuiescent(harness.handles)
   }, 60_000)
-
-  it('fails a missing platform payload without falling back to a host codex', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'dsh-codex-missing-payload-'))
-    roots.push(root)
-    const isolatedPackage = join(root, 'node_modules', '@openai', 'codex')
-    mkdirSync(dirname(isolatedPackage), { recursive: true })
-    cpSync(codexPackageRoot, isolatedPackage, { recursive: true, dereference: true })
-    const isolatedEntry = join(isolatedPackage, 'bin', 'codex.js')
-
-    await expect(execFileAsync(process.execPath, [isolatedEntry, '--version'], {
-      env: {
-        PATH: codexBinDir,
-        ...process.platform === 'win32' && process.env.SystemRoot !== undefined
-          ? { SystemRoot: process.env.SystemRoot }
-          : {},
-      },
-    })).rejects.toThrow(/Missing optional dependency @openai\/codex-[a-z0-9-]+/)
-  }, 30_000)
 
   it('runs two named instances concurrently and unloads one without revoking its run', async () => {
     const safeInstance = await realInstanceFixture([{ kind: 'hold' }])

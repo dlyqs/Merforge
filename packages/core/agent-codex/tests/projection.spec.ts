@@ -49,3 +49,13 @@ it('keeps advertised task actions and distinguishes older native threads', () =>
   expect(projection.stateSchema.parse(state).dynamicTools).toEqual(['workflow_assess'])
   expect(projection.wire.view(state).dynamicTools).toEqual(['workflow_assess'])
 })
+
+it('reads both historical and current local CLI versions without a fixed release restriction', () => {
+  for (const runtimeVersion of ['0.153.4', '0.160.1', '0.161.0-alpha.1']) {
+    const backend = { ...selection, runtimeVersion }
+    expect(readAgentBackend([event('agent/backend', backend)])).toEqual(backend)
+    let state = projection.apply(projection.init(), event('agent/backend', backend))
+    state = projection.apply(state, event('codex/thread-preparing', { cwd: '/cwd', selection: backend }))
+    expect(() => projection.apply(state, event('codex/thread-bound', { threadId, cwd: '/cwd', runtimeVersion }))).not.toThrow()
+  }
+})

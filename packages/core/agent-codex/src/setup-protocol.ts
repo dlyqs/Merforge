@@ -9,7 +9,7 @@ export const codexSetupCategorySchema = z.enum(['payload', 'unknown-start', 'sta
   'rpc', 'timeout', 'closed', 'unknown-send', 'unknown-thread', 'cleanup', 'busy', 'login-required', 'login-failed', 'models-empty', 'catalog'])
 /** Safe shared state, without native identity or short-lived grants. */
 export const codexSetupSnapshotSchema = z.object({ revision: z.number().int().nonnegative(),
-  runtime: z.object({ version: z.literal('0.153.4'), status: z.enum(['unknown', 'ready', 'error']), category: codexSetupCategorySchema.optional() }).strict(),
+  runtime: z.object({ version: z.string().max(100).regex(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u).nullable(), status: z.enum(['unknown', 'ready', 'error']), category: codexSetupCategorySchema.optional() }).strict(),
   account: z.discriminatedUnion('status', [z.object({ status: z.literal('unknown') }).strict(),
     z.object({ status: z.literal('known'), value: z.object({ kind: z.enum(['none', 'apiKey', 'chatgpt', 'amazonBedrock']), requiresOpenaiAuth: z.boolean() }).strict() }).strict(),
     z.object({ status: z.literal('error'), category: codexSetupCategorySchema }).strict()]),

@@ -10,7 +10,7 @@ export type CodexSetupCategory = CodexFailureCategory | 'busy' | 'login-required
 /** Availability and login are independent observations. */
 export interface CodexSetupSnapshot {
   readonly revision: number
-  readonly runtime: { readonly version: '0.153.4'; readonly status: 'unknown' | 'ready' | 'error'; readonly category?: CodexSetupCategory | undefined }
+  readonly runtime: { readonly version: string | null; readonly status: 'unknown' | 'ready' | 'error'; readonly category?: CodexSetupCategory | undefined }
   readonly account: { readonly status: 'unknown' } | { readonly status: 'known'; readonly value: CodexAccount } | { readonly status: 'error'; readonly category: CodexSetupCategory }
   readonly catalog: { readonly status: 'unknown' | 'ready' | 'empty' | 'error'; readonly models: readonly CodexModel[]; readonly category?: CodexSetupCategory | undefined }
   readonly login: { readonly status: 'idle' | 'starting' | 'waiting' | 'verifying' | 'succeeded' | 'failed' | 'cancelled' | 'timeout'

@@ -75,7 +75,7 @@ export function CodexCard(props: InjectFace<CodexCardInjected>) {
           </div>
         </div>
         <dl className={css.facts}>
-          <div><dt>{t('codex.runtime')}</dt><dd>{snapshot?.runtime.version ?? t('codex.runtime.bundled')} · {t(`codex.runtime.${snapshot?.runtime.status ?? 'unknown'}`)}</dd></div>
+          <div><dt>{t('codex.runtime')}</dt><dd>{snapshot?.runtime.version ?? t('codex.runtime.local')} · {t(`codex.runtime.${snapshot?.runtime.status ?? 'unknown'}`)}</dd></div>
           <div><dt>{t('codex.models')}</dt><dd>{t(`codex.models.${snapshot?.catalog.status ?? 'unknown'}`)}</dd></div>
         </dl>
         {login !== 'idle' && <p className={styles.intro} role="status" aria-live="polite">{t(`codex.login.${login}`)}</p>}

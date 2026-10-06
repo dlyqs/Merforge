@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 ## Summary
 
-Install `@deepseek-ai/dsh-subagent-codex` into a Profile when delegated work should run in a genuine, unattended Codex session in the parent Session's workspace. Each delegation uses a fresh isolated Codex thread for one self-contained text task and returns only its final answer or a safe failure diagnostic. Native Codex configuration and authentication remain authoritative, while `permissionMode` selects the non-interactive approval and sandbox behavior. The Bundle supplies a compatible native Codex payload, but it exposes no model capability until a delegation tool is configured.
+Install `@deepseek-ai/dsh-subagent-codex` into a Profile when delegated work should run in a genuine, unattended Codex session in the parent Session's workspace. Each delegation uses a fresh isolated Codex thread for one self-contained text task and returns only its final answer or a safe failure diagnostic. Native Codex configuration and authentication remain authoritative, while `permissionMode` selects the non-interactive approval and sandbox behavior. The user supplies the local Codex CLI; the Bundle exposes no model capability until a delegation tool is configured.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Mount this provider when a delegation should run as a real Codex session in the 
 
 ### Installing the Bundle
 
-Compose the provider in the private Desktop profile and install its declared package closure through the supported Desktop dependency procedure. The Bundle patch registers only the dormant provider and starts no Codex process. The shared `@deepseek-ai/dsh-codex-runtime` dependency now owns the pinned wrapper and native payload; this package owns the one-shot policy.
+Compose the provider in the private Desktop profile and install its declared package closure through the supported Desktop dependency procedure. The Bundle patch registers only the dormant provider and starts no Codex process. The shared `@deepseek-ai/dsh-codex-runtime` dependency resolves the user-installed CLI; this package owns the one-shot policy.
 
 Removing the package withdraws the provider and its private runtime closure on the next Profile start. Installation controls Host availability, not model permission: the model can only reach the provider through a delegation tool row you compose.
 
@@ -76,7 +76,7 @@ A foreground call gives the model the selected final Codex answer, or an error w
 
 ### Failure and recovery
 
-An install that omits optional dependencies, uses an unsupported platform, or loses the selected payload leaves the provider dormant and fails the first delegation at `initialize` with a safe `unknown` category and any observed process outcome; there is no host-CLI fallback. Raw wrapper stderr is drained and discarded; only safe diagnostic facts are exposed. A cancelled run settles as `aborted`.
+A missing or damaged local CLI leaves the provider dormant and fails the first delegation at `initialize` with a safe `unknown` category and any observed process outcome; there is no bundled fallback. Raw wrapper stderr is drained and discarded; only safe diagnostic facts are exposed. A cancelled run settles as `aborted`.
 
 -----
 
@@ -101,7 +101,7 @@ This section explains how the provider drives a real Codex app-server and where 
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, provider registration |
 | [`src/run.ts`](src/run.ts) | The run lifecycle, turn execution, result selection, and diagnostics |
 | [`src/wire.ts`](src/wire.ts) | One-shot protocol policy, unattended responses, final-answer selection |
-| [`codex-runtime`](../codex-runtime/README.md) | Shared fixed payload, line-framed transport, request correlation, and managed-range disposal |
+| [`codex-runtime`](../codex-runtime/README.md) | Shared local executable lookup, line-framed transport, request correlation, and managed-range disposal |
 | [`cordis.patch.yml`](cordis.patch.yml) | The Profile patch layer that registers the dormant provider |
 
 ### Run flow
@@ -132,7 +132,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-The Codex child receives the standalone text blocks as one turn in a fresh ephemeral thread. Its workspace is the parent Session cwd; the selected Provider instance fixes any configured model, environment, non-interactive approval policy, and sandbox mode, while an omitted model and every other product setting come from native Codex configuration. The executable version comes from the Bundle's pinned platform payload.
+The Codex child receives the standalone text blocks as one turn in a fresh ephemeral thread. Its workspace is the parent Session cwd; the selected Provider instance fixes any configured model, environment, non-interactive approval policy, and sandbox mode, while an omitted model and every other product setting come from native Codex configuration. The executable version is controlled by the user’s local CLI installation.
 
 #### Token effect
 
@@ -166,8 +166,8 @@ These limits define when this provider is a poor fit or needs special operationa
 - **One fresh process, thread, and turn per run** — there is no continuation, resume, pooling, progress stream, or product-session persistence. The shared runtime has a separate persistent API; this provider does not expose it.
 - **Static instance selection** — Profile rows fix provider names, optional models, and tool bindings; calls cannot choose or change either a provider or model dynamically, and every exposed tool needs a unique `toolName`.
 - **Authentication and account state remain native** — the Bundle supplies the CLI but does not create an account, log in, trust a project, or rewrite Codex settings; configuration and authentication failures surface with their lifecycle stage and the safe `unknown` fallback rather than a separate public taxonomy.
-- **The native platform payload is required at delegation time** — installs that omit optional dependencies, unsupported platforms, and missing or damaged payloads fail at the first run; there is no host-CLI fallback.
-- **Compatibility is pinned by development evidence** — upgrading from the verified 0.153.4 protocol baseline requires regenerating upstream schema evidence and rerunning handshake, answer-selection, approval, cancellation, keyless real-product, and credentialed DeepSeek nonce tests.
+- **The local CLI is required at delegation time** — missing or damaged installations fail at the first run; there is no bundled fallback.
+- **Local CLI compatibility** — the user owns Codex installation and updates. Protocol fixtures cover application behavior; installed-CLI schema and keyless real-product tests require local Codex. Credentialed DeepSeek nonce tests retain their API-key opt-in.
 - **No human approval path** — known unattended approval requests are denied and unknown server requests fail closed; the three Profile modes never create a DSH interaction channel or per-call allow policy.
 - **Assistant payload is final text only** — a failed run may additionally expose the separate safe diagnostic; reasoning, commentary, intermediate messages, tool traffic, usage, raw stderr, and workspace diffs remain outside the parent Session, while generic Job ids, notices, and status come from the shared job runtime.
 - **No optional shared capabilities** — `agentOptions`, output schemas, child personas, tool filtering, and harness depth enforcement are rejected by the shared service for this provider.
@@ -182,7 +182,7 @@ These limits define when this provider is a poor fit or needs special operationa
 This Dev Note is working context for maintainers: open questions and undecided directions. It is explicitly non-authoritative — shipped behavior and limits live in the sections above and in the package code.
 
 - **Payload size disclosure** — the current darwin-arm64 platform payload packs to about 114 MB and unpacks to about 282 MB; these are disclosure numbers, not installation thresholds.
-- **Version-pinned protocol** — the runtime dependency is pinned to `@openai/codex@0.153.4`; upgrading requires regenerating the upstream schema evidence and rerunning the credentialed nonce tests.
+- **No bundled Codex** — the shared runtime launches only the user-installed CLI. Missing installations fail explicitly; Merforge never downloads or selects a package-owned fallback.
 
 </details>
 

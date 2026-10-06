@@ -57,6 +57,7 @@ export class DesktopOrganizationProcess {
     const entry = join(this.runtimeDirectory, 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'organization.js')
     const child = spawn(this.executable, [entry], {
       env: { ELECTRON_RUN_AS_NODE: '1', PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP },
+      windowsHide: true,
       stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     })
     let resolve!: Attempt['resolve']

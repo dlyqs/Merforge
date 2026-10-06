@@ -108,7 +108,7 @@ export interface AgentBackendSelection {
   readonly kind: 'codex'
   readonly model: string
   readonly effort: string
-  readonly runtimeVersion: '0.153.4'
+  readonly runtimeVersion: string
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

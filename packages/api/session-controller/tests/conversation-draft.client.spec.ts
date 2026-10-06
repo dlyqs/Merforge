@@ -64,3 +64,51 @@ it('applies the selected model and planning mode before admitting the first inpu
   expect(dispose).not.toHaveBeenCalled()
   draft.dispose()
 })
+
+it('initializes draft permissions and defers changes until the first prompt', async () => {
+  const command = vi.fn<SessionFace['command']>(async () => ({ ok: true, value: { matched: true } }))
+  const prompt = vi.fn<SessionFace['prompt']>(async () => ({ ok: true, value: { accepted: true } }))
+  const materialize = vi.fn(async () => {
+    const binding = { sessionId: draft.session.sessionId, session: { command, prompt } } as SessionReference['binding']
+    const dispose = vi.fn()
+    const reference: SessionReference = { sessionId: binding.sessionId, binding, ready: Promise.resolve(binding),
+      release: dispose, [Symbol.dispose]: dispose }
+    return { reference, controls: draft.controls, dispose, commit: vi.fn() }
+  })
+  const draft = createConversationDraft({ eventSource: new MutableSessionEventSource(), title: 'Draft',
+    loadModels: async () => ({ default: { provider: 'test', model: 'test' }, groups: [], failures: [], routableProviders: ['test'] }),
+    loadPermissions: async () => ({ defaultPreset: 'read-only', options: [{ value: 'read-only' }, { value: 'workspace-write' }] }),
+    materialize, listTasks: async () => [], openExecution: vi.fn() })
+  try {
+    await vi.waitFor(() => { expect(draft.session.projections.faceOf('permissions').getSnapshot()).toEqual({ currentValue: 'read-only' }) })
+    await draft.session.command('/permission workspace-write')
+    expect(draft.session.projections.faceOf('permissions').getSnapshot()).toEqual({ currentValue: 'workspace-write' })
+    await expect(draft.session.command('/permission missing')).rejects.toThrow('unknown-permission-preset')
+    expect(materialize).not.toHaveBeenCalled()
+    expect(command).not.toHaveBeenCalled()
+    await draft.session.prompt([{ type: 'text', text: 'Start' }], 'queue')
+    expect(command).toHaveBeenCalledExactlyOnceWith('/permission workspace-write')
+    expect(command.mock.invocationCallOrder[0]).toBeLessThan(prompt.mock.invocationCallOrder[0]!)
+  } finally { draft.dispose() }
+})
+
+it('leaves the first prompt unsubmitted when its permission change is refused', async () => {
+  const command = vi.fn<SessionFace['command']>(async () => ({ ok: true, value: { matched: false } }))
+  const prompt = vi.fn<SessionFace['prompt']>()
+  const dispose = vi.fn()
+  const draft = createConversationDraft({ eventSource: new MutableSessionEventSource(), title: 'Draft',
+    loadModels: async () => ({ default: { provider: 'test', model: 'test' }, groups: [], failures: [], routableProviders: ['test'] }),
+    loadPermissions: async () => ({ defaultPreset: 'read-only', options: [{ value: 'workspace-write' }] }),
+    materialize: async () => {
+      const binding = { sessionId: draft.session.sessionId, session: { command, prompt } } as SessionReference['binding']
+      const reference: SessionReference = { sessionId: binding.sessionId, binding, ready: Promise.resolve(binding),
+        release: dispose, [Symbol.dispose]: dispose }
+      return { reference, controls: draft.controls, dispose, commit: vi.fn() }
+    }, listTasks: async () => [], openExecution: vi.fn() })
+  try {
+    await draft.session.command('/permission workspace-write')
+    await expect(draft.session.prompt([{ type: 'text', text: 'Start' }], 'queue')).rejects.toThrow('permission-command-required')
+    expect(prompt).not.toHaveBeenCalled()
+    expect(dispose).toHaveBeenCalledOnce()
+  } finally { draft.dispose() }
+})

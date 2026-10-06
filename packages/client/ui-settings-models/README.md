@@ -31,7 +31,7 @@ Host configuration `credentialOnboarding` defaults to `true`. Electron’s prelo
 
 ### Desktop Codex
 
-Desktop adds an independent Codex card before API providers, including when their settings join fails. The card observes the bundled runtime version, safe native authentication, model/effort availability and login separately. Detect and explicit device-code sign-in use the fixed preload capability. No global CLI or Merforge API key is required. Missing or mismatched payloads require application repair.
+Desktop adds an independent Codex card before API providers, including when their settings join fails. The card observes the user-installed CLI version, safe native authentication, model/effort availability and login separately. Detect and explicit device-code sign-in use the fixed preload capability. A locally installed Codex CLI is required; no Merforge API key is required. Missing CLI errors instruct the user to install Codex and expose it on PATH.
 
 One registration-owned source shares pushed state across mounts. Only the initiating window receives the short-lived code and cancel/open actions. Closing settings preserves the Host attempt; Host loss invalidates its grant, and unloading the Client detaches its observer. Codes stay in memory and never enter settings, Sessions or localStorage. Cancellation confirmation and failed process cleanup are shown separately. Signing in never selects a model or starts work.
 

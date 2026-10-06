@@ -92,7 +92,7 @@ Switching the route can reduce or invalidate provider-side cache reuse for subse
 
 These limits define the current model surface. They are current package constraints, not a general model-router comparison or a task backlog.
 
-- **No create-time or addressed-subagent selection** — both entries require an existing ordinary session's Agent; there is no draft-phase model choice to fold into session creation, and subagent continuation deliberately exposes no independent model-selection contract.
+- **Addressed-subagent selection** — subagent continuation exposes no independent model-selection operation. Client-memory drafts use their local controls and start loading an idle model catalog when the composer seat binds; their model choice is applied when the first input creates a Session.
 - **Directory names are presentation-only** — selection and persistence use provider/model/effort ids; a provider whose catalog or exact-model metadata lookup fails lists as an unselectable failure row until reload.
 - **No arbitrary effort input** — the composer offers only the exact model's adapter-advertised levels; an adapter without reasoning metadata leaves the Effort row absent.
 

@@ -189,3 +189,8 @@ export async function readStored(ctx: Context, id: ReturnType<typeof SessionId>)
   return await handle.read()
 }
 export function input(text: string) { return createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }) }
+
+vi.mock('../../../subagent/codex-runtime/src/process.ts', async original => ({
+  ...await original<typeof import('../../../subagent/codex-runtime/src/process.ts')>(),
+  codexAppServerArgv: () => ['/fixture/codex', 'app-server', '--stdio'],
+}))

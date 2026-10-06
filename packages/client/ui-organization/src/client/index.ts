@@ -354,6 +354,11 @@ export function apply(ctx: Context): void {
       ...(target.project ? { projectId: target.project.id } : {}), ...(target.botId ? { botId: target.botId } : {}) }
     const sequence = openSequence
     draft = ctx.sessions.createDraft({ eventSource: ctx.sessions.createEventSource(), title: ctx.locale.bind('organization')('newConversation'),
+      loadPermissions: async () => {
+        const result = await ctx.remote.permissionPresets.catalog()
+        if (!result.ok) throw new Error(result.error.message)
+        return result.value
+      },
       loadModels: async () => {
         const catalog = await loadModels()
         if (!target.botId || !target.project || !desktop) return catalog

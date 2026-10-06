@@ -4,9 +4,13 @@
 
 ## 固定版本与证据等级
 
-官方 payload 为 `@openai/codex@0.153.4`。本机离线执行 `--version` 得到 `codex-cli 0.153.4`，执行 `app-server generate-json-schema --experimental --out <temporary-directory>` 生成官方 JSON schema；没有运行真实 app-server、读取认证文件或调用模型。裁剪后的字段、required 与相关枚举记录在 [`protocol-0.153.4.json`](../packages/subagent/codex-runtime/tests/fixtures/protocol-0.153.4.json)。聚焦测试分别生成 experimental 与 stable schema，比较字段与稳定面可用性，升级时必须重新核验。schema 支持表示协议存在，不等于登录、隔离、计费或平台行为验证通过。
+应用只使用用户本机安装的 Codex CLI，不依赖或分发 `@openai/codex`。每次创建连接先查找绝对 PATH，再查找平台常规安装目录；macOS 包括 `/opt/homebrew/bin` 与 `/usr/local/bin`，Windows 包括用户 roaming npm 目录。npm wrapper 使用 Host Node，原生二进制直接执行，不启动 shell。缺少本机 CLI 明确失败，不安装或回退到内置版本。重新检测创建新连接，因此会重新选择已升级的 CLI，并从 initialize 响应读取实际版本。
 
-| 方法/事件 | 0.153.4 字段及消费者规则 |
+`runtimeVersion` 记录原生版本字符串，旧 `0.153.4` Session 仍可读取。原生 thread 的创建版本不必等于当前 CLI 版本；恢复仍核对 cwd、model、thread ID、完整历史及 Session 关联。组织策略明确授权版本，执行前核对实际 CLI 版本与授权。模型目录携带与该次探测一致的版本，个人后端选择与组织请求消费它。
+
+历史离线 schema 留在 [`protocol-0.153.4.json`](../packages/subagent/codex-runtime/tests/fixtures/protocol-0.153.4.json)，它不是生产版本限制。当前协议测试使用已安装 CLI 生成 schema，检查消费者所需字段，不把新增上游字段判为错误。真实登录、推理和各平台行为仍由用户验收。
+
+| 方法/事件 | 消费字段及规则 |
 | --- | --- |
 | `initialize` → `initialized` | 显式发送 `experimentalApi` 和 `requestAttestation: false`；返回平台字段及本机 `codexHome`，后者仅留 Host。完成 handshake 才发业务 RPC |
 | `account/read` | `refreshToken: false`；`requiresOpenaiAuth` 与可空 `account`。只输出 `none/apiKey/chatgpt/amazonBedrock` 和认证要求；不输出 email、token、plan 或 home |

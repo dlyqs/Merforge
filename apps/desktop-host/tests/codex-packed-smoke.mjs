@@ -67,5 +67,5 @@ try {
       assert.ok(stdout.includes(script === 'codex-built-smoke.mjs' ? 'codex built smoke:' : 'codex setup built smoke:'))
     }
   }
-  console.log(`codex packed smoke passed: ${process.platform}/${process.arch}, npm tarball exports, Node + Electron Node mode, pinned argv without PATH, new-user sign-in/cancel/catalog, two turns and human replies`)
+  console.log(`codex packed smoke passed: ${process.platform}/${process.arch}, npm tarball exports, Node + Electron Node mode, local executable argv, new-user sign-in/cancel/catalog, two turns and human replies`)
 } finally { await rm(root, { recursive: true, force: true }) }

@@ -63,7 +63,6 @@
     "@deepseek-ai/dsh-timeout": "workspace:*",
     "@deepseek-ai/dsh-tool-jobs": "workspace:*",
     "@deepseek-ai/dsh-tool-subagent": "workspace:*",
-    "@deepseek-ai/dsh-tools": "workspace:*",
-    "@openai/codex": "0.153.4"
+    "@deepseek-ai/dsh-tools": "workspace:*"
   }
 }

@@ -1,15 +1,14 @@
+import { codexExecutableArgv } from '@deepseek-ai/dsh-codex-runtime'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -25,12 +24,11 @@ import {
 } from './deepseek-responses-bridge.ts'
 
 const execFileAsync = promisify(execFile)
-const codexPackageJson = createRequire(import.meta.url).resolve('@openai/codex/package.json')
-const codexPackage = JSON.parse(readFileSync(
-  codexPackageJson,
-  'utf8',
-)) as { version: string; bin: { codex: string } }
-const codexEntry = resolve(dirname(codexPackageJson), codexPackage.bin.codex)
+const localCommand = (() => {
+  try { return codexExecutableArgv() }
+  catch (error) { void error; return undefined /* Real-product tests require a user-installed CLI. */ }
+})()
+
 
 const roots: string[] = []
 const contexts: Context[] = []
@@ -50,7 +48,7 @@ async function expectQuiescent(handles: readonly SubprocessHandle[]): Promise<vo
   }
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)(
+describe.skipIf(!process.env.DEEPSEEK_API_KEY || localCommand === undefined)(
   'Codex provider with real DeepSeek API',
   () => {
     it('returns one unique nonce through the production provider and real Codex', async () => {
@@ -108,11 +106,10 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)(
         return handle
       })
       await ctx.plugin(codex, { env, disposeGraceMs: 2_000 })
-      const version = await execFileAsync(process.execPath, [codexEntry, '--version'], {
+      const version = await execFileAsync(localCommand![0]!, [...localCommand!.slice(1), '--version'], {
         env: { ...process.env, ...env },
       })
-      expect(codexPackage.version).toBe('0.153.4')
-      expect(version.stdout.trim()).toBe('codex-cli 0.153.4')
+      expect(version.stdout.trim()).toMatch(/^codex-cli \d+\.\d+\.\d+/)
 
       const parent = {
         id: 'deepseek-e2e-parent',

@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutlineMedium, IconWarningOutlineRegular, Toast, Tooltip,
+  IconPlusOutlineMedium, IconWarningOutlineRegular, IconPaperclipOutlineRegular, Menu, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // The `imageLimits` projection key merge (intake pre-check) arrives with the
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
@@ -40,7 +40,7 @@ export type InputBarProps = ComposerBarProps
 export const InputBar = memo(function InputBar({
   useSession, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
   retryFileUpload,
-  toggleCommandMenu, stop, t,
+  stop, t,
   renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
@@ -50,7 +50,8 @@ export const InputBar = memo(function InputBar({
   const notice = useNotices(s => s)
   const busyEnter = useBusyEnter(s => s)
   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
-  const commandMenuOpen = useMenuLauncher(source => source === 'command')
+  const [fileMenuOpen, setFileMenuOpen] = useState(false)
+  const commandMenuOpen = useMenuLauncher(source => source === 'command') || fileMenuOpen
   const [activity, setActivity] = useState(false)
   useEffect(() => { setActivity(false) }, [sessionId])
   const promptError = useSession(s => s.promptError) ?? null
@@ -261,14 +262,14 @@ export const InputBar = memo(function InputBar({
     keepDraftFocus(e, editor)
   }
 
-  const onToggleCommandMenu = (): void => {
-    if (keyboard === undefined) return
-    // Lexical restores selection asynchronously; launch only after that commit
-    // so its caret update cannot immediately dismiss the new menu.
-    const launch = (): void => { toggleCommandMenu?.(keyboard.caretSpan()) }
-    if (editor !== null) focusDraftEditor(editor, revealSelection, launch)
-    else launch()
+  const onToggleFileMenu = (): void => {
+    if (!fileMenuOpen) {
+      keyboard?.arbitrate('escape', false)
+      keyboard?.dismissPopup()
+    }
+    setFileMenuOpen(open => !open)
   }
+  useEffect(() => { setFileMenuOpen(false) }, [sessionId, locked, machineBusy, activity])
 
   // The no-session Workspace trigger: the resident editable div acts as the
   // picker trigger for keyboard users (no editor is bound in this state).
@@ -403,20 +404,29 @@ export const InputBar = memo(function InputBar({
         />
         <div ref={rowRef} className={css.row}>
           <div className={css.tools} hidden={activity}>
-            <Tooltip label={t('input.commands')} side="top" delayMs={500}>
-              <button
-                type="button"
-                className={css.add}
-                aria-label={t('input.commands')}
-                aria-haspopup="listbox"
-                aria-expanded={commandMenuOpen}
-                disabled={locked || toggleCommandMenu === undefined}
-                onMouseDown={keepFocus}
-                onClick={onToggleCommandMenu}
-              >
-                <IconPlusOutlineMedium size={14} />
-              </button>
-            </Tooltip>
+            <Menu open={fileMenuOpen} side="top" portal autoFocus
+              onClose={() => { setFileMenuOpen(false) }}
+              items={[{ id: 'file', label: t('input.file'), icon: <IconPaperclipOutlineRegular />, disabled: !canAcceptDrop }]}
+              onSelect={() => {
+                if (!canAcceptDrop) return
+                setFileMenuOpen(false)
+                fileInputRef.current?.click()
+              }}
+              anchor={<Tooltip label={t('input.commands')} side="top" delayMs={500}>
+                <button
+                  type="button"
+                  className={css.add}
+                  aria-label={t('input.commands')}
+                  aria-haspopup="menu"
+                  aria-expanded={fileMenuOpen}
+                  disabled={locked || machineBusy}
+                  onMouseDown={keepFocus}
+                  onClick={onToggleFileMenu}
+                >
+                  <IconPlusOutlineMedium size={14} />
+                </button>
+              </Tooltip>}
+            />
             <input
               ref={fileInputRef}
               type="file"

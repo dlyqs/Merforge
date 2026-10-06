@@ -1,5 +1,8 @@
 # Codex 对话后端与组织外部执行实施计划
 
+> 历史实施记录中的固定版本与内置 payload 方案已被替代。当前应用只使用用户本机 Codex CLI；版本检测、查找和兼容规则以 [Codex backend](codex-backend.md) 为准。
+
+
 本文细化[产品路线图](../ai-native-work-os-product-roadmap.md)的 **产品 Phase 7B**。Phase 1–10 是本计划内部编号，与产品 Phase 7A、7B、7C 分开管理。针对本文说“继续”或“执行 Phase X”时，先读取本文及[工程概览](overview.md)。本计划是阶段状态的唯一来源。
 
 ## 目标、歧义检查与范围

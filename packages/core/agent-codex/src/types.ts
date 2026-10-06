@@ -18,7 +18,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     /** Thread creation dispatch intent; a missing binding after restart stays unknown. */
     'codex/thread-preparing': { readonly cwd: string; readonly selection: AgentBackendSelection }
     /** Exact persistent native thread association, observed before any turn dispatch. */
-    'codex/thread-bound': { readonly threadId: CodexThreadId; readonly cwd: string; readonly runtimeVersion: '0.153.4'; readonly dynamicTools?: readonly string[] }
+    'codex/thread-bound': { readonly threadId: CodexThreadId; readonly cwd: string; readonly runtimeVersion: string; readonly dynamicTools?: readonly string[] }
     /** Exact outgoing turn/start params committed before the protocol write. */
     'codex/send-intent': { readonly turn: number; readonly inputId: CodexInputId; readonly threadId: CodexThreadId; readonly params: JsonValue }
     /** Native turn acceptance observed independently of its terminal. */

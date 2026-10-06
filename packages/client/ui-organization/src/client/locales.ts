@@ -60,7 +60,7 @@ export const zh = {
   rootTask: '主任务', requiredNode: '必要', optionalNode: '可选',
   expandBranch: '展开「{goal}」的子任务', collapseBranch: '收起「{goal}」的子任务',
   invalidHierarchy: '草稿存在循环或未连接的父子关系，相关节点单独展示。请调整父任务后再保存。',
-  changeAvatar: '更换头像', cropAvatar: '截取头像', avatarPreview: '头像预览', avatarZoom: '缩放', avatarHorizontal: '左右位置', avatarVertical: '上下位置', saveAvatar: '保存头像',
+  changeAvatar: '更换头像', cropAvatar: '截取头像', avatarPreview: '头像预览', avatarCropHint: '滚轮缩放，拖拽调整位置', saveAvatar: '保存头像',
   'bots': 'Bots',
   'recentConversations': '最近对话',
   'newConversation': '新对话',
@@ -399,7 +399,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
-  changeAvatar: 'Change avatar', cropAvatar: 'Crop avatar', avatarPreview: 'Avatar preview', avatarZoom: 'Zoom', avatarHorizontal: 'Horizontal position', avatarVertical: 'Vertical position', saveAvatar: 'Save avatar',
+  changeAvatar: 'Change avatar', cropAvatar: 'Crop avatar', avatarPreview: 'Avatar preview', avatarCropHint: 'Scroll to zoom, drag to reposition', saveAvatar: 'Save avatar',
   deliveryBytes: 'bytes', deliverySubmittedAt: 'Submitted {time}', deliveryModifiedUnknown: 'Modification time unavailable', deliveryModifiedAt: 'Modified: {time}', deliveryDateLocale: 'en-US',
   deliveryAddFiles: 'Add attachments', deliveryContentHint: 'Describe the result, commit record, URL or delivery notes. Attachments are optional.',
   'taskConversation-unstarted': 'Not executed in the task conversation', 'taskConversation-running': 'Task conversation is running',

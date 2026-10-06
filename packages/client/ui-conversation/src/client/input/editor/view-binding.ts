@@ -49,13 +49,12 @@ export function revealDraftSelection(scrollRef: RefObject<HTMLDivElement>): void
  * Focus the borrowed editor and reveal its restored selection.
  * @param editor - the Session-owned editor.
  * @param revealSelection - reveal the selection after Lexical restores it.
- * @param onFocused - run after the editor commits its restored selection.
  */
-export function focusDraftEditor(editor: LexicalEditor, revealSelection: () => void, onFocused?: () => void): void {
+export function focusDraftEditor(editor: LexicalEditor, revealSelection: () => void): void {
   // Lexical's focus() restores the editor selection but never calls the DOM
   // focus itself; preventScroll keeps the conversation scrollport still.
   editor.getRootElement()?.focus({ preventScroll: true })
-  editor.focus(() => { revealSelection(); onFocused?.() })
+  editor.focus(() => { revealSelection() })
 }
 
 /**

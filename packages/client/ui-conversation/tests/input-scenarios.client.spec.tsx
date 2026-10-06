@@ -176,16 +176,6 @@ async function scopedBench(register?: (inputTriggers: InputTriggerService) => vo
       previewUrl: `blob:${id}`,
     })),
     useBusyEnter: bindSnapshotSelector(createSnapshotStore<'queue' | 'steer'>('queue')),
-    toggleCommandMenu: (selection) => {
-      const snapshot = shell.snapshot
-      controller.toggleSource('command', {
-        trigger: '/',
-        query: '',
-        quoted: false,
-        position: snapshot.draft.slice(0, selection.start).trim() === '' ? 'leading' : 'inline',
-        span: { ...selection, draftRev: snapshot.draftRev },
-      })
-    },
     useNotices: bindSnapshotSelector(shell.notices),
     useLexicon: bindSnapshotSelector(shell.lexicon),
     useMenuLauncher: bindSnapshotSelector(controller.launcher),
@@ -209,6 +199,43 @@ async function bench(executeImpl?: (line: string) => Promise<SubmitOutcome>) {
   const base = await scopedBench((inputTriggers) => { inputTriggers.registerSource(source) })
   return { ...base, execute, executed, envelopes }
 }
+
+describe('composer add menu', () => {
+  it('opens the local file menu without querying an empty or failing command source', async () => {
+    const candidates = vi.fn(async () => { throw new Error('command catalog unavailable') })
+    const b = await scopedBench((inputTriggers) => { inputTriggers.registerSource({
+      trigger: '/', name: 'command', candidates, onPick: () => undefined,
+    }) })
+    fireEvent.click(b.view.getByLabelText('添加'))
+    await act(async () => { await Promise.resolve() })
+    expect(b.view.getAllByRole('menuitem')).toHaveLength(1)
+    expect(b.view.getByRole('menuitem', { name: zh['input.file'] })).toBeTruthy()
+    expect(candidates).not.toHaveBeenCalled()
+    expect(b.controller.menu.getSnapshot().open).toBe(false)
+  })
+
+  it('keeps the menu open through a complete pointer click on an untouched empty composer', async () => {
+    const b = await bench()
+    const launcher = b.view.getByLabelText('添加')
+    fireEvent.pointerDown(launcher)
+    fireEvent.mouseDown(launcher)
+    fireEvent.pointerUp(launcher)
+    fireEvent.mouseUp(launcher)
+    fireEvent.click(launcher)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(b.view.getByRole('menuitem', { name: zh['input.file'] })).toBeTruthy()
+    expect(b.controller.menu.getSnapshot().open).toBe(false)
+    expect(launcher.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(launcher)
+    fireEvent.mouseDown(launcher)
+    fireEvent.pointerUp(launcher)
+    fireEvent.mouseUp(launcher)
+    fireEvent.click(launcher)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(b.view.queryByRole('menu')).toBeNull()
+    expect(launcher.getAttribute('aria-expanded')).toBe('false')
+  })
+})
 
 describe('scenario A: menu-pick /goal, type args, enter submits', () => {
   it('runs the whole claim chain through the real pipeline', async () => {

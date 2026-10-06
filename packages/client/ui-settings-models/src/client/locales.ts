@@ -3,7 +3,7 @@
 /** English strings (the key-set source of truth for this pair). */
 export const en = {
   'setup.title': 'Connect a model',
-  'setup.description': 'Choose the bundled Codex sign-in or an existing API provider. You can configure this later in Settings → Models.',
+  'setup.description': 'Choose the local Codex sign-in or an existing API provider. You can configure this later in Settings → Models.',
   'setup.ready': 'Codex models are available using native authentication. You can continue and choose a model explicitly.',
   'setup.detect': 'Codex setup shows runtime, authentication and model status with the next action.',
   'setup.codex': 'Set up Codex',
@@ -14,7 +14,7 @@ export const en = {
 
   'codex.title': 'Codex',
   'codex.runtime': 'Runtime',
-  'codex.runtime.bundled': 'Bundled runtime',
+  'codex.runtime.local': 'Local Codex CLI',
   'codex.runtime.unknown': 'Not detected',
   'codex.runtime.ready': 'Available',
   'codex.runtime.error': 'Unavailable',
@@ -52,8 +52,8 @@ export const en = {
   'codex.detect': 'Detect again',
   'codex.detecting': 'Working…',
   'codex.start': 'Sign in to Codex',
-  'codex.error.payload': 'The bundled runtime is missing or does not match this application. Repair or reinstall Merforge, then detect again.',
-  'codex.error.startup': 'The bundled runtime could not start. Check the application installation and detect again.',
+  'codex.error.payload': 'Codex CLI was not found. Install Codex locally and make it available on PATH, then detect again.',
+  'codex.error.startup': 'Local Codex could not start. Check your Codex installation and detect again.',
   'codex.error.protocol': 'The runtime returned an unsupported protocol response. Repair the application installation.',
   'codex.error.process': 'The runtime process stopped unexpectedly. Detect again.',
   'codex.error.rpc': 'The runtime request failed. Check network access and account device-code policy, then retry.',
@@ -189,7 +189,7 @@ export type ModelsKey = keyof typeof en
 /** Chinese strings (same keys as {@link en}). */
 export const zh: { [Key in keyof typeof en]: string } = {
   'setup.title': '接入模型',
-  'setup.description': '选择内置 Codex 登录或已有 API 提供商，也可稍后在“设置 → 模型”配置。',
+  'setup.description': '选择本机 Codex 登录或已有 API 提供商，也可稍后在“设置 → 模型”配置。',
   'setup.ready': '原生认证下 Codex 模型已可用，可以继续并明确选择模型。',
   'setup.detect': 'Codex 设置会分别展示运行时、认证和模型状态及下一步操作。',
   'setup.codex': '设置 Codex',
@@ -200,7 +200,7 @@ export const zh: { [Key in keyof typeof en]: string } = {
 
   'codex.title': 'Codex',
   'codex.runtime': '运行时',
-  'codex.runtime.bundled': '内置运行时',
+  'codex.runtime.local': '本机 Codex CLI',
   'codex.runtime.unknown': '尚未检测',
   'codex.runtime.ready': '可用',
   'codex.runtime.error': '不可用',
@@ -238,9 +238,9 @@ export const zh: { [Key in keyof typeof en]: string } = {
   'codex.detect': '重新检测',
   'codex.detecting': '处理中…',
   'codex.start': '登录 Codex',
-  'codex.error.payload': '内置运行时缺失或与应用不匹配，请修复或重新安装 Merforge 后重新检测。',
-  'codex.error.startup': '内置运行时启动失败，请检查应用安装后重新检测。',
-  'codex.error.protocol': '运行时协议响应不受支持，请修复应用安装。',
+  'codex.error.payload': '未找到本机 Codex CLI。请安装 Codex 并确保在 PATH 中可用，然后重新检测。',
+  'codex.error.startup': '本机 Codex 启动失败，请检查 Codex 安装后重新检测。',
+  'codex.error.protocol': '本机 Codex 协议响应不受支持，请检查 Codex 版本。',
   'codex.error.process': '运行时进程意外停止，请重新检测。',
   'codex.error.rpc': '运行时请求失败，请检查网络和账号设备码策略后重试。',
   'codex.error.timeout': '运行时请求超时，请重新检测后重试。',

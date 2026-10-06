@@ -12,7 +12,7 @@ import './control-row-dom.ts'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { waitFor, act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { $getRoot, $isTextNode } from 'lexical'
 import {
   bindSnapshotSelector, conversationSnapshot as conversationFixture, makeTranslate, RemoteError,
@@ -104,7 +104,6 @@ interface BenchOptions {
   addFiles?: (files: readonly File[], directories?: ReadonlySet<File>) => string | null
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
-  toggleCommandMenu?: (selection: { start: number; end: number }) => void
 }
 
 /** One pending queue row (the runtime snapshot shape, as the dock tests build it). */
@@ -204,7 +203,6 @@ function bench(over?: BenchOptions) {
       const attachment = over?.attachments?.find(candidate => candidate.id === id)
       return attachment === undefined ? [] : [attachment]
     }),
-    toggleCommandMenu: over?.toggleCommandMenu ?? vi.fn(),
     useBusyEnter: bindSnapshotSelector(busyEnter),
     useNotices: bindSnapshotSelector(shell.notices),
     useLexicon: bindSnapshotSelector(shell.lexicon),
@@ -1659,40 +1657,65 @@ describe('command launcher chrome and control seats', () => {
     expect(view.queryByLabelText('Model')).toBeNull()
   })
 
-  it('passes the textarea selection to the command menu launcher and reflects its expanded state', async () => {
-    const toggleCommandMenu = vi.fn()
-    const { view, shell, menuLauncher } = bench({ draft: 'draft text', toggleCommandMenu })
-    act(() => { shell.editor.update(() => { $selectDetectSpan({ start: 2, end: 7 }) }, { discrete: true }) })
+  it('opens one local File row and keeps it visible through editor selection changes', () => {
+    const { view, shell } = bench({ draft: 'draft text' })
     const launcher = view.getByLabelText('添加')
-    expect(launcher.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(launcher)
-    await waitFor(() => { expect(toggleCommandMenu).toHaveBeenCalledExactlyOnceWith({ start: 2, end: 7 }) })
-    act(() => { menuLauncher.set('command') })
-    expect(launcher.getAttribute('aria-expanded')).toBe('true')
-  })
-
-  it('opening the command menu from the button puts the keyboard in the editor first', async () => {
-    const toggleCommandMenu = vi.fn()
-    const { view, textarea } = bench({ toggleCommandMenu })
-    // Tab to the button and activate it: the keyboard is on the button, and the
-    // menu is a combobox whose arrows live on the editor.
-    textarea.blur()
-    expect(document.activeElement).not.toBe(textarea)
-    fireEvent.click(view.getByLabelText('添加'))
-    expect(document.activeElement).toBe(textarea)
-    await waitFor(() => { expect(toggleCommandMenu).toHaveBeenCalledTimes(1) })
-  })
-
-  it('waits for deferred focus restoration before opening the add menu at the restored caret', () => {
-    const toggleCommandMenu = vi.fn()
-    const { view, shell } = bench({ draft: 'draft text', toggleCommandMenu })
-    let completeFocus: (() => void) | undefined
-    vi.spyOn(shell.editor, 'focus').mockImplementation((callback) => { completeFocus = callback })
-    fireEvent.click(view.getByLabelText('添加'))
-    expect(toggleCommandMenu).not.toHaveBeenCalled()
+    expect(view.getAllByRole('menuitem')).toHaveLength(1)
+    expect(view.getByRole('menuitem', { name: '文件' })).toBeTruthy()
     act(() => { shell.editor.update(() => { $selectDetectSpan({ start: 4, end: 4 }) }, { discrete: true }) })
-    act(() => { completeFocus?.() })
-    expect(toggleCommandMenu).toHaveBeenCalledExactlyOnceWith({ start: 4, end: 4 })
+    expect(view.getByRole('menuitem', { name: '文件' })).toBeTruthy()
+    expect(launcher.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(launcher)
+    expect(view.queryByRole('menu')).toBeNull()
+  })
+
+  it('opens the file dialog on selection and preserves a ranged draft', () => {
+    const { view, shell } = bench({ draft: 'draft text' })
+    act(() => { shell.editor.update(() => { $selectDetectSpan({ start: 2, end: 7 }) }, { discrete: true }) })
+    const picker = view.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(picker, 'click')
+    fireEvent.click(view.getByLabelText('添加'))
+    fireEvent.click(view.getByRole('menuitem', { name: '文件' }))
+    expect(click).toHaveBeenCalledOnce()
+    expect(shell.snapshot.draft).toBe('draft text')
+    expect(view.queryByRole('menu')).toBeNull()
+  })
+
+  it('shows an unavailable File row without closing the menu on a native conversation', () => {
+    const { view } = bench({ native: true })
+    fireEvent.click(view.getByLabelText('添加'))
+    const file = view.getByRole<HTMLButtonElement>('menuitem', { name: '文件' })
+    expect(file.disabled).toBe(true)
+    expect(view.getByRole('menu')).toBeTruthy()
+    fireEvent.keyDown(file, { key: 'Escape' })
+    expect(view.queryByRole('menu')).toBeNull()
+  })
+
+  it('closes the file menu when the Session changes or input becomes locked', () => {
+    const { view, props, session } = bench()
+    fireEvent.click(view.getByLabelText('添加'))
+    view.rerender(<InputBar {...props} sessionId={'s2' as SessionId} />)
+    expect(view.queryByRole('menu')).toBeNull()
+    fireEvent.click(view.getByLabelText('添加'))
+    act(() => { session.set({ ...session.getSnapshot(), removed: true }) })
+    expect(view.queryByRole('menu')).toBeNull()
+    expect((view.getByLabelText('添加') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('dismisses the file menu on an outside pointer and supports keyboard selection', () => {
+    const { view } = bench()
+    const launcher = view.getByLabelText('添加')
+    fireEvent.click(launcher)
+    fireEvent.pointerDown(document.body)
+    expect(view.queryByRole('menu')).toBeNull()
+    const picker = view.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(picker, 'click')
+    fireEvent.click(launcher)
+    expect(document.activeElement).toBe(view.getByRole('menuitem', { name: '文件' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'Tab' })
+    expect(click).toHaveBeenCalledOnce()
+    expect(view.queryByRole('menu')).toBeNull()
   })
 
   it('a registered entry fills its seat and receives the locked owner prop', () => {

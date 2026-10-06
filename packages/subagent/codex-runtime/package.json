@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-codex-runtime",
-  "description": "Pinned Codex app-server transport, process ownership and persistent text threads",
+  "description": "Local Codex app-server transport, process ownership and persistent text threads",
   "version": "0.1.7-rc.1",
   "publishConfig": {
     "access": "public"
@@ -35,7 +35,6 @@
     "@deepseek-ai/dsh-subprocess-local": "workspace:*"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-brand": "workspace:*",
-    "@openai/codex": "0.153.4"
+    "@deepseek-ai/dsh-brand": "workspace:*"
   }
 }

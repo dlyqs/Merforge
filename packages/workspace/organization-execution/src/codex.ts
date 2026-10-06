@@ -158,6 +158,7 @@ export async function runCodexExecution(binding: ExecutionResult, authority: Exe
     }
     runtime = await openCodexRuntime({ ...spec, cwd: lock.root, onRequest, dynamicTools: [humanTool] }, lifetime)
     lifetime.throwIfAborted()
+    if (runtime.capabilities.version !== backend.runtimeVersion) throw new Error('organization-execution: native-selection-mismatch')
     if (journal.bound) {
       if (journal.bound.cwd !== lock.root) throw new Error('organization-execution: directory-changed')
       if (journal.intent && (!journal.result || journal.result.status === 'unknown')) {

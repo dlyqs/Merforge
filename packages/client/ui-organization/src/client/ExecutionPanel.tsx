@@ -129,8 +129,10 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
       if (p.assignment.state !== 'accepted' || p.assignment.planRevision !== task.revision) throw new Error('version-conflict')
       if (backend === 'codex' && (!effort || !catalog?.groups.some(g => g.backend === 'codex' && g.models.some(m => m.id === model
         && m.reasoning?.efforts.some(e => e.id === effort))))) throw new Error('native-unavailable')
-      const native: Inputs['backend'] = backend === 'codex' && effort ? { kind: 'codex', dispatch: 'local',
-        runtimeVersion: '0.153.4', model, effort, maxTurns: Number(actions), maxDurationMs: Number(minutes) * 60000 } : undefined
+      const runtimeVersion = catalog?.groups.find(group => group.backend === 'codex')?.runtimeVersion
+      if (backend === 'codex' && !runtimeVersion) throw new Error('native-unavailable')
+      const native: Inputs['backend'] = backend === 'codex' && effort && runtimeVersion ? { kind: 'codex', dispatch: 'local',
+        runtimeVersion, model, effort, maxTurns: Number(actions), maxDurationMs: Number(minutes) * 60000 } : undefined
       const inputs: Inputs = { model, ...(native ? { backend: native } : { endpoint, requireWriteApproval: writeApproval }),
         capabilities: native ? ['codex-turn'] : ['model', ...(read ? ['fs-read' as const] : []), ...(write ? ['fs-write' as const] : [])],
         execution: { directory, maxActions: Number(actions), maxSteps: native ? Number(actions) : Number(steps),

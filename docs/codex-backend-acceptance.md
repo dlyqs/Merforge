@@ -36,13 +36,13 @@ pnpm exec vitest run --config vitest.e2e.config.ts packages/subagent/codex-runti
 
 ## 发行闭包与平台检查
 
-Desktop Host 生产闭包包含 agent-codex、codex-runtime 和 organization-execution；共享 runtime 固定依赖 `@openai/codex@0.153.4`，one-shot 消费同一 payload。第三方 NOTICE 已声明 Apache-2.0 的官方 Codex；依赖版本和 optional 平台包以 manifest/lockfile 为准。没有安装用户 PATH CLI 或修改原生配置的备用路径。
+Desktop Host 生产闭包包含 agent-codex、codex-runtime 和 organization-execution，不包含 Codex npm wrapper 或平台二进制。个人对话和 one-shot 均使用用户安装的 CLI。安装或升级 Codex 后，“重新检测”必须显示实际 CLI 版本；移除 CLI 后必须提示安装，不得启动内置 fallback。
 
 | 平台 | 目标 payload | 用户须补的证据 |
 | --- | --- | --- |
-| macOS arm64 | `@openai/codex-darwin-arm64` → `@openai/codex@0.153.4-darwin-arm64` | 完整 App 闭包、原生文件签名、安装后版本/启动、本人登录、真实交互与取消 |
-| macOS x64 | `@openai/codex-darwin-x64` → `@openai/codex@0.153.4-darwin-x64` | 相同检查；不能借 arm64 结果宣布已验证 |
-| Windows x64 | `@openai/codex-win32-x64` → `@openai/codex@0.153.4-win32-x64` | PE/ASAR unpacked 字节与签名、安装后版本/启动、本人登录、进程树退出及冷重开 |
+| macOS arm64 | 用户安装的 macOS arm64 CLI | App 不含 Codex payload、用户 CLI 安装后版本/启动、本人登录、真实交互与取消 |
+| macOS x64 | 用户安装的 macOS x64 CLI | 相同检查；不能借 arm64 结果宣布已验证 |
+| Windows x64 | 用户安装的 Windows CLI | App 不含 Codex payload、用户 CLI 安装后版本/启动、本人登录、进程树退出及冷重开 |
 
 正式打包使用[Desktop 打包流程](../apps/desktop/README.md)，保留 runtime inventory、目标架构、版本、hash、NOTICE、签名和安装记录；Windows 签名先阅读同页 Windows EV signing 要求。测试 smoke 不启动真实 payload；离线 schema/version 检查也不证明登录或模型可用。不要用另一平台的成功扩大支持声明，缺 payload 或协议不支持应明确报错。此次不自动签名、安装、公开发布或升级用户 CLI。
 

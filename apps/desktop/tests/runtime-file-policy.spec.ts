@@ -79,14 +79,3 @@ it('retains native prebuilds for the selected macOS architecture', () => {
   expect(desktopRuntimeFileExclusion('node-pty/prebuilds/darwin-x64/pty.node', mac)).toBeDefined()
   expect(desktopRuntimeFileExclusion('node-pty/prebuilds/win32-x64/conpty.node', mac)).toBeDefined()
 })
-
-it.each([
-  ['darwin', 'arm64', '@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex'],
-  ['darwin', 'x64', '@openai/codex-darwin-x64/vendor/x86_64-apple-darwin/codex/codex'],
-  ['win32', 'x64', '@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex/codex.exe'],
-] as const)('retains the official Codex wrapper and %s/%s platform executable', (platform, arch, path) => {
-  const target = { platform, arch }
-  for (const entry of ['@openai/codex/bin/codex.js', '@openai/codex/package.json', path]) {
-    expect(desktopRuntimeFileExclusion(entry, target)).toBeUndefined()
-  }
-})

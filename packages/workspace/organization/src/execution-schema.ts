@@ -17,7 +17,7 @@ export const executionDigestSchema = z.string().regex(/^[a-f0-9]{64}$/)
 export const executionCapabilitySchema = z.enum(['model', 'fs-read', 'fs-write', 'shell', 'codex-turn'])
 /** Employee-selected local scheduling selection; contains no account, home or endpoint. */
 export const executionCodexBackendSchema = z.object({ kind: z.literal('codex'), dispatch: z.literal('local'),
-  runtimeVersion: z.literal('0.153.4'), model: z.string().min(1).max(200),
+  runtimeVersion: z.string().max(100).regex(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u), model: z.string().min(1).max(200),
   effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']),
   maxTurns: integer.positive(), maxDurationMs: integer.positive().max(2147483647),
 }).strict()

@@ -6,7 +6,7 @@ import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import type { CodexBridgeProjection } from './types.ts'
 
 const selectionSchema = z.object({ kind: z.literal('codex'), model: z.string().min(1),
-  effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']), runtimeVersion: z.literal('0.153.4') })
+  effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']), runtimeVersion: z.string().max(100).regex(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u) })
 const id = z.string().min(1)
 const turn = z.number().int().positive()
 const resultStatus = z.enum(['completed', 'interrupted', 'failed', 'unknown'])
@@ -19,7 +19,7 @@ const schema: z.ZodType<CodexBridgeProjection> = z.object({ selection: selection
 const eventSchemas = {
   'agent/backend': selectionSchema,
   'codex/thread-preparing': z.object({ cwd: id, selection: selectionSchema }),
-  'codex/thread-bound': z.object({ threadId: id, cwd: id, runtimeVersion: z.literal('0.153.4'), dynamicTools: z.array(id).optional() }),
+  'codex/thread-bound': z.object({ threadId: id, cwd: id, runtimeVersion: z.string().max(100).regex(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/u), dynamicTools: z.array(id).optional() }),
   'codex/recovery': z.object({ threadId: id, status: z.enum(['verified', 'unknown']) }),
   'codex/send-intent': z.object({ turn, inputId: id, threadId: id, params: z.json() }),
   'codex/send-receipt': z.object({ turn, inputId: id, threadId: id, turnId: id }),

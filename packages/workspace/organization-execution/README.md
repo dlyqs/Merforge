@@ -69,3 +69,5 @@ Native recovery uses a digest of the reviewed private journal, not a file-tree f
 Real native login/model behavior, Windows and visible/multiple-device acceptance remain user-owned. `apps/desktop-host/tests/organization-codex-built-smoke.mjs` verifies published private IPC/HTTPS/SQLite/JSONL consumption with an offline native peer under Node and Electron Node mode, after a Desktop build.
 
 Execution bindings retain the exact original task snapshot, including task progress when supplied. Existing snapshots without progress remain readable; current authorization always supplies the current task status separately.
+
+Native dispatch uses the user-installed Codex CLI. Before thread operations, its negotiated version must equal the version in the approved backend request; CLI upgrades require a newly approved version selection.

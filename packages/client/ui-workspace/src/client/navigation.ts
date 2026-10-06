@@ -275,6 +275,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
           ...(model.reasoningEffort ? { reasoningEffort: model.reasoningEffort } : {}),
         } } : catalog
       },
+      loadPermissions: async () => unwrap(await this.ctx.remote.permissionPresets.catalog()),
       listTasks: () => Promise.resolve([]), openExecution: () => { this.ctx.layout.selectPanel('tasks' as import('@deepseek-ai/dsh-client-ui-layout/client').MainPanelId) },
       materialize: async () => {
         assertCurrent()

@@ -53,7 +53,7 @@ export function apply(ctx: Context, config: Config): void {
     const spec = (cwd: string): CodexRuntimeSpec => ({ cwd, env: {}, limits: config, experimentalApi: true,
       spawn: request => scope.subprocess.spawn(request),
       onDiagnostic: (diagnostic) => {
-        scope.logger.debug('component=codex event=%s category=%s status=%s runtimeVersion=0.153.4',
+        scope.logger.debug('component=codex event=%s category=%s status=%s',
           diagnostic.stage, diagnostic.category ?? '', diagnostic.status ?? '')
       },
     })
@@ -63,7 +63,8 @@ export function apply(ctx: Context, config: Config): void {
       if (snapshot.catalog.status !== 'ready') {
         throw new Error(`codex-setup: ${snapshot.runtime.category ?? snapshot.catalog.category ?? 'catalog'}`)
       }
-      return { models: snapshot.catalog.models.map(model => ({
+      if (snapshot.runtime.version === null) throw new Error('codex-runtime: unavailable version')
+      return { runtimeVersion: snapshot.runtime.version, models: snapshot.catalog.models.map(model => ({
         id: model.model, name: model.displayName, efforts: model.efforts, defaultEffort: model.defaultEffort,
       })) }
     }
@@ -77,7 +78,8 @@ export function apply(ctx: Context, config: Config): void {
         if (selected === undefined) throw new Error('codex-runtime: unavailable model; refresh models')
         const resolvedEffort = effort ?? selected.defaultEffort
         if (!selected.efforts.includes(resolvedEffort)) throw new Error('codex-runtime: unavailable reasoning effort; refresh models')
-        return { kind: 'codex', model, effort: resolvedEffort, runtimeVersion: '0.153.4' }
+        if (catalog.runtimeVersion === undefined) throw new Error('codex-runtime: unavailable version')
+        return { kind: 'codex', model, effort: resolvedEffort, runtimeVersion: catalog.runtimeVersion }
       },
       create(factoryCtx, id, options, session) {
         if (!active) throw new Error('codex-runtime: unavailable')

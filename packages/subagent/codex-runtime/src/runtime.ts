@@ -53,7 +53,9 @@ export function validateCodexRuntimeSpec(spec: CodexRuntimeSpec): void {
  */
 export class CodexRuntime {
   /** Protocol support does not assert native isolation or organization eligibility. */
-  readonly capabilities: CodexCapabilities
+  private runtimeCapabilities: CodexCapabilities
+  /** Negotiated version and supported application operations for this connection. */
+  get capabilities(): CodexCapabilities { return this.runtimeCapabilities }
   /** Process exit facts remain observable independently of terminal and cleanup outcomes. */
   readonly processOutcome: Promise<import('@deepseek-ai/dsh-subprocess').SubprocessOutcome>
   private readonly child: SubprocessHandle
@@ -72,7 +74,7 @@ export class CodexRuntime {
 
   constructor(private readonly spec: CodexRuntimeSpec, child: SubprocessHandle, input: Readable, output: Writable,
     private readonly releaseActivity?: () => void) {
-    this.capabilities = Object.freeze({ version: '0.153.4', persistentText: spec.experimentalApi,
+    this.runtimeCapabilities = Object.freeze({ version: '', persistentText: spec.experimentalApi,
       controlledTools: false, organizationExecution: false, completeModelLog: false, perModelRequestPermit: false,
       steering: false, fork: false, attachments: false })
     this.child = child
@@ -112,7 +114,9 @@ export class CodexRuntime {
     this.report({ stage: 'initialize' })
     const response = protocolObject(await this.rpc('initialize', { clientInfo: { name: 'merforge', title: 'Merforge', version: '0.1.7' },
       capabilities: { experimentalApi: this.spec.experimentalApi, requestAttestation: false } }, this.spec.limits.startupTimeoutMs, signal))
-    protocolString(response.userAgent)
+    const version = /^(?:codex-cli |[^/]+\/)(\d+\.\d+\.\d+(?:-[\w.-]+)?)(?:\s|$)/u.exec(protocolString(response.userAgent))?.[1]
+    if (version === undefined) throw new CodexRuntimeError('protocol')
+    this.runtimeCapabilities = Object.freeze({ ...this.capabilities, version })
     protocolString(response.platformFamily)
     protocolString(response.platformOs)
     protocolString(response.codexHome)
@@ -567,7 +571,7 @@ export async function openCodexRuntime(spec: CodexRuntimeSpec, signal?: AbortSig
   validateCodexRuntimeSpec(spec)
   if (signal?.aborted) throw new CodexRuntimeError('closed')
   let argv: string[]
-  try { argv = codexAppServerArgv() } catch (error) { void error; throw new CodexRuntimeError('payload') }
+  try { argv = codexAppServerArgv(spec.env) } catch (error) { void error; throw new CodexRuntimeError('payload') }
   const releaseActivity = spec.purpose === 'setup' ? undefined : acquireCodexActivity('execution')
   let child: SubprocessHandle
   try {

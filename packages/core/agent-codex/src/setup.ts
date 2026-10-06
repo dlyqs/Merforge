@@ -41,7 +41,7 @@ function category(error: unknown): CodexSetupCategory {
 /** Single Host owner shared by discovery and Desktop settings. */
 export default class CodexSetup extends Service {
   static inject = ['subprocess']
-  private state: CodexSetupSnapshot = { revision: 0, runtime: { version: '0.153.4', status: 'unknown' },
+  private state: CodexSetupSnapshot = { revision: 0, runtime: { version: null, status: 'unknown' },
     account: { status: 'unknown' }, catalog: { status: 'unknown', models: [] }, login: { status: 'idle' } }
   private attempt: Attempt | undefined
   private probe: { abort: AbortController; done: Promise<CodexSetupSnapshot> } | undefined
@@ -177,16 +177,16 @@ export default class CodexSetup extends Service {
     this.state = { ...value, revision: this.state.revision + 1 }
     const logger = value.login.status !== previous.login.status || value.login.cleanup === 'failed'
       || value.runtime.status === 'error' ? this.ctx.logger.info.bind(this.ctx.logger) : this.ctx.logger.debug.bind(this.ctx.logger)
-    logger('component=codex-setup event=state status=%s category=%s generation=%s cleanup=%s cancellation=%s runtimeVersion=0.153.4',
+    logger('component=codex-setup event=state status=%s category=%s generation=%s cleanup=%s cancellation=%s runtimeVersion=%s',
       value.login.status, value.login.category ?? value.runtime.category ?? value.catalog.category ?? '', this.state.revision,
-      value.login.cleanup ?? '', value.login.cancellation ?? '')
+      value.login.cleanup ?? '', value.login.cancellation ?? '', value.runtime.version ?? '')
     this.ctx.emit('codex-setup/changed', this.state.revision)
     for (const listener of this.listeners) {
       try { listener(this.state) } catch (error) { void error /* UI sinks cannot own setup settlement. */ }
     }
   }
   private async observations(runtime: CodexRuntime): Promise<Pick<CodexSetupSnapshot, 'runtime' | 'account' | 'catalog'>> {
-    const ready = { version: '0.153.4', status: 'ready' } as const
+    const ready = { version: runtime.capabilities.version, status: 'ready' } as const
     let account
     try { account = await runtime.readAccount() }
     catch (error) { return { runtime: ready, account: { status: 'error', category: category(error) }, catalog: { status: 'unknown', models: [] } } }
@@ -213,11 +213,11 @@ export default class CodexSetup extends Service {
       runtime = await openCodexRuntime(this.spec(), signal)
       value = { ...value, ...await this.observations(runtime) }
     } catch (error) {
-      value = { ...value, runtime: { version: '0.153.4', status: 'error', category: category(error) },
+      value = { ...value, runtime: { version: runtime?.capabilities.version || null, status: 'error', category: category(error) },
         account: { status: 'unknown' }, catalog: { status: 'unknown', models: [] } }
     } finally {
       try { await runtime?.dispose() }
-      catch (error) { void error; value = { ...value, runtime: { version: '0.153.4', status: 'error', category: 'cleanup' } } }
+      catch (error) { void error; value = { ...value, runtime: { version: runtime?.capabilities.version || null, status: 'error', category: 'cleanup' } } }
     }
     return value
   }
@@ -251,7 +251,7 @@ export default class CodexSetup extends Service {
         login = { status: 'succeeded' }
         return
       }
-      this.publish({ ...this.state, runtime: { version: '0.153.4', status: 'ready' }, account: { status: 'known', value: account } })
+      this.publish({ ...this.state, runtime: { version: runtime.capabilities.version, status: 'ready' }, account: { status: 'known', value: account } })
       attempt.grant = await runtime.startDeviceCode()
       if (attempt.stop) return
       this.publish({ ...this.state, login: { status: 'waiting' } })
@@ -277,7 +277,7 @@ export default class CodexSetup extends Service {
     } catch (error) {
       cleanupFailed = category(error) === 'cleanup'
       login = { status: 'failed', category: category(error) }
-      if (!attempt.runtime) this.publish({ ...this.state, runtime: { version: '0.153.4', status: 'error', category: category(error) } })
+      if (!attempt.runtime) this.publish({ ...this.state, runtime: { version: null, status: 'error', category: category(error) } })
     } finally {
       clearTimeout(timer)
       unsubscribe()

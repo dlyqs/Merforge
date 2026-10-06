@@ -4,7 +4,7 @@ kind: "package-reference"
 ---
 # Session Controller
 
-An account adapter may retain an external client-memory draft for the standard composer. Its model and planning controls remain local until a submitted input authorizes attachment of the ordinary account Session. External drafts remain outside catalog IDs and own no Host history; their view owner releases them on navigation or transfer to the persisted Session.
+An account adapter may retain an external client-memory draft for the standard composer. Its model, permission and planning controls remain local until a submitted input authorizes attachment of the ordinary account Session. External drafts remain outside catalog IDs and own no Host history; their view owner releases them on navigation or transfer to the persisted Session.
 
 ## Summary
 
@@ -158,4 +158,6 @@ The Client `AccountSessionTarget` contributes task controls to an ordinary Contr
 
 Backend switching creates an empty successor through the ordinary Controller. Account successors inherit the source as their durable parent before publication. The Host-only serial `api-session/backend-replaced` event lets the account owner persist task metadata and navigation before returning the replacement ID. Message history is not copied by this event.
 
-`ctx.sessions.createDraft(options)` creates an uncatalogued Client-memory Session face with local model and planning choices. Only submitted nonempty prompts or commands invoke the caller's deferred attachment; navigation and typing create no Host records. The navigation owner disposes the draft when its account or selection retires.
+`ctx.sessions.createDraft(options)` creates an uncatalogued Client-memory Session face with local model, permission and planning choices. The optional `loadPermissions` reader initializes the permission projection from the Host catalog. Valid `/permission <preset>` choices update only that draft, then execute through the materialized Session command before its first submitted input; a rejected change prevents prompt admission. Only submitted nonempty prompts or commands invoke the caller's deferred attachment; navigation and typing create no Host records. The navigation owner disposes the draft when its account or selection retires.
+
+Native model catalog groups include the CLI `runtimeVersion` observed in the same detection as their models. Organization dispatch uses that version in its explicit local execution request. API model groups omit it.
