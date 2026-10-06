@@ -24,6 +24,7 @@ describe('ui-theme client styles', () => {
       `${PLUGIN_ID}/corner-shape.css`,
       `${PLUGIN_ID}/design-platform.css`,
       `${PLUGIN_ID}/scrollbar.css`,
+      `${PLUGIN_ID}/select.css`,
       `${PLUGIN_ID}/gradient-shadow-text.css`,
       `${PLUGIN_ID}/shiki.css`,
     ])

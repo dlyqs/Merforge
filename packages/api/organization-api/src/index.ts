@@ -153,8 +153,8 @@ export class OrganizationApiService extends Service {
       const detailRoute = /^\/projects\/([a-f0-9-]+)(\/grants)?$/.exec(path)
       const receiptRoute = /^\/receipts\/([a-f0-9-]+)$/.exec(path)
       const memberRoute = /^\/organizations\/([a-f0-9-]+)\/(members|hierarchy)$/.exec(path)
-      const method = ['/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/sharing', '/workgraph/share', '/workgraph/delete', '/workgraph/removal', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation'].includes(path) ? 'POST'
-        : ['/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
+      const method = ['/profile/update', '/planning/plan', '/planning/read', '/planning/command', '/planning/candidates', '/delivery/command', '/delivery/read', '/delivery/download', '/execution/list', '/execution/command', '/execution/read', '/login', '/register', '/logout', '/commands', '/projects', '/grants', '/workgraph/sharing', '/workgraph/share', '/workgraph/delete', '/workgraph/removal', '/workgraph/save', '/workgraph/read', '/workgraph/tasks', '/workgraph/grant', '/workgraph/grants', '/assignment/review', '/assignment/command', '/assignment/participant', '/assignment/read', '/assignment/tasks', '/assignment/inbox', '/assignment/preparation'].includes(path) ? 'POST'
+        : ['/profile', '/identity', '/organizations', '/workgraph/events', '/assignment/events'].includes(path) || receiptRoute || memberRoute || resourceRoute || detailRoute ? 'GET' : undefined
       if (!method) { this.respond(res, 404, { error: 'not-found' }); return }
       if (req.method !== method) { this.respond(res, 405, { error: 'method-not-allowed' }); return }
       if (url.search && !resourceRoute && !detailRoute && path !== '/workgraph/events' && path !== '/assignment/events') throw new OrganizationError('invalid-input')
@@ -164,6 +164,8 @@ export class OrganizationApiService extends Service {
       const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '')
       if (!match?.[1]) throw new OrganizationError('unauthenticated')
       const token = brandString<LoginToken>(match[1])
+      if (path === '/profile') { this.respond(res, 200, await authority.profile(token)); return }
+      if (path === '/profile/update') { this.respond(res, 200, await authority.setProfile(token, await this.body(req))); return }
       if (receiptRoute?.[1]) { this.respond(res, 200, await authority.receipt(token, receiptRoute[1])); return }
       if (path === '/planning/command') { this.respond(res, 200, await authority.planningCommand(token, await this.body(req))); return }
       if (path === '/planning/plan') { await authority.readPlanningPlan(token, await this.body(req), (value) => { this.respond(res, 200, value) }); return }

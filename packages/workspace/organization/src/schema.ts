@@ -145,6 +145,12 @@ export const receiptRowSchema = z.object({
   scope: z.string(), operationId: id<OperationId>(), fingerprint: digest, response: z.string(),
 })
 
+/** Account portrait stored as a bounded PNG data URL; null clears the image. */
+export const profileSchema = z.object({
+  avatarUrl: z.string().max(131072).regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/).nullable(),
+}).strict()
+
 /** Minimal organization chart available to current members, without account or credential fields. */
 export const hierarchySchema = z.array(z.object({ id: id<MembershipId>(), username: z.string(), role,
+  avatarUrl: profileSchema.shape.avatarUrl.optional(),
   enabled: z.boolean(), supervisorId: id<MembershipId>().nullable(), version }).strict())

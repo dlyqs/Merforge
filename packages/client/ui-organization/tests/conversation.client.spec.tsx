@@ -194,6 +194,9 @@ it('retains project navigation and member creation when a private conversation c
     actions={store.actions} useStore={selector => selector(store.getSnapshot())} />)
   expect(await screen.findByRole('button', { name: h.project.name })).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
+  expect(screen.queryByLabelText(zh.projectBackground)).toBeNull()
+  expect(screen.queryByLabelText(zh.projectSummary)).toBeNull()
+  expect(screen.queryByLabelText(zh.projectGoal)).toBeNull()
   expect(screen.getByRole('dialog', { name: zh.createProject })).toBeTruthy()
 })
 it('opens projectless Recent conversations even when project enumeration fails', async () => {

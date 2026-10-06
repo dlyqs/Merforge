@@ -1,3 +1,4 @@
+import { profileSchema } from '@deepseek-ai/dsh-organization/protocol'
 import {
   hierarchySchema,
 } from '@deepseek-ai/dsh-organization/protocol'
@@ -165,7 +166,11 @@ export class OrganizationConnection {
     this.armLoginExpiry(saved.expiresAt)
     const generation = this.reset({ phase: 'loading', principal: saved.principal, username: saved.username })
     this.publish({ pendingOperation: this.pending?.operationId })
-    const task = this.refresh(generation).then(() => ({})).catch((_error: unknown) => {
+    const task = this.refresh(generation).then(async () => {
+      const only = this.state.organizations.length === 1 ? this.state.organizations[0] : undefined
+      if (only) await this.performAction({ kind: 'select', organizationId: only.id })
+      return {}
+    }).catch((_error: unknown) => {
       if (generation === this.generation && this.state.phase === 'loading') this.invalidate('unauthenticated')
       return {}
     })
@@ -481,6 +486,7 @@ export class OrganizationConnection {
         mode: 'personal',
         principal: undefined,
         username: undefined,
+        avatarUrl: undefined,
         organizations: [],
         organizationId: undefined })
       if (previousTrust && previousToken) {
@@ -495,6 +501,11 @@ export class OrganizationConnection {
     const generation = this.generation
     try {
       switch (action.kind) {
+        case 'set-avatar': {
+          const profile = profileSchema.parse(await this.request('/profile/update', { avatarUrl: action.avatarUrl }, generation))
+          this.publish(profile)
+          return {}
+        }
         case 'assignment-batch':
         case 'assignment-batch-read': {
           const owner = this.state.principal, organizationId = this.currentOrganization()
@@ -561,6 +572,8 @@ export class OrganizationConnection {
           this.publish({ principal: result.principal, username: action.username, phase: 'loading' })
           this.publish({ pendingOperation: this.pending?.operationId })
           await this.refresh(generation)
+          const only = this.state.organizations.length === 1 ? this.state.organizations[0] : undefined
+          if (only) await this.performAction({ kind: 'select', organizationId: only.id })
           return {}
         }
         case 'register': {
@@ -820,9 +833,10 @@ export class OrganizationConnection {
     return { generation: this.generation, receipt, ...(pending.invitationToken ? { invitationToken: pending.invitationToken } : {}) }
   }
   private async refresh(generation: number, query = '', offset = 0, cursor?: string): Promise<void> {
+    const profile = profileSchema.parse(await this.request('/profile', undefined, generation))
     const organizations = organizationsSchema.parse(await this.request('/organizations', undefined, generation))
     const id = this.state.organizationId
-    if (!id) { this.publish({ organizations, phase: 'ready' }); return }
+    if (!id) { this.publish({ ...profile, organizations, phase: 'ready' }); return }
     const selected = organizations.find(org => org.id === id)
     if (!selected) { this.reset({ organizations, organizationId: undefined, phase: 'ready', error: 'forbidden' }); return }
     const principal = this.state.principal
@@ -839,7 +853,7 @@ export class OrganizationConnection {
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
     if (generation !== this.generation) return
-    this.publish({ organizations, projects, members, hierarchy, inbox, removedPlans: this.planRemovals.list(principal, id), removedProjects: this.projectRemovals.list(principal, id), phase: 'ready', error: undefined })
+    this.publish({ ...profile, organizations, projects, members, hierarchy, inbox, removedPlans: this.planRemovals.list(principal, id), removedProjects: this.projectRemovals.list(principal, id), phase: 'ready', error: undefined })
     this.follow(generation, id, projects, 'projects')
     this.follow(generation, id, projects, 'workgraph')
     this.follow(generation, id, inbox, 'inbox')

@@ -244,15 +244,14 @@ describe('personal sidebar', () => {
     expect(screen.getByRole('button', { name: 'Conversation · 进行中' })).toBeTruthy()
   })
 
-  it('saves the picked directory directly on a new Project', async () => {
-    const { createProject, pickDirectory } = mount()
+  it('creates a Project with only its name and leaves details for later', async () => {
+    const { createProject } = mount()
     fireEvent.click(screen.getByRole('button', { name: zh.addProject }))
     fireEvent.change(screen.getByLabelText(zh.name), { target: { value: 'New project' } })
-    fireEvent.click(screen.getByRole('button', { name: zh.chooseDirectory }))
-    await waitFor(() => { expect(pickDirectory).toHaveBeenCalledOnce() })
-    await waitFor(() => { expect(screen.getByPlaceholderText<HTMLInputElement>(zh.noDirectory).value).toBe('/tmp/picked-project') })
+    expect(screen.queryByLabelText(zh.description)).toBeNull()
+    expect(screen.queryByRole('button', { name: zh.chooseDirectory })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: zh.save }))
-    await waitFor(() => { expect(createProject).toHaveBeenCalledWith({ name: 'New project', description: '', path: '/tmp/picked-project' }) })
+    await waitFor(() => { expect(createProject).toHaveBeenCalledWith({ name: 'New project' }) })
   })
 })
 

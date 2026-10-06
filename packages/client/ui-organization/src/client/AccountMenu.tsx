@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Modal, IconUserOutlineRegular, IconUsersOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OrganizationProps } from './contract.ts'
 import { OrganizationDialog } from './OrganizationDialog.tsx'
+import { AvatarCrop } from './AvatarCrop.tsx'
 import css from './AccountMenu.module.css'
 
 /** @param props - Native account snapshot, commands and localized copy. @returns Avatar and centered account dialog. */
@@ -11,6 +12,19 @@ export function AccountMenu(props: OrganizationProps) {
   const [view, setView] = useState<'closed' | 'account' | 'manage'>('closed')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const [file, setFile] = useState<File>()
+  const [personalAvatar, setPersonalAvatar] = useState(() => localStorage.getItem('merforge.personal.avatar'))
+  const picker = useRef<HTMLInputElement>(null)
+  const avatarUrl = c.principal ? c.avatarUrl : personalAvatar
+  const saveAvatar = async (url: string) => {
+    setBusy(true)
+    try {
+      if (c.principal) await props.connection({ kind: 'set-avatar', avatarUrl: url })
+      else { localStorage.setItem('merforge.personal.avatar', url); setPersonalAvatar(url) }
+      setFile(undefined)
+    } finally { setBusy(false) }
+  }
+  useEffect(() => { setFile(undefined) }, [c.identityGeneration])
   const avatar = useRef<HTMLButtonElement>(null)
   const identity = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -29,8 +43,8 @@ export function AccountMenu(props: OrganizationProps) {
   return <>
     <Tooltip label={props.t('accountCenter')} side="right"><button ref={avatar} type="button" className={css.avatar}
       aria-label={props.t('accountCenter')} aria-haspopup="dialog" aria-expanded={view !== 'closed'}
-      onClick={() => { setError(false); setView('account') }}><IconUserOutlineRegular size={22} /></button></Tooltip>
-    <Modal open={view === 'account'} onClose={close} title={props.t('accountCenter')} closeLabel={props.t('close')}
+      onClick={() => { setError(false); setView('account') }}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <IconUserOutlineRegular size={22} />}</button></Tooltip>
+    <Modal open={view === 'account' && !file} onClose={close} title={props.t('accountCenter')} closeLabel={props.t('close')}
       className={css.dialog ?? ''} onKeyDownCapture={(event) => {
         if (event.key !== 'Tab') return
         const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]'))
@@ -42,7 +56,8 @@ export function AccountMenu(props: OrganizationProps) {
       }}>
       <div className={css.content} aria-busy={busy}>
         <div ref={identity} tabIndex={-1} className={css.identity}>
-          <span className={css.portrait}><IconUserOutlineRegular size={28} /></span>
+          <button type="button" className={css.portrait} disabled={busy || !!c.principal && c.phase !== 'ready'} aria-label={props.t('changeAvatar')}
+            onClick={() => { picker.current?.click() }}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <IconUserOutlineRegular size={28} />}</button>
           <div><strong>{c.username ?? props.t('personal')}</strong><small>{props.t(c.phase)}</small></div>
         </div>
         <span className={css.caption}>{props.t('spaces')}</span>
@@ -63,6 +78,14 @@ export function AccountMenu(props: OrganizationProps) {
         <Button variant="outline" disabled={busy} onClick={() => { setView('manage') }}>{props.t('account')}</Button>
       </div>
     </Modal>
+    <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => {
+      const selected = event.target.files?.[0]
+      event.target.value = ''
+      if (!selected) return
+      if (selected.size > 10 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) { setError(true); return }
+      setFile(selected)
+    }} />
+    {file && <AvatarCrop key={`${file.name}:${file.lastModified}`} file={file} t={props.t} busy={busy} onClose={() => { setFile(undefined) }} onSave={saveAvatar} />}
     {view === 'manage' && <OrganizationDialog {...props} initialSection="connection" onClose={() => { setView('account') }} />}
   </>
 }

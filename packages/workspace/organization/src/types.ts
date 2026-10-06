@@ -72,6 +72,8 @@ export interface MemberView {
   username: string
   accountEnabled: boolean
   accountVersion: number
+  /** Account portrait visible to this organization administrator. */
+  avatarUrl?: string | null | undefined
   role: Role
   enabled: boolean
   version: number

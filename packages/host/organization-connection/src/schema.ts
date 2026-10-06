@@ -1,4 +1,5 @@
 /** Wire validation for the local connection owner and remote safe views. */
+import { profileSchema } from '@deepseek-ai/dsh-organization/protocol'
 import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -31,7 +32,7 @@ export const membersSchema = z.array(z.object({ id: member,
   accountId: account,
   username: z.string(),
   accountEnabled: z.boolean(),
-  accountVersion: version, role,
+  accountVersion: version, avatarUrl: profileSchema.shape.avatarUrl.optional(), role,
   enabled: z.boolean(), version }).strict())
 /** Complete authorized page including its event handoff cursor. */
 export const pageSchema = z.object({ items: z.array(projectViewSchema),
@@ -41,6 +42,7 @@ export const pageSchema = z.object({ items: z.array(projectViewSchema),
   cursor: z.string().transform(v => brandString<OrganizationCursor>(v)) }).strict()
 /** Only known local operations can reach the native transport. */
 export const actionSchema = z.discriminatedUnion('kind', [
+  profileSchema.extend({ kind: z.literal('set-avatar') }).strict(),
   z.object({ kind: z.literal('remove-project'), projectId: projectViewSchema.shape.id }).strict(),
   z.object({ kind: z.literal('project-page'), offset: z.number().int().nonnegative(), cursor: z.string().optional() }).strict(),
   z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),

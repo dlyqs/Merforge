@@ -315,9 +315,7 @@ function invoke(channel: string, origin = channel === DESKTOP_IPC.boot ? 'app' :
 function applicationMenuItems(): MenuItemConstructorOptions[] {
   const native = harness.menu.mock.calls[0]?.[0][0]?.submenu
   if (Array.isArray(native)) return native
-  const sender = harness.windows[0]!.webContents
-  void harness.handlers.get(DESKTOP_IPC.windowsMenu)!({ sender, senderFrame: sender.mainFrame }, 'application', 0, 0)
-  return harness.menu.mock.lastCall![0]
+  throw new Error('application menu missing')
 }
 
 beforeEach(() => {
@@ -419,8 +417,6 @@ describe('desktop main startup', () => {
   it.each([
     ['darwin', true, 'en-US'],
     ['darwin', false, 'zh-CN'],
-    ['win32', true, 'zh-CN'],
-    ['win32', false, 'en-US'],
   ] as const)('offers the About command before other commands on %s (packaged=%s, locale=%s)', async (platform, packaged, locale) => {
     vi.stubGlobal('process', { ...process, platform })
     harness.app.isPackaged = packaged
@@ -436,21 +432,7 @@ describe('desktop main startup', () => {
       .toEqual(expected[`${platform}:${locale}`])
     expect(options.iconPath).toBe(packaged ? join('desktop-test-resources', 'icon.png')
       : join('desktop-test-app', 'resources', 'icon-windows.png'))
-    if (platform !== 'win32') { expect(about!.click).toBeUndefined(); return }
-    // Windows reuses the dimmed update dialog because Electron's fallback is a bare message box.
-    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
-    ;(about!.click as () => void)()
-    await vi.advanceTimersByTimeAsync(0)
-    const zh = locale === 'zh-CN'
-    expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'info', title: zh ? '关于 Merforge' : 'About Merforge', message: 'Merforge',
-      detail: zh ? '版本 V1.0.0' : 'Version V1.0.0', buttons: [zh ? '确定' : 'OK'], cancelId: 0,
-    }))
-    // A dialog that cannot open is logged, not surfaced as an unhandled rejection.
-    harness.dialog.showMessageBox.mockRejectedValueOnce(new Error('overlay unavailable'))
-    ;(about!.click as () => void)()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(console.error).toHaveBeenLastCalledWith(expect.objectContaining({ message: 'overlay unavailable' }))
+    expect(about!.click).toBeUndefined()
   })
 
   it('shows one explained startup login before Host readiness and joins concurrent checks without reopening it', async () => {
@@ -577,8 +559,7 @@ describe('desktop main startup', () => {
       vi.stubEnv('DSH_DESKTOP_UPDATE_JOURNAL_DIR', directory)
       await readyForUpdate()
       harness.publishUpdate({ phase: 'error', failedOperation: 'download', version: '1.2.3', message: 'ENOSPC secret-url' })
-      const checkUpdates = applicationMenuItems().find(item => item.label === en.checkUpdatesMenu)!.click as () => void
-      checkUpdates()
+      void invoke(DESKTOP_IPC.updatesOpen, 'app')
       await vi.advanceTimersByTimeAsync(0)
       for (const host of harness.hosts) host.exited.resolve()
       harness.app.quit()
@@ -642,7 +623,7 @@ describe('desktop main startup', () => {
     const window = harness.windows[0]!
     expect(window.urls).toEqual(['dsh-app://app/'])
     if (platform === 'darwin') {
-      expect(window.options).toMatchObject({ titleBarStyle: 'hiddenInset', vibrancy: 'sidebar', backgroundColor: '#00000000' })
+      expect(window.options).toMatchObject({ titleBarStyle: 'hidden', trafficLightPosition: { x: 6, y: 16 }, vibrancy: 'sidebar', backgroundColor: '#00000000' })
     } else if (platform === 'win32') {
       expect(window.options).toMatchObject({ titleBarStyle: 'hidden', titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT } })
       expect(window.options).not.toHaveProperty('vibrancy')
@@ -772,41 +753,13 @@ describe('desktop main startup', () => {
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 
-  it('maps Windows caption menus to localized native commands and rejects foreign popup requests', async () => {
+  it('omits Windows caption menus while retaining native caption appearance', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     await import('../src/main.ts')
     await harness.preparing.promise
-    const window = harness.windows[0]!
-    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
-    const appearance = harness.ipcOn.mock.calls.find(([channel]) => channel === DESKTOP_IPC.windowsAppearance)![1]
-    appearance(event, 'zh-CN', '#fff', '#000')
-    const handler = harness.handlers.get(DESKTOP_IPC.windowsMenu)!
-    const foreignEvent = { ...event, sender: {} }
-    expect(() => handler(foreignEvent, 'application', 48, 34)).toThrow('rejected sender')
-    expect(() => handler(event, 'arbitrary-command', 48, 34)).toThrow('invalid popup request')
-    expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
-    const application = handler(event, 'application', 48, 34)
-    expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 Merforge', 'separator', '检查更新…', 'separator', '退出',
-    ])
-    expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
-    expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')
-    harness.popup.mock.lastCall![0].callback!()
-    await application
-    const edit = handler(event, 'edit', 104, 34)
-    expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '撤销', '重做', 'separator', '剪切', '复制', '粘贴', '删除', 'separator', '全选',
-    ])
-    const commands = harness.menu.buildFromTemplate.mock.lastCall![0].filter(item => item.type !== 'separator')
-    for (const [index, keyCode] of ['Z', 'Y', 'X', 'C', 'V', 'Delete', 'A'].entries()) {
-      const click = commands[index]!.click as () => void
-      click()
-      const modifiers = keyCode === 'Delete' ? [] : ['control']
-      expect(window.webContents.sendInputEvent).toHaveBeenNthCalledWith(index * 2 + 1, { type: 'keyDown', keyCode, modifiers })
-      expect(window.webContents.sendInputEvent).toHaveBeenNthCalledWith(index * 2 + 2, { type: 'keyUp', keyCode, modifiers })
-    }
-    harness.popup.mock.lastCall![0].callback!()
-    await edit
+    expect(harness.handlers.has('dsh-desktop:windows-menu')).toBe(false)
+    expect(harness.menu.buildFromTemplate.mock.calls[0]![0].every(item => item.visible === false)).toBe(true)
+    expect(harness.ipcOn.mock.calls.some(([channel]) => channel === DESKTOP_IPC.windowsAppearance)).toBe(true)
   })
 
   it.each(['darwin', 'linux'] as const)('adds the standard macOS window commands only on macOS (%s)', async (platform) => {
@@ -1077,11 +1030,7 @@ describe('desktop main startup', () => {
       expect((harness.dialog.showMessageBox.mock.calls[0]![0] as { signal: AbortSignal }).signal.aborted).toBe(false)
       return Promise.resolve({ response: 0 })
     })
-    const submenu = applicationMenuItems()
-    const action = submenu.find(item => item.label === 'Check for Updates…')
-    expect(action?.click).toBeTypeOf('function')
-    // Electron supplies menu arguments that this callback does not consume.
-    Reflect.apply(action!.click!, undefined, [])
+    void invoke(DESKTOP_IPC.updatesOpen, 'app')
     const prompt = Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app'))
     const signal = await checking.promise
     await requested.promise
@@ -1162,9 +1111,7 @@ describe('desktop main startup', () => {
       return new Promise((resolve) => { signal.addEventListener('abort', () => { resolve({ response: 0 }) }, { once: true }) })
     })
     await readyForUpdate()
-    const submenu = applicationMenuItems()
-    const action = submenu.find(item => item.label === 'Check for Updates…')
-    Reflect.apply(action!.click!, undefined, [])
+    void invoke(DESKTOP_IPC.updatesOpen, 'app')
     const operation = Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app'))
     try {
       const signal = await available.promise

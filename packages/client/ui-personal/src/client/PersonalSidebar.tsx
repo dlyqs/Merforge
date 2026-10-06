@@ -150,10 +150,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
     if (draft.kind === 'project') {
       const path = draft.path.trim() || undefined
       void perform(async () => {
-        if (draft.id === undefined) await createProject({
-          name: draft.name, description: draft.description,
-          ...(path === undefined ? {} : { path }),
-        })
+        if (draft.id === undefined) await createProject({ name: draft.name.trim() })
         else await updateProject({ id: draft.id, name: draft.name, description: draft.description, path: path ?? null })
       }, () => { setDraft(null) })
       return
@@ -356,7 +353,7 @@ export function PersonalSidebar(props: PersonalSidebarProps) {
       className={css.dialog ?? ''} contentClassName={css.dialogContent ?? ''}><form className={css.form} onSubmit={(event) => { event.preventDefault()
         saveDraft() }}>
         <label>{t('name')}<input autoFocus required disabled={busy} value={draft.name} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} /></label>
-        {draft.kind === 'project' ? <>
+        {draft.kind === 'project' ? draft.id !== undefined && <>
           <label>{t('description')}<textarea disabled={busy} value={draft.description} onChange={(event) => { setDraft({ ...draft, description: event.target.value }) }} /></label>
           <label>{t('directory')}<span className={css.directoryField}>
             <input disabled={busy} value={draft.path} placeholder={t('noDirectory')}

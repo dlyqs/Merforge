@@ -192,7 +192,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
           </>}
           {task === 'createProject' && form(async () => {
             const name = value('projectName').trim()
-            const content = { background: value('projectBackground'), summary: value('projectSummary'), goal: value('projectGoal') }
+            const content = { background: '', summary: '', goal: '' }
             const result = await command({ kind: 'create-project', organizationId: c.organizationId, name, ...content })
             navigate(null)
             if (result.receipt?.projectId && result.receipt.organizationId && c.principal) {
@@ -200,9 +200,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
                 name, ...content, version: result.receipt.revision, createdBy: c.principal.accountId }
               if (props.openProject) { props.openProject(created); props.onClose() }
             }
-          }, <>{input('projectName')}{(['projectBackground', 'projectSummary', 'projectGoal'] as const).map(key => <label key={key} className={css.field}>{t(key)}
-            <textarea rows={3} maxLength={key === 'projectBackground' ? 32000 : 8000} value={value(key)} disabled={busy} onChange={(event) => { set(key, event.target.value) }} /></label>)}
-          <p className={css.muted}>{t('projectBackgroundHint')}</p></>, !writable || !value('projectName').trim())}
+          }, <>{input('projectName')}<p className={css.muted}>{t('createProjectHint')}</p></>, !writable || !value('projectName').trim())}
           {task === 'permissions' && admin && <>
             <label className={css.field}>{t('chooseProject')}<select value={value('projectId')} disabled={busy} onChange={(event) => { set('projectId', event.target.value) }}>
               <option value="">{t('chooseProject')}</option>
@@ -215,7 +213,7 @@ function OrganizationDialogBody(props: OrganizationProps & { initialSection: Sec
             <p className={css.muted}>{t('membersDescription')}</p>
             {!admin ? <p className={css.empty}>{t('adminRequired')}</p> : <>
               <div className={css.actions}>{button('invite', () => connect({ kind: 'invite', role: 'member' }), !writable, true)}{button('inviteAdmin', () => connect({ kind: 'invite', role: 'admin' }), !writable)}</div>
-              <div className={css.list}>{c.members.map(member => <div className={css.memberRow} key={member.id}><div className={css.identity}><span className={css.avatar}><IconUsersOutlineRegular size={18} /></span><div className={css.entryText}><strong>{member.username}</strong><small>{t(member.role === 'admin' ? 'adminRole' : 'memberRole')} · {t(member.enabled && member.accountEnabled ? 'activeMember' : 'disabledMember')}</small></div></div>
+              <div className={css.list}>{c.members.map(member => <div className={css.memberRow} key={member.id}><div className={css.identity}><span className={css.avatar}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : <IconUsersOutlineRegular size={18} />}</span><div className={css.entryText}><strong>{member.username}</strong><small>{t(member.role === 'admin' ? 'adminRole' : 'memberRole')} · {t(member.enabled && member.accountEnabled ? 'activeMember' : 'disabledMember')}</small></div></div>
                 <details className={css.memberActions}><summary>{t('manage')}</summary><div className={css.actions}>
                   {button(member.enabled ? 'disable' : 'enable', () => command({ kind: 'set-membership', organizationId: c.organizationId, membershipId: member.id, expectedVersion: member.version, role: member.role, enabled: !member.enabled }), !writable)}
                   {button(member.role === 'admin' ? 'member' : 'admin', () => command({ kind: 'set-membership', organizationId: c.organizationId, membershipId: member.id, expectedVersion: member.version, role: member.role === 'admin' ? 'member' : 'admin', enabled: member.enabled }), !writable)}

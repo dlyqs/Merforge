@@ -12,7 +12,7 @@ import './control-row-dom.ts'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { waitFor, act, cleanup, fireEvent, render } from '@testing-library/react'
 import { $getRoot, $isTextNode } from 'lexical'
 import {
   bindSnapshotSelector, conversationSnapshot as conversationFixture, makeTranslate, RemoteError,
@@ -1659,19 +1659,19 @@ describe('command launcher chrome and control seats', () => {
     expect(view.queryByLabelText('Model')).toBeNull()
   })
 
-  it('passes the textarea selection to the command menu launcher and reflects its expanded state', () => {
+  it('passes the textarea selection to the command menu launcher and reflects its expanded state', async () => {
     const toggleCommandMenu = vi.fn()
     const { view, shell, menuLauncher } = bench({ draft: 'draft text', toggleCommandMenu })
     act(() => { shell.editor.update(() => { $selectDetectSpan({ start: 2, end: 7 }) }, { discrete: true }) })
     const launcher = view.getByLabelText('添加')
     expect(launcher.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(launcher)
-    expect(toggleCommandMenu).toHaveBeenCalledExactlyOnceWith({ start: 2, end: 7 })
+    await waitFor(() => { expect(toggleCommandMenu).toHaveBeenCalledExactlyOnceWith({ start: 2, end: 7 }) })
     act(() => { menuLauncher.set('command') })
     expect(launcher.getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('opening the command menu from the button puts the keyboard in the editor first', () => {
+  it('opening the command menu from the button puts the keyboard in the editor first', async () => {
     const toggleCommandMenu = vi.fn()
     const { view, textarea } = bench({ toggleCommandMenu })
     // Tab to the button and activate it: the keyboard is on the button, and the
@@ -1680,7 +1680,19 @@ describe('command launcher chrome and control seats', () => {
     expect(document.activeElement).not.toBe(textarea)
     fireEvent.click(view.getByLabelText('添加'))
     expect(document.activeElement).toBe(textarea)
-    expect(toggleCommandMenu).toHaveBeenCalledTimes(1)
+    await waitFor(() => { expect(toggleCommandMenu).toHaveBeenCalledTimes(1) })
+  })
+
+  it('waits for deferred focus restoration before opening the add menu at the restored caret', () => {
+    const toggleCommandMenu = vi.fn()
+    const { view, shell } = bench({ draft: 'draft text', toggleCommandMenu })
+    let completeFocus: (() => void) | undefined
+    vi.spyOn(shell.editor, 'focus').mockImplementation((callback) => { completeFocus = callback })
+    fireEvent.click(view.getByLabelText('添加'))
+    expect(toggleCommandMenu).not.toHaveBeenCalled()
+    act(() => { shell.editor.update(() => { $selectDetectSpan({ start: 4, end: 4 }) }, { discrete: true }) })
+    act(() => { completeFocus?.() })
+    expect(toggleCommandMenu).toHaveBeenCalledExactlyOnceWith({ start: 4, end: 4 })
   })
 
   it('a registered entry fills its seat and receives the locked owner prop', () => {

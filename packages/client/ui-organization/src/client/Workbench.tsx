@@ -191,7 +191,6 @@ export function Workbench(props: OrganizationProps & {
     {!ready && c.phase !== 'loading' && <p role="status">{t(c.phase)}</p>}
     {notice && <p className={css.notice} role="status">{notice}</p>}
     {ready && !currentPage && <p>{t('taskStale')}</p>}
-    {currentPage?.total === 0 && !draft && <div className={css.empty}><h4>{t('emptyTasksTitle')}</h4><p>{t('emptyTasksHint')}</p></div>}
     {currentPage && !props.planId && <div className={css.actions}><Button disabled={!writable || currentPage.offset === 0} onClick={() => { void run(() => load()) }}>{t('firstPage')}</Button>
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
     {(page?.value.items.length || draft) && <div className={taskWorkspaceStyles.body} hidden={!currentPage && !draft}><div

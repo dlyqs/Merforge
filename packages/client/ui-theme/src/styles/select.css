@@ -1,0 +1,101 @@
+/* Desktop's Chromium supports customizable selects, including top-layer
+ * pickers. Native selection, keyboard navigation and form validation remain
+ * browser-owned; both the control and its picker use the application theme. */
+:root select:not([multiple]) {
+  appearance: base-select;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  background-image: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  gap: 12px;
+}
+
+:root select:not([multiple]):hover:not(:disabled) {
+  border-color: var(--dsw-alias-border-l1);
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+:root select:not([multiple]):is(:focus-visible, :open) {
+  border-color: var(--dsw-alias-brand-primary);
+  outline: 2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 25%, transparent);
+  outline-offset: 2px;
+}
+
+:root select:not([multiple]):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+:root select:not([multiple])::picker-icon {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 4px 2px 0 auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--dsw-alias-label-tertiary);
+  transform: rotate(45deg);
+}
+
+:root select:not([multiple]):open::picker-icon {
+  transform: translateY(3px) rotate(225deg);
+}
+
+:root select:not([multiple])::picker(select) {
+  appearance: base-select;
+  box-sizing: border-box;
+  margin-block: 6px;
+  padding: 4px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  line-height: 20px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+:root select:not([multiple]) option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+:root select:not([multiple]) option:is(:hover, :focus, :checked) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  outline: none;
+}
+
+:root select:not([multiple]) option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:root select:not([multiple]) option::checkmark {
+  color: var(--dsw-alias-brand-primary);
+}

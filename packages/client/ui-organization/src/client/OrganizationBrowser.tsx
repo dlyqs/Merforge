@@ -208,9 +208,6 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         </>}>
         {catalog.conversations.filter(conversation => conversation.botId === bot.id).map(conversation => row(project, conversation))}
       </AccountNavigationGroup>)}
-    {props.wide && ready && catalogs?.complete && !notice && props.section === 'recent' && accountCatalog?.generation === c.generation && !ungrouped.length && !conversations.length && <p>{props.t('noRecentConversations')}</p>}
-    {props.wide && ready && catalogs?.complete && !notice && props.section === 'bots' && !items.some(i => i.catalog.bots.length) && <p>{props.t('noBots')}</p>}
-    {props.wide && ready && catalogs?.complete && !notice && props.section === 'projects' && !items.length && <p>{props.t('emptyProjects')}</p>}
     {props.wide && !ready && c.phase !== 'loading' && <p>{props.t(c.phase)}</p>}
   </div>
   {deleting && <Modal open title={props.t(deleting.createdBy === c.principal?.accountId ? 'deleteProject' : 'removeLocalProject')}
@@ -253,12 +250,9 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         }, (error: unknown) => { if (alive.current) setNotice(props.t(workgraphError(error))) })
         .finally(() => { if (alive.current) setBusy(false) })
     }}>
-      <label>{props.t('projectName')}<Input autoFocus required disabled={busy} value={projectDraft.name} onChange={(event) => { projectOperation.current = undefined
+      <label>{props.t('projectName')}<Input className={css.textInput ?? ''} autoFocus required disabled={busy} value={projectDraft.name} onChange={(event) => { projectOperation.current = undefined
         setProjectDraft({ ...projectDraft, name: event.target.value }) }} /></label>
-      {(['background', 'summary', 'goal'] as const).map(key => <label key={key}>{props.t(key === 'background' ? 'projectBackground' : key === 'summary' ? 'projectSummary' : 'projectGoal')}
-        <textarea rows={3} maxLength={key === 'background' ? 32000 : 8000} disabled={busy} value={projectDraft[key]} onChange={(event) => {
-          projectOperation.current = undefined; setProjectDraft({ ...projectDraft, [key]: event.target.value })
-        }} /></label>)}
+      <p className={css.contextName}>{props.t('createProjectHint')}</p>
       {notice && <p role="alert">{notice}</p>}
       <div className={css.formActions}><Button disabled={busy} onClick={() => { setProjectDraft(undefined) }}>{props.t('cancel')}</Button><Button type="submit" variant="primary" disabled={busy || !projectDraft.name.trim()}>{props.t('save')}</Button></div>
     </form>
@@ -312,7 +306,7 @@ function BotEditor(props: OrganizationProps & { projects: OrganizationProjectVie
     }}>
       <label>{t('projects')}<select disabled={busy || !!props.initial.bot} value={projectId} onChange={(e) => { setProjectId(e.target.value) }}>
         {props.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label>{t('botName')}<Input value={name} maxLength={120} disabled={busy} onChange={(e) => { setName(e.target.value) }} /></label>
+      <label>{t('botName')}<Input className={css.textInput ?? ''} value={name} maxLength={120} disabled={busy} onChange={(e) => { setName(e.target.value) }} /></label>
       <label>{t('botInstructions')}<textarea value={instructions} maxLength={8192} disabled={busy} onChange={(e) => { setInstructions(e.target.value) }} /></label>
       <label>{t('conversationModel')}<select value={model} disabled={busy} onChange={(e) => { setModel(e.target.value) }}>
         <option value="">{t('conversationChooseModel')}</option>{models.map((m, i) =>

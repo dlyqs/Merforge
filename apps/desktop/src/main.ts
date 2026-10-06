@@ -196,7 +196,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     // needs a transparent window background to show through the page.
     ...(process.platform === 'darwin' ? {
       titleBarStyle: 'hidden' as const,
-      trafficLightPosition: { x: 10, y: 16 },
+      trafficLightPosition: { x: 6, y: 16 },
       vibrancy: 'sidebar' as const,
       // 'active' keeps the vibrancy material stable when the window blurs;
       // 'followWindow' washes the sidebar out behind an unfocused window.
@@ -331,13 +331,6 @@ async function main(): Promise<void> {
       return await updateDialog.show(parent, { ...options, signal: controller.signal })
     }
     finally { ordinaryDialogs.delete(controller) }
-  }
-  // Copy comes from the same locale as the update prompts so the dialog
-  // chrome and its content never mix languages.
-  const showAbout = async (): Promise<void> => {
-    await ordinaryMessageBox({ type: 'info', title: locale.messages.aboutMenu, message: locale.messages.aboutProduct,
-      detail: formatDesktopMessage(locale.messages.aboutVersion, { version: app.getVersion() }),
-      buttons: [locale.messages.updateAcknowledge], cancelId: 0 })
   }
   const appPreload = fileURLToPath(new URL('./preload-app.cjs', import.meta.url))
   const applicationUrl = `${SCHEME}://app/`
@@ -856,12 +849,7 @@ async function main(): Promise<void> {
       { role: 'unhide', label: currentDesktopLocale().messages.showAllApplications }, { type: 'separator' }]
     : []
   const applicationItems = (): MenuItemConstructorOptions[] => [
-    // Windows has no system About panel; Electron's fallback is a plain
-    // message box, so the shell shows its own dimmed dialog instead.
-    process.platform === 'win32'
-      ? { label: currentDesktopLocale().messages.aboutMenu,
-        click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
-      : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
+    { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
     { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
     ...development ? [
@@ -891,40 +879,6 @@ async function main(): Promise<void> {
   installMenu()
 
   if (process.platform === 'win32') {
-    ipcMain.handle(DESKTOP_IPC.windowsMenu, (event, name: unknown, x: unknown, y: unknown) => {
-      assertDesktopSender(event, ['app'])
-      if (mainWindow === undefined || event.sender !== mainWindow.webContents
-        || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('desktop menu: rejected sender')
-      if ((name !== 'application' && name !== 'edit')
-        || typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)
-        || x < 0 || y < 0 || x > 100_000 || y > 100_000) throw new Error('desktop menu: invalid popup request')
-      const window = mainWindow
-      // Editor-owned history listens to key events rather than Chromium's native undo stack.
-      const editItem = (label: string, keyCode: string, modifiers: Array<'control'>, accelerator?: string): MenuItemConstructorOptions => ({
-        label,
-        ...(accelerator === undefined ? {} : { accelerator }),
-        click: () => {
-          window.webContents.focus()
-          window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
-          window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
-        },
-      })
-      const items: MenuItemConstructorOptions[] = name === 'application' ? applicationItems() : [
-        editItem(currentDesktopLocale().messages.undo, 'Z', ['control'], 'Ctrl+Z'),
-        editItem(currentDesktopLocale().messages.redo, 'Y', ['control'], 'Ctrl+Y'),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.cut, 'X', ['control'], 'Ctrl+X'),
-        editItem(currentDesktopLocale().messages.copy, 'C', ['control'], 'Ctrl+C'),
-        editItem(currentDesktopLocale().messages.paste, 'V', ['control'], 'Ctrl+V'),
-        editItem(currentDesktopLocale().messages.delete, 'Delete', []),
-        { type: 'separator' },
-        editItem(currentDesktopLocale().messages.selectAll, 'A', ['control'], 'Ctrl+A'),
-      ]
-      const zoom = mainWindow.webContents.getZoomFactor()
-      return new Promise<void>((resolve) => {
-        Menu.buildFromTemplate(items).popup({ window, x: Math.round(x * zoom), y: Math.round(y * zoom), callback: resolve })
-      })
-    })
     ipcMain.on(DESKTOP_IPC.windowsAppearance, (event, language: unknown, color: unknown, symbolColor: unknown) => {
       if (mainWindow === undefined || event.sender !== mainWindow.webContents
         || event.senderFrame !== mainWindow.webContents.mainFrame) return

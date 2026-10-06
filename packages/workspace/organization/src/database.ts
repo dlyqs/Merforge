@@ -18,10 +18,10 @@ import { randomUUID } from 'node:crypto'
 import { workgraphDdl, workgraphDeletionDdl, validateWorkgraphDatabase } from './workgraph-database.ts'
 import { projectSchema, grantSchema, resourceEventSchema } from './resource-schema.ts'
 import { OrganizationError } from './error.ts'
-import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
+import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, profileSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 22
+export const ORGANIZATION_SCHEMA_VERSION = 23
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -42,6 +42,8 @@ CREATE TABLE organization_events (revision INTEGER PRIMARY KEY AUTOINCREMENT, ki
 CREATE TABLE operation_receipts (scope TEXT NOT NULL, operationId TEXT NOT NULL, fingerprint TEXT NOT NULL, response TEXT NOT NULL,
   PRIMARY KEY(scope,operationId)) STRICT;
 `
+
+const profileDdl = 'CREATE TABLE account_profiles (accountId TEXT PRIMARY KEY REFERENCES accounts(id), avatarUrl TEXT) STRICT;'
 
 const resourceDdl = `
 CREATE TABLE organization_projects (id TEXT PRIMARY KEY, organizationId TEXT NOT NULL REFERENCES organizations(id), name TEXT NOT NULL, version INTEGER NOT NULL) STRICT;
@@ -105,7 +107,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
           + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl
           + planningDdl + planningDraftDdl + hierarchyDdl + projectLifecycleDdl + projectContentDdl
-          + workgraphDeletionDdl + workgraphSharingDdl)
+          + workgraphDeletionDdl + workgraphSharingDdl + profileDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
@@ -136,8 +138,10 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (!db.prepare('PRAGMA table_info(organization_projects)').all().some(row => row.name === 'background')) db.exec(projectContentDdl)
         if (stamp < 20) db.exec(workgraphSharingDdl)
         migrateAssignmentExecution(db)
+        db.exec(profileDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
-      } else if (stamp === 21 && app === applicationId) {
+      } else if ((stamp === 21 || stamp === 22) && app === applicationId) {
+        db.exec(profileDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -154,7 +158,10 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
 
 function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, assignments = true): void {
   try {
-    if (assignments) validateHierarchy(db)
+    if (assignments) {
+      for (const row of db.prepare('SELECT avatarUrl FROM account_profiles').all()) profileSchema.parse(row)
+      validateHierarchy(db)
+    }
     if (workgraph) validateWorkgraphDatabase(db)
     if (assignments) {
       validateAssignmentDatabase(db); validateDeviceDatabase(db); validateExecutionDatabase(db)

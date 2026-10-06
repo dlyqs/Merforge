@@ -57,7 +57,6 @@ export function OrganizationTaskList(props: TaskProps) {
         </span></button>,
       )}</nav></section>)}
     {c.phase === 'ready' && page?.generation !== c.generation && !notice && <p role="status">{props.t('loading')}</p>}
-    {page?.generation === c.generation && !current.some(p => p.tasks.length) && !notice && <p>{props.t('emptyTasksTitle')}</p>}
   </section>
 }
 /** @param props - Identity-scoped selected node. @returns Shared task workspace with assignment and delivery in its right detail area. */

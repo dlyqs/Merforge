@@ -29,6 +29,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 
 /** User-selected connection operation; no arbitrary URL path or HTTP method is accepted. */
 export type ConnectionAction =
+  | { kind: 'set-avatar'; avatarUrl: string | null }
   | { kind: 'remove-project'; projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId }
   | { kind: 'assignment-batch' | 'assignment-batch-read' | 'planning-read' | 'planning-candidates' | 'planning-plan'; request: unknown }
   | { kind: 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation'; request: unknown }
@@ -66,6 +67,8 @@ export interface ConnectionSnapshot {
   removedPlans?: import('@deepseek-ai/dsh-organization').OrganizationPlanId[] | undefined
   removedProjects?: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId[] | undefined
   hierarchy?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/protocol').hierarchySchema> | undefined
+  /** Current authenticated account portrait; absent after logout. */
+  avatarUrl?: string | null | undefined
   username?: string | undefined
   error?: string | undefined
   pendingOperation?: OperationId | undefined

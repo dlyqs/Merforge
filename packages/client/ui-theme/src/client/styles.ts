@@ -3,6 +3,7 @@ import base from '../styles/base.css?inline'
 import cornerShape from '../styles/corner-shape.css?inline'
 import designPlatform from '../styles/design-platform.css?inline'
 import scrollbar from '../styles/scrollbar.css?inline'
+import select from '../styles/select.css?inline'
 import gradientShadowText from '../styles/gradient-shadow-text.css?inline'
 import shiki from '../styles/shiki.css?inline'
 
@@ -13,6 +14,7 @@ const STYLES = [
   ['corner-shape.css', cornerShape],
   ['design-platform.css', designPlatform],
   ['scrollbar.css', scrollbar],
+  ['select.css', select],
   ['gradient-shadow-text.css', gradientShadowText],
   ['shiki.css', shiki],
 ] as const

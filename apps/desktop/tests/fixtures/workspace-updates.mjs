@@ -194,16 +194,9 @@ async function qualify() {
     console.log('workspace qualification: startup API requests settled')
     const messages = resolveDesktopLocale(app.getLocale()).messages
     await screenshot(mainWindow, 'workspace.png')
-    let menu
-    if (process.platform === 'win32') {
-      const popup = Menu.prototype.popup
-      try {
-        Menu.prototype.popup = function (options) { menu = this.items; options.callback?.() }
-        await mainWindow.webContents.executeJavaScript("document.querySelector('[data-windows-menu]').shadowRoot.querySelector('button').click()")
-        await waitFor(() => menu !== undefined, 'Windows application menu')
-      } finally { Menu.prototype.popup = popup }
-    } else menu = Menu.getApplicationMenu().items[0].submenu.items
-    const checkMenu = menu.find(item => item.label === messages.checkUpdatesMenu)
+    const checkMenu = process.platform === 'win32'
+      ? { click: () => mainWindow.webContents.executeJavaScript("window.dshDesktop.updates.open()") }
+      : Menu.getApplicationMenu().items[0].submenu.items.find(item => item.label === messages.checkUpdatesMenu)
     assert.ok(checkMenu)
     if (interactive) {
       const { runInteractiveUpdates } = await import('./workspace-updates-interactive.mjs')

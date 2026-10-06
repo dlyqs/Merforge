@@ -91,7 +91,6 @@ export function ProjectDetails(props: OrganizationProps & { project: Organizatio
           <Button disabled={busy || !draft} onClick={() => { setDraft(undefined) }}>{t('cancel')}</Button></div>}
       </form>
       <section className={css.card}><h3>{t('projectTasks')}</h3>
-        {!current.tasks.length && <p>{t('emptyTasksTitle')}</p>}
         {taskRows(current.tasks).map(({ task, depth }) => <Button key={task.id} variant="ghost" icon={<IconBranchOutlineRegular />}
           style={{ marginInlineStart: depth * 16 }} onClick={() => { props.openTask?.(current.project, task) }}>{task.goal}</Button>)}
       </section>

@@ -78,6 +78,9 @@ it('opens a newly created project immediately using the committed receipt', asyn
   })
   render(<OrganizationDialog {...h.props} openProject={openProject} initialSection="projects" onClose={onClose} />)
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
+  expect(screen.queryByLabelText(zh.projectBackground)).toBeNull()
+  expect(screen.queryByLabelText(zh.projectSummary)).toBeNull()
+  expect(screen.queryByLabelText(zh.projectGoal)).toBeNull()
   fireEvent.change(screen.getByLabelText(zh.projectName), { target: { value: 'New project' } })
   fireEvent.click(screen.getByRole('button', { name: zh.createProject }))
   await waitFor(() => { expect(openProject).toHaveBeenCalledExactlyOnceWith({

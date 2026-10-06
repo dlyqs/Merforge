@@ -32,7 +32,7 @@ export function OrganizationHierarchy(props: OrganizationProps) {
   }
   const draw = (node: Node) => <li key={node.id}>
     <button className={css.chartNode} type="button" aria-pressed={selected === node.id} onClick={() => { setSelected(node.id); setSupervisor(node.supervisorId ?? '') }}>
-      <strong>{node.username}</strong><span>{t(node.role === 'admin' ? 'adminRole' : 'memberRole')}</span>
+      {node.avatarUrl && <img className={css.memberAvatar} src={node.avatarUrl} alt="" />}<strong>{node.username}</strong><span>{t(node.role === 'admin' ? 'adminRole' : 'memberRole')}</span>
       {!node.enabled && <small>{t('disabledMember')}</small>}
     </button>
     {nodes.some(n => n.supervisorId === node.id) && <ul>{nodes.filter(n => n.supervisorId === node.id).map(draw)}</ul>}

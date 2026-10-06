@@ -318,7 +318,7 @@ it.each(['pending', 'accepted'])('preserves WorkGraph history and permanently re
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 22 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 23 })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)
@@ -344,7 +344,7 @@ it.each(['pending', 'accepted'])('preserves WorkGraph history and permanently re
 })
 
 
-it.each([2, 3, 17, 21])('restores a schema v%s backup by upgrading staging and retaining project grants', async (schema) => {
+it.each([2, 3, 17, 21, 22])('restores a schema v%s backup by upgrading staging and retaining project grants', async (schema) => {
   const h = await setup()
   const login = await h.app.authority.login({ username: 'owner', password })
   const organizationId = h.initialized.organizationId!
@@ -359,6 +359,7 @@ it.each([2, 3, 17, 21])('restores a schema v%s backup by upgrading staging and r
     if (schema === 2) db.exec('DROP TABLE task_grants; DROP TABLE plan_tasks; DROP TABLE workgraph_events; DROP TABLE plan_revisions; DROP TABLE organization_plans')
     if (schema < 18) db.exec('ALTER TABLE organization_projects DROP COLUMN background; ALTER TABLE organization_projects DROP COLUMN summary; ALTER TABLE organization_projects DROP COLUMN goal')
     if (schema < 20) db.exec('DROP TABLE tree_requests; DROP TABLE plan_contexts')
+    db.exec('DROP TABLE account_profiles')
     db.exec(`PRAGMA user_version=${schema}`)
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } finally { db.close() }
@@ -557,3 +558,37 @@ it('persists assigned task removal on one installation and propagates creator ta
   await expect.poll(() => second.snapshot().phase).toBe('ready')
   expect((await second.perform(tasks)).workgraph?.result).toMatchObject({ kind: 'tasks', value: { total: 0 } })
 }, 30000)
+
+it('selects a sole organization on login and shares persisted portraits through the reporting chart', async () => {
+  const h = await setup()
+  const invitation = await h.owner.perform({ kind: 'invite', role: 'member' })
+  const member = await h.connect()
+  await member.perform({ kind: 'register', username: 'portrait-user', password, invitationToken: invitation.invitationToken! })
+  expect(member.snapshot()).toMatchObject({ mode: 'organization', organizationId: h.initialized.organizationId })
+  const avatarUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='
+  await member.perform({ kind: 'set-avatar', avatarUrl })
+  expect(member.snapshot().avatarUrl).toBe(avatarUrl)
+  const hierarchy = (await h.owner.perform({ kind: 'hierarchy' })).hierarchy!
+  expect(hierarchy.find(node => node.username === 'portrait-user')?.avatarUrl).toBe(avatarUrl)
+  const anotherInstallation = await h.connect()
+  await anotherInstallation.perform({ kind: 'login', username: 'portrait-user', password })
+  expect(anotherInstallation.snapshot()).toMatchObject({ mode: 'organization', avatarUrl })
+  await expect(member.perform({ kind: 'set-avatar', avatarUrl: 'data:image/svg+xml;base64,PHN2Zz4=' })).rejects.toThrow()
+  await expect(member.perform({ kind: 'set-avatar', avatarUrl: `data:image/png;base64,${'A'.repeat(131072)}` })).rejects.toThrow()
+  await member.perform({ kind: 'set-avatar', avatarUrl: null })
+  await anotherInstallation.perform({ kind: 'reconnect' })
+  expect(anotherInstallation.snapshot().avatarUrl).toBeNull()
+  await member.perform({ kind: 'logout' })
+  expect(member.snapshot().avatarUrl).toBeUndefined()
+  await expect(member.perform({ kind: 'set-avatar', avatarUrl })).rejects.toThrow()
+}, 15000)
+
+it('leaves organization choice manual for an account with several memberships', async () => {
+  const h = await setup()
+  await h.owner.perform({ kind: 'command', command: { kind: 'create-organization', operationId: randomUUID(), name: 'Beta' } })
+  const client = await h.connect()
+  await client.perform({ kind: 'login', username: 'owner', password })
+  expect(client.snapshot().mode).toBe('personal')
+  expect(client.snapshot().organizations.map(org => org.name).sort()).toEqual(['Alpha', 'Beta'])
+  expect(client.snapshot().organizationId).toBeUndefined()
+})

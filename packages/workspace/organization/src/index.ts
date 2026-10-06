@@ -27,7 +27,7 @@ import type { OrganizationAssignment } from './assignment-types.ts'
 import { openOrganizationDatabase, transaction } from './database.ts'
 import { OrganizationError } from './error.ts'
 import { createOrganizationToken, digestToken, hashPassword, requestFingerprint, verifyPassword } from './security.ts'
-import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
+import { hierarchySchema, accountSchema, commandSchema, configSchema, initializeSchema, invitationSchema, loginSchema, membershipSchema, metadataSchema, profileSchema, organizationSchema, receiptRowSchema, receiptSchema, recoverySchema, registerSchema, sessionSchema, attemptSchema } from './schema.ts'
 import { projectCommandSchema, grantCommandSchema, projectSchema, grantSchema, projectQuerySchema, projectReadSchema, eventQuerySchema, deletedProjectsSchema } from './resource-schema.ts'
 import { authorizeSharing, readSharing, changeSharing } from './workgraph-sharing.ts'
 import { workgraphSharingReadSchema, workgraphSharingCommandSchema, workgraphSharingViewSchema } from './workgraph-schema.ts'
@@ -445,6 +445,7 @@ export class OrganizationService extends Service {
         const member = membershipSchema.parse(row)
         const account = this.account(db, member.accountId)
         return { id: member.id, accountId: account.id, username: account.username, accountEnabled: account.enabled === 1,
+          avatarUrl: profileSchema.parse(db.prepare('SELECT avatarUrl FROM account_profiles WHERE accountId=?').get(account.id) ?? { avatarUrl: null }).avatarUrl,
           accountVersion: account.version, role: member.role, enabled: member.enabled === 1, version: member.version }
       })
     }))
@@ -459,13 +460,41 @@ export class OrganizationService extends Service {
   hierarchy(token: LoginToken, organizationId: OrganizationId): Promise<z.output<typeof hierarchySchema>> {
     return this.enqueue('hierarchy', db => transaction(db, () => {
       const principal = this.principal(db, token, organizationId, 'member')
-      const nodes = hierarchySchema.parse(db.prepare(`SELECT m.id,a.username,m.role,
+      const nodes = hierarchySchema.parse(db.prepare(`SELECT m.id,a.username,m.role,p.avatarUrl,
         (m.enabled=1 AND a.enabled=1) AS enabled,h.supervisorId,COALESCE(h.version,0) AS version
         FROM memberships m JOIN accounts a ON a.id=m.accountId
+        LEFT JOIN account_profiles p ON p.accountId=a.id
         LEFT JOIN organization_hierarchy h ON h.membershipId=m.id
         WHERE m.organizationId=? ORDER BY a.username`)
         .all(organizationId).map(row => ({ ...row, enabled: row.enabled === 1 })))
       return visibleHierarchy(nodes, principal)
+    }))
+  }
+
+  /**
+   * Read the authenticated account's portrait, including before organization selection.
+   * @param token - Current account login.
+   * @returns Stored PNG data URL or null.
+   */
+  profile(token: LoginToken): Promise<z.output<typeof profileSchema>> {
+    return this.enqueue('profile', db => transaction(db, () => {
+      const principal = this.principal(db, token)
+      return profileSchema.parse(db.prepare('SELECT avatarUrl FROM account_profiles WHERE accountId=?').get(principal.accountId) ?? { avatarUrl: null })
+    }))
+  }
+
+  /**
+   * Replace only the current account's portrait in the organization database.
+   * @param token - Current account login.
+   * @param input - Bounded PNG data URL, or null to clear.
+   * @returns Committed portrait.
+   */
+  setProfile(token: LoginToken, input: unknown): Promise<z.output<typeof profileSchema>> {
+    return this.enqueue('set-profile', db => transaction(db, () => {
+      const principal = this.principal(db, token), profile = parse(profileSchema, input)
+      db.prepare('INSERT INTO account_profiles VALUES (?,?) ON CONFLICT(accountId) DO UPDATE SET avatarUrl=excluded.avatarUrl')
+        .run(principal.accountId, profile.avatarUrl)
+      return profile
     }))
   }
 

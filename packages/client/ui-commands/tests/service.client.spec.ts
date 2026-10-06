@@ -407,12 +407,12 @@ describe('candidates', () => {
       expect(rows[5]).toEqual({ name: 'deploy', description: 'third-party command', section: 'command:section.commands' })
     })
 
-    it('the add button lists only file and feedback while typed slash keeps commands', async () => {
+    it('the add button lists only file while typed slash keeps commands', async () => {
       const { command, source } = await bench({ commands: () => Promise.resolve({ commands: SHIPPED }) })
       command.register(modelContribution())
       command.register(fileContribution())
       const rows = await source.candidates(proj('s1'), { ...req(''), launched: true })
-      expect(rows.map(row => row.name)).toEqual(['file', 'feedback'])
+      expect(rows.map(row => row.name)).toEqual(['file'])
       expect(rows.every(row => row.section === 'command:section.add')).toBe(true)
       expect((await source.candidates(proj('s1'), req(''))).map(row => row.name)).toContain('compact')
       expect(await source.candidates(proj('s1'), { ...req('model'), launched: true })).toEqual([])

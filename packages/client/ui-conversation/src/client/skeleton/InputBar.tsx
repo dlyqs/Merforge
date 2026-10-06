@@ -263,12 +263,11 @@ export const InputBar = memo(function InputBar({
 
   const onToggleCommandMenu = (): void => {
     if (keyboard === undefined) return
-    // The menu is a combobox over the editor, so the keyboard has to be there
-    // before the launcher opens it: activating the button from the keyboard
-    // leaves focus on the button, and restoring it afterwards would re-track an
-    // empty draft and close the menu again.
-    if (editor !== null) focusDraftEditor(editor, revealSelection)
-    toggleCommandMenu?.(keyboard.caretSpan())
+    // Lexical restores selection asynchronously; launch only after that commit
+    // so its caret update cannot immediately dismiss the new menu.
+    const launch = (): void => { toggleCommandMenu?.(keyboard.caretSpan()) }
+    if (editor !== null) focusDraftEditor(editor, revealSelection, launch)
+    else launch()
   }
 
   // The no-session Workspace trigger: the resident editable div acts as the
