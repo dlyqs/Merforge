@@ -15,6 +15,5 @@ import { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import OrganizationExecution, { executionInputsDigest, executionRequestSchema } from '@deepseek-ai/dsh-organization-execution'
 import { bootOrganization } from '../src/organization-boot.ts'
 import { openOrganizationExecution, readOrganizationExecution } from '../../desktop/src/organization-execution.ts'
-import { OrganizationIntegration } from '../../desktop/src/organization-integration.ts'
 
-export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, Subprocess, modules: new Map<string, unknown>([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }
+export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, Subprocess, modules: new Map<string, unknown>([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }

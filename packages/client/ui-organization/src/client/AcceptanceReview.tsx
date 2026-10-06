@@ -46,7 +46,6 @@ export function AcceptanceReview(props: OrganizationProps & { submission: Page['
       {s.acceptance.requirements && <p>{t('reviewRequirements')}: {s.acceptance.requirements}</p>}
       {s.acceptance.reworkRevision !== null && <p>{t('reviewRework', { revision: s.acceptance.reworkRevision })}</p>}
     </>}
-    {s.reviewState === 'accepted' && <p className={css.notice}>{t('taskReviewAcceptedHint')}</p>}
     {issuer && s.reviewState === 'pending' && <>
       <h5>{t('taskReviewStep')}</h5>
       <div className={css.form}>

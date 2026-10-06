@@ -14,7 +14,6 @@ import { OrganizationConnection } from '../../../packages/host/organization-conn
 import { LlmAdapter } from '../../../packages/llm/llm/lib/index.js'
 import OrganizationExecution, { executionInputsDigest, executionRequestSchema } from '../../../packages/workspace/organization-execution/lib/index.js'
 import { openOrganizationExecution, readOrganizationExecution } from '../../desktop/lib/types/organization-execution.js'
-import { OrganizationIntegration } from '../../desktop/lib/types/organization-integration.js'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -40,7 +39,7 @@ export async function bootBuiltOrganization(config, executable = process.execPat
     return { ready, authority: {
       initialize: input => controller.control('initialize', input),
       login: input => call('/login', input),
-      readIntegration: async (token, input, consume) => consume(await call('/integration/read', input, token)),
+      readTasks: async (token, input, consume) => consume(await call('/workgraph/tasks', input, token)),
       downloadArtifact: async (token, input, consume) => consume(await call('/delivery/download', input, token)),
     }, async close() { try { await controller.stop() } finally { await rm(runtime, { recursive: true, force: true }) } } }
   } catch (error) {
@@ -49,4 +48,4 @@ export async function bootBuiltOrganization(config, executable = process.execPat
   }
 }
 const bootOrganization = bootBuiltOrganization
-export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, OrganizationIntegration, Subprocess, modules: new Map([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }
+export const kit = { Context, Loader, Include, LlmAdapter, OrganizationExecution, OrganizationConnection, executionInputsDigest, executionRequestSchema, bootOrganization, openOrganizationExecution, readOrganizationExecution, Subprocess, modules: new Map([['storage', Storage], ['json', Json], ['domain', Domain], ['sessions', Sessions], ['agents', Agents], ['jsonl', Jsonl], ['context', OrganizationContext]]) }

@@ -42,6 +42,7 @@ export interface TaskMapLabels {
   collapseBranch: string
   fullscreen: string
   exitFullscreen: string
+  fullscreenFailed: string
 }
 import { layoutMindMap, mapGeometry, taskAncestors } from './task-map-layout.ts'
 import css from './TaskMap.module.css'
@@ -60,6 +61,8 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
   introduction?: ReactNode
 }) {
   const viewport = useRef<HTMLDivElement>(null)
+  const map = useRef<HTMLElement>(null)
+  const [fullscreenError, setFullscreenError] = useState(false)
   const fullscreenButton = useRef<HTMLButtonElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const zoomAnchor = useRef<{ x: number; y: number; clientX: number; clientY: number }>()
@@ -125,13 +128,24 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
     return () => { element.removeEventListener('wheel', wheel) }
   }, [zoom, fitted, layout.width, layout.height])
   useEffect(() => {
-    if (!fullscreen) return
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); setFullscreen(false); fullscreenButton.current?.focus() }
+    const syncFullscreen = () => {
+      const active = document.fullscreenElement === map.current
+      setFullscreen(active)
+      if (!active) fullscreenButton.current?.focus()
     }
-    document.addEventListener('keydown', escape)
-    return () => { document.removeEventListener('keydown', escape) }
-  }, [fullscreen])
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => { document.removeEventListener('fullscreenchange', syncFullscreen) }
+  }, [])
+  const toggleFullscreen = async () => {
+    setFullscreenError(false)
+    try {
+      if (document.fullscreenElement === map.current) await document.exitFullscreen()
+      else await map.current?.requestFullscreen()
+    } catch (_error) {
+      // Native fullscreen can be refused by the window or user agent.
+      setFullscreenError(true)
+    }
+  }
   const changeZoom = (delta: number) => { setZoomAt(Math.round((zoom + delta) * 100) / 100,
     (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2) }
   const toggle = (id: TaskId) => {
@@ -143,7 +157,7 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
       return next
     })
   }
-  return <section className={css.map} data-fullscreen={fullscreen} aria-label={labels.mindMap}>
+  return <section ref={map} className={css.map} data-fullscreen={fullscreen} aria-label={labels.mindMap}>
     <header className={css.toolbar}>
       <div className={css.heading}><IconBranchOutlineRegular /><h3>{labels.mindMap}</h3><span>{labels.mapCount}</span></div>
       <div className={css.controls} role="group" aria-label={labels.mapControls}>
@@ -155,9 +169,10 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
         <Button size="sm" disabled={!current} onClick={center}>{labels.locateTask}</Button>
         <button ref={fullscreenButton} type="button" className={css.fullscreen} aria-label={fullscreen ? labels.exitFullscreen : labels.fullscreen}
           title={fullscreen ? labels.exitFullscreen : labels.fullscreen} aria-pressed={fullscreen}
-          onClick={() => { setFullscreen(value => !value) }}><IconFullscreenOutlineRegular /></button>
+          onClick={() => { void toggleFullscreen() }}><IconFullscreenOutlineRegular /></button>
       </div>
     </header>
+    {fullscreenError && <p className={css.warning} role="alert">{labels.fullscreenFailed}</p>}
     {introduction}
     {layout.invalidHierarchy && <p className={css.warning} role="status">{labels.invalidHierarchy}</p>}
     <div className={css.canvas}>
@@ -218,8 +233,6 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
       </div>
       {children && <div className={css.overlay}>{children}</div>}
     </div>
-    <footer className={css.footer}><span>{labels.mapHint}</span><span>{labels.hierarchyHint}</span>
-      <Button size="sm" disabled={visibleCollapsed.size === 0} onClick={() => { setCollapsed(new Set()) }}>{labels.expandAll}</Button>
-    </footer>
+    <footer className={css.footer}><span>{labels.mapHint}</span></footer>
   </section>
 }

@@ -1,6 +1,3 @@
-import { OrganizationIntegration } from '../../../../apps/desktop/src/organization-integration.ts'
-import { execFileSync } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
 /** Real private Loader and account-owned HTTPS task operations; only the OS vault is substituted. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -14,6 +11,7 @@ import { backupOrganization, restoreOrganization } from '@deepseek-ai/dsh-organi
 import { request as httpsRequest } from 'node:https'
 import { DatabaseSync } from 'node:sqlite'
 import { readFile, writeFile } from 'node:fs/promises'
+import { actionSchema } from '../src/schema.ts'
 import { executionCommandSchema } from '@deepseek-ai/dsh-organization/execution'
 import type { ConnectionResult } from '../src/types.ts'
 import type { OrganizationTaskGrant } from '@deepseek-ai/dsh-organization'
@@ -308,28 +306,8 @@ it('shares and approves manual employee work over HTTPS without a Run, including
     expect((await h.worker.perform({ kind: 'delivery-read', request: h.selector })).delivery?.submissions[0]?.reviewState).toBe('accepted')
   })
 
-  const target = join(h.root, 'target')
-  await mkdir(target)
-  const git = (...args: string[]) => execFileSync('git', ['-C', target, ...args], { encoding: 'utf8' })
-  git('init'); git('-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline')
-  await writeFile(join(target, 'report.csv'), bytes)
-  await writeFile(join(target, 'untouched.txt'), 'unchanged')
-  const integration = new OrganizationIntegration()
-  const query = { ...h.query, taskId: h.taskId, planRevision: 1 }
-  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
-  expect((await h.owner.perform({ kind: 'integration-read', request: query })).integration?.delivered).toBe(false)
-  await expect(h.owner.perform({ kind: 'integration-verify', request: query })).rejects.toThrow('forbidden')
-  const verified = await integration.perform(h.owner, { kind: 'integration-verify', request: query }, async () => target, () => {})
-  const integrationId = verified.receipt!.integration!.integrationId
-  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
-  const confirm = { kind: 'integration-confirm', request: { ...query, integrationId, confirmed: true } }
-  await expect(new OrganizationIntegration().perform(h.owner, confirm, async () => target, () => {})).rejects.toThrow('version-conflict')
-  const confirmed = await integration.perform(h.owner, confirm, async () => { throw new Error('unexpected dialog') }, () => {})
-  expect(confirmed.receipt?.integration?.delivered).toBe(true)
-  await vi.waitFor(() => { expect(h.owner.snapshot().phase).toBe('ready') })
-  expect((await h.owner.perform({ kind: 'integration-read', request: query })).integration?.delivered).toBe(true)
-  expect(await readFile(join(target, 'untouched.txt'), 'utf8')).toBe('unchanged')
-  expect(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'report.csv')])).toEqual(bytes)
+  const tasks = await h.owner.perform({ kind: 'workgraph-tasks', request: h.query })
+  expect(tasks.workgraph?.result).toMatchObject({ kind: 'tasks', value: { items: [{ id: h.taskId, status: 'completed' }] } })
 
   await h.worker.close(); await h.owner.close(); await h.app.close()
   const backup = join(h.root, 'backup'), servicePath = join(h.root, 'server')
@@ -343,7 +321,7 @@ it('shares and approves manual employee work over HTTPS without a Run, including
     expect(value.submissions[0]?.runId).toBeNull()
     expect(value.submissions[0]?.acceptance?.id).toBe(accepted.receipt!.delivery!.acceptanceId)
   })
-  await restarted.authority.readIntegration(login.token, query, (value) => { expect(value.delivered).toBe(true) })
+  await restarted.authority.readTasks(login.token, h.query, (value) => { expect(value.items[0]?.status).toBe('completed') })
   await restarted.close()
   const damaged = new DatabaseSync(join(backup, 'organization.sqlite'))
   damaged.prepare('UPDATE organization_artifacts SET bytes=?').run(Buffer.from('damaged'))
@@ -401,6 +379,7 @@ it('does not publish an interrupted HTTPS upload or an upload with mismatched by
 it('rejects through fixed HTTPS actions, notifies the employee and prevents old Run authority from entering rework', async () => {
   const { h, channel, command, runId } = await executionChannelFixture()
   await channel.command(command({ kind: 'transition-run', state: 'cancelled' }))
+  await vi.waitFor(() => { expect(h.worker.snapshot().phase).toBe('ready') })
   const bytes = Buffer.from('first report'), sha256 = createHash('sha256').update(bytes).digest('hex')
   const base = { ...h.selector, runId, planRevision: 1 }
   const uploaded = await h.worker.perform({ kind: 'delivery-command', request: { ...base, kind: 'publish-artifact', operationId: randomUUID(),
@@ -487,3 +466,17 @@ it('submits and approves a URL and commit record over HTTPS with no file upload'
     expect(page.submissions[0]).toMatchObject({ summary, artifactIds: [], acceptance: { id: accepted.receipt!.delivery!.acceptanceId } })
   })
 }, 20000)
+
+it('refuses retired target actions in native parsing and removes their HTTPS routes', async () => {
+  const h = await setup()
+  const login = await h.app.authority.login({ username: 'owner', password })
+  const trust = { origin: `https://127.0.0.1:${h.app.ready.port}`, certificate: h.app.ready.certificate,
+    fingerprint: h.app.ready.fingerprint, expiresAt: h.app.ready.expiresAt, timeoutMs: 1000, maxResponseBytes: 1048576 }
+  for (const kind of ['integration-read', 'integration-verify', 'integration-confirm']) {
+    expect(actionSchema.safeParse({ kind, request: h.query }).success).toBe(false)
+  }
+  for (const route of ['/integration/read', '/integration/command']) {
+    const response = await transport.organizationRequest(trust, 'POST', `/organization/v1${route}`, h.query, login.token)
+    expect(response.status).toBe(404)
+  }
+})

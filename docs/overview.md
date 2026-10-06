@@ -20,17 +20,17 @@ Merforge 负责派发、桥接转录、结果接收与真人管理动作，Codex
 
 ### 已完成的内建执行与交付基础
 
-[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–10 的实现与验收交接已完成；Phase 9 的完整 CSV 组合及故障聚焦回归通过。按用户要求，Phase 10 最终发行构建、built smoke、真实模型和三机可见测试由用户后续执行，尚未记为通过。已有 Phase 1–7 的有界执行、人工请求、持久产物、正式提交和验收/返工基础上，SQLite v11 增加目标核验回执与独立最终确认；当前版本必要叶子成果全部验收、目标实际内容匹配、原下发人明确确认之后，所选父任务或叶子根任务才显示已交付。
+[组织内建执行与交付闭环实施计划](organization-execution-plan.md)细化产品 Phase 7A。内部 Phase 1–10 的实现与验收交接已完成；Phase 9 的完整 CSV 组合及故障聚焦回归通过。按用户要求，Phase 10 最终发行构建、built smoke、真实模型和三机可见测试由用户后续执行，尚未记为通过。当前任务流程保留有界执行、人工请求、持久产物、正式提交和审批/返工；原下发人审批通过即完成任务。历史目标核验记录仍保留，但不再提供目录核验和最终确认操作。
 
 带依赖的叶子可以批准和准备，创建/开始/恢复 Run 及逐动作许可要求自身与祖先前置成果已验收且当前可读。父子汇合与依赖准入分别投影，缺失或不可读输入不暴露部分兄弟证据。整计划 revision 变化继续使历史验收和回执不能支持新版本交付。父级确认归不可变计划创建者，叶子确认归原批准人；停用、失权不转交管理员。
 
-任务详情新增集成输入、依赖阻塞、核验状态、目标目录选择与最终确认。Electron 的本机核验服务只读取用户明确选择的 Git 根目录：普通文件/报告核对长度和 SHA-256，Git 包额外检查基线及旧 blob；不自动应用或覆盖。最终确认重读同一目标，文件或基线变化追加 rejected 观察。绝对路径映射只在本机进程内存，重启后重新选择核验；组织只存目标引用、相对内容证据、观察时间和决定。观察是读取时点的事实，不抵御恶意 OS 所有者，也不锁住外部编辑器。
+任务流程在原下发人审批通过后完成；父任务在全部子任务完成后自动显示完成。已移除最终交付、目标目录选择和本机目标核验；旧核验记录仅用于历史数据库校验。
 
 固定 HTTPS/native 动作、未知回执核对、权限裁剪事件和冷重开/备份校验覆盖新增关系。Session 格式与模型提示词不变。验证结果及已知门禁问题见执行计划 Phase 9–10；[执行验收剧本](organization-execution-acceptance.md)提供发行/真实模型命令及 A/B/C 三机步骤。`apps/desktop-host/tests/organization-execution.spec.ts` 贯通真实 Loader/HTTPS/SQLite/JSONL/文件工具与两仓库交付，`organization-execution-built-smoke.mjs` 在普通 Node/Electron Node mode 使用私有服务与员工 Host IPC 子进程；后者待用户运行。Desktop 可见行为、Windows 和三机产品验收仍待用户检查。
 
 ### 已完成的分配基础
 
-当前[组织分配协议](organization-assignment.md)采用分配 → 员工接受/拒绝 → 主动执行。正式分配在同一事务授予员工项目与任务子树访问，创建接受请求、持久通知和回执。员工接受后可使用普通 Agent 或自行执行，打开与接受均不运行；设备登记、准备能力授权、领取、续租与独占设备执行权已删除。Electron 只保存加密登录凭据，未知写入先查回执，重连不自动执行。任务详情以分配、执行、成果、审批和最终交付分区展示，普通 Agent 与手工成果无需创建 Run。SQLite v21 升级保留历史成果、提交、审批和执行记录，退役旧设备、准备授权及租约。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是分配消费者；[分配验收](organization-assignment-acceptance.md)区分确定性测试和用户侧可见、OS 保险库与三机待验项。
+当前[组织分配协议](organization-assignment.md)采用分配 → 员工接受/拒绝 → 主动执行。正式分配在同一事务授予员工项目与任务子树访问，创建接受请求、持久通知和回执。员工接受后可使用普通 Agent 或自行执行，打开与接受均不运行；设备登记、准备能力授权、领取、续租与独占设备执行权已删除。Electron 只保存加密登录凭据，未知写入先查回执，重连不自动执行。任务详情以分配、执行、成果和审批分区展示，普通 Agent 与手工成果无需创建 Run。SQLite v21 升级保留历史成果、提交、审批和执行记录，退役旧设备、准备授权及租约。`AssignmentPanel.tsx`、`Inbox.tsx` 与 `assignment-protocol.ts` 是分配消费者；[分配验收](organization-assignment-acceptance.md)区分确定性测试和用户侧可见、OS 保险库与三机待验项。
 
 以下为已完成的产品 Phase 5 基础：
 
@@ -100,7 +100,7 @@ Phase 1–7 已有聚焦测试、类型/局部 lint、完整构建和无页面 b
 
 路线图 Phase 4 的组织服务按[组织基础实施计划](organization-foundation-plan.md)完成内部 Phase 1–7，当前为 `manual`。`workspace/organization` 提供独立 SQLite v21 身份、项目、计划定义、分配、执行与交付记录权威；`api/organization-api` 与 Desktop 私有 `organization.yml` 提供受限 HTTPS 和当前权限事件同步。`host/organization-connection` 由 Electron 主进程持有，管理信任、登录、请求代次、失效缓存和未确认回执；`client/ui-organization` 提供设置与个人/组织入口，个人视角复用原 `personal.manager`。服务默认关闭，可显式保存随应用启动恢复；单写者目录锁、停服备份、保留旧目录的校验恢复和恢复后登录撤销已实现。72项聚焦测试、相关编译/lint/门禁、完整构建和两组普通 Node/Electron Node mode 产物验证通过。全仓不变量 gate 的既有四处 README 缺项仍单列，未计为通过。
 
-产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；正式分配/撤销、员工接受/拒绝已接入任务详情，分配原子授予员工访问。接受不自动执行；员工主动使用普通 Agent 或自行执行，无设备登记、准备授权或领取。高级独立 Run 是可选入口，普通成果可直接上传并正式汇报，原下发人审批及目标核验/最终交付仍保留。
+产品 Phase 4 三机验收待定；[A/B/C 验收剧本](organization-foundation-acceptance.md)列出用户侧 Wi-Fi、防火墙、不同账号/授权、个人隔离、撤权重连、停服恢复与证书轮换步骤。组织入口不复用个人 cookie、不暴露个人 profile。WorkGraph 已有服务内定义/版本/授权投影、固定 HTTPS/原生动作和共享任务工作台，可创建单任务、编辑已有节点文字、管理任务授权并读取本人原始上下文；正式分配/撤销、员工接受/拒绝已接入任务详情，分配原子授予员工访问。接受不自动执行；员工主动使用普通 Agent 或自行执行，无设备登记、准备授权或领取。高级独立 Run 是可选入口，普通成果可直接上传并正式汇报，原下发人审批通过即完成任务。
 
 本文只描述当前代码。个人模式双入口和编辑 UI 已实现；产品路线图 Phase 3 内部施工 Phase 1–7 的 Task 数据、可视化、任务增强模式、输入框任务选择、不同子任务独立执行及同机接力已实现。Phase 7 集成验证与收尾已完成，计划保持 manual，不自动进入组织阶段。可见 Desktop 验收和真实模型 API 验证仍待完成。本阶段不建设自动任务或 Agent 调度。旧基础裁剪记录中保留 Goal/Plan Mode 的说明不是当前能力清单，当前代码树已无这两个包。每执行完一个阶段，应按实际文件、入口和验证结果更新本文及对应计划的唯一状态表。Merforge 使用 `~/.merforge` 或 `MERFORGE_HOME`，不迁移或删除旧的 `DSH_HOME` 数据。当前 Session 保存与重开规则见[格式状态](session-format-status.md)。用户禁止助理自行启动页面、使用 Playwright、浏览器自动化或 GitNexus；可见 Desktop 行为由用户自行检查。用户于 2026-09-24 取消 macOS/Windows 安装验收，并报告本地模型交互正常；这不代表其他未执行检查已通过。
 

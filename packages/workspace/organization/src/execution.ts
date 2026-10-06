@@ -1,4 +1,4 @@
-import { requireDependencies } from './integration.ts'
+import { requireDependencies } from './dependencies.ts'
 /** Transaction-local execution permission, budgets and historical settlement. */
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'

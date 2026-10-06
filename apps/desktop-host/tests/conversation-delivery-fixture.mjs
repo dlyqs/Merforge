@@ -30,7 +30,7 @@ export async function liveDeliveryScenario(kit) {
       issuerSession = opened.result.sessionId
       assert.equal(opened.result.settings.enabled, true)
       const response = await invoke(owner, issuer, { ...request, kind: 'send', operationId: randomUUID(),
-        route: 'new_goal', selection, text: 'PRIVATE_ISSUER_CHAT: Our QA team needs two independently reviewable deliverables: result.csv in UTF-8 with columns name,note and rows Alice with note hello,world and Bob with note say "hi", using standard CSV quoting; and contract.json describing those columns and UTF-8 encoding. Create a plan with one parent and exactly two required leaf tasks, one per file, with no ordering dependency. Both are required for final delivery. Do not execute; people will review and assign the tasks.' })
+        route: 'new_goal', selection, text: 'PRIVATE_ISSUER_CHAT: Our QA team needs two independently reviewable deliverables: result.csv in UTF-8 with columns name,note and rows Alice with note hello,world and Bob with note say "hi", using standard CSV quoting; and contract.json describing those columns and UTF-8 encoding. Create a plan with one parent and exactly two required leaf tasks, one per file, with no ordering dependency. Both require issuer approval to complete the parent task. Do not execute; people will review and assign the tasks.' })
       goal = response.result.goals.at(-1)
       assert.equal(goal.classification, 'complex')
       assert.equal(goal.proposal.status, 'shared')

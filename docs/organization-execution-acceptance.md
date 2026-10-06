@@ -1,12 +1,12 @@
 # 组织执行与交付验收
 
-本指南描述当前分配 → 接受 → 主动执行 → 汇报 → 审批 → 目标核验与最终交付。设备登记、准备授权和领取步骤已移除。确定性工程测试、真实模型与用户侧可见验收分别记录，以下用户剧本不代表已通过。
+本指南描述当前分配 → 接受 → 主动执行 → 汇报 → 审批完成。设备登记、准备授权和领取步骤已移除。确定性工程测试、真实模型与用户侧可见验收分别记录，以下用户剧本不代表已通过。
 
 ## 工程覆盖与产物测试
 
 无 Run 主链覆盖在 organization/tests/assignment-execution.spec.ts、organization-connection/tests/assignment.spec.ts、organization-conversation/tests/shared-session.spec.ts 和 ui-organization/tests/assignment.client.spec.tsx。测试使用真实 Loader、SQLite、HTTPS 和普通 Agent，替代外部模型或 OS 保险库，不打开页面。
 
-高级 Run 的共享 organization-execution-fixture.mjs 仍覆盖人工问题、持久等待、明确继续、Host 冷重开、提交、驳回、重新分配接受、两个子任务验收和父级目标确认。预算、丢响应、断线、撤销、服务重启、文件边界与历史恢复分别由聚焦测试覆盖。高级 Run 是可选路径，不作为普通 Agent 或手工作业的前置。
+高级 Run 的共享 organization-execution-fixture.mjs 仍覆盖人工问题、持久等待、明确继续、Host 冷重开、提交、驳回、重新分配接受、两个子任务审批和父级自动完成。预算、丢响应、断线、撤销、服务重启、文件边界与历史恢复分别由聚焦测试覆盖。高级 Run 是可选路径，不作为普通 Agent 或手工作业的前置。
 
 在同一 checkout 构建产物后，可运行无窗口 smoke：
 
@@ -33,7 +33,7 @@ pnpm exec vitest run --config vitest.e2e.config.ts apps/desktop/tests/organizati
 
 ## 用户 A/B/C 剧本
 
-A 是组织服务 Desktop，B 是下发人 Desktop，C 是员工 Desktop，分别使用独立目录；B/C 连接 A 并核对证书。B 和 C 各准备一个临时 Git 仓库和 untouched.txt。创建父任务“交付 CSV 与格式说明”和两个必要叶子 result.csv、format.json。
+A 是组织服务 Desktop，B 是下发人 Desktop，C 是员工 Desktop，分别使用独立目录；B/C 连接 A 并核对证书。C 准备一个临时工作目录和 untouched.txt。创建父任务“交付 CSV 与格式说明”和两个必要叶子 result.csv、format.json。
 
 | 顺序 | 操作 | 应观察结果 |
 | --- | --- | --- |
@@ -43,10 +43,8 @@ A 是组织服务 Desktop，B 是下发人 Desktop，C 是员工 Desktop，分�
 | 4 汇报 | C 选文件并确认上传，再填写摘要、目标和确认提交 | 上传不等于正式汇报；B 获得所选文件，不获得员工完整对话 |
 | 5 驳回 | B 提供理由和新验收要求 | 新整计划 revision，旧分配失效，旧成果及决定保留 |
 | 6 返工 | B 重新分配，C 接受、主动执行、上传并提交 | 不重复设备准备；新版成果须重新发布，B 明确审批 |
-| 7 子任务汇总 | 完成并审批第二个必要叶子 | 一项通过时父任务仍未交付；全部必要成果就绪才可核验 |
-| 8 应用与核验 | B 手工应用成果，选择自己的实际 Git 目标并核验 | 检查实际基线和文件内容，不自动 merge、push 或覆盖 |
-| 9 最终确认 | B 核对结果后明确确认 | 再次读取目标；确认后 delivered，不把核验当最终交付 |
-| 10 变化与重开 | 核验后改目标文件或 HEAD，再确认；重启 B/C | 变化拒绝旧回执；重启保留业务记录，目标目录需重选核验 |
+| 7 审批完成 | 完成并审批第二个子任务 | 每项审批通过即完成；全部子任务完成后父任务自动完成 |
+| 8 重开 | 重启 B/C | 保留成果、审批和完成状态；无目标目录或额外确认步骤 |
 
 可选高级 Run 验收：接受后展开高级执行、选择 API/Codex、目录和本次限额并启动；提出人工问题后等待答复，再明确继续。答复不自动运行，未知动作不自动重放。高级运行完成后仍需员工汇报和原下发人审批。
 

@@ -25,6 +25,6 @@ export function TaskMindMap({ definition, statuses, selected, onSelect, t, child
     zoomIn: t('zoomIn'), fitMap: t('fitMap'), locateTask: t('locateTask'), invalidHierarchy: t('invalidHierarchy'),
     mapHint: t('mapHint'), rootTask: t('rootTask'), requiredNode: t('requiredNode'), optionalNode: t('optionalNode'),
     hierarchyHint: t('hierarchyHint'), expandAll: t('expandAll'), expandBranch: t('expandBranch', { goal: '{goal}' }), collapseBranch: t('collapseBranch', { goal: '{goal}' }),
-    fullscreen: t('fullscreen'), exitFullscreen: t('exitFullscreen'),
+    fullscreen: t('fullscreen'), exitFullscreen: t('exitFullscreen'), fullscreenFailed: t('fullscreenFailed'),
   }}>{children}</TaskMap>
 }

@@ -114,12 +114,12 @@ export async function executionScenario(kit, createHost = root => localExecution
   const clients = [], hosts = []
   let app
   let localRoot = join(root, 'employee-host'), work = join(root, 'employee-git')
-  const target = join(root, 'issuer-git'), localRoots = [localRoot], workRoots = [work]
+  const localRoots = [localRoot], workRoots = [work]
   const git = (directory, ...args) => execFileSync('git', ['-C', directory, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   async function active(client, action) { await until(() => client.snapshot().phase === 'ready'); return client.perform(action) }
   try {
-    for (const directory of [localRoot, work, target]) await mkdir(directory)
-    for (const directory of [work, target]) {
+    for (const directory of [localRoot, work]) await mkdir(directory)
+    for (const directory of [work]) {
       git(directory, 'init'); git(directory, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-m', 'baseline')
       await writeFile(join(directory, 'untouched.txt'), 'PRIVATE_UNSELECTED_SENTINEL')
     }
@@ -296,8 +296,8 @@ export async function executionScenario(kit, createHost = root => localExecution
       for (const capability of ['fs-write', 'fs-read']) assert.ok(view.actions.some(action => action.capability === capability && action.state === 'succeeded'))
     }
     const leftFile = await submit(second, 'result.csv'); await review(leftFile)
-    const integrationQuery = { ...query, taskId: parent, planRevision: initialRevision + 1 }
-    assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.inputsReady, false)
+    const completionQuery = { ...query, taskId: parent }
+    assert.equal((await active(owner, { kind: 'workgraph-tasks', request: completionQuery })).workgraph.result.value.items[0].status, 'running')
     if (kit.twoMembers) {
       const secondMember = await connect(null, 'second-employee')
       const invite = await active(owner, { kind: 'invite', role: 'member' })
@@ -340,23 +340,8 @@ export async function executionScenario(kit, createHost = root => localExecution
       const secondPrivate = await kit.readOrganizationExecution(member, host, { ...third.selector, runId: third.request.runId }, () => {}, new AbortController().signal)
       assert.equal(JSON.stringify(secondPrivate).includes('PRIVATE_EXECUTION_SENTINEL: prepare CSV evidence'), false)
     }
-    const integration = new kit.OrganizationIntegration()
-    assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.delivered, false)
-    for (const file of [rightFile, leftFile]) {
-      const download = await active(owner, { kind: 'delivery-download', request: { ...query, assignmentId: file.base.assignmentId, artifactId: file.artifactId } })
-      await writeFile(join(target, file.path), Buffer.from(download.artifact.bytes, 'base64'))
-    }
-    await until(() => owner.snapshot().phase === 'ready')
-    const observed = await integration.perform(owner, { kind: 'integration-verify', request: integrationQuery }, async () => target, () => {})
-    await until(() => owner.snapshot().phase === 'ready')
-    assert.equal((await active(owner, { kind: 'integration-read', request: integrationQuery })).integration.delivered, false)
-    await until(() => owner.snapshot().phase === 'ready')
-    const confirm = await integration.perform(owner, { kind: 'integration-confirm', request: { ...integrationQuery,
-      integrationId: observed.receipt.integration.integrationId, confirmed: true } }, async () => { throw new Error('unexpected picker') }, () => {})
-    assert.equal(confirm.receipt.integration.delivered, true)
-    assert.equal(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("node:fs").readFileSync(process.argv[1]))', join(target, 'result.csv')]).toString(), csv)
-    for (const file of [leftFile, rightFile]) assert.equal(sha(await readFile(join(target, file.path))), file.sha256)
-    for (const directory of [...workRoots, target]) assert.equal(await readFile(join(directory, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
+    assert.equal((await active(owner, { kind: 'workgraph-tasks', request: completionQuery })).workgraph.result.value.items[0].status, 'completed')
+    for (const directory of workRoots) assert.equal(await readFile(join(directory, 'untouched.txt'), 'utf8'), 'PRIVATE_UNSELECTED_SENTINEL')
     const shared = JSON.stringify(await active(owner, { kind: 'delivery-read', request: third.selector }))
     assert.equal(shared.includes('PRIVATE_EXECUTION_SENTINEL'), false)
     assert.equal(shared.includes(work), false)
@@ -391,7 +376,7 @@ export async function executionScenario(kit, createHost = root => localExecution
       }
       const actions = db.prepare('SELECT id FROM execution_actions').all()
       assert.deepEqual(new Set(actions.map(action => action.id)), loggedActions)
-      assert.equal(db.prepare('SELECT count(*) AS n FROM integration_confirmations').get().n, 1)
+      assert.equal(db.prepare('SELECT count(*) AS n FROM integration_confirmations').get().n, 0)
       assert.equal(db.prepare('SELECT count(*) AS n FROM plan_revisions WHERE planId=?').get(query.planId).n, initialRevision + 1)
     } finally { db.close() }
     const sharedDatabase = await readFile(join(server, 'organization.sqlite'))
@@ -401,7 +386,7 @@ export async function executionScenario(kit, createHost = root => localExecution
     assert.equal(sharedDatabase.includes(Buffer.from('SECOND_PRIVATE_EXECUTION_SENTINEL')), false)
     app = await kit.bootOrganization(config)
     const login = await app.authority.login({ username: 'owner', password })
-    await app.authority.readIntegration(login.token, integrationQuery, view => assert.equal(view.delivered, true))
+    await app.authority.readTasks(login.token, completionQuery, view => assert.equal(view.items[0].status, 'completed'))
     await app.authority.downloadArtifact(login.token, { ...third.selector, artifactId: rightFile.artifactId }, value => assert.equal(value.bytes, rightFile.bytes.toString('base64')))
   } finally {
     const results = await Promise.allSettled([...hosts.map(h => h.close()), ...(kit.planningHooks ? [kit.planningHooks.close()] : [])])

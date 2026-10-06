@@ -132,11 +132,12 @@ export function DeliveryPanel(props: OrganizationProps & {
       await download(file.id)
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
   }
-  const renderFile = (file: Artifact) => <div className={css.attachmentRow} key={file.id}>
+  const renderFile = (file: Artifact, submittedAt?: number) => <div className={css.attachmentRow} key={file.id}>
     <button type="button" className={css.attachmentName} disabled={busy || !!c.pendingOperation}
       onClick={() => { void openFile(file) }}>{file.path.split('/').at(-1)}</button>
-    <span className={css.hint}>{file.modifiedAt === undefined ? t('deliveryModifiedUnknown')
-      : t('deliveryModifiedAt', { time: new Date(file.modifiedAt).toLocaleString(t('deliveryDateLocale')) })}</span>
+    <span className={css.hint}>{submittedAt !== undefined ? t('deliverySubmittedAt', { time: new Date(submittedAt).toLocaleString(t('deliveryDateLocale')) })
+      : file.modifiedAt === undefined ? t('deliveryModifiedUnknown')
+        : t('deliveryModifiedAt', { time: new Date(file.modifiedAt).toLocaleString(t('deliveryDateLocale')) })}</span>
     <span className={css.attachmentSize}>{fileSize(file.size, t('deliveryBytes'))}</span>
   </div>
   return <section className={css.panel} aria-busy={busy}>
@@ -154,7 +155,7 @@ export function DeliveryPanel(props: OrganizationProps & {
           {submission.target && <p className={css.prose}>{submission.target}</p>}
           <div className={css.attachmentList}>{submission.artifactIds.map((artifactId) => {
             const file = value?.artifacts.find(file => file.id === artifactId)
-            return file ? renderFile(file) : <Button key={artifactId} variant="outline" disabled={busy || !!c.pendingOperation}
+            return file ? renderFile(file, submission.submittedAt) : <Button key={artifactId} variant="outline" disabled={busy || !!c.pendingOperation}
               onClick={() => { void download(artifactId) }}>{t('deliveryDownload')}</Button>
           })}</div>
           <AcceptanceReview key={`${c.generation}:${submission.id}`} {...props} submission={submission} artifacts={value?.artifacts ?? []} refresh={load} />

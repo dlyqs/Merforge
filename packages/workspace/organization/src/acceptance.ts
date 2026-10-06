@@ -1,4 +1,4 @@
-/** Original-issuer review and atomic whole-plan rework, independent of final integration. */
+/** Original-issuer task completion and atomic whole-plan rework. */
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
@@ -75,7 +75,7 @@ export function changeAcceptance(db: DatabaseSync, principal: Principal, command
  * Project current review eligibility and historical decisions without changing submitted evidence.
  * @param db - Current authority transaction after task read authorization.
  * @param submission - Immutable employee submission.
- * @returns Review state; accepted is never a final delivery or parent completion.
+ * @returns Review state; acceptance completes this task, with parents derived from child completion.
  */
 export function submissionView(db: DatabaseSync, submission: z.output<typeof submissionSchema>): z.output<typeof submissionViewSchema> {
   const row = db.prepare('SELECT data FROM organization_acceptances WHERE submissionId=?').get(submission.id)

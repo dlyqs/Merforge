@@ -79,20 +79,15 @@ it('retains a failed save draft and retries the identical operation; conflicts r
   expect(saves).toHaveLength(2); expect(saves[0]).toEqual(saves[1])
   expect((screen.getByLabelText(zh.taskGoal).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true)
 })
-it('uses native context action and hides expired content including delayed results', async () => {
-  const h = fixture(); const late = Promise.withResolvers<Awaited<ReturnType<OrganizationProps['context']>>>()
-  h.context.mockReturnValue(late.promise)
-  const view = render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
+it('keeps the overview focused and removes the read-only context action', async () => {
+  const h = fixture()
+  render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Visible task' }))
-  fireEvent.click(screen.getByRole('button', { name: zh.myContext }))
-  expect(h.context).toHaveBeenCalledWith(expect.objectContaining({ taskId: h.page.items[0]!.id, projectId: h.project.id }))
-  h.setState({ generation: 2, phase: 'offline' }); view.rerender(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
-  late.resolve({ generation: 1, result: { sessionId: 'organization-context:test' as import('@deepseek-ai/dsh-session').SessionId, mode: 'pre-execution',
-    owner: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()),
-      organizationId: h.project.organizationId,
-      planId: h.version.planId, taskId: h.page.items[0]!.id, version: 1 }, snapshot: h.page.items[0]! } })
-  await waitFor(() =>{  expect(screen.queryByText('Authorized scope')).toBeNull() })
-  expect(screen.queryByText(zh.contextReadonly)).toBeNull()
+  expect(screen.getByText('Authorized scope')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: zh.myContext })).toBeNull()
+  expect(screen.queryByText(zh.taskIdentifiers)).toBeNull()
+  expect(screen.queryByText(zh.stagesAndDependencies)).toBeNull()
+  expect(h.context).not.toHaveBeenCalled()
 })
 it('opens project information in the main destination and removes the manual task workbench', async () => {
   const h = fixture(), openProject = vi.fn(), onClose = vi.fn()
@@ -118,23 +113,6 @@ it('offers model-created tasks without a manual create task action', async () =>
   expect(screen.queryByRole('button', { name: zh.taskPermissions })).toBeNull()
   expect(h.connection.mock.calls.some(([a]) => a.kind === 'workgraph-save')).toBe(false)
 })
-
-it('shows the saved context revision separately when the current task has changed', async () => {
-  const h = fixture(), original = h.page.items[0]!
-  h.page.items = [{ ...original, revision: workgraphVersionSchema.parse({ ...h.version, revision: 2 }).revision }]
-  h.context.mockResolvedValue({ generation: 1, result: {
-    sessionId: 'organization-context:test' as import('@deepseek-ai/dsh-session').SessionId, mode: 'pre-execution',
-    owner: { serverId: brandString(randomUUID()), accountId: brandString(randomUUID()), organizationId: h.project.organizationId,
-      planId: h.version.planId, taskId: original.id, version: 1 }, snapshot: original,
-  } })
-  render(<Workbench {...h.props} project={h.project} onBack={vi.fn()} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Visible task' }))
-  fireEvent.click(screen.getByRole('button', { name: zh.myContext }))
-  await screen.findByText(zh.contextOldVersion)
-  expect(screen.getByText(zh.contextReadonly)).toBeTruthy()
-  expect(screen.getAllByText('版本 1')).toHaveLength(1)
-})
-
 
 it('does not repeat denied task reads during refresh and removes task search controls', async () => {
   const h = fixture()
@@ -239,6 +217,10 @@ it('selects task nodes in the main canvas and keeps assignment controls below th
   const detail = await screen.findByRole('region', { name: zh.taskDetail })
   expect(detail.closest('[data-task-canvas]')).toBeNull()
   expect(detail.getAttribute('data-layout')).toBe('flow')
+  expect(within(detail).getByText(zh.taskDeliveryTab)).toBeTruthy()
+  expect(within(detail).queryByText('最终交付')).toBeNull()
+  expect(within(detail).queryByText('选择目标目录并核验')).toBeNull()
+  expect(h.connection.mock.calls.some(([action]) => action.kind.startsWith('integration-'))).toBe(false)
   expect(await within(detail).findByText(child.scope)).toBeTruthy()
   expect(await within(detail).findByLabelText(zh.assignee)).toBeTruthy()
   expect(screen.queryByRole('dialog')).toBeNull()
@@ -374,16 +356,16 @@ it('discards delayed shared background after the native identity generation reti
   expect(screen.queryByRole('button', { name: zh.editSharedContext })).toBeNull()
 })
 
-it('refreshes map, details and phase badges together after assignment and issuer acceptance', async () => {
+it('refreshes map and detail badges together after assignment and issuer acceptance', async () => {
   const h = fixture()
   const view = render(<Workbench {...h.props} project={h.project} planId={h.version.planId}
     initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
-  await waitFor(() => { expect(screen.getAllByText(zh['task-status-pending'])).toHaveLength(4) })
+  await waitFor(() => { expect(screen.getAllByText(zh['task-status-pending'])).toHaveLength(2) })
   for (const [generation, status] of [[2, 'running'], [3, 'completed']] as const) {
     h.page.items = h.page.items.map(task => ({ ...task, status }))
     h.setState({ generation })
     view.rerender(<Workbench {...h.props} project={h.project} planId={h.version.planId}
       initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
-    await waitFor(() => { expect(screen.getAllByText(zh[`task-status-${status}`])).toHaveLength(4) })
+    await waitFor(() => { expect(screen.getAllByText(zh[`task-status-${status}`])).toHaveLength(2) })
   }
 })

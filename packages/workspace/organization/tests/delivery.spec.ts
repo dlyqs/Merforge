@@ -33,10 +33,16 @@ it('publishes atomically, requires a separate human submission and survives a co
   await h.transition('running'); await h.transition('succeeded')
   // Expired execution authority cannot start actions, but it does not erase submission eligibility.
   h.db.prepare("UPDATE execution_delegations SET data=json_set(data,'$.expiresAt',1)").run()
+  const beforeSubmission = Date.now()
   const operation = operationId(), submitted = await h.submit(artifactId, { operationId: operation })
   expect(await h.submit(artifactId, { operationId: operation })).toEqual(submitted)
   await h.service.readInbox(h.owner.token, { organizationId: h.query.organizationId }, (page) => {
-    expect(page.items.some(item => item.request.kind === 'accept-delivery' && item.request.id === submitted.delivery!.submissionId)).toBe(true)
+    const request = page.items.find(item => item.request.kind === 'accept-delivery' && item.request.id === submitted.delivery!.submissionId)?.request
+    expect(request?.kind).toBe('accept-delivery')
+    if (request?.kind === 'accept-delivery') {
+      expect(request.submittedAt).toBeGreaterThanOrEqual(beforeSubmission)
+      expect(request.submittedAt).toBeLessThanOrEqual(Date.now())
+    }
   })
   const output = join(h.root, 'download.csv')
   await h.service.downloadArtifact(h.owner.token, { ...h.selector, artifactId }, (value) => {

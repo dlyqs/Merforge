@@ -29,6 +29,6 @@ export function TaskCanvas({ tasks, pending = [], selected, onSelect, t, childre
       zoomIn: t('zoomIn'), fitMap: t('fitMap'), locateTask: t('locateTask'), invalidHierarchy: t('invalidHierarchy'),
       mapHint: t('mapHint'), rootTask: t('rootTask'), requiredNode: t('requiredNode'), optionalNode: t('optionalNode'),
       hierarchyHint: t('mapHierarchyHint'), expandAll: t('expandAll'), expandBranch: t('expandBranch', { goal: '{goal}' }), collapseBranch: t('collapseBranch', { goal: '{goal}' }),
-      fullscreen: t('fullscreen'), exitFullscreen: t('exitFullscreen'),
+      fullscreen: t('fullscreen'), exitFullscreen: t('exitFullscreen'), fullscreenFailed: t('fullscreenFailed'),
     }} />{children}</>
 }

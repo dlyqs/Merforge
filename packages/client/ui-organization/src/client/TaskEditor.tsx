@@ -21,9 +21,9 @@ export function TaskEditor(props: Pick<OrganizationProps, 't'> & {
   const update = (patch: Partial<typeof task>) =>{  props.change({ ...definition,
     tasks: definition.tasks.map(item => item.id === taskId ? { ...item, ...patch } : item) }) }
   const valid = !!task.goal.trim() && !!task.scope.trim() && task.acceptance.some(text => text.trim())
-  return <form onSubmit={(event) => { event.preventDefault(); if (valid && !props.disabled) props.save() }}>
+  return <form className={css.taskEditor} onSubmit={(event) => { event.preventDefault(); if (valid && !props.disabled) props.save() }}>
     <fieldset className={css.form} disabled={props.disabled}>
-      <label className={css.field}>{t('taskGoal')}<Input autoFocus required placeholder={t('taskGoalPlaceholder')} value={task.goal} onChange={(event) =>{  update({ goal: event.target.value }) }} /></label>
+      <label className={css.field}>{t('taskGoal')}<Input className={`${css.taskEditorInput}`} autoFocus required placeholder={t('taskGoalPlaceholder')} value={task.goal} onChange={(event) =>{  update({ goal: event.target.value }) }} /></label>
       <label className={css.field}>{t('taskScope')}<textarea required placeholder={t('taskScopePlaceholder')} value={task.scope} onChange={(event) =>{  update({ scope: event.target.value }) }} /></label>
       <label className={css.field}>{t('taskAcceptance')}<textarea required placeholder={t('taskAcceptancePlaceholder')} value={task.acceptance.join('\n')} onChange={(event) =>{  update({ acceptance: event.target.value.split('\n') }) }} /></label>
       <details className={css.advanced} open={task.artifacts.length > 0 || task.suggestedMembershipId !== null ? true : undefined}>

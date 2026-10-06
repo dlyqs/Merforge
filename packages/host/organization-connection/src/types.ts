@@ -31,7 +31,7 @@ export type OrganizationRequestId = Branded<'OrganizationRequestId'>
 export type ConnectionAction =
   | { kind: 'remove-project'; projectId: import('@deepseek-ai/dsh-organization/types').OrganizationProjectId }
   | { kind: 'assignment-batch' | 'assignment-batch-read' | 'planning-read' | 'planning-candidates' | 'planning-plan'; request: unknown }
-  | { kind: 'integration-read' | 'integration-verify' | 'integration-confirm' | 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation'; request: unknown }
+  | { kind: 'delivery-command' | 'delivery-read' | 'delivery-download' | 'execution-list' | 'execution-command' | 'execution-read' | 'assignment-review' | 'assignment-command' | 'assignment-participant' | 'assignment-tasks' | 'assignment-inbox' | 'assignment-preparation'; request: unknown }
   | { kind: 'workgraph-sharing' | 'workgraph-share' | 'remove-plan' | 'workgraph-delete' | 'workgraph-removal' | 'workgraph-save' | 'workgraph-read' | 'workgraph-tasks' | 'workgraph-grant' | 'workgraph-grants'; request: unknown }
   | { kind: 'probe'; origin: string }
   | { kind: 'trust'; fingerprint: string }
@@ -82,7 +82,6 @@ export interface ConnectionResult {
   planningPlan?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningPlanViewSchema>
   planning?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').accountConversationViewSchema>
   candidates?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/planning').planningCandidatesPageSchema>
-  integration?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').integrationViewSchema>
   delivery?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').deliveryPageSchema>
   artifact?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/delivery').artifactDownloadSchema>
   executions?: import('zod').z.output<typeof import('@deepseek-ai/dsh-organization/execution').executionPageSchema>

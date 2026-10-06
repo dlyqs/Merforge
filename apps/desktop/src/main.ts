@@ -1,5 +1,4 @@
 import { organizationConversation } from './organization-conversation.ts'
-import { OrganizationIntegration } from './organization-integration.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 import { openOrganizationExecution, readOrganizationExecution } from './organization-execution.ts'
 import type { ExecutionRequest, ExecutionAuthority, ExecutionCommand, ExecutionReportRequest, ExecutionReadAuthority } from '@deepseek-ai/dsh-organization-execution/protocol'
@@ -375,16 +374,10 @@ async function main(): Promise<void> {
   }
   organizationManager.connection.subscribe(publishOrganization)
   ipcMain.handle(DESKTOP_IPC.organizationSnapshot, (event) => { assertProductSender(event); return organizationManager.snapshot() })
-  const organizationIntegration = new OrganizationIntegration()
   ipcMain.handle(DESKTOP_IPC.organizationConnection, async (event, action: ConnectionAction) => {
     assertProductSender(event)
     try {
-      const result = action.kind === 'integration-verify' || action.kind === 'integration-confirm'
-        ? await organizationIntegration.perform(organizationManager.connection, action, async () => {
-          const selected = await dialog.showOpenDialog({ properties: ['openDirectory'] })
-          return selected.canceled ? undefined : selected.filePaths[0]
-        }, () => { assertProductSender(event) })
-        : await organizationManager.connection.perform(action)
+      const result = await organizationManager.connection.perform(action)
       assertProductSender(event)
       assertOrganizationResult(result, organizationManager.connection.snapshot().generation)
       return result

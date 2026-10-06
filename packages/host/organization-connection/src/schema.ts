@@ -44,7 +44,7 @@ export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('remove-project'), projectId: projectViewSchema.shape.id }).strict(),
   z.object({ kind: z.literal('project-page'), offset: z.number().int().nonnegative(), cursor: z.string().optional() }).strict(),
   z.object({ kind: z.enum(['assignment-batch', 'assignment-batch-read', 'planning-read', 'planning-candidates', 'planning-plan']), request: z.unknown() }).strict(),
-  z.object({ kind: z.enum(['integration-read', 'integration-verify', 'integration-confirm', 'delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation']), request: z.unknown() }).strict(),
+  z.object({ kind: z.enum(['delivery-command', 'delivery-read', 'delivery-download', 'execution-list', 'execution-command', 'execution-read', 'assignment-review', 'assignment-command', 'assignment-participant', 'assignment-tasks', 'assignment-inbox', 'assignment-preparation']), request: z.unknown() }).strict(),
   z.object({ kind: z.enum(['workgraph-sharing', 'workgraph-share', 'remove-plan', 'workgraph-delete', 'workgraph-removal', 'workgraph-save', 'workgraph-read', 'workgraph-tasks', 'workgraph-grant', 'workgraph-grants']), request: z.unknown() }).strict(),
   z.object({ kind: z.literal('probe'), origin: z.string().max(2048) }).strict(),
   z.object({ kind: z.literal('trust'), fingerprint: z.string() }).strict(),

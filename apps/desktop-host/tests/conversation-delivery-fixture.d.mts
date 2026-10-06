@@ -7,7 +7,7 @@ export type LiveDeliveryKit = PlanningKit & ExecutionKit & {
   planningRoute: NonNullable<PlanningKit['planningRoute']>
   liveRoute: NonNullable<ExecutionKit['liveRoute']>
 }
-/** Verify live planning, human waiting, rework and final delivery without windows.
+/** Verify live planning, human waiting, rework and approval completion without windows.
  * @param kit Source composition with explicit real provider routes.
  * @returns Completion after isolated resources have been closed.
  */

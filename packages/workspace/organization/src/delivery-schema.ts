@@ -45,6 +45,8 @@ export const deliveryCommandSchema = z.discriminatedUnion('kind', [
 export const submissionSchema = selector.extend({ id: id<OrganizationSubmissionId>(), kind: z.literal('accept-delivery'),
   employeeId: id<MembershipId>(), handlerId: id<MembershipId>(), state: z.literal('submitted'),
   artifactIds: z.array(id<OrganizationArtifactId>()), summary: z.string().min(1).max(8192),
+  /** Authority-recorded submission time in milliseconds; older submissions omit it. */
+  submittedAt: integer.optional(),
   target: z.string().max(8192), createdRevision: integer.positive() }).strict()
 /** Issuer decision binds immutable hashes; rejection links the newly authored whole-plan revision. */
 export const acceptanceSchema = selector.extend({ id: id<OrganizationAcceptanceId>(), submissionId: id<OrganizationSubmissionId>(),
@@ -75,4 +77,3 @@ export const deliveryLimitsSchema = z.object({ artifactMaxFiles: integer.positiv
 /** Authorized submissions and published evidence, bounded before native delivery. */
 export const deliveryPageSchema = z.object({ artifacts: z.array(artifactSchema), submissions: z.array(submissionViewSchema),
   total: integer, offset: integer, limits: deliveryLimitsSchema }).strict()
-export * from './integration-schema.ts'

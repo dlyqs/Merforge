@@ -271,7 +271,8 @@ it('accepts without delegating or claiming and hides old details when offline', 
   const h = fixture(true)
   const view = render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
   fireEvent.click(await screen.findByRole('button', { name: zh.acceptAssignment }))
-  await screen.findByText(zh.taskExecutionReady)
+  await waitFor(() => expect(h.prep.assignment.state).toBe('accepted'))
+  expect(screen.queryByText(zh.taskExecutionReady)).toBeNull()
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-delegate' || action.kind === 'lease-claim')).toBe(false)
   expect(screen.getByText(zh.preparationOnly)).toBeTruthy()
   h.offline(); view.rerender(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current={false} />)
@@ -385,10 +386,10 @@ it('uses the same explicit acceptance and execution controls inside a conversati
   const accept = await screen.findByRole('button', { name: zh.acceptAssignment })
   expect(screen.getByRole('tab', { name: zh.taskExecutionTab })).toBeTruthy()
   expect(screen.getByRole('tab', { name: zh.taskDeliveryTab })).toBeTruthy()
-  expect(screen.getByRole('tab', { name: zh.taskIntegrationTab })).toBeTruthy()
   expect(h.connection.mock.calls.every(([a]) => !['assignment-participant', 'execution-command', 'lease-claim', 'assignment-delegate'].includes(a.kind))).toBe(true)
   fireEvent.click(accept)
-  await screen.findByText(zh.taskExecutionReady)
+  await waitFor(() => expect(h.prep.assignment.state).toBe('accepted'))
+  expect(screen.queryByText(zh.taskExecutionReady)).toBeNull()
   expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-participant')).toHaveLength(1)
   expect(h.props.execution).not.toHaveBeenCalled()
 })
@@ -631,13 +632,13 @@ it('puts collapsible approval records first and opens a local attachment without
   a.state = 'accepted'
   const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
     assignmentId: a.id, runId: null, planRevision: a.planRevision }
-  const artifactId = randomUUID(), modifiedAt = 1700000000000
+  const artifactId = randomUUID(), modifiedAt = 1700000000000, submittedAt = 1700000100000
   const page = deliveryPageSchema.parse({ artifacts: [{ ...selector, id: artifactId, employeeId: a.assigneeId,
     path: 'project-facts.md', mediaType: 'text/markdown', description: 'project-facts.md', kind: 'file', size: 53351,
     modifiedAt, sha256: 'a'.repeat(64), createdRevision: 3 }],
   submissions: ['pending', 'rejected', 'accepted'].map((reviewState, index) => ({ ...selector, id: randomUUID(),
     employeeId: a.assigneeId, handlerId: a.approvedBy, kind: 'accept-delivery', state: 'submitted',
-    artifactIds: index === 0 ? [artifactId] : [], summary: `Submission ${index}`, target: '', createdRevision: 4 + index,
+    submittedAt, artifactIds: index === 0 ? [artifactId] : [], summary: `Submission ${index}`, target: '', createdRevision: 4 + index,
     reviewState, acceptance: null })), total: 3, offset: 0,
   limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 100000, artifactMaxTotalBytes: 1000000 } })
   h.connection.mockResolvedValue({ generation: 1, delivery: page })
@@ -654,8 +655,27 @@ it('puts collapsible approval records first and opens a local attachment without
   expect(screen.queryByText(zh.deliveryHint)).toBeNull()
   expect(screen.queryByText(zh.taskEvidenceDetails)).toBeNull()
   expect(screen.getByText('52.1 KB')).toBeTruthy()
-  expect(screen.getByText(zh.deliveryModifiedAt.replace('{time}', new Date(modifiedAt).toLocaleString('zh-CN')))).toBeTruthy()
+  expect(screen.getByText(zh.deliverySubmittedAt.replace('{time}', new Date(submittedAt).toLocaleString('zh-CN')))).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'project-facts.md' }))
   await waitFor(() => { expect(openDeliveryFile).toHaveBeenCalledWith(artifactId) })
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-download')).toBe(false)
+})
+
+it.each(['pending', 'accepted'] as const)('hides execution for another assignee with a %s assignment', async (state) => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  h.prep.assignment.assigneeId = brandString(randomUUID())
+  h.prep.assignment.state = state
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'assignment-tasks') return { assignment: { generation: h.generation(),
+      result: { kind: 'tasks', value: { items: [h.prep.assignment], total: 1, offset: 0, revision: 2, cursor: brandString('cursor') } } } }
+    if (action.kind === 'workgraph-tasks') return { workgraph: { generation: h.generation(),
+      result: { kind: 'tasks', value: { items: [h.task], total: 1, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
+    return base(action)
+  })
+  render(<ConversationTask {...h.props} projectId={h.projectId} planId={h.task.planId} taskId={h.task.id} onClose={() => {}} />)
+  fireEvent.click(await screen.findByRole('tab', { name: zh.taskPreparationTab }))
+  await waitFor(() => expect(screen.getAllByText(zh[`assignment-${state}`]).length).toBeGreaterThan(0))
+  expect(screen.queryByRole('tab', { name: zh.taskExecutionTab })).toBeNull()
+  expect(screen.getByRole('tab', { name: zh.taskDeliveryTab })).toBeTruthy()
+  expect(h.props.execution).not.toHaveBeenCalled()
 })

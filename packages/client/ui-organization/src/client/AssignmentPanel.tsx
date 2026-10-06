@@ -19,7 +19,7 @@ export function AssignmentPanel(props: OrganizationProps & {
   projectId: OrganizationProjectId
   current: boolean
   assignmentId?: string
-  onAssignmentRevision?: (revision: number | undefined) => void
+  onExecutionVisibility?: (visible: boolean) => void
 }) {
   const c = props.useOrganization(s => s.connection), { t, task } = props
   const [history, setHistory] = useState<{ generation: number; value: History }>()
@@ -52,17 +52,19 @@ export function AssignmentPanel(props: OrganizationProps & {
     if (!alive.current || sequence !== readSequence.current || result.assignment?.result.kind !== 'preparation') return
     const value = result.assignment.result.value
     setPreparation({ generation: result.assignment.generation, value })
-    props.onAssignmentRevision?.(value.assignment.planRevision)
   }
   const load = async (offset = 0) => {
     const result = await props.connection({ kind: 'assignment-tasks', request: { ...query, offset,
       ...(offset && currentHistory ? { cursor: currentHistory.cursor } : {}) } })
     if (!alive.current || result.assignment?.result.kind !== 'tasks') return
     setHistory({ generation: result.assignment.generation, value: result.assignment.result.value })
-    const first = result.assignment.result.value.items[0]
+    const items = result.assignment.result.value.items
+    const owner = items.find(item => item.planRevision === task.revision && (item.state === 'pending' || item.state === 'accepted'))
+    props.onExecutionVisibility?.(!owner || owner.assigneeId === memberId)
+    const first = items[0]
     const assignmentId = props.assignmentId ?? first?.id
     if (assignmentId) await loadPreparation(assignmentId)
-    else { setPreparation(undefined); props.onAssignmentRevision?.(undefined) }
+    else setPreparation(undefined)
   }
   useEffect(() => {
     if (ready) void load().catch((error: unknown) => { if (alive.current) setNotice(t(workgraphError(error))) })
@@ -149,19 +151,12 @@ export function AssignmentPanel(props: OrganizationProps & {
         <div className={css.footer}><Button variant="primary" type="submit" disabled={!writable || !reviewCurrent || !review.canAssign || confirmedRevision !== task.revision}>{t('approveAssignment')}</Button></div>
       </form>}
     </section>
-    {current?.assignment.state === 'accepted' && sameVersion && <section className={css.step}>
-      <div className={css.stepHeading}><span aria-hidden="true">2</span><h4>{t('taskExecutionReady')}</h4></div>
-      <p className={css.hint}>{t('taskAcceptedNext')}</p>
-    </section>}
-    {current && active && current.assignment.approvedBy === memberId && <details className={css.advanced}>
-      <summary>{t('taskManageAuthority')}</summary><div className={css.panel}>
-        <p className={css.hint}>{t('taskRevokeHint')}</p>
-        <div className={css.actions}><Button className={css.danger} disabled={!writable} onClick={() => {
-          void run({ kind: 'assignment-command', request: { ...selector, operationId: randomUUID(),
-            kind: 'revoke-assignment', expectedVersion: current.assignment.version } })
-        }}>{t('revokeAssignment')}</Button></div>
-      </div>
-    </details>}
+    {current && active && current.assignment.approvedBy === memberId && <div className={css.footer}>
+      <Button className={css.danger} variant="outline" disabled={!writable} onClick={() => {
+        void run({ kind: 'assignment-command', request: { ...selector, operationId: randomUUID(),
+          kind: 'revoke-assignment', expectedVersion: current.assignment.version } })
+      }}>{t('revokeAssignment')}</Button>
+    </div>}
     {currentHistory && currentHistory.total > 1 && <details className={css.advanced}><summary>{t('assignmentHistory')}</summary><div className={css.actions}>
       {currentHistory.items.map(item => <Button key={item.id} disabled={!writable} onClick={() => {
         void loadPreparation(item.id).catch((error: unknown) => { setNotice(t(workgraphError(error))) })

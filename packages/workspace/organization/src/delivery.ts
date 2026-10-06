@@ -104,7 +104,7 @@ export function changeDelivery(db: DatabaseSync, principal: Principal, command: 
   }
   if (size > limits.artifactMaxTotalBytes || paths.size !== command.artifactIds.length) throw new OrganizationError('invalid-input')
   const submission = submissionSchema.parse({ ...base, id: randomUUID(), kind: 'accept-delivery', handlerId: a.approvedBy,
-    state: 'submitted', artifactIds: command.artifactIds, summary: command.summary, target: command.target })
+    state: 'submitted', submittedAt: Date.now(), artifactIds: command.artifactIds, summary: command.summary, target: command.target })
   db.prepare('INSERT INTO organization_submissions VALUES (?,?,?,?)').run(submission.id, a.id, command.runId, JSON.stringify(submission))
   return { submissionId: submission.id }
 }

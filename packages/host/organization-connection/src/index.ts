@@ -8,9 +8,6 @@ import {
   planningCommandSchema, planningPlanReadSchema, planningPlanViewSchema, accountConversationReadSchema,
   accountConversationViewSchema, planningCandidatesSchema, planningCandidatesPageSchema,
 } from '@deepseek-ai/dsh-organization/planning'
-import {
-  integrationReadSchema, integrationCommandSchema, integrationViewSchema,
-} from '@deepseek-ai/dsh-organization/delivery'
 /** Native organization client: scoped identity, cancellation, events and explicit mutations. */
 import {
   deliveryCommandSchema, deliveryReadSchema, deliveryPageSchema, artifactReadSchema, artifactDownloadSchema,
@@ -253,7 +250,7 @@ export class OrganizationConnection {
       const code = z.object({ error: z.string() }).parse(response.body).error
       if (code === 'unauthenticated') this.invalidate(code)
       else if (code === 'forbidden') {
-        if (route.startsWith('/planning/') || route.startsWith('/integration/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
+        if (route.startsWith('/planning/') || route.startsWith('/delivery/') || route.startsWith('/execution/') || route.startsWith('/workgraph/')
           || route.startsWith('/assignment/') || route === '/projects' || route.startsWith('/projects/')) {
           // Automatic detail readers retry after refresh; repeated denials must settle in that generation.
           if (!this.denialRefreshed) {
@@ -621,15 +618,6 @@ export class OrganizationConnection {
             role: action.role, invitationToken }, invitationToken)
         }
         case 'command': return await this.mutate(action.command)
-        case 'integration-verify':
-        case 'integration-confirm': throw new Error('forbidden')
-        case 'integration-read': {
-          const request = integrationReadSchema.parse(action.request)
-          const generation = this.generation
-          if (request.organizationId !== this.currentOrganization()) throw new Error('forbidden')
-          const integration = integrationViewSchema.parse(await this.request('/integration/read', request, generation))
-          return { generation, integration }
-        }
         case 'delivery-command': return await this.mutate(action.request, undefined, 'delivery')
         case 'delivery-read': {
           const request = deliveryReadSchema.parse(action.request)
@@ -768,26 +756,17 @@ export class OrganizationConnection {
     if (!this.token || !this.state.organizationId || this.state.phase !== 'ready') throw new Error('unavailable')
     return this.state.organizationId
   }
-  /**
-   * Send an observation constructed by Electron after actual target reads.
-   * @param input - Native-generated strict command, never a Renderer connection action.
-   * @returns Durable receipt with uncertain-write reconciliation.
-   */
-  commitIntegration(input: unknown): Promise<ConnectionResult> {
-    return this.mutate(input, undefined, 'integration')
-  }
-
-  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'share' | 'delete' | 'integration' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'execution'): Promise<ConnectionResult> {
+  private async mutate(input: unknown, invitationToken?: string, workgraph?: 'share' | 'delete' | 'delivery' | 'save' | 'grant' | 'assignment' | 'participant' | 'execution'): Promise<ConnectionResult> {
     if (this.journalError) throw new Error('invalid-operation-journal')
     if (this.writing || this.pending) throw new Error('operation-pending')
     if (!this.token || this.state.phase !== 'ready' || !this.state.principal) throw new Error('unavailable')
-    const command = workgraph === 'share' ? workgraphSharingCommandSchema.parse(input) : workgraph === 'integration' ? integrationCommandSchema.parse(input) : workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
+    const command = workgraph === 'share' ? workgraphSharingCommandSchema.parse(input) : workgraph === 'delivery' ? deliveryCommandSchema.parse(input) : workgraph === 'execution' ? executionCommandSchema.parse(input) : workgraph === 'assignment' ? assignmentCommandSchema.parse(input)
       : workgraph === 'participant' ? participantCommandSchema.parse(input)
         : workgraph === 'delete' ? workgraphDeleteSchema.parse(input) : workgraph === 'save' ? workgraphSaveSchema.parse(input)
           : workgraph === 'grant' ? workgraphGrantSchema.parse(input) : z.union([commandSchema, projectCommandSchema, grantCommandSchema]).parse(input)
     const kind = 'kind' in command ? command.kind : undefined
     if ('organizationId' in command && command.organizationId !== this.state.organizationId) throw new Error('forbidden')
-    const route = workgraph === 'integration' ? '/integration/command' : workgraph === 'delivery' ? '/delivery/command' : workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
+    const route = workgraph === 'delivery' ? '/delivery/command' : workgraph === 'execution' ? '/execution/command' : workgraph === 'assignment' ? '/assignment/command' : workgraph === 'participant' ? '/assignment/participant'
       : workgraph ? `/workgraph/${workgraph}` : kind === 'set-grant' ? '/grants'
         : kind === 'create-project' || kind === 'rename-project' || kind === 'update-project' || kind === 'delete-project' ? '/projects' : '/commands'
     this.pending = { operationId: command.operationId,

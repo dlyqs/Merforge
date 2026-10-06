@@ -68,7 +68,7 @@
 | organization-context 现有两事件只读 writer | apps/desktop-host/src/organization-context.ts、ui-organization 固定 context 消费者 | 保持只读格式，不伪造 task、不作为规划 Agent 入口 |
 | organization-conversation | 普通 Session Controller、Agent、模型、工具和对话界面；native attach 维护账号授权，持久通知幂等建立员工任务对话 | 普通 Session 按组织归属保护读取和操作，个人目录隐藏组织及派生会话；冷重开先在线复核 |
 | ConversationNodeDefinition + keyed renderer（Phase 6） | uiConversation.events → conversation.chat.node；ui-organization 提取纯展示/动作消费者 | 按稳定业务 ID 与准确 revision 从既有 Session 事件重建，不开启第二条历史流；fiber 清理贡献 |
-| assignment/execution 固定真人动作 | 右侧任务详情的 AssignmentPanel、持久 Inbox、DeliveryPanel/AcceptanceReview/IntegrationPanel；独立 Run 属于高级执行消费 | generation、准确版本和当前权限复核；普通节点执行从共享对话发起，接受和建对话不自动启动 |
+| assignment/execution 固定真人动作 | 右侧任务详情的 AssignmentPanel、持久 Inbox、DeliveryPanel/AcceptanceReview；独立 Run 属于高级执行消费 | generation、准确版本和当前权限复核；普通节点执行从共享对话发起，接受和建对话不自动启动 |
 
 组织目标对话、员工任务对话、Run 执行日志分别关联，双方不共享聊天记录。业务详情只展示当前获准快照、目标/范围、验收、责任人、准确版本、状态、待谁处理及最新提交。完整执行转录沿现有独立授权读取。Phase 3–4 新增组织规划包、固定私有 IPC 与 SQLite v13；Session envelope 版本不变。
 
@@ -98,7 +98,7 @@ SQLite 当前 v22，任务流程与历史迁移见[执行协议](organization-ex
 
 分配任务对话固定同一任务范围，其他任务 selector 被拒绝。普通 Agent 通过已有能力执行选中节点；组织模型工具只提交当前获准的业务写入，不能代替真人批准或验收。权限失效停止普通 Agent，历史读取也需当前任务权限；新版本或改派通过新的通知和 assignment 对话取得新资格，旧 Session 不转换身份。
 
-任务详情从权威读取所选节点，在右侧复用 AssignmentPanel 和 IntegrationPanel；“在对话中执行”打开普通对话并选中节点，沿普通输入、模型及工具链执行。API 与 Codex 后端切换沿共享机制创建继承组织归属的后继会话，并保留任务元数据。员工也可自行执行。DeliveryPanel、AcceptanceReview 支持无 Run 的成果上传、完成汇报和原下发人审批。高级独立 Run 是可选执行方式，保留本次执行限额及 ExecutionHumanRequest。完成不自动提交，审批不自动集成。
+任务详情从权威读取所选节点，在右侧复用 AssignmentPanel、DeliveryPanel 和 AcceptanceReview；“在对话中执行”打开普通对话并选中节点，沿普通输入、模型及工具链执行。API 与 Codex 后端切换沿共享机制创建继承组织归属的后继会话，并保留任务元数据。员工也可自行执行。DeliveryPanel、AcceptanceReview 支持无 Run 的成果上传、完成汇报和原下发人审批。高级独立 Run 是可选执行方式，保留本次执行限额及 ExecutionHumanRequest。执行完成不自动提交；原下发人审批通过即完成任务。
 
 ## 验证与产品交接
 

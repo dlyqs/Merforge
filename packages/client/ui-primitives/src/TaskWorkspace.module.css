@@ -268,3 +268,7 @@
 .stage[data-status='completed']::before { background: var(--dsw-alias-state-success-primary); }
 .stage[data-status='running']::before { background: var(--dsw-alias-state-business-primary); }
 .stage[data-status='blocked']::before { background: var(--dsw-alias-state-warn-primary); }
+
+.titleRow { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-width: 0; }
+.titleRow h3 { flex: 1; min-width: 0; }
+.titleRow > button { flex: none; margin-top: 6px; }

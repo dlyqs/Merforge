@@ -1,5 +1,5 @@
 import { planningPolicySchema, planningReceiptSchema } from './planning-schema.ts'
-import { integrationReceiptSchema } from './integration-schema.ts'
+import { integrationReceiptSchema } from './legacy-integration-schema.ts'
 /** Strict JSON and durable-row parsers for the organization authority. */
 import { deliveryReceiptSchema } from './delivery-schema.ts'
 import { executionReceiptSchema, executionModelSchema, executionCodexPolicySchema } from './execution-schema.ts'

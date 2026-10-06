@@ -12,4 +12,4 @@ for (const executable of [process.execPath, require('electron')]) {
     await executionScenario(runtimeKit, root => executionChild(executable, root), fault)
   }
 }
-console.log('organization execution built smoke passed: Node + Electron private IPC, real HTTPS/tools/SQLite/JSONL, human wait, Host reopen, rework and parent delivery')
+console.log('organization execution built smoke passed: Node + Electron private IPC, real HTTPS/tools/SQLite/JSONL, human wait, Host reopen, rework and parent approval completion')

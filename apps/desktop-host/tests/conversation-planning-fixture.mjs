@@ -86,7 +86,7 @@ export async function planningScenario(kit, createExecutionHost, createPlanningH
         text: 'Prepare a UTF-8 CSV with name,note columns and correctly escaped Alice/Bob rows, plus a separate JSON column contract. Both files must be independently checked and delivered together. PRIVATE_ISSUER_CHAT' }
       await writeFile(join(planningRoot, 'planning-script.json'), JSON.stringify([
         { name: 'workflow_assess', args: { classification: 'complex', rationale: 'Two necessary independently reviewed artifacts' } },
-        { name: 'workflow_propose', args: { operationId: randomUUID(), expectedRevision: 0, definition } }, 'Review the unapproved CSV plan.' ]))
+        { name: 'workflow_propose', args: { operationId: randomUUID(), expectedRevision: 0, sharedContext: 'Deliver a UTF-8 CSV with name,note columns and escaped Alice/Bob rows, plus a JSON column specification. Review each file independently; share only selected files.', definition } }, 'Review the unapproved CSV plan.' ]))
       const planned = await invoke(owner, conversation, send)
       goal = planned.result.goals[0]
       assert.equal(goal.classification, 'complex'); assert.equal(goal.proposal.status, 'shared')
@@ -127,7 +127,9 @@ export async function planningScenario(kit, createExecutionHost, createPlanningH
       const task = await invoke(member, employeeConversation, taskRequest)
       assert.notEqual(task.result.sessionId, originalSession)
       assert.equal(task.result.assignment.state, 'pending')
-      assert.deepEqual(task.result.entries, [])
+      const assignedTask = task.result.goals[0].proposal.definition.tasks.find(task => task.id === taskId)
+      assert.deepEqual(task.result.entries, [{ role: 'assistant',
+        text: [assignedTask.goal, assignedTask.scope, ...assignedTask.acceptance.map(text => `• ${text}`)].join('\n\n') }])
       assert.equal(task.result.goals[0].proposal.definition.taskId, taskId)
       assert.equal((await invoke(member, employeeConversation, taskRequest)).result.sessionId, task.result.sessionId)
       await writeFile(join(employeeRoot, 'planning-script.json'), JSON.stringify(['The assigned work awaits your explicit acceptance.']))

@@ -1,7 +1,7 @@
 /** Shared task background and creator-reviewed whole-tree requests. */
 import { useEffect, useRef, useState } from 'react'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OrganizationPlanId } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
@@ -51,7 +51,10 @@ export function TaskSharing(props: OrganizationProps & {
   const background = sharedContextView(current.sharedContext)
   const mine = current.requests.find(item => item.membershipId === c.organizations.find(org => org.id === c.organizationId)?.membershipId)
   return <section className={`${css.card} ${css.sharedContext}`} aria-label={t('sharedTaskContext')} aria-busy={busy}>
-    <h4>{t('sharedTaskContext')}</h4><p className={css.muted}>{t('sharedTaskContextHint')}</p>
+    <div className={css.sharedContextHeading}><h3>{props.overallGoal || t('sharedTaskContext')}</h3>
+      {current.canEdit && !draft && <Button variant="outline" size="sm" icon={<IconEditOutlineRegular />} disabled={!writable}
+        onClick={() => { setDraft({ text: current.sharedContext, version: current.version }) }}>{t('editSharedContext')}</Button>}
+    </div>
     {notice && <p role="alert">{notice}</p>}
     {draft && current.canEdit ? <form className={css.form} onSubmit={(event) => {
       event.preventDefault(); void send({ kind: 'edit-context', expectedVersion: draft.version, sharedContext: draft.text })
@@ -61,9 +64,8 @@ export function TaskSharing(props: OrganizationProps & {
       <div className={css.actions}><Button type="submit" disabled={!writable || draft.version !== current.version}>{t('save')}</Button>
         <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('cancel')}</Button></div>
     </form> : <><p className={css.sharedContextText}>{background.preview || t('sharedContextEmpty')}</p>
-      {props.overallGoal && <div className={css.sharedGoal}><span>{t('sharedContextGoal')}</span><p>{props.overallGoal}</p></div>}
       {background.more && <details className={css.sharedContextMore}><summary>{t('sharedContextMore')}</summary><p className={css.sharedContextText}>{background.more}</p></details>}
-      {current.canEdit && <Button disabled={!writable} onClick={() => { setDraft({ text: current.sharedContext, version: current.version }) }}>{t('editSharedContext')}</Button>}</>}
+    </>}
     {!current.canEdit && <div className={css.actions}>
       {current.fullTreeVisible ? <p role="status">{t('fullTreeVisible')}</p> : <>
         {mine && <p role="status">{t(mine.state === 'pending' ? 'treeRequestPending' : mine.state === 'rejected' ? 'treeRequestRejected' : 'treeRequestApproved')}</p>}

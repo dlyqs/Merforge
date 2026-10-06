@@ -8,4 +8,4 @@ for (const executable of [process.execPath, require('electron')]) {
   await executionScenario({ ...kit, native: true, twoMembers: true, bootOrganization: config => bootBuiltOrganization(config, executable) },
     root => executionChild(executable, root, true))
 }
-console.log('organization Codex built smoke passed: Node + Electron Node mode, two employees, private IPC/HTTPS/SQLite/JSONL, human wait, cold reopen, rework and final integration')
+console.log('organization Codex built smoke passed: Node + Electron Node mode, two employees, private IPC/HTTPS/SQLite/JSONL, human wait, cold reopen, rework and approval completion')

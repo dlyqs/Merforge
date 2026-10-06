@@ -1,12 +1,10 @@
-/** Current-version dependency admission and immutable target verification authority. */
-import { randomUUID } from 'node:crypto'
+/** Read-only validation of retired target verification records in existing databases. */
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
-import { integrationRecordSchema, integrationObservationSchema, type integrationReadSchema, type integrationCommandSchema, type integrationViewSchema, type integrationInputSchema, type integrationReceiptSchema } from './integration-schema.ts'
+import { integrationRecordSchema, integrationObservationSchema, type integrationReadSchema, type integrationInputSchema } from './legacy-integration-schema.ts'
 import { acceptanceSchema, submissionSchema, gitChangeSchema } from './delivery-schema.ts'
 import { readArtifact } from './delivery.ts'
-import { visibleTasks, selectedPlan } from './workgraph-access.ts'
-import { authorizeWorkgraph, readWorkgraphVersion } from './workgraph.ts'
+import { readWorkgraphVersion } from './workgraph.ts'
 import { OrganizationError } from './error.ts'
 import type { Principal } from './types.ts'
 import type { OrganizationPlanDefinition, OrganizationTaskId } from './workgraph-types.ts'
@@ -35,65 +33,6 @@ function issuer(db: DatabaseSync, query: Query, definition: OrganizationPlanDefi
   const input = acceptedInput(db, query, query.taskId)
   if (!input) return fallback
   return submissionSchema.parse(JSON.parse(String(db.prepare('SELECT data FROM organization_submissions WHERE id=?').get(input.submissionId)?.data))).handlerId
-}
-function inputsFor(db: DatabaseSync, query: Query, ids: OrganizationTaskId[], visible: Set<OrganizationTaskId>): Input[] | undefined {
-  const result: Input[] = []
-  for (const id of ids) {
-    if (!visible.has(id)) return
-    const input = acceptedInput(db, query, id)
-    if (!input) return
-    for (const item of input.artifacts) if (readArtifact(db, item.artifactId).artifact.sha256 !== item.sha256) throw new OrganizationError('incompatible-store')
-    result.push(input)
-  }
-  return result.length ? result : undefined
-}
-/**
- * Project only readable accepted inputs; inaccessible siblings produce no partial evidence list.
- * @param db - Current authority transaction.
- * @param principal - Fresh authenticated member.
- * @param query - Exact task version.
- * @returns Separate dependency, accepted-input, target and delivery facts.
- */
-export function integrationView(db: DatabaseSync, principal: Principal, query: Query): z.output<typeof integrationViewSchema> {
-  const plan = selectedPlan(db, principal, query)
-  const visible = new Set(visibleTasks(db, principal, { ...query, search: '', offset: 0 }).map(t => t.id))
-  if (!visible.has(query.taskId)) throw new OrganizationError('forbidden')
-  if (plan.currentRevision !== query.planRevision) throw new OrganizationError('version-conflict')
-  const definition = readWorkgraphVersion(db, plan.id, plan.currentRevision).definition
-  const task = definition.tasks.find(t => t.id === query.taskId)
-  if (!task) throw new OrganizationError('forbidden')
-  // Detail filtering must not remove independently authorized prerequisites and descendants.
-  const allVisible = new Set(visibleTasks(db, principal, { organizationId: query.organizationId, projectId: query.projectId,
-    planId: query.planId, search: '', offset: 0 }).map(t => t.id))
-  const dependencies = new Set<OrganizationTaskId>()
-  let ancestor: typeof task | undefined = task
-  while (ancestor) {
-    for (const id of ancestor.dependsOn) dependencies.add(id)
-    const parent: OrganizationTaskId | null = ancestor.parentTaskId
-    ancestor = definition.tasks.find(t => t.id === parent)
-  }
-  const dependenciesReady = [...dependencies].every(id => !!inputsFor(db, query, requiredLeaves(definition, id), allVisible))
-  const inputs = inputsFor(db, query, requiredLeaves(definition, task.id), allVisible)
-  let canConfirm = false
-  try {
-    authorizeWorkgraph(db, principal, query.projectId, query.planId, true)
-    canConfirm = issuer(db, query, definition, plan.createdBy) === principal.membershipId
-  }
-  catch (error) { if (!(error instanceof OrganizationError) || error.code !== 'forbidden') throw error }
-  const row = db.prepare(`SELECT data FROM organization_integrations WHERE planId=? AND json_extract(data,'$.taskId')=?
-    AND json_extract(data,'$.planRevision')=? ORDER BY rowid DESC LIMIT 1`).get(query.planId, query.taskId, query.planRevision)
-  const latest = inputs && row ? integrationRecordSchema.parse(JSON.parse(String(row.data))) : null
-  return { ...query, dependenciesReady, inputsReady: !!inputs, inputs: inputs ?? [], canConfirm, latest,
-    delivered: !!latest && !!db.prepare('SELECT 1 FROM integration_confirmations WHERE integrationId=?').get(latest.id) }
-}
-/**
- * Refuse new execution when necessary accepted prerequisites are missing or unreadable.
- * @param db - Current authority transaction.
- * @param principal - Executing employee.
- * @param query - Exact assigned task.
- */
-export function requireDependencies(db: DatabaseSync, principal: Principal, query: Query): void {
-  if (!integrationView(db, principal, query).dependenciesReady) throw new OrganizationError('version-conflict')
 }
 function sameInputs(a: Input[], b: Input[]): boolean {
   const canonical = (v: Input[]) => JSON.stringify(v.map(i => ({ ...i,
@@ -130,44 +69,6 @@ function verifyObservation(db: DatabaseSync, inputs: Input[], observation: Obser
       if (observation.baseCommit !== change.baseCommit || observation.baseTree !== change.baseTree) throw new OrganizationError('version-conflict')
     }
   }
-}
-/**
- * Record verified/rejected target observations or the original issuer's final confirmation.
- * @param db - Authority mutation transaction.
- * @param principal - Current target operator or original plan issuer.
- * @param command - Strict native observation and human intent.
- * @param revision - New committed audit revision.
- * @returns Stable receipt identity and whether this command confirms delivery.
- */
-export function changeIntegration(db: DatabaseSync, principal: Principal, command: z.output<typeof integrationCommandSchema>,
-  revision: number): z.output<typeof integrationReceiptSchema> {
-  const query = { organizationId: command.organizationId, projectId: command.projectId, planId: command.planId,
-    taskId: command.taskId, planRevision: command.planRevision }
-  const view = integrationView(db, principal, query)
-  if (!view.dependenciesReady || !view.inputsReady) throw new OrganizationError('version-conflict')
-  if (command.kind === 'verify-integration') {
-    if (view.delivered || !sameInputs(command.inputs, view.inputs)) throw new OrganizationError('version-conflict')
-    verifyObservation(db, view.inputs, command.observation)
-    const plan = selectedPlan(db, principal, query)
-    const record = integrationRecordSchema.parse({ ...query, id: randomUUID(), inputs: view.inputs, observation: command.observation,
-      operatorId: principal.membershipId,
-      issuerId: issuer(db, query, readWorkgraphVersion(db, query.planId, query.planRevision).definition, plan.createdBy),
-      createdRevision: revision })
-    db.prepare('INSERT INTO organization_integrations VALUES (?,?,?)').run(record.id, query.planId, JSON.stringify(record))
-    return { integrationId: record.id, delivered: false }
-  }
-  const latest = view.latest
-  if (!view.canConfirm) throw new OrganizationError('forbidden')
-  if (!latest || latest.id !== command.integrationId || latest.observation.result !== 'verified'
-    || !sameInputs(latest.inputs, view.inputs) || command.observation.result !== 'verified'
-    || command.observation.verifiedAt < latest.observation.verifiedAt) throw new OrganizationError('version-conflict')
-  const { verifiedAt: _oldTime, ...old } = latest.observation
-  const { verifiedAt: _time, ...current } = command.observation
-  if (JSON.stringify(old) !== JSON.stringify(current)) throw new OrganizationError('version-conflict')
-  verifyObservation(db, view.inputs, command.observation)
-  if (view.delivered) throw new OrganizationError('version-conflict')
-  db.prepare('INSERT INTO integration_confirmations VALUES (?,?,?)').run(latest.id, revision, JSON.stringify(command.observation))
-  return { integrationId: latest.id, delivered: true }
 }
 /**
  * Check persisted authors, event/receipt relations, accepted inputs and target bytes metadata.

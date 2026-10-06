@@ -1,6 +1,6 @@
 # 组织 WorkGraph 与预执行上下文
 
-本文保存组织共享任务的定义、版本、权限投影、背景、HTTPS/原生动作及本机只读上下文协议。正式分配与员工接受由[任务分配](organization-assignment.md)负责；普通 Agent、可选高级 Run、成果汇报、审批与最终交付由[执行协议](organization-execution.md)负责。当前流程没有设备领取或独占租约。
+本文保存组织共享任务的定义、版本、权限投影、背景、HTTPS/原生动作及本机只读上下文协议。正式分配与员工接受由[任务分配](organization-assignment.md)负责；普通 Agent、可选高级 Run、成果汇报与审批由[执行协议](organization-execution.md)负责。当前流程没有设备领取或独占租约。
 
 ## 共享任务背景与完整树申请
 
