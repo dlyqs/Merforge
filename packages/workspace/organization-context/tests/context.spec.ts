@@ -52,7 +52,7 @@ function fixture() {
     generation: 1, requestId: randomUUID(), task: { id: request.taskId, planId: request.planId, revision: 1,
       parentTaskId: null, phaseId: randomUUID(), phaseTitle: 'Preparation', goal: 'Authorized sentinel', scope: 'Scope',
       acceptance: ['Review'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
-      assignable: false, hasUndisclosedPrerequisite: true } })
+      assignable: false, status: 'pending', hasUndisclosedPrerequisite: true } })
   return { request, authority }
 }
 const signal = () => new AbortController().signal

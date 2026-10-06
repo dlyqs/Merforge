@@ -28,7 +28,7 @@ async function setup(maxTurns = 2) {
     operationId: randomUUID(), inputs, start: true })
   const original = fixture().authority
   const snapshot = { ...remote.save.definition.tasks[0], planId: request.planId, revision: 1,
-    phaseTitle: remote.save.definition.phases[0]!.title, assignable: true, hasUndisclosedPrerequisite: false }
+    phaseTitle: remote.save.definition.phases[0]!.title, assignable: true, status: 'pending', hasUndisclosedPrerequisite: false }
   const owner = { ...original.context.owner, organizationId: request.organizationId, planId: request.planId, taskId: snapshot.id }
   const bridge: ExecutionBridge = async (command) => {
     if (command) await remote.execute(command)

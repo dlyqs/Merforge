@@ -13,7 +13,7 @@ async function fixture() {
   const bytes = Buffer.from('name,total\nalpha,42\n'), sha256 = createHash('sha256').update(bytes).digest('hex')
   const base = { ...h.selector, runId: h.run.runId, planRevision: 1 }
   const artifact = await h.service.deliveryCommand(h.other.token, { ...base, kind: 'publish-artifact', operationId: operationId(),
-    artifactKind: 'test-report', path: 'result.csv', description: 'CSV report', mediaType: 'text/csv', size: bytes.length, sha256, bytes: bytes.toString('base64') })
+    artifactKind: 'test-report', path: 'result.csv', description: 'CSV report', mediaType: 'text/csv', modifiedAt: 1700000000000, size: bytes.length, sha256, bytes: bytes.toString('base64') })
   const artifactId = artifact.delivery!.artifactId!
   const submit = { ...base, kind: 'submit-delivery', operationId: operationId(), artifactIds: [artifactId], summary: 'Verified CSV', target: 'Review CSV', confirmed: true }
   const submitted = await h.service.deliveryCommand(h.other.token, submit)
@@ -28,6 +28,7 @@ async function fixture() {
 }
 it('accepts an exact submitted hash set once, preserves the submission and never marks a root delivered', async () => {
   const h = await fixture()
+  expect((await h.readDelivery()).artifacts.find(file => file.id === h.artifactId)?.modifiedAt).toBe(1700000000000)
   const receipt = await h.service.deliveryCommand(h.owner.token, h.decision)
   expect(await h.service.deliveryCommand(h.owner.token, h.decision)).toEqual(receipt)
   expect((await h.readDelivery()).submissions[0]).toMatchObject({ state: 'submitted', reviewState: 'accepted', acceptance: { artifacts: h.decision.artifacts } })
@@ -58,7 +59,9 @@ it('refuses employees, other root editors, disabled issuers and receipt retries 
   await h.service.grantTask(h.owner.token, { ...h.query, taskId: h.save.definition.taskId, membershipId: admin.membershipId,
     scope: 'subtree', actions: ['read', 'edit'], expectedVersion: 0, operationId: operationId() })
   await expect(h.service.deliveryCommand(admin.token, h.decision)).rejects.toMatchObject({ code: 'forbidden' })
+  await h.service.readTasks(h.owner.token, h.query, (page) => { expect(page.items[0]?.status).toBe('running') })
   await h.service.deliveryCommand(h.owner.token, h.decision)
+  await h.service.readTasks(h.owner.token, h.query, (page) => { expect(page.items[0]?.status).toBe('completed') })
   await h.projectGrant(h.owner.membershipId, ['read'], h.ownerGrant.revision)
   await expect(h.service.deliveryCommand(h.owner.token, h.decision)).rejects.toMatchObject({ code: 'forbidden' })
   const other = await fixture()
@@ -83,6 +86,7 @@ it('refuses unsubmitted evidence, incorrect hashes, duplicate evidence and missi
 it('rejection retains historical evidence, creates one new plan revision and requires every new qualification', async () => {
   const h = await fixture()
   const receipt = await h.service.deliveryCommand(h.owner.token, h.reject)
+  await h.service.readTasks(h.owner.token, h.query, (page) => { expect(page.items[0]?.status).toBe('running') })
   expect(await h.service.deliveryCommand(h.owner.token, h.reject)).toEqual(receipt)
   expect((await h.readDelivery()).submissions[0]).toMatchObject({ reviewState: 'rejected', acceptance: { reason: h.reject.reason, reworkRevision: 2 } })
   expect(h.db.prepare('SELECT state FROM task_assignments').get()?.state).toBe('invalidated')

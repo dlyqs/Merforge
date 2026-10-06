@@ -16,7 +16,9 @@ it('atomically persists exact-version approval, request, notification and author
     expect(h.db.prepare('SELECT count(*) AS n FROM assignment_notifications').get()?.n).toBe(1)
     observed++
   })
+  await h.service.readTasks(h.owner.token, h.query, page => { expect(page.items[0]?.status).toBe('pending') })
   const receipt = await h.service.assignmentCommand(h.owner.token, h.approve)
+  await h.service.readTasks(h.owner.token, h.query, page => { expect(page.items[0]?.status).toBe('running') })
   expect(await h.read(receipt.assignmentId!)).toMatchObject({ approvedBy: h.owner.membershipId, assigneeId: h.other.membershipId,
     state: 'pending', planRevision: 1, createdRevision: receipt.revision })
   expect(await h.read(receipt.assignmentId!, h.other.token)).toMatchObject({ state: 'pending' })

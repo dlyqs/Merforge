@@ -24,7 +24,7 @@ async function setup(budget = 20, capabilities: ('model' | 'fs-read' | 'fs-write
     operationId: randomUUID(), inputs: parsedInputs })
   const original = fixture().authority
   const snapshot = { ...remote.save.definition.tasks[0], planId: request.planId, revision: 1,
-    phaseTitle: remote.save.definition.phases[0]!.title, assignable: true, hasUndisclosedPrerequisite: false }
+    phaseTitle: remote.save.definition.phases[0]!.title, assignable: true, status: 'pending', hasUndisclosedPrerequisite: false }
   const owner = { ...original.context.owner, organizationId: request.organizationId,
     planId: request.planId, taskId: remote.save.definition.taskId }
   const bridge: ExecutionBridge = async (command) => {

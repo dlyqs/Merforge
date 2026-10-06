@@ -17,3 +17,5 @@ The `./invariant` companion compares ready bindings against their separately sto
 ## Known Limitations and Deferred Work
 
 Task UI is a later phase. There is no offline read, attachment, export, ordinary prompt, fork, approval, dispatch or execution API. Identity changes cancel in-flight delivery; they cannot erase content previously delivered under valid authority or protect against the same OS user directly reading local files. Operation receipts are retained locally. Current-format readers refuse unknown required events without changing the Session envelope version.
+
+Current authority reads include task progress. Stored context snapshots may omit this later-added field; reopening preserves their exact logged facts and never inserts a current status into an earlier snapshot.

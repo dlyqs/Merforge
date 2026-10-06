@@ -2,6 +2,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { z } from 'zod'
 import { integrationRecordSchema } from './integration-schema.ts'
+import { taskStatuses } from './workgraph-status.ts'
 import { assignmentSchema } from './assignment-schema.ts'
 import { OrganizationError } from './error.ts'
 import { authorizedProject } from './resources.ts'
@@ -56,6 +57,15 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
   const visible = new Set([...now].filter(id => then.has(id)))
   const hasTreeRequests = principal.membershipId === plan.createdBy && !!db.prepare("SELECT 1 FROM tree_requests WHERE planId=? AND structureVersion=? AND state='pending'").get(plan.id, plan.structureVersion)
   const assigned = new Set(db.prepare("SELECT taskId FROM task_assignments WHERE planId=? AND assigneeId=? AND planRevision=? AND state IN ('pending','accepted')").all(plan.id, principal.membershipId ?? null, plan.currentRevision).map(row => String(row.taskId)))
+  const dispatched = new Set(db.prepare("SELECT taskId FROM task_assignments WHERE planId=? AND planRevision=? AND state IN ('pending','accepted')")
+    .all(plan.id, version.revision).map(row => String(row.taskId)))
+  const accepted = new Set(db.prepare(`SELECT a.taskId FROM organization_acceptances r JOIN task_assignments a ON a.id=r.assignmentId
+    WHERE a.planId=? AND a.planRevision=? AND json_extract(r.data,'$.state')='accepted'`)
+    .all(plan.id, version.revision).map(row => String(row.taskId)))
+  for (const row of db.prepare(`SELECT a.taskId FROM organization_acceptances r JOIN task_assignments a ON a.id=r.assignmentId
+    WHERE a.planId=? AND json_extract(r.data,'$.state')='rejected' AND json_extract(r.data,'$.reworkRevision')=?`)
+    .all(plan.id, version.revision)) dispatched.add(String(row.taskId))
+  const statuses = taskStatuses(version.definition, dispatched, accepted)
   const phases = new Map(version.definition.phases.map(phase => [phase.id, phase.title]))
   return version.definition.tasks.filter(task => visible.has(task.id)).map((task) => {
     const phaseTitle = phases.get(task.phaseId)
@@ -63,7 +73,9 @@ function project(db: DatabaseSync, principal: Principal, plan: Plan, revision: n
     const member = task.suggestedMembershipId === null ? undefined : db.prepare(`SELECT m.enabled,a.enabled AS accountEnabled
       FROM memberships m JOIN accounts a ON a.id=m.accountId WHERE m.id=? AND m.organizationId=?`)
       .get(task.suggestedMembershipId, principal.organizationId ?? null)
-    return { ...task, assignedToMe: assigned.has(task.id), hasTreeRequests: hasTreeRequests && task.id === plan.rootTaskId,
+    const status = statuses.get(task.id)
+    if (!status) throw new Error('organization: missing task status')
+    return { ...task, status, assignedToMe: assigned.has(task.id), hasTreeRequests: hasTreeRequests && task.id === plan.rootTaskId,
       parentTaskId: task.parentTaskId !== null && visible.has(task.parentTaskId) ? task.parentTaskId : null,
       dependsOn: task.dependsOn.filter(id => visible.has(id)),
       hasUndisclosedPrerequisite: task.dependsOn.some(id => !visible.has(id)),

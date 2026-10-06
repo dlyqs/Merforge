@@ -54,7 +54,7 @@ export function fixture() {
       model: 'approved-model', capabilities: ['model'], materials: ['Allowed input'], messages: ['Explicit employee request'] } })
   const task = { id: randomUUID(), planId: request.planId, revision: 1, parentTaskId: null, phaseId: randomUUID(), phaseTitle: 'Work',
     goal: 'Authorized task', scope: 'Scope', acceptance: ['Review'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
-    assignable: true, hasUndisclosedPrerequisite: false }
+    assignable: true, status: 'pending', hasUndisclosedPrerequisite: false }
   const owner = { serverId: randomUUID(), accountId: randomUUID(), organizationId: request.organizationId,
     planId: request.planId, taskId: task.id, version: 1 }
   const run = { organizationId: request.organizationId, projectId: request.projectId, planId: request.planId,

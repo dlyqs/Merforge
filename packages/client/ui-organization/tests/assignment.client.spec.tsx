@@ -156,7 +156,6 @@ it.each([false, true])('publishes optional attachments only after confirming the
   fireEvent.change(input, { target: { files: [file] } })
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-command')).toBe(false)
   fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
-  fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
   expect(screen.getByRole<HTMLButtonElement>('button', { name: zh.deliverySubmit }).disabled).toBe(true)
   fireEvent.click(screen.getByLabelText(zh.taskSubmitConfirm))
   fireEvent.click(screen.getByRole('button', { name: zh.deliverySubmit }))
@@ -165,7 +164,7 @@ it.each([false, true])('publishes optional attachments only after confirming the
       ? [deliveryCommandSchema.parse(action.request)] : [])
     expect(writes).toHaveLength(2)
     expect(writes[1]).toMatchObject({ kind: 'submit-delivery', runId: run?.id ?? null, artifactIds: [page.artifacts[0]?.id],
-      summary: 'Completed and checked', target: 'Project report', confirmed: true })
+      summary: 'Completed and checked', target: '', confirmed: true })
   })
 })
 
@@ -203,7 +202,6 @@ it.each(['pending', 'cancelled', 'expired'] as const)('gates submission for a st
   if (runSelect) fireEvent.change(runSelect, { target: { value: runId } })
   fireEvent.click(await screen.findByRole('checkbox', { name: 'report.txt' }))
   fireEvent.change(screen.getByLabelText(zh.deliverySummary), { target: { value: 'Completed and checked' } })
-  fireEvent.change(screen.getByLabelText(zh.deliveryTarget), { target: { value: 'Project report' } })
   const confirm = screen.getByRole<HTMLInputElement>('checkbox', { name: zh.taskSubmitConfirm })
   expect(confirm.disabled).toBe(state === 'pending')
   fireEvent.click(confirm)
@@ -217,7 +215,7 @@ function fixture(approved: boolean, admin = false) {
   const memberId = brandString<import('@deepseek-ai/dsh-organization').MembershipId>(randomUUID())
   const task = workgraphPageSchema.parse({ items: [{ id: randomUUID(), planId: randomUUID(), revision: 1,
     phaseId: randomUUID(), phaseTitle: 'Preparation', parentTaskId: null, goal: 'Visible target', scope: 'Limited scope', acceptance: ['Review'],
-    artifacts: [], required: true, dependsOn: [], suggestedMembershipId: memberId, assignable: true, hasUndisclosedPrerequisite: false }],
+    artifacts: [], required: true, dependsOn: [], suggestedMembershipId: memberId, assignable: true, status: 'pending', hasUndisclosedPrerequisite: false }],
   total: 1, offset: 0, revision: 1, cursor: 'cursor' }).items[0]!
   const id = randomUUID()
   const prep = preparationSchema.parse({ serverTime: 100,
@@ -456,7 +454,7 @@ it.each(['commit abc123: fix task', 'https://example.test/result'])('submits a t
     expect(deliveryCommandSchema.parse(writes[0]![0].request)).toMatchObject({ kind: 'submit-delivery', summary: content, target: '', artifactIds: [], runId: null })
   })
   expect(screen.getByText(/单文件 1 MB，总计 1 GB/)).toBeTruthy()
-  expect(fileSize(1024 ** 3)).toBe('1 GB')
+  expect(fileSize(1024 ** 3, 'bytes')).toBe('1 GB')
 })
 
 it('refreshes task conversation execution from authorized records and ignores generated introductions', async () => {
@@ -556,7 +554,7 @@ it('refreshes the issuer delivery panel after an employee submission changes the
   await screen.findByText(zh.taskDeliveryEmpty)
   submitted = true; h.refresh()
   view.rerender(<ExecutionPanel {...h.props} task={h.task} projectId={h.projectId} current section="delivery" />)
-  await screen.findByText(submission.summary)
+  await screen.findAllByText(submission.summary)
   expect(screen.getByRole('button', { name: zh.reviewAccept })).toBeTruthy()
 })
 
@@ -609,4 +607,55 @@ it.each(['panel', 'workbench'] as const)('continues uploading and submitting thr
   await screen.findByText(zh.deliverySubmitted)
   expect(page.submissions[0]).toMatchObject({ summary: 'Result survives refresh', artifactIds: [page.artifacts[0]?.id] })
   expect(h.connection.mock.calls.filter(([action]) => action.kind === 'delivery-command')).toHaveLength(2)
+})
+
+
+it.each([[0, '0 字节'], [512, '512 字节'], [1023, '1023 字节'], [1024, '1 KB'], [53351, '52.1 KB'], [1024 ** 2, '1 MB'], [1024 ** 3, '1 GB']])(
+  'formats %s attachment bytes as %s', (bytes, expected) => {
+    expect(fileSize(bytes, '字节')).toBe(expected)
+  })
+
+it('omits empty approval history and the redundant supplementary input', async () => {
+  const h = fixture(true), a = h.prep.assignment
+  a.state = 'accepted'
+  h.connection.mockResolvedValue({ generation: 1, delivery: deliveryPageSchema.parse({ artifacts: [], submissions: [], total: 0, offset: 0,
+    limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 10000 } }) })
+  render(<DeliveryPanel {...h.props} assignment={a} />)
+  await screen.findByLabelText(zh.deliverySummary)
+  expect(screen.queryByText(zh.taskSubmissionHistory)).toBeNull()
+  expect(screen.queryByLabelText(zh.deliveryTarget)).toBeNull()
+})
+
+it('puts collapsible approval records first and opens a local attachment without downloading', async () => {
+  const h = fixture(true), a = h.prep.assignment
+  a.state = 'accepted'
+  const selector = { organizationId: a.organizationId, projectId: a.projectId, planId: a.planId,
+    assignmentId: a.id, runId: null, planRevision: a.planRevision }
+  const artifactId = randomUUID(), modifiedAt = 1700000000000
+  const page = deliveryPageSchema.parse({ artifacts: [{ ...selector, id: artifactId, employeeId: a.assigneeId,
+    path: 'project-facts.md', mediaType: 'text/markdown', description: 'project-facts.md', kind: 'file', size: 53351,
+    modifiedAt, sha256: 'a'.repeat(64), createdRevision: 3 }],
+  submissions: ['pending', 'rejected', 'accepted'].map((reviewState, index) => ({ ...selector, id: randomUUID(),
+    employeeId: a.assigneeId, handlerId: a.approvedBy, kind: 'accept-delivery', state: 'submitted',
+    artifactIds: index === 0 ? [artifactId] : [], summary: `Submission ${index}`, target: '', createdRevision: 4 + index,
+    reviewState, acceptance: null })), total: 3, offset: 0,
+  limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 100000, artifactMaxTotalBytes: 1000000 } })
+  h.connection.mockResolvedValue({ generation: 1, delivery: page })
+  const openDeliveryFile = vi.fn(async () => true)
+  const view = render(<DeliveryPanel {...h.props} assignment={a} openDeliveryFile={openDeliveryFile} />)
+  await screen.findByText(zh.taskSubmissionHistory)
+  const records = view.container.querySelectorAll<HTMLDetailsElement>('details[data-state]')
+  expect(Array.from(records, record => [record.dataset.state, record.open])).toEqual([['pending', true], ['rejected', false], ['accepted', false]])
+  expect(view.container.querySelector('section')?.firstElementChild?.textContent).toContain(zh.taskSubmissionHistory)
+  records[0]!.open = false
+  fireEvent(records[0]!, new Event('toggle'))
+  expect(records[0]!.open).toBe(false)
+  records[0]!.open = true
+  expect(screen.queryByText(zh.deliveryHint)).toBeNull()
+  expect(screen.queryByText(zh.taskEvidenceDetails)).toBeNull()
+  expect(screen.getByText('52.1 KB')).toBeTruthy()
+  expect(screen.getByText(zh.deliveryModifiedAt.replace('{time}', new Date(modifiedAt).toLocaleString('zh-CN')))).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'project-facts.md' }))
+  await waitFor(() => { expect(openDeliveryFile).toHaveBeenCalledWith(artifactId) })
+  expect(h.connection.mock.calls.some(([action]) => action.kind === 'delivery-download')).toBe(false)
 })

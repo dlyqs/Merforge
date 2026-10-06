@@ -60,7 +60,7 @@ it('uses explicit node/subtree grants for details, searches and counts without h
   await h.grant(h.x, 'node')
   const node = await h.page()
   expect(node.total).toBe(1)
-  expect(node.items[0]).toMatchObject({ id: h.x, parentTaskId: null, dependsOn: [], hasUndisclosedPrerequisite: true })
+  expect(node.items[0]).toMatchObject({ id: h.x, parentTaskId: null, dependsOn: [], status: 'blocked', hasUndisclosedPrerequisite: true })
   await h.grant()
   const subtree = await h.page()
   expect(subtree.total).toBe(2)

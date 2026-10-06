@@ -177,3 +177,7 @@ Only organization administrators may execute `set-supervisor`, using the observe
 Account conversation reads accept an omitted `projectId` through `/planning/read`. They authorize current enabled membership and return no project, planning grant, task references or write permission. Project reads and every planning mutation retain explicit project authorization.
 
 Schema v22 admits text-only submissions and optional additional notes, including issuer decisions with no file hashes. The v21 upgrade preserves existing rows; earlier builds refuse the newer database stamp. Exact-version assignment, employee, issuer and attachment checks remain required.
+
+Authorized task views include `status`: `pending` before dispatch, `running` after a current-version assignment, `completed` after issuer acceptance, and `blocked` while an explicit prerequisite is incomplete. A parent completes after every child, including optional children, completes; partial child progress propagates upward. Status derives from the complete stored definition before access filtering. A rejection’s exact rework revision retains `running` for the rejected node while existing version and reassignment requirements continue to apply. Task completion does not confirm final target integration. No status column or database schema migration is required.
+
+Shared delivery artifacts optionally retain the source file’s `modifiedAt` timestamp in milliseconds captured during upload. Older records may omit it. Uploaded bytes and hashes remain immutable; source paths are never shared.

@@ -260,3 +260,11 @@
 .taskPage > .body { width: 100%; }
 .taskPage .toolbar { min-height: 40px; padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 16px)); }
 @media (max-width: 800px) { .taskPage { padding: 18px 16px 24px; } }
+
+.detail[data-layout='flow'] { height: auto; max-height: none; overflow: visible; border: 0.5px solid var(--dsw-alias-border-l3); box-shadow: none; }
+.detail[data-layout='flow'] .detailContent { flex: none; overflow: visible; scrollbar-gutter: auto; }
+.branchHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.stage > .status { margin-top: 8px; }
+.stage[data-status='completed']::before { background: var(--dsw-alias-state-success-primary); }
+.stage[data-status='running']::before { background: var(--dsw-alias-state-business-primary); }
+.stage[data-status='blocked']::before { background: var(--dsw-alias-state-warn-primary); }

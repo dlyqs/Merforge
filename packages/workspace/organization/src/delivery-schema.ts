@@ -16,7 +16,8 @@ const selector = assignmentReadSchema.extend({ runId: id<OrganizationRunId>().nu
   planRevision: planRevisionSchema }).strict()
 const metadata = z.object({ path: artifactPathSchema, mediaType: z.string().min(1).max(120),
   description: z.string().trim().min(1).max(2048), kind: z.enum(['file', 'test-report', 'git-change']),
-  size: integer, sha256: hash }).strict()
+  /** Source file modification time in milliseconds; absent in older shared artifacts. */
+  modifiedAt: integer.optional(), size: integer, sha256: hash }).strict()
 /** Files are published only after complete bytes pass the declared length and hash. */
 export const artifactSchema = selector.extend({ ...metadata.shape, id: id<OrganizationArtifactId>(),
   employeeId: id<MembershipId>(), createdRevision: integer.positive() }).strict()

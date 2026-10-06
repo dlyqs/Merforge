@@ -56,3 +56,10 @@
 .node[data-assigned='true'] .nodeButton { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
 .assignment { color: var(--dsw-alias-brand-primary); font-weight: 600; }
 .node[data-root='true'] .assignment { color: inherit; }
+
+.node[data-status] .status { padding: 2px 6px; border-radius: 5px; background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.node[data-status='running'] .status { color: var(--dsw-alias-state-business-primary); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 9%, transparent); }
+.node[data-status='completed'] .status { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 9%, transparent); }
+.node[data-status='blocked'] .status { color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent); }
+.node[data-root='true'][data-status] .status { color: inherit; background: color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 15%, transparent); }
+.node[data-root='true'] .status::before { background: currentColor; }

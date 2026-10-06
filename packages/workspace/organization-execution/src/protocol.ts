@@ -35,7 +35,7 @@ export const executionAuthoritySchema = contextAuthoritySchema.extend({ context:
 /** Locally retained immutable binding facts; server state is always read again online. */
 export const executionBindingSchema = z.object({ owner: contextResultSchema.shape.owner,
   run: executionViewSchema.shape.run, contextSessionId: contextResultSchema.shape.sessionId,
-  snapshot: contextAuthoritySchema.shape.task, inputs: executionInputsSchema,
+  snapshot: contextResultSchema.shape.snapshot, inputs: executionInputsSchema,
 }).strict()
 /** Local-only prepared Session; its ID cannot be used by personal APIs. */
 export const executionResultSchema = executionBindingSchema.extend({

@@ -7,13 +7,15 @@ import { IconCloseOutlineRegular } from './icons/index.tsx'
 import css from './TaskWorkspace.module.css'
 
 /**
- * Keep task identity and optional section navigation above an independently scrolling body.
+ * Keep task identity and optional section navigation above the detail body.
  * Sections remain mounted when hidden so switching views preserves unfinished forms.
  * @param props - Selected task, localized chrome, optional sections and account-owned controls.
  * @returns Task detail surface.
  */
 export function TaskDetail(props: {
   taskId: string
+  /** Flow details grow with content in the outer workspace. */
+  layout?: 'overlay' | 'flow'
   title: string
   status?: { value: string; label: string }
   metadata?: string
@@ -27,7 +29,7 @@ export function TaskDetail(props: {
   const section = selection?.taskId === props.taskId && props.sections?.some(item => item.id === selection.section)
     ? selection.section : props.sections?.[0].id
   useEffect(() => { if (detail.current) detail.current.scrollTop = 0 }, [props.taskId, section])
-  return <section className={css.detail} aria-label={props.labels.taskDetail}>
+  return <section className={css.detail} data-layout={props.layout} aria-label={props.labels.taskDetail}>
     <header className={css.detailHeader}><div className={css.detailToolbar}><span className={css.eyebrow}>{props.labels.taskDetail}</span>
       <Button size="sm" icon={<IconCloseOutlineRegular />} aria-label={props.labels.hideDetails} onClick={props.onClose} />
     </div>
@@ -55,8 +57,16 @@ export function TaskDetail(props: {
  * @returns Initially expanded phase and dependency navigation.
  */
 export function TaskStages(props: {
-  phases: readonly { id: string; title: string; progressLabel?: string }[]
-  tasks: readonly { id: string; phaseId: string; goal: string; dependsOn: readonly string[]; hasUndisclosedPrerequisite?: boolean }[]
+  phases: readonly { id: string; title: string; progressLabel?: string; status?: string; statusLabel?: string }[]
+  tasks: readonly {
+    id: string
+    phaseId: string
+    goal: string
+    dependsOn: readonly string[]
+    status?: string
+    statusLabel?: string
+    hasUndisclosedPrerequisite?: boolean
+  }[]
   selected: string | null
   labels: {
     dependencies: string
@@ -72,13 +82,16 @@ export function TaskStages(props: {
 }) {
   return <details className={css.stages} open><summary>{props.labels.dependencies}</summary>
     <p className={css.hint}>{props.labels.parallel}</p>
-    {props.phases.map(phase => <section className={css.stage} key={phase.id}>
+    {props.phases.map(phase => <section className={css.stage} key={phase.id} data-status={phase.status}>
       {props.onPhaseTitleChange ? <label>{props.labels.phase}<input value={phase.title} disabled={props.disabled}
         onChange={(event) => { props.onPhaseTitleChange?.(phase.id, event.target.value) }} /></label> : <h4>{phase.title}</h4>}
+      {phase.statusLabel && <span className={css.status} data-status={phase.status}>{phase.statusLabel}</span>}
       {phase.progressLabel && <p className={css.hint}>{phase.progressLabel}</p>}
       <div className={css.branches}>{props.tasks.filter(task => task.phaseId === phase.id).map(task => <button type="button" key={task.id}
         className={css.branch} aria-pressed={props.selected === task.id} onClick={() => { props.onSelect(task.id) }}>
-        <span>{task.goal}</span>
+        <span className={css.branchHeading}>{task.goal}
+          {task.statusLabel && <span className={css.status} data-status={task.status}>{task.statusLabel}</span>}
+        </span>
         <small>{props.labels.prerequisites}: {task.dependsOn.map(id => props.tasks.find(item => item.id === id)?.goal).filter(Boolean).join(' · ') || props.labels.none}</small>
         {task.hasUndisclosedPrerequisite && <small>{props.labels.hiddenPrerequisite}</small>}
       </button>)}</div>

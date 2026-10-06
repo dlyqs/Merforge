@@ -76,6 +76,7 @@ export const workgraphTasksSchema = z.object({
 /** Wire task view deliberately does not require a complete tree. */
 export const workgraphTaskViewSchema = workgraphDefinitionSchema.shape.tasks.element.extend({
   planId: id<OrganizationPlanId>(), revision: planRevisionSchema, phaseTitle: text,
+  status: z.enum(['pending', 'running', 'completed', 'blocked']),
   assignable: z.boolean(), hasUndisclosedPrerequisite: z.boolean(),
   assignedToMe: z.boolean().optional(), hasTreeRequests: z.boolean().optional(),
 }).strict()

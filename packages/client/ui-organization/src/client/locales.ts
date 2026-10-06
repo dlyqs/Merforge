@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  deliveryBytes: '字节', deliveryModifiedUnknown: '修改时间未知', deliveryModifiedAt: '最近修改：{time}', deliveryDateLocale: 'zh-CN',
   deliveryAddFiles: '添加附件', deliveryContentHint: '填写工作成果、commit 记录、网址链接或交付说明，可选添加附件。',
   'taskConversation-unstarted': '尚未在任务对话中执行', 'taskConversation-running': '任务对话正在执行',
   'taskConversation-executed': '已在任务对话中执行', 'taskConversation-interrupted': '任务对话执行已中断',
@@ -15,7 +16,7 @@ export const zh = {
   taskRunEmpty: '暂无独立运行记录', taskRunEmptyHint: '高级执行启动后，运行状态和本机报告会显示在这里。',
   taskDeliveryEmpty: '暂无成果提交', taskDeliveryEmptyHint: '接受任务后即可提交文字、链接、commit 记录或文件附件，使用 Agent 或自行完成均可。',
   taskUploadStep: '上传共享产物', taskSubmitStep: '提交完成汇报', taskReviewStep: '审批提交成果',
-  taskUploadConfirm: '我确认所选文件及说明，并授权上传这些文件', taskSubmitConfirm: '我已核对成果与目标说明，确认上传所选附件并正式提交',
+  taskUploadConfirm: '我确认所选文件及说明，并授权上传这些文件', taskSubmitConfirm: '我已核对成果，确认上传所选附件并正式提交',
   taskRemoveFile: '移除所选文件', taskSharedFiles: '已上传的产物', taskSubmissionHistory: '提交与审批记录',
   taskSubmissionReady: '可以填写成果并提交汇报，文件附件为可选。', taskSubmissionBlocked: '请先停止运行并处理未决动作与人工请求，再正式提交。',
   taskRejectToggle: '填写驳回理由与返工要求', taskRejectCancel: '取消驳回', taskEvidenceDetails: '证据标识与完整哈希',
@@ -23,6 +24,8 @@ export const zh = {
   taskIntegrationStep: '核验实际目标', taskFinalConfirmStep: '确认最终交付', taskIntegrationInputs: '必要成果与核验记录',
   taskIntegrationEmpty: '当前任务还没有可核验的成果。完成提交并通过审批后，再核验实际目标。',
   taskRunSettings: '执行范围与预算', taskRunPermissions: '本次执行权限', taskRunHistory: '运行记录',
+  'task-status-pending': '待下发', 'task-status-running': '执行中', 'task-status-completed': '完成', 'task-status-blocked': '阻塞',
+  sharedContextMore: '展开更多背景', sharedContextGoal: '总体目标',
   sharedTaskContext: '共享任务背景', sharedTaskContextHint: '来自创建者与 AI 的任务讨论，选择任务开始对话时会自动带入。',
   editSharedContext: '编辑任务背景', sharedContextEmpty: '尚未填写任务背景',
   sharedContextConflict: '任务背景已更新，请取消编辑后重新读取。',
@@ -142,9 +145,9 @@ export const zh = {
   integrationVerify: '选择目标目录并核验',
   integrationConfirmIntent: '我确认这些当前版本成果满足交付要求，并授权重读本机目标',
   integrationConfirm: '重读目标并确认最终交付',
-  'review-pending': '待下发人验收',
-  'review-accepted': '已验收；尚未核验目标或最终交付',
-  'review-rejected': '需返工',
+  'review-pending': '等待批准',
+  'review-accepted': '审批通过',
+  'review-rejected': '已驳回 · 需返工',
   'review-superseded': '已被新版本或另一份已验收提交替代',
   'review-blocked': '当前资格失效，验收受阻',
   'reviewReason': '驳回理由',
@@ -416,6 +419,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  deliveryBytes: 'bytes', deliveryModifiedUnknown: 'Modification time unavailable', deliveryModifiedAt: 'Modified: {time}', deliveryDateLocale: 'en-US',
   deliveryAddFiles: 'Add attachments', deliveryContentHint: 'Describe the result, commit record, URL or delivery notes. Attachments are optional.',
   'taskConversation-unstarted': 'Not executed in the task conversation', 'taskConversation-running': 'Task conversation is running',
   'taskConversation-executed': 'Executed in the task conversation', 'taskConversation-interrupted': 'Task conversation execution interrupted',
@@ -439,6 +443,8 @@ export const en: Record<OrganizationKey, string> = {
   taskIntegrationStep: 'Verify actual target', taskFinalConfirmStep: 'Confirm final delivery', taskIntegrationInputs: 'Required evidence and verification records',
   taskIntegrationEmpty: 'There is no verifiable evidence yet. Submit work and obtain acceptance before verifying the actual target.',
   taskRunSettings: 'Execution scope and budget', taskRunPermissions: 'Execution permissions', taskRunHistory: 'Run history',
+  'task-status-pending': 'Pending dispatch', 'task-status-running': 'In progress', 'task-status-completed': 'Completed', 'task-status-blocked': 'Blocked',
+  sharedContextMore: 'More background', sharedContextGoal: 'Overall goal',
   sharedTaskContext: 'Shared task background', sharedTaskContextHint: 'Summarized from the creator’s discussion with AI and included automatically when starting a task conversation.',
   editSharedContext: 'Edit task background', sharedContextEmpty: 'No task background yet',
   sharedContextConflict: 'The background has changed. Cancel editing and read the latest version.',
@@ -559,7 +565,7 @@ export const en: Record<OrganizationKey, string> = {
   integrationConfirmIntent: 'I confirm these current outputs meet delivery requirements and authorize rereading the local target',
   integrationConfirm: 'Reread target and confirm delivery',
   'review-pending': 'Awaiting issuer acceptance',
-  'review-accepted': 'Accepted; target verification and final delivery still required',
+  'review-accepted': 'Approved',
   'review-rejected': 'Rework required',
   'review-superseded': 'Superseded by a new version or another accepted submission',
   'review-blocked': 'Review blocked by invalid qualifications',

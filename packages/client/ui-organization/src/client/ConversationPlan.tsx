@@ -10,6 +10,9 @@ import { AssignmentBatch } from './AssignmentBatch.tsx'
 import { ConversationTask } from './ConversationTask.tsx'
 import css from './Organization.module.css'
 import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
+import { taskStageView } from './task-status-view.ts'
+import { TaskSharing } from './TaskSharing.tsx'
+import type { OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import { TaskCanvas } from './TaskCanvas.tsx'
 
 type Query = Pick<ConversationRequest, 'organizationId' | 'projectId' | 'conversationId'>
@@ -33,6 +36,24 @@ export function ConversationPlan(props: OrganizationProps & {
   useEffect(() => { setSelected(''); setDetailsOpen(true) }, [goal.id])
   const [candidates, setCandidates] = useState<NonNullable<ConnectionResult['candidates']>>()
   const [offset, setOffset] = useState(0), [notice, setNotice] = useState('')
+  const [taskFacts, setTaskFacts] = useState<Pick<OrganizationTaskView, 'planId'> & { generation: number; revision: number; tasks: OrganizationTaskView[] }>()
+  useEffect(() => {
+    const lifetime = { active: true }
+    setTaskFacts(undefined)
+    if (proposal?.status === 'shared') void (async () => {
+      const items: OrganizationTaskView[] = []
+      let offset = 0, cursor: string | undefined
+      while (true) {
+        const response = await props.connection({ kind: 'workgraph-tasks', request: { organizationId: props.query.organizationId, projectId: props.query.projectId, planId: proposal.planId, offset, ...(cursor ? { cursor } : {}) } })
+        if (!lifetime.active || response.workgraph?.generation !== props.generation || response.workgraph.result.kind !== 'tasks') return
+        const page = response.workgraph.result.value
+        items.push(...page.items); offset += page.items.length; cursor = page.cursor
+        if (!page.items.length || offset >= page.total) break
+      }
+      setTaskFacts({ generation: props.generation, planId: proposal.planId, revision: proposal.revision, tasks: items })
+    })().catch(() => { if (lifetime.active) setNotice(t('conversationDetailsRestricted')) })
+    return () => { lifetime.active = false }
+  }, [proposal?.planId, proposal?.revision, proposal?.status, props.generation])
   const [facts, setFacts] = useState<{ history: ConnectionResult['assignment']; executions?: ConnectionResult['executions']; delivery?: ConnectionResult['delivery'] }>()
   const task = proposal?.definition?.tasks.find(item => item.id === selected) ?? proposal?.definition?.tasks[0]
   useEffect(() => {
@@ -64,7 +85,13 @@ export function ConversationPlan(props: OrganizationProps & {
   if (!proposal || !props.query.projectId) return null
   const status: Record<typeof proposal.status, OrganizationKey> = { shared: 'conversationShared', private: 'conversationSuggestion',
     conflict: 'draftConflict', unknown: 'conversationUnknown', unavailable: 'conversationUnavailable' }
-  const tasks = proposal.definition?.tasks ?? []
+  const authoritative = taskFacts?.generation === props.generation && taskFacts.planId === proposal.planId
+    && taskFacts.revision === proposal.revision ? taskFacts.tasks : []
+  const tasks = (proposal.definition?.tasks ?? []).map((item) => {
+    const fact = authoritative.find(fact => fact.id === item.id && fact.revision === proposal.revision)
+    return { ...item, ...(fact ? { status: fact.status } : {}) }
+  })
+  const stages = taskStageView(proposal.definition?.phases ?? [], tasks, t)
   const assignment = facts?.history?.result.kind === 'tasks' ? facts.history.result.value.items[0] : undefined
   const submission = facts?.delivery?.submissions[0], run = facts?.executions?.items[0]
   const name = (id: string | null | undefined) => candidates?.items.find(m => m.membershipId === id)?.username ?? (id ? t('selectedMember') : t('chooseMember'))
@@ -114,7 +141,9 @@ export function ConversationPlan(props: OrganizationProps & {
     <p>{t('conversationImpact')}</p>
     <div className={taskWorkspaceStyles.body}><div className={taskWorkspaceStyles.workspace}>
       <TaskCanvas tasks={tasks.map(item => ({ ...item, phaseTitle: proposal.definition?.phases.find(phase => phase.id === item.phaseId)?.title ?? '' }))}
-        selected={task?.id ?? null} t={t} onSelect={showTask}>
+        selected={task?.id ?? null} t={t} onSelect={showTask}
+        introduction={proposal.status === 'shared' && <TaskSharing {...props} projectId={props.query.projectId} planId={proposal.planId}
+          overallGoal={tasks.find(item => item.parentTaskId === null)?.goal} />}>
         {task && detailsOpen && (proposal.status === 'shared' && (!props.assignmentId || props.assignmentTaskId === task.id)
           ? <ConversationTask key={task.id} {...props} projectId={props.query.projectId} planId={proposal.planId} taskId={task.id}
             overview={overview} onClose={() => { setDetailsOpen(false) }}
@@ -122,12 +151,12 @@ export function ConversationPlan(props: OrganizationProps & {
               <summary>{t('conversationBatchTitle')}</summary><AssignmentBatch key={`${proposal.planId}:${proposal.revision}`}
                 {...props} proposal={proposal} projectId={props.query.projectId} />
             </details>} />
-          : <TaskDetail taskId={task.id} title={task.goal}
+          : <TaskDetail layout="flow" taskId={task.id} title={task.goal}
             labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
             {overview}
           </TaskDetail>)}
       </TaskCanvas>
-      {proposal.definition && <TaskStages phases={proposal.definition.phases} tasks={tasks} selected={task?.id ?? null}
+      {proposal.definition && <TaskStages phases={stages.phases} tasks={stages.tasks} selected={task?.id ?? null}
         labels={{ dependencies: t('stagesAndDependencies'), parallel: t('parallelTasks'), phase: t('phase'),
           prerequisites: t('dependencies'), none: t('noDependencies'), hiddenPrerequisite: t('hiddenPrerequisite') }} onSelect={showTask} />}
     </div></div>

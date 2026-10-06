@@ -84,7 +84,8 @@ export function changeDelivery(db: DatabaseSync, principal: Principal, command: 
       }
     }
     const artifact = artifactSchema.parse({ ...base, id: randomUUID(), path: command.path, kind: command.artifactKind,
-      mediaType: command.mediaType, description: command.description, size: bytes.length, sha256: command.sha256 })
+      mediaType: command.mediaType, description: command.description,
+      ...(command.modifiedAt === undefined ? {} : { modifiedAt: command.modifiedAt }), size: bytes.length, sha256: command.sha256 })
     db.prepare('INSERT INTO organization_artifacts VALUES (?,?,?,?,?)').run(artifact.id, a.id, command.runId, JSON.stringify(artifact), bytes)
     return { artifactId: artifact.id }
   }

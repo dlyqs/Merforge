@@ -1,8 +1,9 @@
 /** Framework-derived organization presentation props. */
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
+import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationKey } from './locales.ts'
+type ArtifactId = NonNullable<ConnectionResult['delivery']>['artifacts'][number]['id']
 /** Native connection callbacks and safe reactive facts. */
 export interface OrganizationInjected {
   /** Open Codex settings while retaining execution inputs and qualification. */
@@ -33,6 +34,10 @@ export interface OrganizationInjected {
   removeProject?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView) => Promise<void>
   /** Show the shared conversation management or delete dialog. */
   manageConversation?: (selection: import('./conversation-store.ts').ConversationSelection, action?: 'manage' | 'delete') => void
+  /** Retain a picked source path privately on this installation after publication. */
+  rememberDeliveryFile?: (artifactId: ArtifactId, file: File) => void
+  /** Open a remembered local source in the right panel or reveal its file location. */
+  openDeliveryFile?: (artifactId: ArtifactId) => Promise<boolean>
   available: boolean
   connection: OrganizationDesktopBridge['connection']
   server: OrganizationDesktopBridge['server']

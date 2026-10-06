@@ -6,6 +6,7 @@ import type { OrganizationPlanId } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProjectId } from '@deepseek-ai/dsh-organization/types'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationProps } from './contract.ts'
+import { sharedContextView } from './shared-context-view.ts'
 import { workgraphError } from './workgraph-view.ts'
 import css from './Organization.module.css'
 
@@ -13,7 +14,11 @@ import css from './Organization.module.css'
  * @param props - Currently readable plan in the task workspace.
  * @returns Creator-editable background and employee request/creator decision controls.
  */
-export function TaskSharing(props: OrganizationProps & { projectId: OrganizationProjectId; planId: OrganizationPlanId }) {
+export function TaskSharing(props: OrganizationProps & {
+  projectId: OrganizationProjectId
+  planId: OrganizationPlanId
+  overallGoal?: string | undefined
+}) {
   const c = props.useOrganization(s => s.connection), { t } = props
   const [data, setData] = useState<{ generation: number; value: NonNullable<ConnectionResult['sharing']> }>()
   const [draft, setDraft] = useState<{ text: string; version: number }>()
@@ -43,6 +48,7 @@ export function TaskSharing(props: OrganizationProps & { projectId: Organization
     finally { if (alive.current) setBusy(false) }
   }
   if (!current) return notice ? <p role="status">{notice}</p> : null
+  const background = sharedContextView(current.sharedContext)
   const mine = current.requests.find(item => item.membershipId === c.organizations.find(org => org.id === c.organizationId)?.membershipId)
   return <section className={`${css.card} ${css.sharedContext}`} aria-label={t('sharedTaskContext')} aria-busy={busy}>
     <h4>{t('sharedTaskContext')}</h4><p className={css.muted}>{t('sharedTaskContextHint')}</p>
@@ -54,7 +60,9 @@ export function TaskSharing(props: OrganizationProps & { projectId: Organization
       {draft.version !== current.version && <p role="alert">{t('sharedContextConflict')}</p>}
       <div className={css.actions}><Button type="submit" disabled={!writable || draft.version !== current.version}>{t('save')}</Button>
         <Button disabled={busy} onClick={() => { setDraft(undefined) }}>{t('cancel')}</Button></div>
-    </form> : <><p className={css.sharedContextText}>{current.sharedContext || t('sharedContextEmpty')}</p>
+    </form> : <><p className={css.sharedContextText}>{background.preview || t('sharedContextEmpty')}</p>
+      {props.overallGoal && <div className={css.sharedGoal}><span>{t('sharedContextGoal')}</span><p>{props.overallGoal}</p></div>}
+      {background.more && <details className={css.sharedContextMore}><summary>{t('sharedContextMore')}</summary><p className={css.sharedContextText}>{background.more}</p></details>}
       {current.canEdit && <Button disabled={!writable} onClick={() => { setDraft({ text: current.sharedContext, version: current.version }) }}>{t('editSharedContext')}</Button>}</>}
     {!current.canEdit && <div className={css.actions}>
       {current.fullTreeVisible ? <p role="status">{t('fullTreeVisible')}</p> : <>

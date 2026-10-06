@@ -28,7 +28,7 @@ export function TaskInspector(props: OrganizationProps & {
   onAssignmentRevision?: (revision: number | undefined) => void
 }) {
   const { t, task } = props
-  return <TaskDetail taskId={task.id} title={task.goal} onClose={props.onClose}
+  return <TaskDetail taskId={task.id} title={task.goal} layout="flow" status={{ value: task.status, label: t(`task-status-${task.status}`) }} onClose={props.onClose}
     metadata={[task.phaseTitle, t(task.required ? 'requiredTask' : 'optionalTask'), t('taskVersion', { revision: task.revision })].filter(Boolean).join(' · ')}
     labels={{ taskDetail: t('taskDetail'), hideDetails: t('hideDetails') }} sections={[
       { id: 'overview', label: t('taskOverview'), content: <div className={css.pane}>{props.overview}</div> },

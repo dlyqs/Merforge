@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 /** Shipped plugin roster registers organization presentation without mounting a page. */
 import { expect, vi } from 'vitest'
+import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { ok } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { SESSION_FORMAT_VERSION, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionFollowFrame, SessionFollowRequest } from '@deepseek-ai/dsh-api-session-controller/types'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot } from '@deepseek-ai/dsh-organization-connection/types'
+import type { OrganizationDesktopBridge, OrganizationDesktopSnapshot, ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { AccountId, MembershipId, OrganizationId, ServerId } from '@deepseek-ai/dsh-organization/types'
 import { OrganizationTaskList, OrganizationTasks } from '../src/client/Tasks.tsx'
 import { OrganizationConversationEntry } from '../src/client/ConversationEntry.tsx'
@@ -97,6 +98,32 @@ it('routes new and recent conversation navigation to the organization and replac
     const bind = sidebar.inject as (actions: BoundActions<ReturnType<typeof createConversationStore>>) => OrganizationInjected
     const actions = createConversationStore().create().actions
     const injected = bind(actions)
+    const paths = globalThis as typeof globalThis & { __DSH_HOST_PATHS__?: { pathFor(file: File): string } }
+    const previousPaths = paths.__DSH_HOST_PATHS__
+    const artifactId = brandString<NonNullable<ConnectionResult['delivery']>['artifacts'][number]['id']>(randomUUID()), path = '/tmp/project-facts.md'
+    const fileKey = `organization-delivery-file:${snapshot.connection.principal!.serverId}:${snapshot.connection.principal!.accountId}:${organizationId}:${artifactId}`
+    paths.__DSH_HOST_PATHS__ = { pathFor: () => path }
+    const mounted = vi.spyOn(app.ctx.sidebarRight.mounted, 'getSnapshot').mockReturnValue(report.sharedSessionId)
+    const openResource = vi.spyOn(app.ctx.sidebarRight, 'openResource').mockImplementation(() => {})
+    mock.remote.workspaceFiles.stat.mockResolvedValue(ok({ absolutePath: path, version: 'v1', bytes: 20 }))
+    mock.remote.workspaceFiles.read.mockResolvedValue(ok({ absolutePath: path, version: 'v1', bytes: 20,
+      offset: 1, text: '# Result', lines: 1, eof: true }))
+    mock.remote.session.openWorkspacePath.mockResolvedValue(ok(null))
+    try {
+      injected.rememberDeliveryFile!(artifactId, new File(['# Result'], 'project-facts.md'))
+      expect(localStorage.getItem(fileKey)).toBe(path)
+      expect(await injected.openDeliveryFile!(artifactId)).toBe(true)
+      expect(openResource).toHaveBeenCalledWith(sessionFileAddress(report.sharedSessionId!, path))
+      expect(mock.remote.session.openWorkspacePath).not.toHaveBeenCalled()
+      mounted.mockReturnValue(undefined)
+      expect(await injected.openDeliveryFile!(artifactId)).toBe(true)
+      expect(mock.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path, action: 'reveal' })
+      expect(await injected.openDeliveryFile!(brandString(randomUUID()))).toBe(false)
+    } finally {
+      localStorage.removeItem(fileKey)
+      paths.__DSH_HOST_PATHS__ = previousPaths
+      mounted.mockRestore(); openResource.mockRestore()
+    }
     await injected.selectConversation!(report.owner)
     expect(app.ctx.slots.entries('main.conversation.entry')).toHaveLength(1)
     const binding = app.ctx.sessions.binding(report.sharedSessionId!)!

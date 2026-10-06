@@ -17,7 +17,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     /** Immutable organization identity; never transferable to a personal Session. */
     'organization/context': z.output<typeof contextOwnerSchema>
     /** Exact authorized pre-execution task facts, with their definition revision. */
-    'organization/task-snapshot': ContextAuthority['task']
+    'organization/task-snapshot': ContextResult['snapshot']
   }
 }
 const bindingSchema = contextResultSchema.extend({ state: z.enum(['reserved', 'ready']), operationId: contextRequestSchema.shape.operationId, createdAt: z.number().int().nonnegative() }).strict()

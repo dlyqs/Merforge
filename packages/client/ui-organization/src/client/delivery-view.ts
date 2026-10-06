@@ -1,11 +1,12 @@
 /** Human-readable attachment sizes; file limits remain bytes on the transport. */
 /**
- * Format attachment lengths and ceilings in display units.
+ * Format attachment lengths and ceilings in the smallest readable display unit.
  * @param bytes - Attachment length or ceiling.
- * @returns Size in MB or GB.
+ * @param byteUnit - Localized label for byte counts below one KB.
+ * @returns Size in bytes, KB, MB or GB.
  */
-export function fileSize(bytes: number): string {
-  const gigabyte = 1024 ** 3
-  const unit = bytes >= gigabyte ? gigabyte : 1024 ** 2
-  return `${Number((bytes / unit).toPrecision(3))} ${bytes >= gigabyte ? 'GB' : 'MB'}`
+export function fileSize(bytes: number, byteUnit: string): string {
+  const units = [byteUnit, 'KB', 'MB', 'GB']
+  const index = bytes < 1024 ? 0 : Math.min(3, Math.floor(Math.log(bytes) / Math.log(1024)))
+  return `${index === 0 ? bytes : Number((bytes / 1024 ** index).toPrecision(3))} ${units[index]}`
 }

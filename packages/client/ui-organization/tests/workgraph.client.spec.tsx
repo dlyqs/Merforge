@@ -35,7 +35,7 @@ function fixture() {
       scope: 'Authorized scope',
       acceptance: ['Review'], artifacts: [], required: true, dependsOn: [], suggestedMembershipId: null,
     }] } })
-  const page = workgraphPageSchema.parse({ items: [{ ...version.definition.tasks[0], planId: version.planId, revision: 1, phaseTitle: 'Preparation', assignable: false, hasUndisclosedPrerequisite: true }], total: 1, offset: 0, revision: 1, cursor: 'cursor' })
+  const page = workgraphPageSchema.parse({ items: [{ ...version.definition.tasks[0], planId: version.planId, revision: 1, phaseTitle: 'Preparation', assignable: false, status: 'pending', hasUndisclosedPrerequisite: true }], total: 1, offset: 0, revision: 1, cursor: 'cursor' })
   let state: OrganizationDesktopSnapshot = { connection: { identityGeneration: 1, revision: 1, generation: 1, phase: 'ready', mode: 'organization', organizationId, principal: { accountId: project.createdBy, serverId: brandString(randomUUID()) },
     organizations: [{ id: organizationId, membershipId: member, name: 'Team', role: 'member', version: 1 }], members: [],
     projects: { items: [project], offset: 0, total: 1, revision: 1, cursor: page.cursor } },
@@ -216,7 +216,7 @@ it('draws reporting members and only administrators can explicitly save a new su
     kind: 'set-supervisor', membershipId: child, supervisorId: null, expectedVersion: 4, organizationId: h.project.organizationId } }) })
 })
 
-it('selects task nodes in the main canvas and keeps assignment controls in the right detail area', async () => {
+it('selects task nodes in the main canvas and keeps assignment controls below the canvas', async () => {
   const h = fixture(), root = h.page.items[0]!
   const child = { ...root, id: brandString<typeof root.id>(randomUUID()), parentTaskId: root.id, goal: 'Assigned child', scope: 'Child scope' }
   const principal = { serverId: brandString<import('@deepseek-ai/dsh-organization').ServerId>(randomUUID()), accountId: brandString<import('@deepseek-ai/dsh-organization').AccountId>(randomUUID()) }
@@ -237,6 +237,8 @@ it('selects task nodes in the main canvas and keeps assignment controls in the r
   const view = render(<OrganizationTasks {...props} />)
   fireEvent.click(await screen.findByRole('button', { name: child.goal }))
   const detail = await screen.findByRole('region', { name: zh.taskDetail })
+  expect(detail.closest('[data-task-canvas]')).toBeNull()
+  expect(detail.getAttribute('data-layout')).toBe('flow')
   expect(await within(detail).findByText(child.scope)).toBeTruthy()
   expect(await within(detail).findByLabelText(zh.assignee)).toBeTruthy()
   expect(screen.queryByRole('dialog')).toBeNull()
@@ -356,7 +358,7 @@ it('retains creator request decisions and marks the employee node in the task ma
     organizationId: h.project.organizationId, projectId: h.project.id, planId: h.version.planId,
     kind: 'decide-tree', requestId: request.id, expectedVersion: 3, answer: 'approved', operationId: expect.any(String),
   } }) })
-  expect(screen.getByRole('button', { name: zh.approveTreeRequest }).closest('[data-fullscreen]')).toBeTruthy()
+  expect(screen.getByRole('button', { name: zh.approveTreeRequest }).closest('[data-fullscreen]')).toBeNull()
 })
 
 it('discards delayed shared background after the native identity generation retires', async () => {
@@ -370,4 +372,18 @@ it('discards delayed shared background after the native identity generation reti
   }) }) })
   expect(screen.queryByText('Retired account context')).toBeNull()
   expect(screen.queryByRole('button', { name: zh.editSharedContext })).toBeNull()
+})
+
+it('refreshes map, details and phase badges together after assignment and issuer acceptance', async () => {
+  const h = fixture()
+  const view = render(<Workbench {...h.props} project={h.project} planId={h.version.planId}
+    initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
+  await waitFor(() => { expect(screen.getAllByText(zh['task-status-pending'])).toHaveLength(4) })
+  for (const [generation, status] of [[2, 'running'], [3, 'completed']] as const) {
+    h.page.items = h.page.items.map(task => ({ ...task, status }))
+    h.setState({ generation })
+    view.rerender(<Workbench {...h.props} project={h.project} planId={h.version.planId}
+      initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
+    await waitFor(() => { expect(screen.getAllByText(zh[`task-status-${status}`])).toHaveLength(4) })
+  }
 })

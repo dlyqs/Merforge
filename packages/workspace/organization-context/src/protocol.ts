@@ -20,10 +20,11 @@ export const contextAuthoritySchema = z.object({
 export const contextOwnerSchema = contextAuthoritySchema.pick({ serverId: true, accountId: true, organizationId: true }).extend({
   planId: workgraphReadSchema.shape.planId, taskId: workgraphTaskViewSchema.shape.id, version: z.literal(1),
 }).strict()
-/** Only the original authorized task facts are retained; reopening never replaces them. */
+/** Only the original authorized task facts are retained; reopening never replaces them.
+ * Stored snapshots created before progress badges may omit status. */
 export const contextResultSchema = z.object({
   sessionId: z.string().regex(/^organization-context:[0-9a-f-]{36}$/).transform(SessionId),
-  owner: contextOwnerSchema, snapshot: workgraphTaskViewSchema, mode: z.literal('pre-execution'),
+  owner: contextOwnerSchema, snapshot: workgraphTaskViewSchema.extend({ status: workgraphTaskViewSchema.shape.status.optional() }), mode: z.literal('pre-execution'),
 }).strict()
 /** Native-selected task and idempotency identifier. */
 export type ContextRequest = z.output<typeof contextRequestSchema>
@@ -54,7 +55,7 @@ export const contextNativeMessageSchema = z.discriminatedUnion('type', [
  * @param snapshot - Task facts retained at the original authorized revision.
  * @param current - The same revision projected under current authorization.
  */
-export function assertContextSnapshotAccess(snapshot: ContextAuthority['task'], current: ContextAuthority['task']): void {
+export function assertContextSnapshotAccess(snapshot: ContextResult['snapshot'], current: ContextAuthority['task']): void {
   if (current.revision !== snapshot.revision || current.parentTaskId !== snapshot.parentTaskId
     || JSON.stringify(current.dependsOn) !== JSON.stringify(snapshot.dependsOn)) {
     throw new Error('organization-context: historical access changed')

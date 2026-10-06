@@ -1,4 +1,8 @@
 /** Desktop organization settings and a personal/organization navigation switch. */
+import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
@@ -42,7 +46,7 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
 export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout', 'uiWorkspace',
-  'sessions', 'uiSession', 'uiConversation']
+  'sessions', 'uiSession', 'uiConversation', 'remote.workspaceFiles']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.
@@ -71,7 +75,52 @@ export function apply(ctx: Context): void {
     if (!result.ok) throw new Error(result.error.message)
     return revision === modelCatalogRevision.getSnapshot() ? result.value : loadModels()
   }
+  const deliveryFileKey = (artifactId: Parameters<NonNullable<OrganizationInjected['openDeliveryFile']>>[0]) => {
+    const c = state.getSnapshot().connection
+    if (!c.principal || !c.organizationId || c.mode !== 'organization') throw new Error('unavailable')
+    return `organization-delivery-file:${c.principal.serverId}:${c.principal.accountId}:${c.organizationId}:${artifactId}`
+  }
   const bind = (): OrganizationInjected => ({
+    rememberDeliveryFile: (artifactId, file) => {
+      const bridge = (globalThis as typeof globalThis & { __DSH_HOST_PATHS__?: { pathFor(file: File): string } }).__DSH_HOST_PATHS__
+      const path = bridge?.pathFor(file)
+      if (path) {
+        try { localStorage.setItem(deliveryFileKey(artifactId), path) } catch (error) {
+          // Storage quotas must not interrupt an already published attachment.
+          console.warn('organization delivery source path could not be retained', error)
+        }
+      }
+    },
+    openDeliveryFile: async (artifactId) => {
+      const key = deliveryFileKey(artifactId), openedGeneration = state.getSnapshot().connection.generation
+      const current = () => {
+        if (deliveryFileKey(artifactId) !== key || state.getSnapshot().connection.generation !== openedGeneration) throw new Error('superseded')
+      }
+      const path = localStorage.getItem(key)
+      if (!path) return false
+      const sidebar = ctx.get('sidebarRight'), files = ctx.remote.workspaceFiles
+      const sessionId = sidebar?.mounted.getSnapshot()
+      if (sidebar && sessionId) {
+        try {
+          const stat = await files.stat(sessionId, path)
+          const definitions = ctx.get('documentPreviews')?.getSnapshot() ?? []
+          const renderer = definitions.some(definition => definition.extensions.some(extension => path.toLowerCase().endsWith(`.${extension.toLowerCase()}`)))
+          const readable = renderer || (await files.read(sessionId, path, { limit: 1 })).ok
+          current()
+          if (stat.ok && readable) {
+            sidebar.openResource(sessionFileAddress(sessionId, path))
+            return true
+          }
+        } catch (error) {
+          // Failed preview probes fall through to the native file location action.
+          console.warn('organization delivery source preview unavailable', error)
+        }
+      }
+      current()
+      const result = await ctx.remote.session.openWorkspacePath({ path, action: 'reveal' })
+      if (!result.ok) throw new Error(result.error.message)
+      return true
+    },
     conversation: request => desktop ? desktop.conversation(request) : unavailable(),
     openProjectTasks: (project) => {
       const c = state.getSnapshot().connection

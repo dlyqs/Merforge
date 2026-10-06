@@ -200,7 +200,6 @@ export function ExecutionPanel(props: OrganizationProps & { task: OrganizationTa
   if (props.section === 'delivery') {
     const selected = views?.items.find(item => item.run.id === selectedRun)
     return <section className={css.panel}>
-      <h4>{t('deliveryTitle')}</h4>
       {!ready && <p role="status">{t('qualificationRecheck')}</p>}
       {notice && <p className={css.notice} role="status">{notice}</p>}
       {views && preparation ? <div hidden={!currentViews}>

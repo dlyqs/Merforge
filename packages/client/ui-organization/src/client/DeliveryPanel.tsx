@@ -27,7 +27,7 @@ export function DeliveryPanel(props: OrganizationProps & {
   const c = props.useOrganization(s => s.connection)
   const [page, setPage] = useState<{ generation: number; value: Page }>()
   const [selected, setSelected] = useState<Selection[]>([])
-  const [summary, setSummary] = useState(''), [target, setTarget] = useState('')
+  const [summary, setSummary] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
   const operationLock = useRef(false)
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState('')
@@ -39,7 +39,7 @@ export function DeliveryPanel(props: OrganizationProps & {
   const submissionIntent = useRef<{ fingerprint: string; operationId: string }>()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
-    setSelected([]); setChosen([]); setSummary(''); setTarget(''); setConfirmed(false); setPreview(undefined); setNotice(''); setPage(undefined)
+    setSelected([]); setChosen([]); setSummary(''); setConfirmed(false); setPreview(undefined); setNotice(''); setPage(undefined)
     submissionIntent.current = undefined
   }, [identity])
   const current = () => { if (!alive.current || currentIdentity.current !== identity) throw new Error('superseded') }
@@ -73,18 +73,19 @@ export function DeliveryPanel(props: OrganizationProps & {
         const result = await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run?.id ?? null, planRevision: a.planRevision,
           operationId: selection.operationId, kind: 'publish-artifact', artifactKind: selection.kind, path: selection.file.name,
           description: selection.description, mediaType: selection.file.type || 'application/octet-stream',
-          size: buffer.byteLength, sha256, bytes: btoa(raw) } }); current()
+          size: buffer.byteLength, modifiedAt: selection.file.lastModified, sha256, bytes: btoa(raw) } }); current()
         const artifactId = result.receipt?.delivery?.artifactId
         if (!artifactId) throw new Error('unavailable')
+        props.rememberDeliveryFile?.(artifactId, selection.file)
         artifacts.push(artifactId)
         setChosen(ids => ids.includes(artifactId) ? ids : [...ids, artifactId])
         setSelected(items => items.filter(item => item.operationId !== selection.operationId))
       }
-      const fingerprint = JSON.stringify({ chosen: artifacts, summary, target, runId: run?.id ?? null })
+      const fingerprint = JSON.stringify({ chosen: artifacts, summary, runId: run?.id ?? null })
       if (submissionIntent.current?.fingerprint !== fingerprint) submissionIntent.current = { fingerprint, operationId: randomUUID() }
       await props.connection({ kind: 'delivery-command', request: { ...selector, runId: run?.id ?? null, planRevision: a.planRevision,
-        operationId: submissionIntent.current.operationId, kind: 'submit-delivery', artifactIds: artifacts, summary, target, confirmed: true } }); current()
-      setChosen([]); setSummary(''); setTarget(''); setNotice(t('deliverySubmitted')); await load()
+        operationId: submissionIntent.current.operationId, kind: 'submit-delivery', artifactIds: artifacts, summary, target: '', confirmed: true } }); current()
+      setChosen([]); setSummary(''); setNotice(t('deliverySubmitted')); await load()
     } catch (error) {
       if (alive.current && currentIdentity.current === identity) {
         setNotice(t(workgraphError(error)))
@@ -113,19 +114,60 @@ export function DeliveryPanel(props: OrganizationProps & {
   const stopped = !run || ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false
   const runArtifacts = value?.artifacts.filter(file => file.runId === (run?.id ?? null)) ?? []
   const submissions = value?.submissions.filter(submission => !run || submission.runId === run.id) ?? []
+  const unsubmittedArtifacts = runArtifacts.filter(file => !submissions.some(submission => submission.artifactIds.includes(file.id)))
   const uploadError = !value ? ''
     : runArtifacts.length + selected.length > value.limits.artifactMaxFiles
       || chosen.length + selected.length > value.limits.artifactMaxFiles
       ? t('deliveryCountExceeded', { count: value.limits.artifactMaxFiles })
       : selected.some(item => item.file.size > value.limits.artifactMaxFileBytes)
-        ? t('deliveryFileExceeded', { bytes: fileSize(value.limits.artifactMaxFileBytes) })
+        ? t('deliveryFileExceeded', { bytes: fileSize(value.limits.artifactMaxFileBytes, t('deliveryBytes')) })
         : selected.reduce((total, item) => total + item.file.size,
           runArtifacts.reduce((total, item) => total + item.size, 0)) > value.limits.artifactMaxTotalBytes
-          ? t('deliveryTotalExceeded', { total: fileSize(value.limits.artifactMaxTotalBytes) })
+          ? t('deliveryTotalExceeded', { total: fileSize(value.limits.artifactMaxTotalBytes, t('deliveryBytes')) })
           : selected.some(item => !item.description.trim()) ? t('deliveryDescriptionRequired') : ''
   const uploadValid = !!value && !uploadError
+  const openFile = async (file: Artifact) => {
+    try {
+      if (props.openDeliveryFile && await props.openDeliveryFile(file.id)) return
+      await download(file.id)
+    } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
+  }
+  const renderFile = (file: Artifact) => <div className={css.attachmentRow} key={file.id}>
+    <button type="button" className={css.attachmentName} disabled={busy || !!c.pendingOperation}
+      onClick={() => { void openFile(file) }}>{file.path.split('/').at(-1)}</button>
+    <span className={css.hint}>{file.modifiedAt === undefined ? t('deliveryModifiedUnknown')
+      : t('deliveryModifiedAt', { time: new Date(file.modifiedAt).toLocaleString(t('deliveryDateLocale')) })}</span>
+    <span className={css.attachmentSize}>{fileSize(file.size, t('deliveryBytes'))}</span>
+  </div>
   return <section className={css.panel} aria-busy={busy}>
-    <p className={css.hint}>{t('deliveryHint')}</p>
+    {submissions.length > 0 && <section className={css.submissionHistory}>
+      <h5>{t('taskSubmissionHistory')}</h5>
+      {submissions.map((submission, index) => <details className={css.submissionRecord} data-state={submission.reviewState}
+        key={submission.id} open={index === 0}>
+        <summary className={css.submissionSummary}>
+          <span className={css.status} data-state={submission.reviewState}>{t(`review-${submission.reviewState}`)}</span>
+          <span className={css.submissionExcerpt}>{submission.summary}</span>
+          <span className={css.hint}>{t('taskVersion', { revision: submission.planRevision })}</span>
+        </summary>
+        <div className={css.submissionBody}>
+          <p className={css.prose}>{submission.summary}</p>
+          {submission.target && <p className={css.prose}>{submission.target}</p>}
+          <div className={css.attachmentList}>{submission.artifactIds.map((artifactId) => {
+            const file = value?.artifacts.find(file => file.id === artifactId)
+            return file ? renderFile(file) : <Button key={artifactId} variant="outline" disabled={busy || !!c.pendingOperation}
+              onClick={() => { void download(artifactId) }}>{t('deliveryDownload')}</Button>
+          })}</div>
+          <AcceptanceReview key={`${c.generation}:${submission.id}`} {...props} submission={submission} artifacts={value?.artifacts ?? []} refresh={load} />
+        </div>
+      </details>)}
+      {value && value.total > value.submissions.length && <div className={css.actions}>
+        <Button disabled={busy || !value.offset} onClick={() => { void load().catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('firstPage')}</Button>
+        <Button disabled={busy || value.offset + value.submissions.length >= value.total} onClick={() => {
+          void load(value.offset + value.submissions.length).catch((error: unknown) => { setNotice(t(workgraphError(error))) })
+        }}>{t('next')}</Button>
+      </div>}
+    </section>}
+    {submissions.length === 0 && <p className={css.hint}>{t('deliveryHint')}</p>}
     {notice && <p className={css.notice} role="status">{notice}</p>}
     {mine && a.state === 'accepted' && value && <>
       <section className={css.step}>
@@ -147,14 +189,14 @@ export function DeliveryPanel(props: OrganizationProps & {
               }} />
           </div>
           <p className={css.hint}>{t('deliveryLimits', { count: value.limits.artifactMaxFiles,
-            bytes: fileSize(value.limits.artifactMaxFileBytes), total: fileSize(value.limits.artifactMaxTotalBytes) })}</p>
+            bytes: fileSize(value.limits.artifactMaxFileBytes, t('deliveryBytes')), total: fileSize(value.limits.artifactMaxTotalBytes, t('deliveryBytes')) })}</p>
           {selected.map((selection, index) => <div className={css.record} key={`${selection.file.name}:${index}`}>
             <div className={css.heading}><strong>{selection.file.name}</strong>
               <Button size="sm" disabled={busy} aria-label={t('taskRemoveFile')} onClick={() => {
                 setSelected(items => items.filter((_, i) => i !== index)); setConfirmed(false)
               }}>{t('taskRemoveFile')}</Button>
             </div>
-            <p className={css.hint}>{t('taskFileSize', { bytes: fileSize(selection.file.size) })}</p>
+            <p className={css.hint}>{t('taskFileSize', { bytes: fileSize(selection.file.size, t('deliveryBytes')) })}</p>
             <div className={css.grid}>
               <label>{t('deliveryKind')}<select value={selection.kind} disabled={busy} onChange={(event) => {
                 const kind = event.target.value as Artifact['kind']
@@ -169,16 +211,14 @@ export function DeliveryPanel(props: OrganizationProps & {
             </div>
           </div>)}
           {selected.some(item => item.kind === 'git-change') && <p className={css.notice}>{t('deliveryGitHint')}</p>}
-          {runArtifacts.length === 0 && <p className={css.hint}>{t('taskDeliveryEmptyHint')}</p>}
-          {runArtifacts.map(file => <div className={css.record} key={file.id}>
-            <Checkbox label={file.path} checked={chosen.includes(file.id)} disabled={busy}
-              onChange={(checked) => {
+          {unsubmittedArtifacts.length > 0 && <div className={css.attachmentList}>
+            {unsubmittedArtifacts.map(file => <div className={css.attachmentChoice} key={file.id}>
+              <Checkbox label={file.path} checked={chosen.includes(file.id)} disabled={busy} onChange={(checked) => {
                 setChosen(ids => checked ? [...ids, file.id] : ids.filter(id => id !== file.id)); setConfirmed(false)
               }} />
-            <p className={css.hint}>{file.description} · {t('taskFileSize', { bytes: fileSize(file.size) })}</p>
-            <details className={css.advanced}><summary>{t('taskEvidenceDetails')}</summary><code>{file.sha256}</code></details>
-          </div>)}
-          <label>{t('deliveryTarget')}<textarea value={target} maxLength={8192} disabled={busy} onChange={(event) => { setTarget(event.target.value); setConfirmed(false) }} /></label>
+              <span className={css.hint}>{fileSize(file.size, t('deliveryBytes'))}</span>
+            </div>)}
+          </div>}
           {uploadError && <p className={css.notice} role="alert">{uploadError}</p>}
           {!summary.trim() && <p className={css.hint}>{t('deliverySummaryRequired')}</p>}
           <Checkbox label={t('taskSubmitConfirm')} checked={confirmed} disabled={busy || !stopped || !uploadValid || !summary.trim()} onChange={setConfirmed} />
@@ -187,23 +227,6 @@ export function DeliveryPanel(props: OrganizationProps & {
         </div>
       </section>
     </>}
-    <section className={css.step}>
-      <h5>{t('taskSubmissionHistory')}</h5>
-      {value && !submissions.length && <div className={css.empty}><strong>{t('taskDeliveryEmpty')}</strong><p>{t('taskDeliveryEmptyHint')}</p></div>}
-      {submissions.map(submission => <article className={css.record} key={submission.id}>
-        <div className={css.heading}><span className={css.status}>{t(`review-${submission.reviewState}`)}</span><span className={css.hint}>{t('taskVersion', { revision: submission.planRevision })}</span></div>
-        <dl><dt>{t('deliverySummary')}</dt><dd>{submission.summary}</dd><dt>{t('deliveryTarget')}</dt><dd>{submission.target || t('none')}</dd></dl>
-        <div className={css.actions}>{submission.artifactIds.map(artifactId => <Button key={artifactId} variant="outline" disabled={busy || !!c.pendingOperation}
-          onClick={() => { void download(artifactId) }}>{value?.artifacts.find(file => file.id === artifactId)?.path ?? t('deliveryDownload')}</Button>)}</div>
-        <AcceptanceReview key={`${c.generation}:${submission.id}`} {...props} submission={submission} artifacts={value?.artifacts ?? []} refresh={load} />
-      </article>)}
-    </section>
-    {value && value.total > value.submissions.length && <div className={css.actions}>
-      <Button disabled={busy || !value.offset} onClick={() => { void load().catch((error: unknown) => { setNotice(t(workgraphError(error))) }) }}>{t('firstPage')}</Button>
-      <Button disabled={busy || value.offset + value.submissions.length >= value.total} onClick={() => {
-        void load(value.offset + value.submissions.length).catch((error: unknown) => { setNotice(t(workgraphError(error))) })
-      }}>{t('next')}</Button>
-    </div>}
     {preview?.generation === c.generation && <details className={css.advanced} open><summary>{t('delivery-test-report')}</summary><pre className={taskWorkspaceStyles.prose}>{preview.text}</pre></details>}
   </section>
 }

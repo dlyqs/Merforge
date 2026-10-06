@@ -44,6 +44,8 @@ export interface OrganizationTaskView extends OrganizationTask {
   planId: OrganizationPlanId
   revision: OrganizationPlanRevision
   phaseTitle: string
+  /** Exact-version dispatch and issuer acceptance, aggregated over all descendants. */
+  status: 'pending' | 'running' | 'completed' | 'blocked'
   assignable: boolean
   hasUndisclosedPrerequisite: boolean
   /** Active assignment for the authenticated reader. */

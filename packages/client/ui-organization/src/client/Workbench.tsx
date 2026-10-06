@@ -1,5 +1,6 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
+import { taskStageView } from './task-status-view.ts'
 import { TaskInspector } from './TaskInspector.tsx'
 import { Button, Modal, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -79,6 +80,7 @@ export function Workbench(props: OrganizationProps & {
     phaseTitle: draft.definition.phases.find(phase => phase.id === item.phaseId)?.title ?? '' })) : pageTasks
   const phases = draft?.definition.phases ?? [...new Map(pageTasks.map(item =>
     [item.phaseId, { id: item.phaseId, title: item.phaseTitle }])).values()]
+  const stages = taskStageView(phases, canvasTasks, t)
   const detailTask = draft ? draft.definition.tasks.find(item => item.id === draft.taskId) : task
   const names = (ids: readonly OrganizationTaskId[]) => ids.map(id => canvasTasks.find(item => item.id === id)?.goal).filter(Boolean).join(' · ') || t('noDependencies')
   const writable = ready && !busy && !c.pendingOperation
@@ -211,7 +213,8 @@ export function Workbench(props: OrganizationProps & {
       className={taskWorkspaceStyles.workspace}>
       <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}
         introduction={page?.value.items[0] && <TaskSharing key={`${c.principal?.accountId}:${page.value.items[0].planId}`} {...props}
-          projectId={props.project.id} planId={props.planId ?? page.value.items[0].planId} />}>
+          projectId={props.project.id} planId={props.planId ?? page.value.items[0].planId}
+          overallGoal={page.value.items.find(item => item.parentTaskId === null)?.goal} />}>
         {task && !draft && detailsOpen && <TaskInspector key={task.id} {...props} task={task}
           projectId={props.project.id} current={!!currentPage}
           onClose={() => { setDetailsOpen(false) }} onAssignmentRevision={setAssignmentRevision}
@@ -248,7 +251,7 @@ export function Workbench(props: OrganizationProps & {
               && <ExecutionHumanRequest {...props} request={item.request} assignment={item.assignment} refresh={loadRequests} />}
               </section>)}
           </>} />}
-        {draft && detailTask && detailsOpen && <TaskDetail taskId={detailTask.id} title={detailTask.goal}
+        {draft && detailTask && detailsOpen && <TaskDetail layout="flow" taskId={detailTask.id} title={detailTask.goal}
           labels={{ taskDetail: t('taskDraft'), hideDetails: t('hideDetails') }} onClose={() => { setDetailsOpen(false) }}>
           <section className={css.card}>
             <h4>{t('taskDraft')}</h4>
@@ -265,7 +268,7 @@ export function Workbench(props: OrganizationProps & {
           </section>
         </TaskDetail>}
       </TaskCanvas>
-      <TaskStages phases={phases} tasks={canvasTasks} selected={draft?.taskId ?? selected ?? null}
+      <TaskStages phases={stages.phases} tasks={stages.tasks} selected={draft?.taskId ?? selected ?? null}
         labels={{ dependencies: t('stagesAndDependencies'), parallel: t('parallelTasks'), phase: t('phase'),
           prerequisites: t('dependencies'), none: t('noDependencies'), hiddenPrerequisite: t('hiddenPrerequisite') }}
         onSelect={(id) => { const item = canvasTasks.find(item => item.id === id); if (item) showTask(item.id) }} />

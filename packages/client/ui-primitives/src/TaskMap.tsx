@@ -16,6 +16,8 @@ export interface TaskMapNode {
   statusLabel: string
   /** Optional localized badge for the viewer's assigned node. */
   assignmentLabel?: string
+  /** Localized action hint independent of execution status. */
+  attentionLabel?: string
 }
 
 /** Localized canvas controls and task-card text. */
@@ -193,9 +195,10 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
               const state = node.task.status
               const folded = visibleCollapsed.has(node.task.id)
               return <div key={node.task.id} className={css.node} data-root={node.task.id === rootId}
-                data-branch={node.branch} data-selected={selected === node.task.id} data-assigned={!!node.task.assignmentLabel}
+                data-status={state} data-branch={node.branch} data-selected={selected === node.task.id}
+                data-assigned={!!node.task.assignmentLabel}
                 style={{ '--node-x': `${node.x}px`, '--node-y': `${node.y}px` } as CSSProperties}>
-                <button type="button" className={css.nodeButton} aria-pressed={selected === node.task.id} aria-label={node.task.goal} title={node.task.goal} onClick={() => { onSelect(node.task.id) }}>
+                <button type="button" className={css.nodeButton} aria-pressed={selected === node.task.id} aria-label={node.task.goal} title={[node.task.goal, node.task.attentionLabel].filter(Boolean).join(' · ')} onClick={() => { onSelect(node.task.id) }}>
                   <span className={css.nodeStage}>{node.task.id === rootId ? labels.rootTask : node.task.phaseTitle}</span>
                   <strong className={css.goal}>{node.task.goal}</strong>
                   <span className={css.nodeFooter}>
