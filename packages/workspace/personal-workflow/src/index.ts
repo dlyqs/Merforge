@@ -12,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-personal-project'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-session-query'
-import { approveSchema, operationIdSchema, readSchema, saveSchema, storedPlanSchema } from './schema.ts'
+import { approveSchema, definitionSchema, operationIdSchema, readSchema, saveSchema, storedPlanSchema } from './schema.ts'
 import { workflowModeProjection, workflowModeSchema } from './mode-projection.ts'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { exportPlan } from './projection.ts'
@@ -438,13 +438,16 @@ export class PersonalWorkflow extends Service {
     return this.enqueue(async () => {
       try {
         const parsed = saveSchema.parse(request)
-        const { definition, operationId } = parsed
+        const { operationId } = parsed
         const fingerprint = digest({ kind: 'save', source, sessionId, ...parsed })
         const table = this.table()
-        const previous = table.get(definition.taskId)
+        const previous = table.get(parsed.definition.taskId)
         if (enhancement !== undefined) await this.requireMode(enhancement.session, enhancement.modeRevision)
         const retry = this.retry(previous, operationId, fingerprint)
         if (retry) return retry
+        const priorMode = previous?.revisions.at(-1)?.definition.planningMode
+        const definition = parsed.definition.planningMode === undefined && (previous === undefined || priorMode !== undefined)
+          ? definitionSchema.parse({ ...parsed.definition, planningMode: priorMode ?? 'hierarchical' }) : parsed.definition
         let goalId: GoalId | undefined
         if (enhancement !== undefined) {
           if (this.execution.forSession(enhancement.session.id) !== null) throw new Error('personal-workflow: selected execution cannot be decomposed')

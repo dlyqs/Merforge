@@ -1,10 +1,11 @@
 /** Anchored task selection, phase progress and explicit execution authorization. */
-import { useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { Button, Input, Menu, SegmentedControl, IconPlayOutlineRegular, IconRefreshOutlineRegular, IconBranchOutlineRegular, IconCheckOutlineRegular, IconCloseOutlineRegular, taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Menu, SegmentedControl, IconPlayOutlineRegular, IconRefreshOutlineRegular, IconBranchOutlineRegular, IconCheckOutlineRegular, IconCloseOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OperationId, PlanDefinition, PlanRevision, PlanView, TaskId, TaskRun, ExecutionAuthorization, ClaimTaskRequest, ControlTaskRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { ExecutionProps } from './contract.ts'
-import { completedRunPhases, phaseProgress } from './view.ts'
+import { completedRunPhases, executionChildren, executionSelection, phaseProgress } from './view.ts'
 import panel from './ComposerPanels.module.css'
 
 /** Select a ready task or explicitly control its current execution.
@@ -20,6 +21,12 @@ export function Execution(props: ExecutionProps) {
   const [run, setRun] = useState<TaskRun | null>(null)
   const [runPlan, setRunPlan] = useState<PlanRevision | null>(null)
   const [selection, setSelection] = useState('')
+  const [expandedRoots, setExpandedRoots] = useState<ReadonlySet<string>>(new Set())
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const getAnchorRect = useCallback(() => {
+    const rect = anchorRef.current?.getBoundingClientRect()
+    return rect ? new DOMRect(rect.left - 20, rect.top, rect.width, rect.height) : null
+  }, [])
   const [mode, setMode] = useState<ExecutionAuthorization['mode']>('manual')
   const [stopPhaseId, setStopPhaseId] = useState('')
   const [relay, setRelay] = useState(false)
@@ -35,17 +42,22 @@ export function Execution(props: ExecutionProps) {
   const running = props.useSession(value => value.running)
   const account = props.account
   const accountTask = accountTasks.find(item => item.id === selection)
+  const accountRoots = accountTasks.filter(item => !accountTasks.some(parent => parent.id === item.parentTaskId))
+  const accountChildren = (parentId: string, depth = 0): { item: typeof accountTasks[number]; depth: number }[] =>
+    accountTasks.filter(item => item.parentTaskId === parentId).flatMap(item => [{ item, depth }, ...accountChildren(item.id, depth + 1)])
   const prepared = run?.handoffs.find(handoff => handoff.status === 'prepared' && handoff.sourceSessionId === props.sessionId)
-  const plan = plans.find(item => item.ready.some(id => id === selection))
-  const task = plan?.snapshot.definition.tasks.find(item => item.id === selection)
+  const plan = plans.find(item => item.snapshot.definition.tasks.some(task => task.id === selection))
+  const selected = plan ? executionSelection(plan, selection) : undefined
+  const task = selected?.selected, executable = selected?.executable
   const phases = plan?.snapshot.definition.phases ?? []
-  const phasePlan = plan?.snapshot.definition.planningMode === 'phases'
-  const sequence = phasePlan && mode !== 'manual'
-  const startIndex = phases.findIndex(item => item.id === task?.phaseId)
-  const stop = sequence && mode === 'auto' ? phases.at(-1)?.id : stopPhaseId || task?.phaseId
+  const phaseRoot = selected?.phaseRoot === true
+  const sequence = phaseRoot && mode !== 'manual'
+  const startIndex = phases.findIndex(item => item.id === executable?.phaseId)
+  const stop = sequence && mode === 'auto' ? phases.at(-1)?.id : stopPhaseId || executable?.phaseId
   const rangeLength = Math.max(1, phases.findIndex(item => item.id === stop) - startIndex + 1)
   const batch = Math.min(relayEveryPhases, rangeLength)
-  const readyPlans = plans.filter(view => view.ready.length > 0)
+  const readyPlans = plans.filter(view => view.ready.length > 0).sort((a, b) =>
+    Number(b.snapshot.definition.planningMode === 'phases') - Number(a.snapshot.definition.planningMode === 'phases'))
   const refresh = async (): Promise<void> => {
     if (account) { setAccountTasks(await account.listTasks()); return }
     const [candidates, binding] = await Promise.all([props.candidates(props.sessionId), props.readRun(props.sessionId)])
@@ -71,14 +83,23 @@ export function Execution(props: ExecutionProps) {
     const value = { sessionId: props.sessionId, runId: run.id, ownerEpoch: run.ownerEpoch }
     return { ...value, operationId: operation({ ...value, action, note }) }
   }
-  const select = (id: string): void => { setSelection(id); setStopPhaseId(''); setRelay(false); setRelayEveryPhases(1) }
+  const select = (id: string): void => {
+    setSelection(id); setMode('manual'); setStopPhaseId(''); setRelay(false); setRelayEveryPhases(1)
+  }
+  const toggleRoot = (id: string): void => {
+    setExpandedRoots((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const claim = (): void => {
-    if (!task || !plan) return
+    if (!executable || !plan) return
     void perform(async () => {
-      const value = { sessionId: props.sessionId, planId: plan.snapshot.definition.taskId, taskId: task.id,
+      const value = { sessionId: props.sessionId, planId: plan.snapshot.definition.taskId, taskId: executable.id,
         expectedRevision: plan.snapshot.revision,
-        authorization: { mode, stopPhaseId: (sequence ? stop : task.phaseId) as typeof task.phaseId, maxActions, maxTurns, maxDurationMs,
-          ...(sequence ? { startPhaseId: task.phaseId, ...(relay ? { relayEveryPhases: batch } : {}) } : {}) } }
+        authorization: { mode: phaseRoot ? mode : 'manual' as const, stopPhaseId: (sequence ? stop : executable.phaseId) as typeof executable.phaseId, maxActions, maxTurns, maxDurationMs,
+          ...(sequence ? { startPhaseId: executable.phaseId, ...(relay ? { relayEveryPhases: batch } : {}) } : {}) } }
       const request: ClaimTaskRequest = { ...value, operationId: operation(value) }
       setRun(await props.claim(request)); retry.current = null; await refresh()
     })
@@ -108,21 +129,21 @@ export function Execution(props: ExecutionProps) {
     }}>{t('selectTask')}</Button>
   </div> : run === null ? <div className={panel.footer}>
     <p className={panel.hint}>{t('claimHint')}</p>
-    <Button variant="primary" icon={<IconPlayOutlineRegular />} disabled={busy || running || !task} onClick={claim}>{t('claim')}</Button>
+    <Button variant="primary" icon={<IconPlayOutlineRegular />} disabled={busy || running || !executable} onClick={claim}>{t('claim')}</Button>
   </div> : undefined
-  return <Menu open={open} side="top" portal role="dialog" label={t('selectTask')} listClassName={panel.executionPanel} panelFooter={footer}
-    onClose={() => { setOpen(false) }} anchor={<Button variant="ghost" size="sm" className={css.composerButton} icon={<IconPlayOutlineRegular />}
+  return <Menu open={open} side="top" portal role="dialog" label={t('selectTask')} listClassName={panel.executionPanel} panelFooter={footer} getAnchorRect={getAnchorRect}
+    onClose={() => { setOpen(false) }} anchor={<span ref={anchorRef} className={panel.anchor}><Button variant="ghost" size="sm" className={css.composerButton} icon={<IconPlayOutlineRegular />}
       aria-haspopup="dialog" aria-expanded={open} aria-pressed={account?.assigned ?? run !== null} disabled={account !== undefined && running}
       onClick={() => {
         if (open) { setOpen(false); return }
-        setOpen(true)
+        setOpen(true); setExpandedRoots(new Set())
         if (account) setSelection(account.taskId ?? '')
         void perform(async () => {
           if (account) { await refresh(); return }
           const [, limits] = await Promise.all([refresh(), props.limits()])
           setMaxActions(limits.maxActions); setMaxTurns(limits.maxTurns); setMaxDurationMs(limits.maxDurationMs)
         })
-      }}>{account?.taskTitle ?? t('selectTask')}</Button>}>
+      }}>{account?.taskTitle ?? t('selectTask')}<IconChevronDownOutlineRegular size={12} className={open ? panel.triggerChevronOpen : undefined} /></Button></span>}>
     <div className={panel.content}>
       <header className={panel.header}><div><h3>{t(run === null || account ? 'selectTask' : 'currentExecution')}</h3><p className={panel.hint}>{t('executionHint')}</p></div>
         <div className={panel.headerActions}>
@@ -132,31 +153,75 @@ export function Execution(props: ExecutionProps) {
       {busy && <p className={panel.loading} role="status">{t('loadingExecution')}</p>}
       {error !== null && <p className={panel.error} role="alert">{t('error', { message: error })}</p>}
       {account ? <>
-        <div className={panel.taskChoices} aria-label={t('chooseAccountTask')}>{accountTasks.map(item => <button key={item.id} type="button"
-          className={panel.taskChoice} aria-label={item.title} aria-pressed={selection === item.id} disabled={busy || running}
-          onClick={() => { select(item.id) }}>
-          <IconPlayOutlineRegular size={18} /><span className={panel.taskCopy}>
-            <strong>{item.title}</strong><span className={panel.hint}>{item.scope}</span></span>
-          {selection === item.id && <IconCheckOutlineRegular size={16} />}
-        </button>)}</div>
+        <div className={panel.taskList} aria-label={t('chooseAccountTask')}>{accountRoots.map((root) => {
+          const expanded = expandedRoots.has(root.id), children = accountChildren(root.id)
+          const branchId = `${modeId}-${root.id}-children`
+          return <section key={root.id} className={panel.section}>
+            <div className={panel.rootRow}>
+              <button type="button" className={panel.taskChoice} aria-label={root.title} aria-pressed={selection === root.id}
+                disabled={busy || running} onClick={() => { select(root.id) }}>
+                <IconPlayOutlineRegular size={18} /><span className={panel.taskCopy}>
+                  <strong>{root.title}</strong><span className={panel.hint}>{root.scope}</span></span>
+                <span className={panel.badge}>{t('allocationPlanType')}</span>
+                {selection === root.id && <IconCheckOutlineRegular size={16} />}
+              </button>
+              {children.length > 0 && <Button variant="ghost" size="sm" className={panel.expandButton}
+                aria-label={t(expanded ? 'collapseBranch' : 'expandBranch', { goal: root.title })}
+                aria-expanded={expanded} aria-controls={branchId} onClick={() => {
+                  toggleRoot(root.id)
+                }} icon={expanded ? <IconChevronDownOutlineRegular /> : <IconChevronRightOutlineRegular />} />}
+            </div>
+            {expanded && <div id={branchId} className={panel.children}>{children.map(({ item, depth }) => <div key={item.id}
+              className={panel.childRow} style={{ '--dsh-execution-task-depth': String(Math.min(depth, 3)) } as CSSProperties}>
+              <button type="button" className={panel.taskChoice} aria-label={item.title} aria-pressed={selection === item.id}
+                disabled={busy || running} onClick={() => { select(item.id) }}>
+                <span className={panel.taskCopy}><strong>{item.title}</strong><span className={panel.hint}>{item.scope}</span></span>
+                {selection === item.id && <IconCheckOutlineRegular size={16} />}
+              </button>
+            </div>)}</div>}
+          </section>
+        })}</div>
         {!busy && accountTasks.length === 0 && <div className={panel.empty}><IconBranchOutlineRegular size={28} /><h4>{t('noReadyTasks')}</h4><p className={panel.hint}>{t('chooseAccountTask')}</p></div>}
         {accountTask && details(accountTask.title, accountTask.scope, accountTask.acceptance, accountTask.artifacts)}
       </> : run === null ? <>
         <div className={panel.taskList} aria-label={t('availableTasks')}>{readyPlans.map((view) => {
           const definition = view.snapshot.definition
+          const root = definition.tasks.find(item => item.id === definition.taskId)
+          if (root === undefined) throw new Error('personal-workflow: missing plan root')
+          const children = executionChildren(definition)
+          const expanded = expandedRoots.has(root.id)
+          const branchId = `${modeId}-${root.id}-children`
           return <section key={definition.taskId} className={panel.section}>
-            <div className={panel.planHeading}><h4>{definition.tasks.find(item => item.id === definition.taskId)?.goal}</h4>
-              <span className={panel.badge}>{t(definition.planningMode === 'phases' ? 'phaseSequence' : 'balancedGranularity')}</span>
-              <span className={panel.hint}>{t('revision', { revision: view.snapshot.revision })}</span></div>
+            <div className={panel.rootRow}>
+              <button type="button" className={panel.taskChoice} aria-label={root.goal} aria-pressed={selection === root.id}
+                disabled={busy || running} onClick={() => { select(root.id) }}>
+                <IconPlayOutlineRegular size={18} /><span className={panel.taskCopy}>
+                  <strong>{root.goal}</strong><span className={panel.hint}>{root.scope}</span></span>
+                <span className={panel.badge}>{t(definition.planningMode === 'phases' ? 'executionPlanType'
+                  : definition.planningMode === 'hierarchical' ? 'allocationPlanType' : 'plans')}</span>
+                {selection === root.id && <IconCheckOutlineRegular size={16} />}
+              </button>
+              {children.length > 0 && <Button variant="ghost" size="sm" className={panel.expandButton}
+                aria-label={t(expanded ? 'collapseBranch' : 'expandBranch', { goal: root.goal })}
+                aria-expanded={expanded} aria-controls={branchId} onClick={() => {
+                  toggleRoot(root.id)
+                }} icon={expanded ? <IconChevronDownOutlineRegular /> : <IconChevronRightOutlineRegular />} />}
+            </div>
             {definition.planningMode === 'phases' && progress(definition, view.tasks.filter(item => item.status === 'completed').map(item => item.taskId))}
-            <div className={panel.taskChoices}>{definition.tasks.filter(item => view.ready.includes(item.id)).map(item => <button key={item.id} type="button"
-              className={panel.taskChoice} aria-label={item.goal} aria-pressed={selection === item.id} disabled={busy || running}
-              onClick={() => { select(item.id) }}>
-              <IconPlayOutlineRegular size={18} /><span className={panel.taskCopy}>
-                <strong>{item.goal}</strong><span className={panel.hint}>{item.scope}</span></span>
-              <span className={panel.badge}>{item.id === definition.taskId && definition.planningMode === 'phases' ? t('finalVerification') : definition.phases.find(phase => phase.id === item.phaseId)?.title}</span>
-              {selection === item.id && <IconCheckOutlineRegular size={16} />}
-            </button>)}</div>
+            {expanded && <div id={branchId} className={panel.children}>
+              {children.map(({ task: child, depth }) => {
+                const state = view.tasks.find(item => item.taskId === child.id)
+                return <div key={child.id} className={panel.childRow}
+                  style={{ '--dsh-execution-task-depth': String(Math.min(depth, 3)) } as CSSProperties}>
+                  <button type="button" className={panel.taskChoice} aria-label={child.goal} aria-pressed={selection === child.id}
+                    disabled={busy || running || !view.ready.includes(child.id)} onClick={() => { select(child.id) }}>
+                    <span className={panel.taskCopy}><strong>{child.goal}</strong><span className={panel.hint}>{child.scope}</span></span>
+                    {state && <span className={panel.badge}>{t(state.status)}</span>}
+                    {selection === child.id && <IconCheckOutlineRegular size={16} />}
+                  </button>
+                </div>
+              })}
+            </div>}
           </section>
         })}</div>
         {!busy && readyPlans.length === 0 && <div className={panel.empty}><IconBranchOutlineRegular size={28} /><h4>{t('noReadyTasks')}</h4><p className={panel.hint}>{t('readyTasksHint')}</p></div>}
@@ -164,12 +229,12 @@ export function Execution(props: ExecutionProps) {
           {details(task.goal, task.scope, task.acceptance, task.artifacts, task.cwd)}
           <section className={`${panel.section} ${panel.divider}`} aria-label={t('executionSettings')}>
             <h4>{t('executionSettings')}</h4>
-            <SegmentedControl id={modeId} value={mode} label={t('executionMode')} disabled={busy || running}
-              options={[{ value: 'manual', label: t('manualShort') }, { value: 'auto', label: t('autoShort') }, { value: 'auto_until', label: t('autoUntilShort') }]}
-              onChange={setMode} />
-            <div id={`${modeId}-${mode}-panel`} role="tabpanel" aria-labelledby={`${modeId}-${mode}`} className={panel.section}>
-              <p className={panel.hint}>{t(mode)}</p>
-              {phasePlan ? <>
+            {phaseRoot && executable ? <>
+              <SegmentedControl id={modeId} value={mode} label={t('executionMode')} disabled={busy || running}
+                options={[{ value: 'manual', label: t('manualShort') }, { value: 'auto', label: t('autoShort') }, { value: 'auto_until', label: t('autoUntilShort') }]}
+                onChange={setMode} />
+              <div id={`${modeId}-${mode}-panel`} role="tabpanel" aria-labelledby={`${modeId}-${mode}`} className={panel.section}>
+                <p className={panel.hint}>{t(mode)}</p>
                 <div className={panel.settingsGrid}>
                   <label className={panel.field}>{t('executeThroughPhase')}<select value={stop} disabled={busy || running || mode !== 'auto_until'}
                     onChange={(event) => { setStopPhaseId(event.target.value) }}>
@@ -183,8 +248,8 @@ export function Execution(props: ExecutionProps) {
                 </div>
                 <p className={panel.hint}>{t('startAtPhase')}: {phases[startIndex]?.title} · {t('phaseRangeHint')}</p>
                 <p className={panel.hint}>{t('relayHint')}</p>
-              </> : <p className={panel.hint}>{t('stopAtPhase')}: {phases[startIndex]?.title}</p>}
-            </div>
+              </div>
+            </> : <p className={panel.hint}>{t(executable ? 'singleTaskExecutionHint' : 'rootNotReadyHint')}</p>}
             <details className={panel.budget}><summary>{t('executionBudget')}</summary><div className={panel.budgetGrid}>
               <label className={panel.field}>{t('maxActions')}<Input type="number" min={1} value={maxActions} disabled={busy || running} onChange={(event) => { setMaxActions(Number(event.target.value)) }} /></label>
               <label className={panel.field}>{t('maxTurns')}<Input type="number" min={1} value={maxTurns} disabled={busy || running} onChange={(event) => { setMaxTurns(Number(event.target.value)) }} /></label>
@@ -195,14 +260,15 @@ export function Execution(props: ExecutionProps) {
       </> : <>
         <section className={panel.section}>
           <div className={panel.statusRow}><h3>{runPlan?.definition.tasks.find(item => item.id === run.taskId)?.goal ?? t('currentExecution')}</h3><span className={panel.badge}>{t(run.status)}</span></div>
-          {runPlan?.definition.planningMode === 'phases' && <>
-            {progress(runPlan.definition, completedRunPhases(runPlan.definition, run))}
+          {runPlan?.definition.planningMode === 'phases' && progress(runPlan.definition, completedRunPhases(runPlan.definition, run))}
+          {run.sequence !== undefined && runPlan && <>
             <div className={panel.settingsGrid}>
               <div className={panel.field}><span>{t('executeThroughPhase')}</span><strong>{runPlan.definition.phases.find(item => item.id === run.authorization.stopPhaseId)?.title}</strong></div>
               <div className={panel.field}><span>{t('phasesPerConversation')}</span><strong>{run.authorization.relayEveryPhases ? t('phaseBatch', { count: run.authorization.relayEveryPhases }) : t('allPhasesOneConversation')}</strong></div>
             </div>
           </>}
-          <dl className={panel.facts}><dt>{t('cwd')}</dt><dd>{run.baseline.cwd}</dd><dt>{t('executionMode')}</dt><dd>{t(run.authorization.mode)}</dd></dl>
+          <dl className={panel.facts}><dt>{t('cwd')}</dt><dd>{run.baseline.cwd}</dd>
+            {run.sequence !== undefined && <><dt>{t('executionMode')}</dt><dd>{t(run.authorization.mode)}</dd></>}</dl>
           <div className={panel.settingsGrid}>
             <div className={panel.section}><span className={panel.hint}>{t('maxActions')}: {run.actions.length} / {run.authorization.maxActions}</span><progress className={panel.progress} aria-label={t('maxActions')} value={run.actions.length} max={run.authorization.maxActions} /></div>
             <div className={panel.section}><span className={panel.hint}>{t('maxTurns')}: {run.turnsUsed} / {run.authorization.maxTurns}</span><progress className={panel.progress} aria-label={t('maxTurns')} value={run.turnsUsed} max={run.authorization.maxTurns} /></div>

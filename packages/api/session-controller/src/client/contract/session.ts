@@ -186,6 +186,8 @@ export interface SessionControls {
   /** @returns Authorized task candidates in this account partition. */
   listTasks(): Promise<readonly {
     id: SessionTaskChoiceId
+    /** Omitted by legacy readers; an unreadable parent is not shown in the composer. */
+    parentTaskId?: SessionTaskChoiceId | null
     title: string
     scope: string
     acceptance: readonly string[]

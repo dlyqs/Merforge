@@ -32,7 +32,7 @@ export interface PlanPhase {
 }
 /** Complete plan definition, never inferred from chat text or list order. */
 export interface PlanDefinition {
-  /** Absent on existing hierarchical plans; phases uses a flat ordered execution plan. */
+  /** New plans record their kind; legacy plans may omit it. Phases uses a flat ordered execution plan. */
   readonly planningMode?: 'hierarchical' | 'phases' | undefined
   readonly taskId: TaskId
   readonly projectId: ProjectId | null

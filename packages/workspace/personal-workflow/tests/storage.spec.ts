@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { definition, ids, operation, proposal } from './fixture.ts'
+import { definition, ids, operation, phaseDefinition, proposal } from './fixture.ts'
 import type { PersonalWorkflow } from '../src/index.ts'
 import { createWorkflowHarness } from './harness.ts'
 
@@ -33,6 +33,19 @@ async function enablePlanning(service: PersonalWorkflow, session: Session): Prom
 }
 
 describe('durable personal workflow through Loader', () => {
+  it('records a kind on new plans and keeps it when an edit omits the field without changing retry receipts', async () => {
+    const { service } = await boot()
+    const original = proposal()
+    const created = await service.save(original)
+    expect(created.definition.planningMode).toBe('hierarchical')
+    expect(original.definition.planningMode).toBeUndefined()
+    const edited = await service.save(proposal(2, 1))
+    expect(edited.definition.planningMode).toBe('hierarchical')
+    await service.save({ operationId: operation(3), expectedRevision: 2, definition: phaseDefinition(6) })
+    expect(await service.save(original)).toEqual(created)
+    expect(service.read({ taskId: ids[0]! }).definition.planningMode).toBe('phases')
+  })
+
   it('reopens real JSON plans and JSONL Session snapshots with stable retry receipts', async () => {
     const first = await boot()
     const session = first.ctx.sessions.create(SessionId('planning'))

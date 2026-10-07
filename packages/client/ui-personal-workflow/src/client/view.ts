@@ -77,3 +77,40 @@ export function completedRunPhases(definition: PlanDefinition, run: Pick<TaskRun
   }
   return [...completed]
 }
+
+/** Resolve a root's next ready phase while keeping child selection scoped to that child.
+ * @param view - Plan with directory-qualified readiness and full node statuses.
+ * @param selectedId - Root or child selected in the composer.
+ * @returns Displayed node, executable node and whether phase-range controls apply.
+ */
+export function executionSelection(view: PlanView, selectedId: string): {
+  selected: TaskDefinition | undefined
+  executable: TaskDefinition | undefined
+  phaseRoot: boolean
+} {
+  const definition = view.snapshot.definition
+  const selected = definition.tasks.find(task => task.id === selectedId)
+  const phaseRoot = definition.planningMode === 'phases' && selected?.id === definition.taskId
+  const executable = phaseRoot
+    ? definition.phases.flatMap(phase => definition.tasks.filter(task => task.parentTaskId === definition.taskId
+      && task.phaseId === phase.id && view.ready.includes(task.id)))[0]
+      ?? (view.ready.includes(definition.taskId) ? selected : undefined)
+    : selected !== undefined && view.ready.includes(selected.id) ? selected : undefined
+  return { selected, executable, phaseRoot }
+}
+
+/** Enumerate descendants in tree order for a root's expanded task list.
+ * @param definition - Validated connected task tree.
+ * @returns Descendants with their indentation depth, excluding the root.
+ */
+export function executionChildren(definition: PlanDefinition): { task: TaskDefinition; depth: number }[] {
+  const children = new Map<TaskId, TaskDefinition[]>()
+  for (const task of definition.tasks) {
+    if (task.parentTaskId === null) continue
+    const siblings = children.get(task.parentTaskId) ?? []
+    siblings.push(task); children.set(task.parentTaskId, siblings)
+  }
+  const walk = (id: TaskId, depth: number): { task: TaskDefinition; depth: number }[] =>
+    (children.get(id) ?? []).flatMap(task => [{ task, depth }, ...walk(task.id, depth + 1)])
+  return walk(definition.taskId, 0)
+}

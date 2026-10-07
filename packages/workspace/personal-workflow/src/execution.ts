@@ -67,9 +67,9 @@ export class WorkflowExecution {
     return null
   }
 
-  /** List only ready tasks matching this conversation's affiliation and directory.
+  /** List plans with ready tasks matching this conversation's affiliation and directory.
    * @param session - Conversation selected by the user.
-   * @returns Plan views restricted to executable candidates.
+   * @returns Full task statuses and directory-qualified ready identities for each eligible plan.
    */
   candidates(session: Session): PlanView[] {
     if (this.forSession(session.id) !== null) return []
@@ -80,7 +80,7 @@ export class WorkflowExecution {
         const task = taskOf(view.snapshot, id)
         return task.cwd === null || sameDirectory(task.cwd, session.header.cwd ?? '')
       })
-      return ready.length ? [{ ...view, ready, tasks: view.tasks.filter(task => ready.includes(task.taskId)) }] : []
+      return ready.length ? [{ ...view, ready, tasks: view.tasks.map(task => ({ ...task, candidate: ready.includes(task.taskId) })) }] : []
     })
   }
 

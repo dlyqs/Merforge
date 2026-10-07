@@ -1,6 +1,6 @@
 /** Tree and affiliation projections never create execution facts. */
 import { expect, it } from 'vitest'
-import { completedRunPhases, overlappingArtifacts, phaseProgress, selectPlans } from '../src/client/view.ts'
+import { completedRunPhases, executionChildren, executionSelection, overlappingArtifacts, phaseProgress, selectPlans } from '../src/client/view.ts'
 import { definition, ids, phaseDefinition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import { projectPlan } from '../../../workspace/personal-workflow/src/projection.ts'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
@@ -31,4 +31,20 @@ it('includes admitted predecessor phases and excludes unfinished current work', 
   expect(completedRunPhases(plan, { taskId: ids[3]!, status: 'paused' })).toEqual([ids[1], ids[2]])
   expect(completedRunPhases(plan, { taskId: ids[3]!, status: 'completed' })).toEqual([ids[1], ids[2], ids[3]])
   expect(phaseProgress(plan, completedRunPhases(plan, { taskId: plan.taskId, status: 'running' }))).toMatchObject({ done: 6, total: 6 })
+})
+
+it('resolves phase roots to the next ready phase while a selected child retains single-task scope', () => {
+  const definition = phaseDefinition(6)
+  const view = projectPlan({ revision: 1, definition, source: 'user', sessionId: null, createdAt: 1,
+    approval: { operationId: 'approved' as never, time: 1 } }, [
+    { taskId: ids[1]!, status: 'completed', evidence: ['Phase 1 accepted'] },
+  ])
+  expect(executionSelection(view, ids[0]!)).toMatchObject({
+    selected: definition.tasks[0], executable: definition.tasks[2], phaseRoot: true,
+  })
+  expect(executionSelection(view, ids[2]!)).toMatchObject({
+    selected: definition.tasks[2], executable: definition.tasks[2], phaseRoot: false,
+  })
+  expect(executionSelection(view, ids[3]!).executable).toBeUndefined()
+  expect(executionChildren(definition).map(item => item.task.id)).toEqual(ids.slice(1, 7))
 })

@@ -75,7 +75,8 @@ export class AccountSession implements AccountSessionTarget {
             if (this.result.assignment && task.id !== this.result.assignment.taskId) continue
             const id = brandString<SessionTaskChoiceId>(task.id)
             this.candidates.set(id, { planId: task.planId, taskId: task.id })
-            tasks.push({ id, title: task.goal, scope: task.scope, acceptance: task.acceptance, artifacts: task.artifacts })
+            tasks.push({ id, parentTaskId: task.parentTaskId === null ? null : brandString<SessionTaskChoiceId>(task.parentTaskId),
+              title: task.goal, scope: task.scope, acceptance: task.acceptance, artifacts: task.artifacts })
           }
           offset += value.items.length; cursor = value.cursor
           if (!value.items.length || offset >= value.total) break

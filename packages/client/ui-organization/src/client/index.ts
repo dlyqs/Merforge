@@ -382,6 +382,7 @@ export function apply(ctx: Context): void {
           if (sequence !== openSequence || result.workgraph?.result.kind !== 'tasks') throw new Error('organization-conversation: superseded')
           const page = result.workgraph.result.value
           tasks.push(...page.items.map(task => ({ id: brandString<import('@deepseek-ai/dsh-api-session-controller/client').SessionTaskChoiceId>(task.id),
+            parentTaskId: task.parentTaskId === null ? null : brandString<import('@deepseek-ai/dsh-api-session-controller/client').SessionTaskChoiceId>(task.parentTaskId),
             title: task.goal, scope: task.scope, acceptance: task.acceptance, artifacts: task.artifacts })))
           offset += page.items.length; cursor = page.cursor
           if (!page.items.length || offset >= page.total) break

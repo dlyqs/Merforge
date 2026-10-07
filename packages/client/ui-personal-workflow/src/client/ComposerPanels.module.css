@@ -9,7 +9,9 @@
 }
 
 .modePanel { width: 420px; }
-.executionPanel { width: 780px; }
+.executionPanel { width: 700px; }
+.anchor { display: inline-flex; }
+.triggerChevronOpen { transform: rotate(180deg); }
 .content { display: grid; gap: 20px; padding: 22px; min-width: 0; }
 .content :is(h3, h4, p) { margin: 0; }
 .content h3 { font-size: 17px; line-height: 26px; font-weight: 600; }
@@ -51,15 +53,18 @@
 .taskChoice:focus-visible,
 .content :is(select, textarea, summary):focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 3px; }
 .taskList { display: grid; gap: 16px; }
-.planHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.planHeading h4 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rootRow { display: flex; align-items: center; gap: 6px; }
+.rootRow > .taskChoice { flex: 1; }
+.rootRow > .expandButton { flex: none; padding: 6px; }
+.children { display: grid; gap: 6px; padding-left: 14px; border-left: 0.5px solid var(--dsw-alias-border-l2); }
+.childRow { padding-left: calc(var(--dsh-execution-task-depth) * 14px); }
+.childRow .taskChoice { padding: 10px 12px; }
 .badge { display: inline-flex; flex: none; padding: 3px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 17px; }
 .taskChoice { width: 100%; align-items: center; }
 .taskChoice > svg { flex: none; color: var(--dsw-alias-label-tertiary); }
 .taskCopy { display: grid; flex: 1; gap: 4px; min-width: 0; }
 .taskCopy strong { font-weight: 500; overflow-wrap: anywhere; }
 .taskCopy > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.taskChoices { display: grid; gap: 8px; }
 .phaseProgress { display: grid; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--dsw-alias-bg-layer-1); }
 .phaseSummary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; line-height: 20px; }
 .phaseSummary > span:last-child { color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }

@@ -42,7 +42,9 @@ When enabled, `requireMode` accepts the unchanged conversation selection under t
 
 ## Ordered phase execution
 
-PlanDefinition optionally records planningMode. Missing or hierarchical retains independent task semantics. phases requires one required direct task per phase, explicit consecutive dependencies, and final root verification; there is no five-child limit. The fine preference requires a phase plan at model proposal submission.
+New plans persist planningMode: omitted kinds resolve to hierarchical, while explicit phases retains ordered execution. Edits that omit the field retain an existing recorded kind. Legacy definitions without a kind remain readable and are not migrated. Missing or hierarchical retains independent task semantics. phases requires one required direct task per phase, explicit consecutive dependencies, and final root verification; there is no five-child limit. The fine preference requires a phase plan at model proposal submission. Idempotency receipts compare the original submitted request before resolving the stored kind.
+
+Execution candidates return eligible plans with complete node statuses and directory-qualified ready identities. Each node's candidate flag reflects that qualified list, allowing the composer to display roots, completed phase progress and blocked descendants without granting execution to them.
 
 ExecutionAuthorization optionally records startPhaseId and relayEveryPhases. startPhaseId selects an inclusive ordered range on a phase plan; auto requires the final phase as its stop, while auto_until stops at its recorded endpoint. A Run atomically reserves that range, retains its fixed taskIds and completed task evidence in sequence, and advances only after current acceptance settles. Budgets and startedAt span phases and handoffs. Task projections and consumers expose archived phase evidence separately from the active task. A bounded range finishes without reserving later work; a full range also verifies root acceptance.
 

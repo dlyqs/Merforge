@@ -25,7 +25,7 @@ it('records an inclusive phase range and explicitly selected automatic relay bat
     limits: vi.fn().mockResolvedValue({ maxActions: 12, maxTurns: 10, maxDurationMs: 100000 }),
   } as ExecutionProps} />)
   fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Phase 1' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'CSV delivery' }))
   fireEvent.click(screen.getByRole('tab', { name: zh.autoUntilShort }))
   fireEvent.change(screen.getByLabelText(zh.executeThroughPhase), { target: { value: definition.phases[2]!.id } })
   fireEvent.change(screen.getByLabelText(zh.phasesPerConversation), { target: { value: '2' } })
@@ -35,7 +35,7 @@ it('records an inclusive phase range and explicitly selected automatic relay bat
     relayEveryPhases: 2, maxActions: 12, maxTurns: 10, maxDurationMs: 100000,
   } })) })
 })
-it('shows only ready candidates, defaults to manual and refreshes a rejected claim', async () => {
+it('shows collapsed roots, hides progression on allocation nodes and refreshes a rejected claim', async () => {
   const view = projectPlan({ revision: 1, definition: definition(), source: 'user', sessionId: null, createdAt: 1,
     approval: { operationId: 'approved' as never, time: 1 } })
   const candidates = vi.fn().mockResolvedValueOnce([view]).mockResolvedValue([])
@@ -47,11 +47,19 @@ it('shows only ready candidates, defaults to manual and refreshes a rejected cla
   }
   render(<Execution {...props as ExecutionProps} />)
   fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
-  await screen.findByRole('button', { name: 'API agreement' })
+  await screen.findByRole('button', { name: 'CSV delivery' })
+  expect(screen.queryByRole('button', { name: 'API agreement' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Implementation' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'CSV delivery' }))
+  expect(screen.queryByRole('tablist', { name: zh.executionMode })).toBeNull()
+  expect(screen.getByRole('button', { name: zh.claim }).disabled).toBe(true)
+  expect(screen.getByText(zh.rootNotReadyHint)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: zh.expandBranch.replace('{goal}', 'CSV delivery') }))
+  expect(screen.getByRole('button', { name: 'Implementation' }).disabled).toBe(true)
   expect(claim).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'API agreement' }))
-  expect(screen.getByRole('tab', { name: zh.manualShort }).getAttribute('aria-selected')).toBe('true')
+  expect(screen.queryByRole('tablist', { name: zh.executionMode })).toBeNull()
+  expect(screen.queryByLabelText(zh.executeThroughPhase)).toBeNull()
   expect(screen.queryByRole('combobox', { name: zh.selectTask })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: zh.claim }))
   await screen.findByRole('alert')
@@ -128,7 +136,7 @@ it('shows the completed milestone before selection and clamps relay batches to a
   fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
   await screen.findByText('已完成至 Phase 2')
   expect(screen.getByRole('progressbar', { name: zh.phaseSequence }).getAttribute('value')).toBe('2')
-  fireEvent.click(screen.getByRole('button', { name: 'Phase 3' }))
+  fireEvent.click(screen.getByRole('button', { name: 'CSV delivery' }))
   expect(screen.getByLabelText(zh.phasesPerConversation).disabled).toBe(true)
   fireEvent.click(screen.getByRole('tab', { name: zh.autoShort }))
   expect(screen.getByLabelText(zh.executeThroughPhase).value).toBe(definition.phases[5]!.id)
@@ -169,4 +177,84 @@ it('reads a bound Run’s exact plan revision and keeps phase progress visible a
   expect(screen.getByText('Phase 5')).toBeTruthy()
   expect(screen.getByText('每轮 2 个阶段')).toBeTruthy()
   expect(screen.getByRole('progressbar', { name: zh.phaseSequence }).getAttribute('max')).toBe('6')
+})
+
+it('limits a selected phase child to one task even after configuring automatic execution on its root', async () => {
+  const definition = phaseDefinition(6)
+  const view = projectPlan({ revision: 1, definition, source: 'user', sessionId: null, createdAt: 1,
+    approval: { operationId: 'approved' as never, time: 1 } })
+  const claim = vi.fn().mockRejectedValue(new Error('fixture write failure'))
+  render(<Execution {...{
+    sessionId: 'single-phase' as SessionId, t: makeTranslate(zh, commonZh), useSession: () => false,
+    candidates: vi.fn().mockResolvedValue([view]), readRun: vi.fn().mockResolvedValue(null), claim,
+    limits: vi.fn().mockResolvedValue({ maxActions: 12, maxTurns: 10, maxDurationMs: 100000 }),
+  } as ExecutionProps} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
+  fireEvent.click(await screen.findByRole('button', { name: 'CSV delivery' }))
+  expect(screen.queryByRole('button', { name: 'Phase 1' })).toBeNull()
+  fireEvent.click(screen.getByRole('tab', { name: zh.autoUntilShort }))
+  fireEvent.change(screen.getByLabelText(zh.executeThroughPhase), { target: { value: definition.phases[2]!.id } })
+  fireEvent.change(screen.getByLabelText(zh.phasesPerConversation), { target: { value: '2' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.expandBranch.replace('{goal}', 'CSV delivery') }))
+  fireEvent.click(screen.getByRole('button', { name: 'Phase 1' }))
+  expect(screen.queryByRole('tablist', { name: zh.executionMode })).toBeNull()
+  expect(screen.queryByLabelText(zh.executeThroughPhase)).toBeNull()
+  expect(screen.queryByLabelText(zh.phasesPerConversation)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: zh.claim }))
+  await waitFor(() => { expect(claim).toHaveBeenCalledWith(expect.objectContaining({ taskId: ids[1], authorization: {
+    mode: 'manual', stopPhaseId: definition.phases[0]!.id, maxActions: 12, maxTurns: 10, maxDurationMs: 100000,
+  } })) })
+})
+
+it('orders execution roots before allocation roots and keeps all branches collapsed when reopening', async () => {
+  const allocation = definition(), phases = phaseDefinition(6)
+  const mapping = new Map(allocation.tasks.map(task => [task.id,
+    brandString<import('@deepseek-ai/dsh-personal-workflow/types').TaskId>('90000000' + task.id.slice(8))]))
+  const allocationDefinition = { ...allocation, taskId: mapping.get(allocation.taskId)!, planningMode: 'hierarchical' as const,
+    tasks: allocation.tasks.map(task => ({ ...task, id: mapping.get(task.id)!,
+      parentTaskId: task.parentTaskId === null ? null : mapping.get(task.parentTaskId)!,
+      dependsOn: task.dependsOn.map(id => mapping.get(id)!), goal: task.parentTaskId === null ? 'Allocation project' : task.goal })) }
+  const executionDefinition = { ...phases, tasks: phases.tasks.map(task => ({ ...task, goal: task.parentTaskId === null ? 'Execution project' : task.goal })) }
+  const views = [allocationDefinition, executionDefinition].map(definition => projectPlan({ revision: 1, definition,
+    source: 'user', sessionId: null, createdAt: 1, approval: { operationId: 'approved' as never, time: 1 } }))
+  render(<Execution {...{
+    sessionId: 'root-order' as SessionId, t: makeTranslate(zh, commonZh), useSession: () => false,
+    candidates: vi.fn().mockResolvedValue(views), readRun: vi.fn().mockResolvedValue(null),
+    limits: vi.fn().mockResolvedValue({ maxActions: 12, maxTurns: 10, maxDurationMs: 100000 }),
+  } as ExecutionProps} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
+  await screen.findByRole('button', { name: 'Execution project' })
+  const list = screen.getByLabelText(zh.availableTasks)
+  expect(within(list).getAllByRole('button').filter(button => button.hasAttribute('aria-pressed')).map(button => button.getAttribute('aria-label')))
+    .toEqual(['Execution project', 'Allocation project'])
+  expect(within(list).getByText(zh.executionPlanType)).toBeTruthy()
+  expect(within(list).getByText(zh.allocationPlanType)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Phase 1' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'API agreement' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: zh.expandBranch.replace('{goal}', 'Execution project') }))
+  expect(screen.getByRole('button', { name: 'Phase 1' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: zh.close }))
+  fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
+  expect(screen.queryByRole('button', { name: 'Phase 1' })).toBeNull()
+})
+
+it('groups account task nodes under authorized roots and selects a child only after expanding', async () => {
+  const rootId = brandString<SessionTaskChoiceId>(ids[0]!), childId = brandString<SessionTaskChoiceId>(ids[1]!)
+  const selectTask = vi.fn().mockResolvedValue(undefined), claim = vi.fn()
+  render(<Execution {...{
+    sessionId: 'account-tree' as SessionId, t: makeTranslate(zh, commonZh), useSession: () => false, claim,
+    account: { assigned: false, selectTask, openExecution: vi.fn(), listTasks: vi.fn().mockResolvedValue([
+      { id: rootId, parentTaskId: null, title: 'Team delivery', scope: 'Project', acceptance: ['Accepted'], artifacts: [] },
+      { id: childId, parentTaskId: rootId, title: 'Team child', scope: 'Implementation', acceptance: ['Verified'], artifacts: [] },
+    ]) },
+  } as ExecutionProps} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
+  await screen.findByRole('button', { name: 'Team delivery' })
+  expect(screen.queryByRole('button', { name: 'Team child' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: zh.expandBranch.replace('{goal}', 'Team delivery') }))
+  fireEvent.click(screen.getByRole('button', { name: 'Team child' }))
+  expect(screen.queryByRole('tablist', { name: zh.executionMode })).toBeNull()
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: zh.selectTask }))
+  await waitFor(() => { expect(selectTask).toHaveBeenCalledExactlyOnceWith(childId) })
+  expect(claim).not.toHaveBeenCalled()
 })
