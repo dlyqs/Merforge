@@ -1,0 +1,6 @@
+.layout { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 20px; min-width: 0; }
+.layout > section { flex: 1 1 240px; }
+.list { display: grid; gap: 12px; padding-left: 24px; margin: 16px 0 0; }
+.list button { width: 100%; }
+.list button[aria-pressed='true'] { border-color: var(--dsw-alias-state-business-primary); }
+.detail { flex: 2 1 360px; min-width: 0; height: 620px; max-height: 80vh; }

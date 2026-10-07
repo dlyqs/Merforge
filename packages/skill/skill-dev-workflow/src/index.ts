@@ -18,15 +18,6 @@ const candidate: SkillCandidate = {
   resourceBase: { kind: 'directory', path: fileURLToPath(new URL('../assets/', import.meta.url)) },
 }
 
-declare module '@deepseek-ai/dsh-llm' {
-  interface MessageSourceMap {
-    /** Exact selected-task definition, owner, evidence and authorization in model history. */
-    'personal-workflow-execution': { kind: 'personal-workflow-execution' }
-    /** Authorized continuation of the same selected task. */
-    'personal-workflow-continue': { kind: 'personal-workflow-continue' }
-  }
-}
-
 /** Cordis plugin identity. */
 export const name = 'skill-dev-workflow'
 /** Services used by managed mode and model operations. */
@@ -92,7 +83,7 @@ export function apply(ctx: Context): void {
       ctx.logger.info(`personal-workflow sessionId=${agent.session.id} decisionCode=method-loaded result=ready`)
     }
     return { ...decision, messages: [...decision.messages, createUserMessage({
-      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 3, policy },
+      source: { kind: 'personal-workflow-method', modeRevision: mode.revision, methodVersion: 4, policy },
       content: [{ type: 'text', text }],
     })] }
   })
@@ -119,7 +110,7 @@ export function apply(ctx: Context): void {
   }))
   ctx.tools.register(defineTool({
     name: 'workflow_propose',
-    description: 'Save a feasible, clarified complex goal as an unapproved plan. Summarize its root goal as a short task name. Normally keep at most 5 direct children per node by adding meaningful intermediate groups; explain necessary exceptions in the parent scope. Parent-child relationships and prerequisites are independent. This never approves or starts tasks. Retry uncertain writes with the identical operationId and proposal.',
+    description: 'Save a feasible, clarified complex goal as an unapproved plan with a short root task name. balanced uses hierarchical deliverables, normally at most 5 direct children per node. fine uses planningMode phases: one required direct task per ordered phase, consecutive dependencies, and root verification in the final phase; do not group phases to satisfy a child count. This never approves or starts execution. Retry uncertain writes with the identical operationId and proposal.',
     parameters: {
       modeRevision: { type: 'integer', required: true },
       operationId: { type: 'string', required: true, description: 'UUID retry identity.' },
@@ -127,6 +118,7 @@ export function apply(ctx: Context): void {
       definition: {
         type: 'object', required: true, additionalProperties: false,
         properties: {
+          planningMode: { type: 'string', enum: ['hierarchical', 'phases'], description: 'Use phases for fine Agent execution preference; hierarchical for balanced task allocation.' },
           taskId: { type: 'string', required: true },
           projectId: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true },
           botId: { oneOf: [{ type: 'string' }, { type: 'null' }], required: true },
@@ -209,7 +201,9 @@ function installExecution(ctx: Context): void {
     clear(agent.id)
     if (await ctx.personalWorkflow.execution.endTurn(agent.session)) {
       signal.throwIfAborted()
-      agent.steer(createUserMessage({ source: { kind: 'personal-workflow-continue' }, content: [{ type: 'text', text: 'Continue only the selected task within its remaining authorization. Verify acceptance and record evidence with workflow_complete; do not select or start another task.' }] }))
+      const message = createUserMessage({ source: { kind: 'personal-workflow-continue' }, content: [{ type: 'text', text: 'Continue the currently selected task within the recorded remaining authorization. The application may have advanced to the next authorized phase. Verify its acceptance and record evidence with workflow_complete; never choose a task or phase outside the recorded sequence.' }] })
+      if (agent.options.backend?.kind === 'codex') agent.followup(message)
+      else agent.steer(message)
     }
   })
   ctx.tools.register(defineTool({

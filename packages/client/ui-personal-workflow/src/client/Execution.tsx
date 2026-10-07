@@ -1,7 +1,7 @@
-/** Explicit composer task selection and same-task execution controls. */
+/** Explicit composer task selection and authorized phase execution controls. */
 import { useRef, useState } from 'react'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { Button, Modal, IconPlayOutlineRegular, IconRefreshOutlineRegular, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, Switch, IconPlayOutlineRegular, IconRefreshOutlineRegular, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OperationId, PlanView, TaskRun, ExecutionAuthorization, ClaimTaskRequest, ControlTaskRequest } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { ExecutionProps } from './contract.ts'
 import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -18,6 +18,9 @@ export function Execution(props: ExecutionProps) {
   const [run, setRun] = useState<TaskRun | null>(null)
   const [selection, setSelection] = useState('')
   const [mode, setMode] = useState<ExecutionAuthorization['mode']>('manual')
+  const [stopPhaseId, setStopPhaseId] = useState('')
+  const [relay, setRelay] = useState(false)
+  const [relayEveryPhases, setRelayEveryPhases] = useState(1)
   const [maxActions, setMaxActions] = useState(0)
   const [maxTurns, setMaxTurns] = useState(0)
   const [maxDurationMs, setMaxDurationMs] = useState(0)
@@ -30,6 +33,9 @@ export function Execution(props: ExecutionProps) {
   const prepared = run?.handoffs.find(handoff => handoff.status === 'prepared' && handoff.sourceSessionId === props.sessionId)
   const plan = plans.find(item => item.ready.some(id => id === selection))
   const task = plan?.snapshot.definition.tasks.find(item => item.id === selection)
+  const sequence = plan !== undefined && plan.snapshot.definition.planningMode === 'phases' && mode !== 'manual'
+  const startIndex = plan?.snapshot.definition.phases.findIndex(item => item.id === task?.phaseId) ?? -1
+  const stop = sequence && mode === 'auto' ? plan.snapshot.definition.phases.at(-1)?.id : stopPhaseId || task?.phaseId
   const refresh = async (): Promise<void> => {
     const [candidates, binding] = await Promise.all([props.candidates(props.sessionId), props.readRun(props.sessionId)])
     setPlans(candidates); setRun(binding)
@@ -96,7 +102,7 @@ export function Execution(props: ExecutionProps) {
         {busy && <p className={css.notice} role="status">{t('loadingExecution')}</p>}
         {error !== null && <p className={css.error} role="alert">{t('error', { message: error })}</p>}
         {run === null ? <>
-          <label className={css.field}>{t('selectTask')}<select value={selection} disabled={busy || running} onChange={(event) => { setSelection(event.target.value) }}>
+          <label className={css.field}>{t('selectTask')}<select value={selection} disabled={busy || running} onChange={(event) => { setSelection(event.target.value); setStopPhaseId(''); setRelay(false) }}>
             <option value="">{t('chooseReadyTask')}</option>
             {plans.flatMap(view => view.snapshot.definition.tasks.filter(item => view.ready.includes(item.id)).map(item =>
               <option key={item.id} value={item.id}>{item.goal}</option>))}
@@ -116,7 +122,19 @@ export function Execution(props: ExecutionProps) {
               <label>{t('executionMode')}<select value={mode} disabled={busy} onChange={(event) => { setMode(event.target.value as ExecutionAuthorization['mode']) }}>
                 <option value="manual">{t('manual')}</option><option value="auto">{t('auto')}</option><option value="auto_until">{t('auto_until')}</option>
               </select></label>
-              <p className={css.hint}>{t('stopAtPhase')}: {plan.snapshot.definition.phases.find(item => item.id === task.phaseId)?.title}</p>
+              {sequence ? <>
+                <p className={css.hint}>{t('startAtPhase')}: {
+                  plan.snapshot.definition.phases.find(item => item.id === task.phaseId)?.title}</p>
+                <label>{t('stopAtPhase')}<select value={stop} disabled={mode === 'auto'}
+                  onChange={(event) => { setStopPhaseId(event.target.value) }}>
+                  {plan.snapshot.definition.phases.slice(startIndex).map(item =>
+                    <option key={item.id} value={item.id}>{item.title}</option>)}
+                </select></label>
+                <p className={css.hint}>{t('phaseRangeHint')}</p>
+                <Switch label={t('automaticRelay')} checked={relay} onChange={setRelay} />
+                {relay && <label>{t('relayEveryPhases')}<input type="number" min={1} value={relayEveryPhases} onChange={(event) => { setRelayEveryPhases(Number(event.target.value)) }} /></label>}
+                <p className={css.hint}>{t('relayHint')}</p>
+              </> : <p className={css.hint}>{t('stopAtPhase')}: {plan.snapshot.definition.phases.find(item => item.id === task.phaseId)?.title}</p>}
               <div className={css.budgetGrid}><label>{t('maxActions')}<input type="number" min={1} value={maxActions} onChange={(event) => { setMaxActions(Number(event.target.value)) }} /></label>
                 <label>{t('maxTurns')}<input type="number" min={1} value={maxTurns} onChange={(event) => { setMaxTurns(Number(event.target.value)) }} /></label>
                 <label>{t('durationMs')}<input type="number" min={1} value={maxDurationMs} onChange={(event) => { setMaxDurationMs(Number(event.target.value)) }} /></label>
@@ -125,7 +143,8 @@ export function Execution(props: ExecutionProps) {
               <Button variant="primary" icon={<IconPlayOutlineRegular />} disabled={busy || running} onClick={() => { void perform(async () => {
                 const value = { sessionId: props.sessionId, planId: plan.snapshot.definition.taskId, taskId: task.id,
                   expectedRevision: plan.snapshot.revision,
-                  authorization: { mode, stopPhaseId: task.phaseId, maxActions, maxTurns, maxDurationMs } }
+                  authorization: { mode, stopPhaseId: (stop ?? task.phaseId) as typeof task.phaseId, maxActions, maxTurns, maxDurationMs,
+                    ...(sequence ? { startPhaseId: task.phaseId, ...(relay ? { relayEveryPhases } : {}) } : {}) } }
                 const request: ClaimTaskRequest = { ...value, operationId: operation(value) }
                 setRun(await props.claim(request)); retry.current = null; await refresh()
               }) }}>{t('claim')}</Button></div>
@@ -143,6 +162,7 @@ export function Execution(props: ExecutionProps) {
             </div>
           </section>
           {run.reason !== null && <p className={css.notice}>{run.reason}</p>}
+          {run.sequence !== undefined && <p className={css.notice}>{t('sequenceProgress', { done: run.sequence.completed.length + (run.status === 'completed' ? 1 : 0), total: run.sequence.taskIds.length })}</p>}
           {run.actions.some(action => action.status === 'unknown' || action.status === 'pending') && <section className={css.detailSection}><h4>{t('pendingActions')}</h4>
             <ul className={css.fileList}>{run.actions.filter(action => action.status === 'unknown' || action.status === 'pending').map(action => <li key={action.callId}><strong>{action.name}</strong><span className={css.muted}> · {t(action.status === 'unknown' ? 'actionUnknown' : 'actionPending')}</span><div className={css.path}>{action.callId}</div></li>)}</ul></section>}
           {run.handoffs.length > 0 && <section className={css.detailSection}><h4>{t('handoffHistory')}</h4>{run.handoffs.map(handoff => <p className={css.prose} key={handoff.id}>{handoff.context}</p>)}</section>}

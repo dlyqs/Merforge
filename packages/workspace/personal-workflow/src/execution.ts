@@ -1,4 +1,4 @@
-/** Task-local execution transactions; no automatic task or conversation scheduler. */
+/** Task and ordered-phase execution transactions with cumulative authorization. */
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
@@ -45,9 +45,12 @@ export class WorkflowExecution {
   view(plan: StoredPlan): PlanView {
     const snapshot = current(plan)
     const runs = (plan.runs ?? []).filter(run => run.planRevision === snapshot.revision)
-    const observations = runs.map(run => ({
-      taskId: run.taskId, status: run.status, evidence: run.evidence.map(item => item.summary),
-    }))
+    const observations = runs.flatMap(run => [
+      ...(run.sequence?.completed ?? []).map(item => ({ taskId: item.taskId, status: 'completed' as const, evidence: item.evidence.map(evidence => evidence.summary) })),
+      { taskId: run.taskId, status: run.status, evidence: run.evidence.map(item => item.summary) },
+      ...(run.sequence?.taskIds.filter(id => id !== run.taskId && !run.sequence?.completed.some(item => item.taskId === id)) ?? [])
+        .map(taskId => ({ taskId, status: 'paused' as const, evidence: [] })),
+    ])
     return { ...projectPlan(snapshot, observations), runs: plan.runs ?? [] }
   }
 
@@ -100,19 +103,23 @@ export class WorkflowExecution {
       if (!this.view(plan).ready.includes(parsed.taskId)) throw new Error('task-not-ready-or-already-owned')
       const task = taskOf(snapshot, parsed.taskId)
       const auth = parsed.authorization
-      if (auth.stopPhaseId !== task.phaseId || auth.maxActions > this.limits.maxActions
+      const sequence = auth.startPhaseId === undefined ? undefined : this.selectSequence(plan, parsed.taskId, auth)
+      if ((sequence === undefined && auth.stopPhaseId !== task.phaseId)
+        || (auth.relayEveryPhases !== undefined && sequence === undefined) || auth.maxActions > this.limits.maxActions
         || auth.maxTurns > this.limits.maxTurns || auth.maxDurationMs > this.limits.maxDurationMs) throw new Error('authorization-outside-task-or-configured-limits')
       if (!session.header.cwd || (task.cwd !== null && !sameDirectory(task.cwd, session.header.cwd ?? ''))) throw new Error('explicit-matching-execution-directory-required')
       const native = this.ctx.get('agents')?.get(session.id)?.options.backend?.kind === 'codex'
       const baseline = native ? await observeNativeDirectory(session.header.cwd)
         : await observeWorkspace(session.header.cwd, this.paths(snapshot, parsed.taskId), this.limits.maxEvidenceBytes)
       const prerequisites = (plan.runs ?? []).filter(run =>
-        run.planRevision === snapshot.revision && task.dependsOn.includes(run.taskId))
+        run.planRevision === snapshot.revision && (task.dependsOn.includes(run.taskId)
+          || run.sequence?.completed.some(item => task.dependsOn.includes(item.taskId))))
       for (const prerequisite of prerequisites) {
         if (!sameDirectory(prerequisite.baseline.cwd, baseline.cwd)) throw new Error('prerequisite-in-another-workspace')
       }
       this.checkPermission(session, snapshot)
       const run: TaskRun = {
+        ...(sequence === undefined ? {} : { sequence: { taskIds: sequence, completed: [] } }),
         ...native ? { backend: 'codex' as const } : {},
         id: randomUUID() as RunId, planId: parsed.planId, taskId: parsed.taskId, planRevision: snapshot.revision,
         sessionId: session.id, sessions: [session.id], ownerEpoch: 1, status: 'running', reason: null,
@@ -144,6 +151,8 @@ export class WorkflowExecution {
     const permission = this.permissionReason(session, snapshot)
     if (permission !== undefined) return permission
     if (this.permissions(session) !== run.permissionFingerprint || !sameDirectory(session.header.cwd, run.baseline.cwd)) return 'execution-permissions-or-directory-changed'
+    const task = taskOf(snapshot, run.taskId)
+    if (task.cwd !== null && !sameDirectory(task.cwd, run.baseline.cwd)) return 'task-workspace-directory-changed'
     if (Date.now() - run.startedAt >= run.authorization.maxDurationMs) return 'duration-limit'
     return undefined
   }
@@ -226,7 +235,9 @@ export class WorkflowExecution {
   endTurn(session: Session): Promise<boolean> {
     return this.enqueue(async () => {
       const run = this.forSession(session.id)
-      if (run === null || run.sessionId !== session.id || run.status !== 'running') return false
+      if (run === null || run.sessionId !== session.id) return false
+      if (run.status === 'completed' && run.sequence !== undefined) return this.advanceSequence(session, run)
+      if (run.status !== 'running') return false
       if (run.actions.some(action => action.status === 'pending')) throw new Error('actions-still-in-flight')
       const baseline = await this.observe(run)
       const canContinue = run.backend !== 'codex' && run.authorization.mode !== 'manual' && run.turnsUsed < run.authorization.maxTurns && run.actions.length < run.authorization.maxActions && this.denial(session) === undefined
@@ -289,6 +300,8 @@ export class WorkflowExecution {
       const activity = await this.ctx.waterfall('workspace/session-activity', { sessionId: session.id }, () => Promise.resolve([]))
       if (activity.length) throw new Error('conversation-still-active')
       if (!sameDirectory(session.header.cwd, run.baseline.cwd)) throw new Error('workspace-directory-changed')
+      const task = taskOf(current(plan), run.taskId)
+      if (task.cwd !== null && !sameDirectory(task.cwd, run.baseline.cwd)) throw new Error('task-workspace-directory-changed')
       const baseline = await this.observe(run)
       const changed = !sameWorkspace(run.baseline, baseline, this.siblingArtifacts(run)) || this.permissions(session) !== run.permissionFingerprint || run.actions.some(action => action.status === 'unknown')
       if ((changed || run.status === 'needs_reconciliation') && !parsed.reconciliation.trim()) {
@@ -325,7 +338,8 @@ export class WorkflowExecution {
       const activity = await this.ctx.waterfall('workspace/session-activity', { sessionId: session.id }, () => Promise.resolve([]))
       const activityKinds: readonly string[] = activity.map(item => item.kind)
       if (activityKinds.some(kind => kind !== 'turn')) throw new Error('background-effects-still-active')
-      if (parsed.callIds.some(id => !run.actions.some(action => action.callId === id && action.status === 'succeeded'))) throw new Error('verification-action-not-successful')
+      const currentActions = run.actions.slice(run.sequence?.completed.at(-1)?.actionsUsed ?? 0)
+      if (parsed.callIds.some(id => !currentActions.some(action => action.callId === id && action.status === 'succeeded'))) throw new Error('verification-action-not-successful')
       const snapshot = current(this.requirePlan(run.planId))
       const task = taskOf(snapshot, run.taskId)
       if (parsed.acceptance.length !== task.acceptance.length) throw new Error('acceptance-results-required-for-each-criterion')
@@ -357,7 +371,7 @@ export class WorkflowExecution {
     return this.enqueue(async () => {
       const parsed = handoffSchema.parse(request)
       const run = this.find(parsed.runId)
-      if (run.backend === 'codex') throw new Error('native-task-handoff-unavailable')
+      if (run.backend === 'codex' && run.sequence === undefined) throw new Error('native-task-handoff-unavailable')
       const existing = run.handoffs.find(handoff => handoff.operationId === parsed.operationId)
       if (existing !== undefined) {
         if (existing.context !== parsed.context || existing.sourceSessionId !== session.id || existing.ownerEpoch !== parsed.ownerEpoch) throw new Error('operation-id-conflict')
@@ -407,6 +421,7 @@ export class WorkflowExecution {
       const snapshot = current(this.requirePlan(run.planId))
       this.checkPermission(target, snapshot)
       if (snapshot.revision !== run.planRevision || snapshot.approval === null || !sameDirectory(target.header.cwd, run.baseline.cwd)) throw new Error('handoff-workspace-or-version-changed')
+      if ((run.backend === 'codex') !== (this.ctx.get('agents')?.get(target.id)?.options.backend?.kind === 'codex')) throw new Error('handoff-backend-changed')
       const baseline = await this.observe(run)
       if (!sameWorkspace(handoff.baseline, baseline, this.siblingArtifacts(run)) || this.permissions(target) !== run.permissionFingerprint) throw new Error('handoff-reconciliation-required')
       return this.store({ ...run, sessionId: target.id, sessions: [...run.sessions, target.id], ownerEpoch: run.ownerEpoch + 1,
@@ -418,16 +433,73 @@ export class WorkflowExecution {
   private context(run: TaskRun): string {
     const plan = this.requirePlan(run.planId)
     const snapshot = revisionOf(plan, run.planRevision)
-    if (run.backend === 'codex') return `Execute only the explicitly selected task and supplied materials. Codex owns native tools and verification. Application action limits cover task-management calls only, not native tools or model requests. Report completion with workflow_complete, a summary, one result per acceptance criterion and callIds: []. This records your report; approval and task selection remain human actions. Do not claim another task or create conversations.\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
-    return `Execute only the selected task. Do not claim another task or create conversations. Completion requires workflow_complete with actual successful action IDs and acceptance results.\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
+    const progression = run.sequence === undefined ? '' : ' The user authorized the recorded inclusive phase sequence. Finish only the current task with workflow_complete; the application advances the sequence and performs any authorized conversation relay. Never execute later phases ahead of the current task.'
+    if (run.backend === 'codex') return `Execute only the explicitly selected task and supplied materials. Codex owns native tools and verification. Application action limits cover task-management calls only, not native tools or model requests. Report completion with workflow_complete, a summary, one result per acceptance criterion and callIds: []. This records your report; approval and task selection remain human actions. Do not claim another task or create conversations.${progression}\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
+    return `Execute only the selected task. Do not claim another task or create conversations. Completion requires workflow_complete with actual successful action IDs and acceptance results.${progression}\n${JSON.stringify({ run, snapshot, prerequisites: this.prerequisites(run) })}`
   }
   private prerequisites(run: TaskRun) {
     const plan = this.requirePlan(run.planId)
     const task = taskOf(revisionOf(plan, run.planRevision), run.taskId)
     const children = revisionOf(plan, run.planRevision).definition.tasks.filter(item => item.parentTaskId === task.id && item.required)
     const required = new Set([...task.dependsOn, ...children.map(item => item.id)])
-    return (plan.runs ?? []).filter(item => item.planRevision === run.planRevision && required.has(item.taskId))
-      .flatMap(item => item.evidence)
+    return (plan.runs ?? []).filter(item => item.planRevision === run.planRevision).flatMap(item => [
+      ...required.has(item.taskId) ? item.evidence : [],
+      ...(item.sequence?.completed.filter(completed => required.has(completed.taskId)).flatMap(completed => completed.evidence) ?? []),
+    ])
+  }
+  private selectSequence(plan: StoredPlan, selected: TaskId, auth: import('./execution-types.ts').ExecutionAuthorization): TaskId[] {
+    const snapshot = current(plan), definition = snapshot.definition
+    if (definition.planningMode !== 'phases' || auth.mode === 'manual') throw new Error('phase-sequence-requires-automatic-phase-plan')
+    const start = definition.phases.findIndex(phase => phase.id === auth.startPhaseId)
+    const stop = definition.phases.findIndex(phase => phase.id === auth.stopPhaseId)
+    if (start < 0 || stop < start || taskOf(snapshot, selected).phaseId !== auth.startPhaseId
+      || (auth.mode === 'auto' && stop !== definition.phases.length - 1)) throw new Error('invalid-inclusive-phase-range')
+    const completed = new Set(this.view(plan).tasks.filter(task => task.status === 'completed').map(task => task.taskId))
+    const tasks = definition.phases.slice(start, stop + 1).flatMap(phase => definition.tasks
+      .filter(task => task.phaseId === phase.id && task.id !== definition.taskId).map(task => task.id))
+    if (stop === definition.phases.length - 1) tasks.push(definition.taskId)
+    const remaining = tasks.filter(id => !completed.has(id))
+    if (remaining[0] !== selected || (plan.runs ?? []).some(run => run.planRevision === snapshot.revision
+      && (remaining.includes(run.taskId) || run.sequence?.taskIds.some(id => remaining.includes(id))))) {
+      throw new Error('phase-range-already-owned-or-not-at-start')
+    }
+    return remaining
+  }
+  private async advanceSequence(session: Session, run: TaskRun): Promise<boolean> {
+    const sequence = run.sequence
+    if (sequence === undefined) return false
+    const nextId = sequence.taskIds[sequence.completed.length + 1]
+    if (nextId === undefined) return false
+    const completed = [...sequence.completed, { taskId: run.taskId, evidence: run.evidence, actionsUsed: run.actions.length }]
+    const snapshot = current(this.requirePlan(run.planId))
+    const next: TaskRun = { ...run, taskId: nextId, evidence: [], sequence: { ...sequence, completed }, status: 'running', reason: null }
+    const reason = this.permissionReason(session, snapshot)
+      ?? (snapshot.revision !== run.planRevision || snapshot.approval === null ? 'approval-or-version-changed' : undefined)
+      ?? (this.permissions(session) !== run.permissionFingerprint || !sameDirectory(session.header.cwd, run.baseline.cwd) ? 'execution-permissions-or-directory-changed' : undefined)
+    if (reason !== undefined) {
+      await this.store({ ...next, status: 'needs_reconciliation', reason }); return false
+    }
+    const task = taskOf(snapshot, nextId)
+    const observations = (this.requirePlan(run.planId).runs ?? []).filter(item => item.planRevision === snapshot.revision).flatMap(item => [
+      ...item.status === 'completed' ? [{ taskId: item.taskId, status: 'completed' as const, evidence: item.evidence.map(evidence => evidence.summary) }] : [],
+      ...(item.sequence?.completed.map(completed => ({
+        taskId: completed.taskId, status: 'completed' as const, evidence: completed.evidence.map(evidence => evidence.summary),
+      })) ?? []),
+    ])
+    const ready = projectPlan(snapshot, observations).ready.includes(nextId)
+    if (!ready || (task.cwd !== null && !sameDirectory(task.cwd, run.baseline.cwd))) {
+      await this.store({ ...next, status: 'paused', reason: 'phase-prerequisite-or-directory-blocked' }); return false
+    }
+    const baseline = await this.observe(next)
+    if (run.turnsUsed >= run.authorization.maxTurns || run.actions.length >= run.authorization.maxActions
+      || Date.now() - run.startedAt >= run.authorization.maxDurationMs) {
+      await this.store({ ...next, baseline, status: 'paused', reason: 'authorization-boundary' }); return false
+    }
+    const every = run.authorization.relayEveryPhases
+    const completedPhases = new Set(completed.map(item => taskOf(snapshot, item.taskId).phaseId)).size
+    const relay = every !== undefined && completedPhases % every === 0 && task.phaseId !== taskOf(snapshot, run.taskId).phaseId
+    await this.store({ ...next, baseline, status: relay ? 'paused' : 'running', reason: relay ? 'phase-relay-ready' : 'phase-advanced' })
+    return !relay
   }
   private paths(snapshot: PlanRevision, id: TaskId): string[] {
     const task = taskOf(snapshot, id)

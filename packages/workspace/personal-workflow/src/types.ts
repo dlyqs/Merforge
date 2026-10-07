@@ -32,6 +32,8 @@ export interface PlanPhase {
 }
 /** Complete plan definition, never inferred from chat text or list order. */
 export interface PlanDefinition {
+  /** Absent on existing hierarchical plans; phases uses a flat ordered execution plan. */
+  readonly planningMode?: 'hierarchical' | 'phases' | undefined
   readonly taskId: TaskId
   readonly projectId: ProjectId | null
   readonly botId: BotId | null
@@ -233,6 +235,10 @@ export interface WorkflowGoal {
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
+    /** Selected task, recorded phase range, evidence and execution authorization. */
+    'personal-workflow-execution': { kind: 'personal-workflow-execution' }
+    /** Application-owned continuation within an explicitly authorized task or phase sequence. */
+    'personal-workflow-continue': { kind: 'personal-workflow-continue' }
     /** Managed method and effective settings carried by the ordinary logged input pipeline. */
     'personal-workflow-method': {
       kind: 'personal-workflow-method'

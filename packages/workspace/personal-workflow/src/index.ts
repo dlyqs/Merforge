@@ -461,6 +461,7 @@ export class PersonalWorkflow extends Service {
             || (liveGoal?.type === 'user/message' && liveGoal.data.id !== goal.data.id)) throw new Error('personal-workflow: assess the current goal before proposing')
           const policy = await this.resolve(enhancement.session)
           if (JSON.stringify(policy) !== JSON.stringify(assessment.data.context.policy)) throw new Error('personal-workflow: planning settings or affiliation changed; reassess the goal')
+          if (policy.granularity === 'fine' && definition.planningMode !== 'phases') throw new Error('personal-workflow: Agent execution preference requires an ordered phase plan')
           goalId = assessment.data.context.goalId
           const bound = this.goalPlan(enhancement.session.id, goalId)
           if (bound !== undefined && bound.definition.taskId !== definition.taskId) throw new Error('personal-workflow: goal already has a plan')

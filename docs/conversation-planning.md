@@ -8,7 +8,7 @@
 
 `resolve(session)` 显式计算有效规划设置：本人默认 → 日志中当前对话覆盖 → 真人测试 override。权限在所有设置之上；override 不解除 Bot Skill、工具或组织权限。`forceDecomposition` 默认 false，只经真人设置改变；打开时简单新目标也需拆分，关闭恢复本人/对话选择。已绑定 Run 先进入执行路由，不评估或再拆分。本人设置、对话模式、测试设置各有独立 revision；模型评估和提案必须使用同一次解析的资格，任何一项变化都拒绝旧资格。
 
-模型配置引用来自当前 Agent 的显式 backend/provider/model/effort；工具与方法引用来自当前 Bot 的 allowedTools/allowedSkills 和托管方法版本。方法文本、有效设置与引用随每次实际用户输入进入普通 user/message 日志；不保存密钥。粒度仅影响建议。执行方式和停止位置仍由现有 ClaimTaskRequest 的 `authorization.mode` / `stopPhaseId`、预算和准确任务版本提供，缺少真人授权不产生执行 Spec。规划默认停止于未批准计划；选择自动识别不选择自动执行。
+模型配置引用来自当前 Agent 的显式 backend/provider/model/effort；工具与方法引用来自当前 Bot 的 allowedTools/allowedSkills 和托管方法版本。方法文本、有效设置与引用随每次实际用户输入进入普通 user/message 日志；不保存密钥。个人 balanced 使用分层分配建议，fine 使用结构化顺序阶段计划。执行方式、含端点的阶段范围和可选自动接力由 ClaimTaskRequest 的 `authorization.mode` / `startPhaseId` / `stopPhaseId` / `relayEveryPhases`、预算和准确任务版本提供，缺少真人授权不产生执行 Spec。规划默认停止于未批准计划；选择自动识别不选择自动执行。
 
 组织覆盖保存在 `organization_conversation` version 1 本机域，按 server/account/organization 保存 enabled、granularity 与 revision。组织会话使用普通 Session Controller、标准 preset、模型提供方和工具；模型选择、附件、逐字输出、斜杠命令、队列编辑及本地执行沿用普通会话链路。native attach 在线授权后将历史一次性导入持久 sharedSessionId，保留原账号归属。已打开对话的 attachment 与 Controller binding 由账号生命周期持有；切换任务、项目或其它对话不停止 Agent，返回时复用同一绑定。detach、窗口关闭、身份或权限失效取消并排空普通 Agent。账号访问策略保护普通 API 的精确读取与操作，并从个人目录隐藏组织会话及派生会话。共享任务写入继续由组织权威服务核验。
 

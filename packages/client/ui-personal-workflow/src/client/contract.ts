@@ -32,6 +32,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Explicit mode selection callbacks; no model caller receives these. */
 export interface ModeActions {
+  /** Account task controls retain their own planning settings and execution authority. */
+  readonly personalPlanning: boolean
+  readPlanningPreferences(this: void): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowPreferences>
+  setPlanningPreferences(request: import('@deepseek-ai/dsh-personal-workflow/types').SetWorkflowPreferencesRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowPreferences>
   readTesting(this: void): Promise<import('@deepseek-ai/dsh-personal-workflow/types').WorkflowTestingPreferences>
   readMode(this: void, sessionId: SessionId): Promise<WorkflowMode>
   setMode(request: SetWorkflowModeRequest): Promise<WorkflowMode>

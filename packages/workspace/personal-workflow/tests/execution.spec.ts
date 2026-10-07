@@ -7,7 +7,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import { createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { createWorkflowHarness } from './harness.ts'
-import { ids, phase, operation, proposal } from './fixture.ts'
+import { ids, phase, operation, proposal, phaseDefinition } from './fixture.ts'
 import type { TaskRun } from '../src/types.ts'
 
 const contexts: Context[] = []
@@ -51,6 +51,126 @@ async function setup(existing?: string) {
 }
 const control = (run: TaskRun, op: number) => ({
   sessionId: run.sessionId, runId: run.id, ownerEpoch: run.ownerEpoch, operationId: operation(op),
+})
+
+async function ordered(count = 6, stop = count, relayEveryPhases?: number) {
+  const h = await setup()
+  const definition = phaseDefinition(count)
+  await h.service.save({ operationId: operation(20), expectedRevision: 1, definition })
+  await h.service.approve({ taskId: ids[0]!, expectedRevision: 2, operationId: operation(21) })
+  const source = await h.session('phase-source')
+  const run = await h.service.execution.claim(source, {
+    sessionId: source.id, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 2, operationId: operation(22),
+    authorization: { mode: 'auto_until', startPhaseId: definition.phases[0]!.id, stopPhaseId: definition.phases[stop - 1]!.id,
+      maxActions: 20, maxTurns: 10, maxDurationMs: 100000, ...(relayEveryPhases === undefined ? {} : { relayEveryPhases }) },
+  })
+  return { ...h, definition, source, run }
+}
+
+it('verifies more than five flat phases in order and requires final root acceptance', async () => {
+  const h = await ordered()
+  expect(h.service.execution.candidates(await h.session('other'))).toEqual([])
+  for (let index = 1; index <= 6; index++) {
+    expect(h.service.execution.forSession(h.source.id)?.taskId).toBe(ids[index])
+    await h.service.execution.enterTurn(h.source)
+    await h.complete(h.source, index)
+    expect(await h.service.execution.endTurn(h.source)).toBe(true)
+    expect(h.service.list()[0]?.tasks.find(task => task.taskId === ids[index])?.status).toBe('completed')
+  }
+  expect(h.service.execution.forSession(h.source.id)?.taskId).toBe(ids[0])
+  await h.service.execution.enterTurn(h.source)
+  await h.complete(h.source, 0)
+  expect(await h.service.execution.endTurn(h.source)).toBe(false)
+  expect(h.service.list()[0]?.tasks.every(task => task.status === 'completed')).toBe(true)
+  expect(h.service.execution.forSession(h.source.id)).toMatchObject({ turnsUsed: 7, actions: expect.any(Array), status: 'completed' })
+})
+
+it('stops at the inclusive phase endpoint without reserving or starting later work', async () => {
+  const h = await ordered(6, 2)
+  await h.service.execution.enterTurn(h.source); await h.complete(h.source, 1)
+  expect(await h.service.execution.endTurn(h.source)).toBe(true)
+  await h.service.execution.enterTurn(h.source); await h.complete(h.source, 2)
+  expect(await h.service.execution.endTurn(h.source)).toBe(false)
+  expect(h.service.execution.forSession(h.source.id)).toMatchObject({ taskId: ids[2], status: 'completed', turnsUsed: 2 })
+  expect(h.service.execution.candidates(await h.session('next'))[0]?.ready).toEqual([ids[3]])
+  await expect(h.service.execution.enterTurn(h.source)).rejects.toThrow('task-completed')
+})
+
+it('executes final root acceptance after the phase tasks were completed individually', async () => {
+  const h = await setup(), definition = phaseDefinition(2)
+  await h.service.save({ operationId: operation(20), expectedRevision: 1, definition })
+  await h.service.approve({ taskId: ids[0]!, expectedRevision: 2, operationId: operation(21) })
+  for (const index of [1, 2]) {
+    const session = await h.session(`individual-${index}`)
+    await h.service.execution.claim(session, { sessionId: session.id, planId: ids[0]!, taskId: ids[index]!, expectedRevision: 2, operationId: operation(22 + index),
+      authorization: { mode: 'manual', stopPhaseId: definition.phases[index - 1]!.id, maxActions: 5, maxTurns: 3, maxDurationMs: 100000 } })
+    await h.service.execution.enterTurn(session); await h.complete(session, index)
+    expect(await h.service.execution.endTurn(session)).toBe(false)
+  }
+  const session = await h.session('root-acceptance')
+  const run = await h.service.execution.claim(session, { sessionId: session.id, planId: ids[0]!, taskId: ids[0]!, expectedRevision: 2, operationId: operation(25),
+    authorization: { mode: 'auto', startPhaseId: definition.phases[1]!.id, stopPhaseId: definition.phases[1]!.id,
+      maxActions: 5, maxTurns: 3, maxDurationMs: 100000 } })
+  expect(run.sequence?.taskIds).toEqual([ids[0]])
+  await h.service.execution.enterTurn(session); await h.complete(session, 0)
+  expect(await h.service.execution.endTurn(session)).toBe(false)
+  expect(h.service.list()[0]?.tasks.every(task => task.status === 'completed')).toBe(true)
+})
+
+it('requires fresh verification in each phase and pauses progression at the cumulative action boundary', async () => {
+  const h = await ordered(3)
+  await h.service.execution.enterTurn(h.source); await h.complete(h.source, 1)
+  expect(await h.service.execution.endTurn(h.source)).toBe(true)
+  await h.service.execution.enterTurn(h.source)
+  await expect(h.service.execution.complete(h.source, { summary: 'Reused old verification', acceptance: ['Verified'], callIds: ['verify-1'] }))
+    .rejects.toThrow('verification-action-not-successful')
+  for (let index = 0; index < 19; index++) {
+    const callId = `read-${index}`
+    const id = await h.service.execution.beginAction(h.source, callId, 'read')
+    await h.service.execution.settleAction(id!, callId, true)
+  }
+  expect(await h.service.execution.endTurn(h.source)).toBe(false)
+  const stopped = h.service.execution.forSession(h.source.id)!
+  expect(stopped).toMatchObject({ taskId: ids[2], status: 'paused', reason: 'authorization-boundary', turnsUsed: 2 })
+  await expect(h.service.execution.resume(h.source, { ...control(stopped, 40), reconciliation: '' })).rejects.toThrow('budget-exhausted')
+})
+
+it('retains range, evidence, cumulative budgets and single ownership across a phase relay and restart', async () => {
+  const h = await ordered(3, 3, 1)
+  await h.service.execution.enterTurn(h.source); await h.complete(h.source, 1)
+  expect(await h.service.execution.endTurn(h.source)).toBe(false)
+  const run = h.service.execution.forSession(h.source.id)!
+  expect(run).toMatchObject({ taskId: ids[2], reason: 'phase-relay-ready', status: 'paused', turnsUsed: 1 })
+  const handoff = await h.service.execution.prepareHandoff(h.source, { ...control(run, 23), context: 'Keep all instructions and verified Phase 1 evidence' })
+  const target = await h.session(handoff.targetSessionId)
+  const transferred = await h.service.execution.finishHandoff(target, run.id, handoff.id)
+  await expect(h.service.execution.enterTurn(h.source)).rejects.toThrow('owner-revoked')
+  await h.service.execution.resume(target, { ...control(transferred, 24), reconciliation: '' })
+  await h.service.execution.enterTurn(target)
+  expect(h.service.execution.forSession(target.id)).toMatchObject({ turnsUsed: 2, authorization: run.authorization, sequence: run.sequence })
+  await h.ctx.fiber.dispose()
+  const reopened = await setup(h.root)
+  const recovered = reopened.service.execution.forSession(target.id)!
+  expect(recovered).toMatchObject({ status: 'needs_reconciliation', reason: 'host-restarted', ownerEpoch: 2, sequence: run.sequence, turnsUsed: 2 })
+  expect(reopened.service.list()[0]?.tasks.find(task => task.taskId === ids[1])?.status).toBe('completed')
+})
+
+it('rejects reversed ranges, phase ranges on hierarchical plans and missing per-phase acceptance', async () => {
+  const h = await setup(), definition = phaseDefinition(3)
+  await h.service.save({ operationId: operation(20), expectedRevision: 1, definition })
+  await h.service.approve({ taskId: ids[0]!, expectedRevision: 2, operationId: operation(21) })
+  const other = await h.session('invalid-range')
+  const authorization = { mode: 'auto_until' as const, startPhaseId: definition.phases[0]!.id,
+    stopPhaseId: definition.phases[2]!.id, maxActions: 20, maxTurns: 10, maxDurationMs: 100000 }
+  const request = { sessionId: other.id, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 2, operationId: operation(30), authorization }
+  await expect(h.service.execution.claim(other, { ...request,
+    authorization: { ...authorization, startPhaseId: definition.phases[1]!.id, stopPhaseId: definition.phases[0]!.id } })).rejects.toThrow('invalid-inclusive-phase-range')
+  await h.service.execution.claim(other, { ...request, operationId: operation(31) })
+  await h.service.execution.enterTurn(other)
+  await expect(h.service.execution.complete(other, { summary: 'Skipped acceptance', acceptance: [], callIds: ['invented'] })).rejects.toThrow()
+  const ordinary = await setup(), s = await ordinary.session('hierarchical')
+  await expect(ordinary.service.execution.claim(s, { sessionId: s.id, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 1, operationId: operation(30),
+    authorization: { ...authorization, startPhaseId: phase, stopPhaseId: phase } })).rejects.toThrow('phase-sequence')
 })
 
 it('atomically claims one ready task, releases parallel branches from real evidence, and waits for join and parent verification', async () => {

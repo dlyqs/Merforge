@@ -6,7 +6,7 @@
 
 `packages/workspace/personal-workflow` 拥有 `ctx.personalWorkflow`，是任务数据唯一写入者。计划用根 `TaskId` 标识，子任务同样有稳定的品牌化 `TaskId`。`PhaseId`、`OperationId` 单独品牌化；版本为从 1 开始的整数。Task 包含目标、范围、验收条件、产物路径、可选 cwd、parentTaskId、dependsOn、phaseId 和 required；根必需且没有父节点。所有引用属于同一计划；树只能有一个根且必须连通。移除的 TaskId 不得在后续版本复用于其他任务。
 
-阶段数组表达审核与推进顺序，不在兄弟任务间插入依赖。每个任务属于一个阶段，显式前置和必要子任务的阶段不得晚于消费者/父任务。依赖图加上“父任务等待必要子任务”的隐含完成边后必须无环。子任务依赖祖先、跨分支与聚合边组成的隐环均拒绝。
+计划的 `planningMode` 可以是 `hierarchical` 或 `phases`；历史缺省为分层计划。分层计划的阶段数组表达审核与推进顺序，不在兄弟任务间插入依赖。每个任务属于一个阶段，显式前置和必要子任务的阶段不得晚于消费者/父任务。依赖图加上“父任务等待必要子任务”的隐含完成边后必须无环。子任务依赖祖先、跨分支与聚合边组成的隐环均拒绝。
 
 CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口约定”（约定阶段），B“实现导出”和 C“准备独立测试数据”（开发阶段，各依赖 A），D“集成验收”（集成阶段，依赖 B、C）。A 完成后 B/C 同时就绪；两者完成才释放 D。根等待必要子任务和自身验收证据，不能因子任务全部 idle 而完成。可选子任务不阻碍父完成，但显式依赖可选任务仍须完成。
 
@@ -52,9 +52,9 @@ CSV 示例：根“交付 CSV 导出”（集成阶段），子任务 A“接口
 
 规划/阅读关联由 PlanRevision.sessionId 与 Session 快照保存；执行关联由 TaskRun.sessions 保存当前及历史对话。Run 保存 taskId、planRevision、品牌化 RunId、ownerEpoch、状态、动作和 Evidence。每个任务最多一个当前执行者，不同任务可同时持有所有权。领取在该任务原子更新内复核当前版本、批准、前置、终态及所有者，使用 expectedRevision + ownerEpoch + operationId；候选过期返回明确原因并刷新。阅读不是领取，Session 归档不算完成；运行中归档/移动、目录或权限变化暂停受影响任务，等待核对，不扩大范围。
 
-manual 为默认。auto/auto_until 必须单独持久保存用户授权，绑定当前任务、准确版本、含端点阶段、停止位置及 Config 验证的预算；不能选择其他任务、分配 Agent 或自动开对话。每次新工具动作核对批准/所有权/权限/预算，取消只阻止后续动作，不能回滚在途副作用。修改正在执行的任务版本须先停止并收敛在途动作；不同任务正常产物变化不自动撤销其他任务批准。
+manual 为默认。分层计划的 auto/auto_until 仍只绑定当前任务；顺序阶段计划须显式保存 `startPhaseId` 和 `stopPhaseId`，auto 覆盖剩余全部阶段，auto_until 覆盖含起止端点的范围。Host 校验当前准确版本、审核、顺序、前置和预算，原子保留范围内任务；不能选择范围之外的任务或分配 Agent。可另外授权 `relayEveryPhases`，指定每完成几个阶段自动换一个同目录对话。每次新工具动作核对批准/所有权/权限/预算，取消只阻止后续动作，不能回滚在途副作用。修改正在执行的任务版本须先停止并收敛在途动作；不同任务正常产物变化不自动撤销其他任务批准。
 
-Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、决定、证据、cwd、Git HEAD、脏文件指纹、非 Git 资料/产物指纹、预算及停止位置。先提交交接包，再幂等创建目标 Session，再待旧动作收敛或记录 unknown，最后转移 epoch；新对话保持暂停，由用户明确恢复并发送执行指令。崩溃恢复对照交接包与 Session 引用补齐关联，不能重发未知 shell/外部动作。只允许同客户端、同工作区接力；无法归因的变化仅暂停受影响任务。
+Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、决定、证据、cwd、Git HEAD、脏文件指纹、非 Git 资料/产物指纹、预算及停止位置。先提交交接包，再幂等创建目标 Session，再待旧动作收敛或记录 unknown，最后转移 epoch；手动接力的新对话保持暂停，由用户明确恢复并发送执行指令；已授权的阶段自动接力由 Session Controller 复核后恢复并发送持久的继续消息。崩溃恢复对照交接包与 Session 引用补齐关联，不能重发未知 shell/外部动作。只允许同客户端、同工作区接力；无法归因的变化仅暂停受影响任务。
 
 ## 验证与观测
 
@@ -62,7 +62,7 @@ Handoff 保存源/目标 Session、TaskId、revision、ownerEpoch、上下文、
 
 ## 内置方法与模式实现
 
-`packages/skill/skill-dev-workflow/assets/source.json` 固定上游 dlyqs/dev-workflow-skill 提交 `4f51803b4578139dd9de2dc690c1d2638c54decd` 和 SHA-256；`NOTICE.md` 记录作者在本任务中的身份确认及内置授权，不声明上游已有公开许可证。运行时只加载包内托管方法 v2，不依赖作者机器路径；上游源码作为来源记录保留，未引入自动接力引用资源。
+`packages/skill/skill-dev-workflow/assets/source.json` 固定上游 dlyqs/dev-workflow-skill 提交 `4f51803b4578139dd9de2dc690c1d2638c54decd` 和 SHA-256；`NOTICE.md` 记录作者在本任务中的身份确认及内置授权，不声明上游已有公开许可证。运行时只加载包内托管方法 v4，不依赖作者机器路径；上游源码作为来源记录保留，未引入自动接力引用资源。
 
 输入框中的显式模式开关保存 `personal-workflow/mode`，含单调版本及幂等操作 ID。读取以真实持久日志为准，flush 失败不能启用提案；模式选择的同步投影只用于工具可见性。Bot 禁用 Skill、缺少包内 Skill、模式过期或关闭时明确拒绝。对话的每次用户输入在 pre-step 加入准确方法及模式信息，由普通 `user/message` 日志保存；工具后续步骤不重复注入。关闭后的下一次用户输入记录取代旧方法的关闭说明。
 
@@ -74,13 +74,13 @@ Client 全部计划入口及 Project/Bot 子入口读取同一版本投影；树
 
 `StoredPlan.runs` 与 `executionReceipts` 和计划版本在同一条存储记录内提交。旧记录可以省略这两个字段；有执行记录时验证 Task/版本/阶段引用、单执行者、会话唯一性、epoch、预算和证据。格式仍是 `personal_workflow` domain v1；未变更 SQLite 或 Session envelope。旧构建会拒绝不能识别的新增字段/消息来源，不能用旧构建继续写这些记录。
 
-Remote 增加 `workflowCandidates`、`workflowLimits`、`workflowRun`、`workflowClaim`、`workflowStop`、`workflowResume`、`workflowHandoff`。候选查询、绑定、恢复和接力均不提交模型输入。一个执行对话绑定一个尝试；完成后要执行另一任务，请使用另一个对话。当前 TaskDefinition 每项只属于一个阶段，因此自动范围只包含所选 Task 的 phaseId；不把父任务阶段解释为获准领取其子任务。
+Remote 增加 `workflowCandidates`、`workflowLimits`、`workflowRun`、`workflowClaim`、`workflowStop`、`workflowResume`、`workflowHandoff`。候选查询、绑定、手动恢复和手动接力均不提交模型输入。一个执行对话绑定一个尝试；普通任务终态后执行另一任务仍需另一个对话。`phases` 计划的 Run 通过 `sequence.taskIds` 保留准确授权顺序，通过 `sequence.completed` 保存每个已完成任务的独立证据；current taskId 指向当前阶段任务。阶段完成后在 turn-stopping 中核对后续资格再推进，动作、轮次和首次开始时间均不重置。范围到达终点即 completed，不启动下一阶段；覆盖最终阶段时还须核验根任务的整体验收。
 
 Config 的 `maxActions`（默认 100）、`maxTurns`（20）、`maxDurationMs`（3600000）、`maxEvidenceBytes`（16777216）是部署上限，用户可以在绑定时收窄。时长从首次领取起累计，暂停和接力不重置。`maxTurns` 计用户输入或同任务自动续步的推进次数；工具返回后的普通模型续步不重复计数。`blockedTools` 默认包含标准 `subagent`、`subagent_fork`、`subagent_codex`、`subagent_claude_code` 和 `send_message` 委派工具；部署重命名委派工具时应同步此列表。已有工具审批、Bot allow list 与沙箱仍独立执行。
 
 工具调用在派发前保存 pending，派发返回后保存 succeeded/failed。取消只禁止新动作；迟到结果仍归原 Run。API 完成必须引用该 Run 成功动作的真实 Session tool/result，先 flush 日志，再读取声明产物并保存 SHA-256、验收摘要及时间。实际文件与成功检查是必要证据，验收摘要仍由执行模型填写，程序不宣称可自动判定任意自然语言验收语义。
 
-接力先持久化目标 SessionId、准确计划、决定/待办、证据、前置成果、基线及剩余授权，再由已有 Session 创建接口按固定 ID 创建或采用目标对话。准备期间源暂停、目标也被保留为不可执行；创建成功但提交失败时重试复用目标。必须先等待工具和已登记的 Session 活动收敛，才允许移交；转移增加 epoch，旧对话后续请求被拒绝。接收者不自动唤醒，避免崩溃后重复执行。已经到预算终点的任务不能再创建接收者。
+接力先持久化目标 SessionId、准确计划、决定/待办、证据、前置成果、基线及剩余授权，再由已有 Session 创建接口按固定 ID 创建或采用目标对话。准备期间源暂停、目标也被保留为不可执行；创建成功但提交失败时重试复用目标。必须先等待工具和已登记的 Session 活动收敛，才允许移交；转移增加 epoch，旧对话后续请求被拒绝。手动接收者不自动唤醒；阶段自动接力只由当前活跃 Host 在已验收阶段之间执行。重启、未知结果或接力失败均需人工检查恢复，不重放原有动作。已经到预算终点的任务不能再创建接收者。
 
 恢复保存 cwd、Git HEAD、脏文件内容指纹以及本任务/前置产物 SHA-256；非 Git 目录必须声明产物路径。读取拒绝逃逸工作目录的符号链接、循环目录和超限文件。已运行兄弟任务的已声明产物变化可以归因，不自动暂停本任务；自身关联文件、HEAD 或无法归因的脏文件变化要求人工核对。恢复不覆盖文件、不重放动作。模型失败或取消后，对话 idle 而 Task 未正常结算时也进入待核对；idle 永远不表示任务完成。重启将 running 改为 needs_reconciliation，将 pending 改为 unknown；用户核对后 unknown 变为 reconciled 并保留备注，它不能作为成功检查证据，完成需要新的真实成功检查。
 
@@ -92,7 +92,7 @@ TaskRun 可显式保存 `backend: codex`，领取从当前 Agent 后端固定；
 
 `workflow_assess/propose/complete` 经同一工具 registry、mode/Bot/归属/任务 guard；批准和领取仍为用户动作。Codex completed Evidence 使用 `reportedBy: codex` 和 summary/acceptance 报告，files/callIds 必须为空。它不要求 Harness 原生工具日志或独立成果核验；前置/必要子任务及每项验收报告的数量规则保留。API 的文件哈希与真实成功 tool/result 检查不变。
 
-原生 turn 后任务未完成则 paused，用户明确 resume 并发送才能继续。首次领取的 maxDurationMs 和累计 maxTurns 不重置，时长到期取消所属 Agent；应用 maxActions 只约束任务管理调用。原生领取、回合结束和恢复只解析现有目录，复核应用权限，不扫描文件或 Git 内容，也不要求声明产物；目录和权限核对服务于继续资格。原生 task handoff 报 native-task-handoff-unavailable，不准备 API 接收者或复制 thread。
+原生 turn 后任务未完成则 paused，用户明确 resume 并发送才能继续。首次领取的 maxDurationMs 和累计 maxTurns 不重置，时长到期取消所属 Agent；应用 maxActions 只约束任务管理调用。原生领取、回合结束和恢复只解析现有目录，复核应用权限，不扫描文件或 Git 内容，也不要求声明产物；目录和权限核对服务于继续资格。普通原生单任务 handoff 仍报 native-task-handoff-unavailable。显式授权的原生阶段序列支持同目录新对话接力：保持 Codex 模型、effort、Run、证据和剩余预算，新建原生 thread，不切换到 API 后端。原生阶段完成后可以按授权继续下一阶段；未完成的原生回合仍暂停等待明确恢复。
 
 提问和一次审批复用现有 Agent-scoped 服务、窗口和答复通道；请求/答复进入 codex/request 与 codex/request-result。停止、终态、人工等待超时或 provider 卸载撤销旧答复，drain 后再关闭 Session 回合。恢复只核对原 thread，不自动重答或重发。具体协议与用户步骤见[Codex 消费规则](codex-backend.md)。
 
@@ -114,8 +114,18 @@ TaskRun 可显式保存 `backend: codex`，领取从当前 Agent 后端固定；
 
 ## 自动识别、目标身份与本人设置
 
-[对话规划协议](conversation-planning.md)拥有设置优先级和后续组织路径。个人 `preferences()` / `setPreferences()` 用独立 `personal_workflow_preferences` domain v1 保存 enabled、granularity 和 CAS revision。现有 plan、testing 域与 Session mode 日志不重写；按 profile 存储根隔离，同安装重开恢复。`resolve(session)` 明确计算模式、本人/测试版本和当前 Bot/Project 权限引用。粒度影响模型建议；执行方式、停止位置与预算仍由现有真人 claim 表单提供，自动识别不授权执行。
+[对话规划协议](conversation-planning.md)拥有设置优先级和后续组织路径。个人 `preferences()` / `setPreferences()` 用独立 `personal_workflow_preferences` domain v1 保存 enabled、granularity 和 CAS revision。现有 plan、testing 域与 Session mode 日志不重写；按 profile 存储根隔离，同安装重开恢复。`resolve(session)` 明确计算模式、本人/测试版本和当前 Bot/Project 权限引用。balanced 偏好分层分配，fine 偏好 Agent 顺序阶段；执行方式、起止位置、接力批次与预算仍由真人 claim 表单提供，自动识别不授权执行。
 
 `assess` 将模型路由与已接收 MessageId、服务生成的 GoalId 及有效 policy 持久关联。同一 MessageId 的相同评估请求返回原结果，冲突请求拒绝；正文相同的新消息可以是不同目标。`clarification` 必须引用本对话待澄清 GoalId，`modify` 引用已有计划目标，`query` 只读且不能提案。旧 assessment 没有 context 时仍可读取，但不能授权新提案。第一次模型提案把 goalId 存在 PlanRevision 中；重试 Session 快照失败可从领域回执恢复，不能给同一目标建另一根。用户编辑保留目标关联，创建新的未批准版本。
 
-方法 v2 的普通 user/message 来源带准确 policy，正文带模型配置、归属和可重建目标摘要。提案在唯一提交队列内复核模式、本人设置、测试版本、输入身份、Bot Skill/工具及归属；改变设置或权限后旧评估失效。已经绑定执行任务的输入先进入既有 execution 路径，不递归拆分；测试开关不改变既有 Run 范围。分类仍由模型决定，确定性组合测试只证明路由、持久效果和拒绝路径。
+方法 v4 的普通 user/message 来源带准确 policy，正文带模型配置、归属和可重建目标摘要。提案在唯一提交队列内复核模式、本人设置、测试版本、输入身份、Bot Skill/工具及归属；改变设置或权限后旧评估失效。已经绑定执行任务的输入先进入既有 execution 路径，不递归拆分；测试开关不改变既有 Run 范围。分类仍由模型决定，确定性组合测试只证明路由、持久效果和拒绝路径。
+
+## 顺序阶段规划与执行模式入口
+
+输入框的“执行模式”按钮使用向上打开的菜单，提供当前对话的自动规划开关和本机 profile 的规划偏好。开关写入原有 mode 事件，偏好通过已有 CAS preferences 写入；菜单变化不审核或启动任何计划。设置页面显示相同两种偏好。
+
+分层分配（balanced）延续每节点通常不超过 5 个子任务的建议。Agent 顺序阶段（fine）要求 `planningMode: phases`：一个根，每个阶段一个必要的直属任务，显式依赖上一个阶段任务，根整体验收位于最后阶段。阶段数量没有 5 个上限，不为展示插入中间分组。JSON/parser 和模型提案提交均验证此规则。主任务页及对话计划使用顺序列表呈现阶段，并可查看各阶段历史证据和执行对话。
+
+执行表单默认 manual；选中已就绪的起始任务后，可选择 auto 或 auto_until、含端点的停止阶段，以及是否每完成指定数量阶段自动跨对话接力。前置未满足、倒序范围、跨计划引用、其他执行者已持有范围内任务或超部署预算均拒绝。换阶段和换对话不重置授权、时间或动作预算。自动接力保留全部关联对话中的原始用户文本、完整计划、阶段证据和工作目录，并保持模型/后端、权限预设、沙箱和审批设置。接力文本受 maxEvidenceBytes 限制，超限停止并记录原因。
+
+范围、证据、交接包和单所有者 epoch 保存在同一个计划聚合。最终范围结束不再选择阶段；重启恢复及失败交接仍走显式核对/恢复路径。确定性验证覆盖六个平铺阶段、范围终点、Host 自动接力、JSON 重开及原生 Codex 阶段推进；Desktop 可见效果和真实模型拆分质量由用户验收。

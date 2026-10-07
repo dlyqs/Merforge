@@ -10,10 +10,33 @@ import type { SessionTaskChoiceId } from '@deepseek-ai/dsh-api-session-controlle
 import { Execution } from '../src/client/Execution.tsx'
 import type { ExecutionProps } from '../src/client/contract.ts'
 import { zh } from '../src/client/locales.ts'
-import { definition, ids } from '../../../workspace/personal-workflow/tests/fixture.ts'
+import { definition, ids, phaseDefinition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import { projectPlan } from '../../../workspace/personal-workflow/src/projection.ts'
 
 afterEach(cleanup)
+it('records an inclusive phase range and explicitly selected automatic relay batch', async () => {
+  const definition = phaseDefinition(6)
+  const view = projectPlan({ revision: 1, definition, source: 'user', sessionId: null, createdAt: 1,
+    approval: { operationId: 'approved' as never, time: 1 } })
+  const claim = vi.fn().mockRejectedValue(new Error('fixture write failure'))
+  render(<Execution {...{
+    sessionId: 'phase-execution' as SessionId, t: makeTranslate(zh, commonZh), useSession: () => false,
+    candidates: vi.fn().mockResolvedValue([view]), readRun: vi.fn().mockResolvedValue(null), claim,
+    limits: vi.fn().mockResolvedValue({ maxActions: 12, maxTurns: 10, maxDurationMs: 100000 }),
+  } as ExecutionProps} />)
+  fireEvent.click(screen.getByRole('button', { name: zh.selectTask }))
+  await screen.findByRole('option', { name: 'Phase 1' })
+  fireEvent.change(screen.getByRole('combobox', { name: zh.selectTask }), { target: { value: ids[1] } })
+  fireEvent.change(screen.getByLabelText(zh.executionMode), { target: { value: 'auto_until' } })
+  fireEvent.change(screen.getByLabelText(zh.stopAtPhase), { target: { value: definition.phases[2]!.id } })
+  fireEvent.click(screen.getByRole('switch', { name: zh.automaticRelay }))
+  fireEvent.change(screen.getByLabelText(zh.relayEveryPhases), { target: { value: '2' } })
+  fireEvent.click(screen.getByRole('button', { name: zh.claim }))
+  await waitFor(() => { expect(claim).toHaveBeenCalledWith(expect.objectContaining({ authorization: {
+    mode: 'auto_until', startPhaseId: definition.phases[0]!.id, stopPhaseId: definition.phases[2]!.id,
+    relayEveryPhases: 2, maxActions: 12, maxTurns: 10, maxDurationMs: 100000,
+  } })) })
+})
 it('shows only ready candidates, defaults to manual and refreshes a rejected claim', async () => {
   const view = projectPlan({ revision: 1, definition: definition(), source: 'user', sessionId: null, createdAt: 1,
     approval: { operationId: 'approved' as never, time: 1 } })

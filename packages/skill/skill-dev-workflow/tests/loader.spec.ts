@@ -128,7 +128,7 @@ it('runs ordinary and complex goals through the real AgentLoop and durable model
     expect(service.list()).toHaveLength(1)
     expect(service.list()[0]?.snapshot.approval).toBeNull()
     expect(model.requests[complexRequest]?.tools?.some(tool => tool.name === 'workflow_propose')).toBe(true)
-    expect(JSON.stringify(model.requests[complexRequest]?.messages)).toContain('managed method v3')
+    expect(JSON.stringify(model.requests[complexRequest]?.messages)).toContain('managed method v4')
     expect(JSON.stringify(model.requests[complexRequest]?.messages)).toContain('Do not copy the user\'s full request')
     expect(JSON.stringify(model.requests[complexRequest]?.tools?.find(tool => tool.name === 'workflow_propose'))).toContain('at most 5 direct children per node')
     await ctx.sessions.flush(agent.session)

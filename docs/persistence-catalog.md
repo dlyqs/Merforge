@@ -70,7 +70,7 @@ The [machine inventory](persistence-schema.json) contains every reachable normal
 | `event:permission/preset` | event | `5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b` | [`{ type: "permission/preset" }`](#persistence-type-sha256-5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b) |
 | `event:personal-workflow/assessment` | event | `9d11f3902f0f2326cfca10787750c6591680674f6fb3e2a694abffdb1876fb93` | [`{ type: "personal-workflow/assessment" }`](#persistence-type-sha256-9d11f3902f0f2326cfca10787750c6591680674f6fb3e2a694abffdb1876fb93) |
 | `event:personal-workflow/mode` | event | `7c6d4ecb076e3d06550b94a32c363c46dc598a1d42a690f352d6ed1d01e80355` | [`{ type: "personal-workflow/mode" }`](#persistence-type-sha256-7c6d4ecb076e3d06550b94a32c363c46dc598a1d42a690f352d6ed1d01e80355) |
-| `event:personal-workflow/snapshot` | event | `196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda` | [`{ type: "personal-workflow/snapshot" }`](#persistence-type-sha256-196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda) |
+| `event:personal-workflow/snapshot` | event | `3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074` | [`{ type: "personal-workflow/snapshot" }`](#persistence-type-sha256-3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074) |
 | `event:personal/affiliation` | event | `e9932c19363360162533c6f4a1ce3f9ad5bd9702a1b70bf2f8b83aecaeb205d6` | [`{ type: "personal/affiliation" }`](#persistence-type-sha256-e9932c19363360162533c6f4a1ce3f9ad5bd9702a1b70bf2f8b83aecaeb205d6) |
 | `event:request/context` | event | `37cbc9cf06d494cfe5c67f078af1605eacb8e4c2c853e9e26455b73de0ee7ccf` | [`{ type: "request/context" }`](#persistence-type-sha256-37cbc9cf06d494cfe5c67f078af1605eacb8e4c2c853e9e26455b73de0ee7ccf) |
 | `event:request/header` | event | `4208123b50df5006b181481ab45fcf1cde807b88d3fd4d340090bc2e202fac41` | [`{ type: "request/header" }`](#persistence-type-sha256-4208123b50df5006b181481ab45fcf1cde807b88d3fd4d340090bc2e202fac41) |
@@ -1000,7 +1000,7 @@ Source: [`packages/workspace/personal-project/src/types.ts:71`](../packages/work
 'personal-workflow/assessment': WorkflowAssessment
 ```
 
-Source: [`packages/workspace/personal-workflow/src/types.ts:156`](../packages/workspace/personal-workflow/src/types.ts)
+Source: [`packages/workspace/personal-workflow/src/types.ts:158`](../packages/workspace/personal-workflow/src/types.ts)
 
 <a id="personal-workflowmode--log-only"></a>
 
@@ -1011,7 +1011,7 @@ Source: [`packages/workspace/personal-workflow/src/types.ts:156`](../packages/wo
 'personal-workflow/mode': WorkflowMode & { readonly operationId: OperationId }
 ```
 
-Source: [`packages/workspace/personal-workflow/src/types.ts:154`](../packages/workspace/personal-workflow/src/types.ts)
+Source: [`packages/workspace/personal-workflow/src/types.ts:156`](../packages/workspace/personal-workflow/src/types.ts)
 
 <a id="personal-workflowsnapshot--log-only"></a>
 
@@ -1022,7 +1022,7 @@ Source: [`packages/workspace/personal-workflow/src/types.ts:154`](../packages/wo
 'personal-workflow/snapshot': WorkflowSnapshot
 ```
 
-Source: [`packages/workspace/personal-workflow/src/types.ts:126`](../packages/workspace/personal-workflow/src/types.ts)
+Source: [`packages/workspace/personal-workflow/src/types.ts:128`](../packages/workspace/personal-workflow/src/types.ts)
 
 ### `request/*`
 
@@ -2426,6 +2426,14 @@ SHA-256: `5bd75b8861f02e7fe11a84d6e670c7dddc413f65975ae53c30e237645c805a6d`
 
 `"harness-api"`
 
+<a id="persistence-type-sha256-c04be6cb6b84492e7ff12f9cdca11d5c259696b7fb4aa02faec5a9100c606d2c"></a>
+
+### `"hierarchical"`
+
+SHA-256: `c04be6cb6b84492e7ff12f9cdca11d5c259696b7fb4aa02faec5a9100c606d2c`
+
+`"hierarchical"`
+
 <a id="persistence-type-sha256-437a1c86fb6f66449be77a2b71773ab83865d2d8ee7b82a8db1c08936000a004"></a>
 
 ### `"high"`
@@ -3071,6 +3079,14 @@ SHA-256: `a8be12b81dee05b36212b902e9198d08c94fdc91a96e65f6afb1e3e95074a83f`
 SHA-256: `9049e44a7cd62704329a9fac4e7b38644d6c410f0b4b0fbac4c98f9e46c102a8`
 
 `"personal/affiliation"`
+
+<a id="persistence-type-sha256-c0ac1227b3ff5140411aee7a7f172ed702e7e3716dc5f7cae64d4d67d8c08569"></a>
+
+### `"phases"`
+
+SHA-256: `c0ac1227b3ff5140411aee7a7f172ed702e7e3716dc5f7cae64d4d67d8c08569`
+
+`"phases"`
 
 <a id="persistence-type-sha256-df5d9709b7db2a72510dc52052a23f0c38f39730af1504bab8bccabc14fae528"></a>
 
@@ -5296,14 +5312,14 @@ One of:
 
 SHA-256: `49ccaf6cc10718866dfbdd24cd388d8beff6928a0dc2189849a33904d5b50223`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:42`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:44`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
 | `operationId` | required | `string` |
 | `time` | required | `number` |
 
-<a id="persistence-type-sha256-656ee43a2b72019232eb878327813bf913a6910af09bb1a99b6d02828e9da97e"></a>
+<a id="persistence-type-sha256-369735bfda5ff5fee8c47644646332db9b771d4368074b4052a1e984e1a815ae"></a>
 
 <a id="persistence-type-packagesworkspacepersonal-workflowsrctypestsplandefinition"></a>
 
@@ -5311,7 +5327,7 @@ Sources: [`packages/workspace/personal-workflow/src/types.ts:42`](../packages/wo
 
 ### `PlanDefinition`
 
-SHA-256: `656ee43a2b72019232eb878327813bf913a6910af09bb1a99b6d02828e9da97e`
+SHA-256: `369735bfda5ff5fee8c47644646332db9b771d4368074b4052a1e984e1a815ae`
 
 Sources: [`packages/workspace/personal-workflow/src/types.ts:34`](../packages/workspace/personal-workflow/src/types.ts)
 
@@ -5319,6 +5335,7 @@ Sources: [`packages/workspace/personal-workflow/src/types.ts:34`](../packages/wo
 |---|---|---|
 | `botId` | required | [`union (2 variants)`](#persistence-type-sha256-799231ac91869a6695666505343003905638e1b4d11349bff953d4dbfe3191ba) |
 | `phases` | required | [`PlanPhase[]`](#persistence-type-sha256-72b5d4eccb55ed22989b24719e0dd5443115df3928d744d6a97ae9e53061b56a) |
+| `planningMode` | optional | [`union (2 variants)`](#persistence-type-sha256-4cff357d90dc80c37d0977fb901fd117a843ef01e395e3ebeefe9431411eb392) |
 | `projectId` | required | [`union (2 variants)`](#persistence-type-sha256-799231ac91869a6695666505343003905638e1b4d11349bff953d4dbfe3191ba) |
 | `taskId` | required | `string` |
 | `tasks` | required | [`TaskDefinition[]`](#persistence-type-sha256-d6ab8aab1b66c5c503d91c1cd09f88858582e5b660b8b9beeb5d74f2a491cbbc) |
@@ -5348,7 +5365,7 @@ SHA-256: `72b5d4eccb55ed22989b24719e0dd5443115df3928d744d6a97ae9e53061b56a`
 
 Array of [`PlanPhase`](#persistence-type-sha256-c6f48bedc81bd115c76c5edab192d92e80b5a858c297c090575812e6bea41e35).
 
-<a id="persistence-type-sha256-97d398f279a1ac0ca1275b2d36f33c9e7de287e410fb263169b9e3297ab562a6"></a>
+<a id="persistence-type-sha256-94a9d4234c917e06d439f8ca9a24f4f3c00789b8ff0490d53e1af1ed8f5a0f31"></a>
 
 <a id="persistence-type-packagesworkspacepersonal-workflowsrctypestsplanrevision"></a>
 
@@ -5356,15 +5373,15 @@ Array of [`PlanPhase`](#persistence-type-sha256-c6f48bedc81bd115c76c5edab192d92e
 
 ### `PlanRevision`
 
-SHA-256: `97d398f279a1ac0ca1275b2d36f33c9e7de287e410fb263169b9e3297ab562a6`
+SHA-256: `94a9d4234c917e06d439f8ca9a24f4f3c00789b8ff0490d53e1af1ed8f5a0f31`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:47`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:49`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
 | `approval` | required | [`union (2 variants)`](#persistence-type-sha256-0827fc4d167863051f56e9ce11c4c3682a32a7719e15eece1f9aa104a96eafd4) |
 | `createdAt` | required | `number` |
-| `definition` | required | [`PlanDefinition`](#persistence-type-sha256-656ee43a2b72019232eb878327813bf913a6910af09bb1a99b6d02828e9da97e) |
+| `definition` | required | [`PlanDefinition`](#persistence-type-sha256-369735bfda5ff5fee8c47644646332db9b771d4368074b4052a1e984e1a815ae) |
 | `goalId` | optional | `string` |
 | `revision` | required | `number` |
 | `sessionId` | required | [`union (2 variants)`](#persistence-type-sha256-799231ac91869a6695666505343003905638e1b4d11349bff953d4dbfe3191ba) |
@@ -6424,7 +6441,7 @@ One of:
 
 SHA-256: `cc26cd2edbb5ca5056a365d8754cf4f558c263f1598473420f204a576b3a0f93`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:143`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:145`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6443,7 +6460,7 @@ Sources: [`packages/workspace/personal-workflow/src/types.ts:143`](../packages/w
 
 SHA-256: `fae3e2ea44dce0ffce88d19197900bd7c478d927807fa75e374ea826ba424576`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:220`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:222`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6462,7 +6479,7 @@ Sources: [`packages/workspace/personal-workflow/src/types.ts:220`](../packages/w
 
 SHA-256: `6c2ccce50972ca7bae5d4dd3b6bf0ef2867deae7fbe71478db3bf450bca69276`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:199`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:201`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6484,7 +6501,7 @@ Sources: [`packages/workspace/personal-workflow/src/types.ts:199`](../packages/w
 
 SHA-256: `65defc32e7485e952053322ea638d712ff9a46c08cd3b30918b6934a0ab3c6a8`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:210`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:212`](../packages/workspace/personal-workflow/src/types.ts)
 
 One of:
 
@@ -6493,7 +6510,7 @@ One of:
 - `"new_goal"`
 - `"query"`
 
-<a id="persistence-type-sha256-d1a99b37e789eed7d3bb02e6d596ab8f6c162813b7308029fdda8b4606c52844"></a>
+<a id="persistence-type-sha256-ccdba353ef75c47c310571fc2a0564da149fe84ce668e947596cc78815c74bc1"></a>
 
 <a id="persistence-type-packagesworkspacepersonal-workflowsrctypestsworkflowsnapshot"></a>
 
@@ -6501,14 +6518,14 @@ One of:
 
 ### `WorkflowSnapshot`
 
-SHA-256: `d1a99b37e789eed7d3bb02e6d596ab8f6c162813b7308029fdda8b4606c52844`
+SHA-256: `ccdba353ef75c47c310571fc2a0564da149fe84ce668e947596cc78815c74bc1`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:88`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:90`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
 | `operationId` | required | `string` |
-| `snapshot` | required | [`PlanRevision`](#persistence-type-sha256-97d398f279a1ac0ca1275b2d36f33c9e7de287e410fb263169b9e3297ab562a6) |
+| `snapshot` | required | [`PlanRevision`](#persistence-type-sha256-94a9d4234c917e06d439f8ca9a24f4f3c00789b8ff0490d53e1af1ed8f5a0f31) |
 | `taskId` | required | `string` |
 
 <a id="persistence-type-sha256-8465ece5e9d9007c038b357015d849c15262cb0bc25abc59e47692d87ee01a15"></a>
@@ -6805,7 +6822,7 @@ Array of `number`.
 
 SHA-256: `4cd48f3e5108bd6ebedf7301c3638839b8b2b9db8dbd493974177fbdeb91a01b`
 
-Sources: [`packages/api/session-controller/src/types.ts:452`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:20`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:20`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:32`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:8`](../packages/experimental/agent-team/src/types.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/schedule/schedule/src/types.ts:12`](../packages/schedule/schedule/src/types.ts) · [`packages/session/session-title/src/index.ts:42`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:10`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:12`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:14`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:6`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:8`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/util/brand/src/index.ts:18`](../packages/util/brand/src/index.ts) · [`packages/webhook/webhook/src/brand.ts:12`](../packages/webhook/webhook/src/brand.ts) · [`packages/webhook/webhook/src/brand.ts:6`](../packages/webhook/webhook/src/brand.ts) · [`packages/webhook/webhook/src/brand.ts:9`](../packages/webhook/webhook/src/brand.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts) · [`packages/workspace/organization/src/assignment-types.ts:32`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/assignment-types.ts:7`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/assignment-types.ts:9`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:4`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:6`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:8`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/device-types.ts:8`](../packages/workspace/organization/src/device-types.ts) · [`packages/workspace/organization/src/execution-types.ts:10`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/execution-types.ts:6`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/execution-types.ts:8`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/types.ts:10`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:12`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:16`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:6`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:8`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:88`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:10`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:6`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:8`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/personal-project/src/types.ts:5`](../packages/workspace/personal-project/src/types.ts) · [`packages/workspace/personal-project/src/types.ts:7`](../packages/workspace/personal-project/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:10`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:12`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:14`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:181`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/api/session-controller/src/types.ts:452`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:20`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:20`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:32`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:8`](../packages/experimental/agent-team/src/types.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/schedule/schedule/src/types.ts:12`](../packages/schedule/schedule/src/types.ts) · [`packages/session/session-title/src/index.ts:42`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:10`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:12`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:14`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:6`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/subagent/codex-runtime/src/types.ts:8`](../packages/subagent/codex-runtime/src/types.ts) · [`packages/util/brand/src/index.ts:18`](../packages/util/brand/src/index.ts) · [`packages/webhook/webhook/src/brand.ts:12`](../packages/webhook/webhook/src/brand.ts) · [`packages/webhook/webhook/src/brand.ts:6`](../packages/webhook/webhook/src/brand.ts) · [`packages/webhook/webhook/src/brand.ts:9`](../packages/webhook/webhook/src/brand.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts) · [`packages/workspace/organization/src/assignment-types.ts:32`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/assignment-types.ts:7`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/assignment-types.ts:9`](../packages/workspace/organization/src/assignment-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:4`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:6`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/delivery-types.ts:8`](../packages/workspace/organization/src/delivery-types.ts) · [`packages/workspace/organization/src/device-types.ts:8`](../packages/workspace/organization/src/device-types.ts) · [`packages/workspace/organization/src/execution-types.ts:10`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/execution-types.ts:6`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/execution-types.ts:8`](../packages/workspace/organization/src/execution-types.ts) · [`packages/workspace/organization/src/types.ts:10`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:12`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:16`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:6`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:8`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/types.ts:88`](../packages/workspace/organization/src/types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:10`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:6`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/organization/src/workgraph-types.ts:8`](../packages/workspace/organization/src/workgraph-types.ts) · [`packages/workspace/personal-project/src/types.ts:5`](../packages/workspace/personal-project/src/types.ts) · [`packages/workspace/personal-project/src/types.ts:7`](../packages/workspace/personal-project/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:10`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:12`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:14`](../packages/workspace/personal-workflow/src/types.ts) · [`packages/workspace/personal-workflow/src/types.ts:183`](../packages/workspace/personal-workflow/src/types.ts)
 
 `string`
 
@@ -6909,6 +6926,17 @@ One of:
 
 - `"delete"`
 - `"rename"`
+
+<a id="persistence-type-sha256-4cff357d90dc80c37d0977fb901fd117a843ef01e395e3ebeefe9431411eb392"></a>
+
+### `union (2 variants)`
+
+SHA-256: `4cff357d90dc80c37d0977fb901fd117a843ef01e395e3ebeefe9431411eb392`
+
+One of:
+
+- `"hierarchical"`
+- `"phases"`
 
 <a id="persistence-type-sha256-50cf02d875f8a1f1411f4a6fbcffab9120ccef5f74a47331fbf29480e5f68f48"></a>
 
@@ -9498,7 +9526,7 @@ Sources: [`packages/core/session/src/types.ts:199`](../packages/core/session/src
 
 SHA-256: `0287b2afbfe6bc2ece47fa584aeb33f39e33ab04d360007cd2b65bacc552f5ad`
 
-Sources: [`packages/skill/skill-dev-workflow/src/index.ts:26`](../packages/skill/skill-dev-workflow/src/index.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:241`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9510,7 +9538,7 @@ Sources: [`packages/skill/skill-dev-workflow/src/index.ts:26`](../packages/skill
 
 SHA-256: `e23c0135821c9d96c3345043c23e36b79b075604e715190c68d398f12b9476f5`
 
-Sources: [`packages/skill/skill-dev-workflow/src/index.ts:24`](../packages/skill/skill-dev-workflow/src/index.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:239`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -9522,7 +9550,7 @@ Sources: [`packages/skill/skill-dev-workflow/src/index.ts:24`](../packages/skill
 
 SHA-256: `506ddcb24d18df17f5cbe5fdd8a02f25df7152901f7e7e11687c17d68c0f6329`
 
-Sources: [`packages/workspace/personal-workflow/src/types.ts:237`](../packages/workspace/personal-workflow/src/types.ts)
+Sources: [`packages/workspace/personal-workflow/src/types.ts:243`](../packages/workspace/personal-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -11657,17 +11685,17 @@ SHA-256: `7c6d4ecb076e3d06550b94a32c363c46dc598a1d42a690f352d6ed1d01e80355`
 | `time` | required | `number` |
 | `type` | required | `"personal-workflow/mode"` |
 
-<a id="persistence-type-sha256-196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda"></a>
+<a id="persistence-type-sha256-3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074"></a>
 
 <a id="persistence-type-eventpersonal-workflowsnapshot"></a>
 
 ### `{ type: "personal-workflow/snapshot" }`
 
-SHA-256: `196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda`
+SHA-256: `3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074`
 
 | Property | Presence | Type |
 |---|---|---|
-| `data` | required | [`WorkflowSnapshot`](#persistence-type-sha256-d1a99b37e789eed7d3bb02e6d596ab8f6c162813b7308029fdda8b4606c52844) |
+| `data` | required | [`WorkflowSnapshot`](#persistence-type-sha256-ccdba353ef75c47c310571fc2a0564da149fe84ce668e947596cc78815c74bc1) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
 | `time` | required | `number` |

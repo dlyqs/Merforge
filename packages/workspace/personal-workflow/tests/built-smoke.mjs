@@ -76,7 +76,7 @@ try {
   })
   assert.deepEqual(await first.personalWorkflow.setMode(session, modeRequest), { enabled: true, revision: 1 })
   const method = await first.skills.get('dev-workflow')
-  assert.match(method.content, /managed method v2/)
+  assert.match(method.content, /managed method v4/)
   assert.ok(!method.content.includes('/Users/'))
   assert.equal(method.invocation.modelInvocable, false)
   assert.ok(first.tools.get('workflow_propose'))
@@ -89,6 +89,35 @@ try {
   })
   const run = await first.personalWorkflow.execution.claim(session, claim)
   assert.deepEqual(claimRemote.result.create().parse(run), run)
+  const phasePlanId = '00000000-0000-4000-8000-000000000011'
+  const phaseTaskIds = ['00000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013']
+  const phaseIds = ['10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000012']
+  const phasePlan = save.parameters[0].codec.create().parse({
+    operationId: '20000000-0000-4000-8000-000000000011', expectedRevision: 0,
+    definition: { planningMode: 'phases', taskId: phasePlanId, projectId: null, botId: null,
+      phases: phaseIds.map((id, index) => ({ id, title: `Phase ${index + 1}` })),
+      tasks: [
+        { ...request.definition.tasks[0], id: phasePlanId, phaseId: phaseIds[1] },
+        ...phaseTaskIds.map((id, index) => ({ ...request.definition.tasks[0], id, parentTaskId: phasePlanId,
+          phaseId: phaseIds[index], dependsOn: index === 0 ? [] : [phaseTaskIds[index - 1]] })),
+      ],
+    },
+  })
+  await first.personalWorkflow.save(phasePlan)
+  await first.personalWorkflow.approve({ taskId: phasePlanId, expectedRevision: 1, operationId: '20000000-0000-4000-8000-000000000012' })
+  const phaseSession = first.sessions.create(SessionId('built-phase-workflow'), { meta: { cwd: root } })
+  const phaseWriter = await first.sessionPersistence.create(phaseSession.header)
+  const range = claimRemote.parameters[0].codec.create().parse({
+    sessionId: phaseSession.id, planId: phasePlanId, taskId: phaseTaskIds[0], expectedRevision: 1,
+    operationId: '20000000-0000-4000-8000-000000000013',
+    authorization: { mode: 'auto_until', startPhaseId: phaseIds[0], stopPhaseId: phaseIds[1], relayEveryPhases: 1,
+      maxActions: 5, maxTurns: 3, maxDurationMs: 100000 },
+  })
+  const sequenceRun = await first.personalWorkflow.execution.claim(phaseSession, range)
+  assert.deepEqual(claimRemote.result.create().parse(sequenceRun), sequenceRun)
+  assert.deepEqual(sequenceRun.sequence.taskIds, [...phaseTaskIds, phasePlanId])
+  assert.equal(sequenceRun.authorization.relayEveryPhases, 1)
+  await phaseWriter.close()
   await first.personalWorkflow.execution.beginAction(session, 'built-action', 'write')
   await writeFile(join(root, 'output.txt'), 'effect completed before Host exit')
   assert.ok(first.tools.get('workflow_complete'))
@@ -128,7 +157,7 @@ try {
   await targetWriter.close()
   await reader.close()
   assert.match(second.personalWorkflow.export({ taskId }), /Revision: 1/)
-  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, JSON and JSONL reopen, mode/execution codecs, interrupted-action recovery, transfer codecs and packaged Skill)')
+  console.log('personal-workflow built Host smoke: passed (Loader, generated Remote codecs, phase-range authorization, JSON and JSONL reopen, interrupted-action recovery, transfer codecs and packaged Skill)')
 } finally {
   for (const ctx of contexts.reverse()) await ctx.fiber.dispose()
   await rm(root, { recursive: true, force: true })

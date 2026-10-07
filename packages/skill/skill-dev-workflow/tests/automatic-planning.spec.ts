@@ -14,7 +14,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { GoalId, WorkflowAssessmentRequest } from '@deepseek-ai/dsh-personal-workflow'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { createWorkflowHarness } from '../../../workspace/personal-workflow/tests/harness.ts'
-import { operation, proposal } from '../../../workspace/personal-workflow/tests/fixture.ts'
+import { operation, proposal, phaseDefinition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import * as Method from '../src/index.ts'
 
 const contexts: Context[] = []
@@ -34,6 +34,30 @@ async function boot() {
   const input = (text: string) => session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text }] }), { surfaceOp: 'append' })
   return { ...result, session, input }
 }
+
+it('uses the Agent execution preference to save six ordered phases and rejects hierarchical proposals', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'phase-planning-')); roots.push(root)
+  const { ctx, service } = await createWorkflowHarness(root, [
+    ['systemPrompt', SystemPrompt], ['agents', Agents], ['tools', Tools], ['skills', Skills], ['llm', Llm], ['method', Method],
+  ]); contexts.push(ctx)
+  await service.setPreferences({ enabled: true, granularity: 'fine', expectedRevision: 0 })
+  const definition = phaseDefinition(6)
+  const model = new MockAdapter([
+    toolCallResponse('assess', 'workflow_assess', { modeRevision: 0, decision: 'complex', explanation: 'Six engineering phases with explicit acceptance' }),
+    toolCallResponse('hierarchical', 'workflow_propose', { ...proposal(), modeRevision: 0 }),
+    toolCallResponse('phases', 'workflow_propose', { definition, expectedRevision: 0, operationId: operation(2), modeRevision: 0 }),
+    textResponse('Review the six ordered phases'),
+  ])
+  ctx.llm.registerAdapter(['mock'], model)
+  await ctx.plugin(AgentLoop, { agents: [] })
+  const agent = await ctx.agentLoop.create(SessionId('phase-planner'), { provider: 'mock', model: 'mock' })
+  agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Plan six verifiable engineering phases for one local Agent' }] }))
+  await agent.whenIdle()
+  expect(service.list()[0]?.snapshot).toMatchObject({ revision: 1, definition, approval: null })
+  expect(service.list()[0]?.runs).toEqual([])
+  expect(JSON.stringify(model.requests[0]?.messages)).toContain('Do not add intermediate groups to satisfy the five-child rule')
+  expect(JSON.stringify(agent.session.snapshotEvents())).toContain('Agent execution preference requires an ordered phase plan')
+})
 
 it('uses default recognition, continues clarification on one goal, and answers queries without another root', async () => {
   const root = await mkdtemp(join(tmpdir(), 'automatic-loop-')); roots.push(root)
@@ -72,7 +96,7 @@ it('uses default recognition, continues clarification on one goal, and answers q
   await send('Explain a CSV header')
   expect(service.list()).toEqual([])
   expect(model.requests[0]?.tools?.some(tool => tool.name === 'workflow_assess')).toBe(true)
-  expect(JSON.stringify(model.requests[0]?.messages)).toContain('managed method v3')
+  expect(JSON.stringify(model.requests[0]?.messages)).toContain('managed method v4')
   await send('Build a CSV export with independent test data')
   expect(service.list()).toEqual([])
   await send('Use name and email columns and verify quoting')
@@ -202,7 +226,7 @@ it('keeps an ordinary Bot conversation usable when its Skill permissions disable
   await agent.whenIdle()
   expect(model.requests).toHaveLength(1)
   expect(model.requests[0]?.tools?.some(tool => tool.name === 'workflow_assess') ?? false).toBe(false)
-  expect(JSON.stringify(model.requests[0]?.messages)).not.toContain('managed method v3')
+  expect(JSON.stringify(model.requests[0]?.messages)).not.toContain('managed method v4')
   expect(service.list()).toEqual([])
   expect((await service.resolve(agent.session)).enabled).toBe(false)
   await expect(service.assess(agent.session, { modeRevision: 0, decision: 'complex', explanation: 'Attempted bypass' })).rejects.toThrow('disabled by the current Bot')

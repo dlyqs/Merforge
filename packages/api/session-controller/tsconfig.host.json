@@ -34,6 +34,8 @@
     { "path": "../../client/file-upload/tsconfig.host.json" },
     { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../../interaction/permission-presets" },
+    { "path": "../../sandbox/sandbox-policy" },
+    { "path": "../../interaction/user-approval" },
     { "path": "../../jobs/jobs" },
     { "path": "../../fs/fs" },
     { "path": "../../llm/llm" },

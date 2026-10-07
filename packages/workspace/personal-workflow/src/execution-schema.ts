@@ -13,6 +13,7 @@ const positive = z.number().int().positive()
 /** Bounded authorization supplied explicitly by the human caller. */
 export const authorizationSchema = z.object({
   mode: z.enum(['manual', 'auto', 'auto_until']), stopPhaseId: z.uuid().transform(value => value as PhaseId),
+  startPhaseId: z.uuid().transform(value => value as PhaseId).optional(), relayEveryPhases: positive.optional(),
   maxActions: positive, maxTurns: positive, maxDurationMs: positive,
 }).strict()
 /** Host file observation parser. */
@@ -33,6 +34,9 @@ export const runSchema: z.ZodType<TaskRun> = z.object({
   reconciliations: z.array(z.object({ note: text, time: positive, sessionId, baseline: baselineSchema }).strict()),
   actions: z.array(z.object({ callId: text.transform(value => value as ToolCallId), name: text, status: z.enum(['pending', 'succeeded', 'failed', 'unknown', 'reconciled']) }).strict()),
   evidence: z.array(evidence),
+  sequence: z.object({ taskIds: z.array(taskId).min(1), completed: z.array(z.object({
+    taskId, evidence: z.array(evidence).min(1), actionsUsed: z.number().int().nonnegative(),
+  }).strict()) }).strict().optional(),
   handoffs: z.array(z.object({
     runId, taskId, planRevision: positive,
     id: z.uuid().transform(value => value as HandoffId), operationId: operationIdSchema,

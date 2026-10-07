@@ -17440,7 +17440,7 @@
       "kind": "event",
       "event": "personal-workflow/snapshot",
       "surface": false,
-      "digest": "196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda",
+      "digest": "3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074",
       "schema": {
         "root": 0,
         "nodes": [
@@ -17454,7 +17454,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 19,
+                "type": 22,
                 "optional": true
               },
               {
@@ -17469,7 +17469,7 @@
               },
               {
                 "name": "type",
-                "type": 20,
+                "type": 23,
                 "optional": false
               }
             ],
@@ -17535,7 +17535,7 @@
               },
               {
                 "name": "source",
-                "type": 16,
+                "type": 19,
                 "optional": false
               }
             ],
@@ -17586,6 +17586,11 @@
                 "optional": false
               },
               {
+                "name": "planningMode",
+                "type": 12,
+                "optional": true
+              },
+              {
                 "name": "projectId",
                 "type": 9,
                 "optional": false
@@ -17597,7 +17602,7 @@
               },
               {
                 "name": "tasks",
-                "type": 12,
+                "type": 15,
                 "optional": false
               }
             ],
@@ -17631,20 +17636,35 @@
             "indices": []
           },
           {
+            "kind": "union",
+            "types": [
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
             "kind": "array",
-            "element": 13
+            "element": 16
           },
           {
             "kind": "object",
             "properties": [
               {
                 "name": "acceptance",
-                "type": 14,
+                "type": 17,
                 "optional": false
               },
               {
                 "name": "artifacts",
-                "type": 14,
+                "type": 17,
                 "optional": false
               },
               {
@@ -17654,7 +17674,7 @@
               },
               {
                 "name": "dependsOn",
-                "type": 14,
+                "type": 17,
                 "optional": false
               },
               {
@@ -17679,7 +17699,7 @@
               },
               {
                 "name": "required",
-                "type": 15,
+                "type": 18,
                 "optional": false
               },
               {
@@ -17701,17 +17721,17 @@
           {
             "kind": "union",
             "types": [
-              17,
-              18
+              20,
+              21
             ]
           },
           {
             "kind": "literal",
-            "value": "user"
+            "value": "model"
           },
           {
             "kind": "literal",
-            "value": "model"
+            "value": "user"
           },
           {
             "kind": "literal",
@@ -28579,7 +28599,7 @@
       },
       "names": [],
       "sources": [
-        "packages/skill/skill-dev-workflow/src/index.ts:26"
+        "packages/workspace/personal-workflow/src/types.ts:241"
       ]
     },
     {
@@ -40439,293 +40459,6 @@
       "sources": []
     },
     {
-      "digest": "196c05441b869fb43c7a2af7723e743574f8014ebadb2f9164fc1af92e00fdda",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "data",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "ignorable",
-                "type": 19,
-                "optional": true
-              },
-              {
-                "name": "seq",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "type",
-                "type": 20,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "operationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "snapshot",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "approval",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "definition",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "goalId",
-                "type": 2,
-                "optional": true
-              },
-              {
-                "name": "revision",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "source",
-                "type": 16,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              5,
-              7
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "operationId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 6,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "botId",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "phases",
-                "type": 10,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "tasks",
-                "type": 12,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              2,
-              7
-            ]
-          },
-          {
-            "kind": "array",
-            "element": 11
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 13
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "cwd",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 15,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 2,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 2
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "union",
-            "types": [
-              17,
-              18
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "user"
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": true
-          },
-          {
-            "kind": "literal",
-            "value": "personal-workflow/snapshot"
-          }
-        ]
-      },
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "1976e54684ed4d7cb78acc72e2826db8f18f1636a5e7b521f8fbcc6ed8b44ce2",
       "schema": {
         "root": 0,
@@ -51405,6 +51138,174 @@
       "sources": []
     },
     {
+      "digest": "369735bfda5ff5fee8c47644646332db9b771d4368074b4052a1e984e1a815ae",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "botId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "phases",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "planningMode",
+                "type": 6,
+                "optional": true
+              },
+              {
+                "name": "projectId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "tasks",
+                "type": 9,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
+          },
+          {
+            "kind": "array",
+            "element": 10
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "cwd",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          }
+        ]
+      },
+      "names": [
+        "packages/workspace/personal-workflow/src/types.ts#PlanDefinition"
+      ],
+      "sources": [
+        "packages/workspace/personal-workflow/src/types.ts:34"
+      ]
+    },
+    {
       "digest": "36c94eb3feb8d3003e0278cb6fedd7d531194c28b2c7c0828cfbcaf6003dbb60",
       "schema": {
         "root": 0,
@@ -53195,6 +53096,313 @@
           {
             "kind": "literal",
             "value": "codex/item"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "3d711aa47f13651b5744c6570f5e924e141bbc7f52a99b663f070f196ad86074",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 22,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 23,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "operationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "approval",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "createdAt",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "definition",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "goalId",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "revision",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 19,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              7
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "operationId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "botId",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "phases",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "planningMode",
+                "type": 12,
+                "optional": true
+              },
+              {
+                "name": "projectId",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "tasks",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              7
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 11
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
+            "kind": "array",
+            "element": 16
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "cwd",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 18,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "user"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "personal-workflow/snapshot"
           }
         ]
       },
@@ -59375,7 +59583,7 @@
         "packages/workspace/personal-workflow/src/types.ts#PlanApproval"
       ],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:42"
+        "packages/workspace/personal-workflow/src/types.ts:44"
       ]
     },
     {
@@ -60640,7 +60848,7 @@
         "packages/workspace/personal-workflow/src/types.ts:10",
         "packages/workspace/personal-workflow/src/types.ts:12",
         "packages/workspace/personal-workflow/src/types.ts:14",
-        "packages/workspace/personal-workflow/src/types.ts:181"
+        "packages/workspace/personal-workflow/src/types.ts:183"
       ]
     },
     {
@@ -60692,6 +60900,31 @@
           {
             "kind": "primitive",
             "type": "number"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "4cff357d90dc80c37d0977fb901fd117a843ef01e395e3ebeefe9431411eb392",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
           }
         ]
       },
@@ -66163,7 +66396,7 @@
       },
       "names": [],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:237"
+        "packages/workspace/personal-workflow/src/types.ts:243"
       ]
     },
     {
@@ -72096,154 +72329,6 @@
       "sources": []
     },
     {
-      "digest": "656ee43a2b72019232eb878327813bf913a6910af09bb1a99b6d02828e9da97e",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "botId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "phases",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "tasks",
-                "type": 6,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              2,
-              3
-            ]
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "array",
-            "element": 5
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "id",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 7
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "cwd",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 3
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          }
-        ]
-      },
-      "names": [
-        "packages/workspace/personal-workflow/src/types.ts#PlanDefinition"
-      ],
-      "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:34"
-      ]
-    },
-    {
       "digest": "658d895d187b26d83f3b53109a3bf77bbfba9f6f9a6d4bc4ee4315b4eb36239e",
       "schema": {
         "root": 0,
@@ -72464,7 +72549,7 @@
         "packages/workspace/personal-workflow/src/types.ts#WorkflowRoute"
       ],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:210"
+        "packages/workspace/personal-workflow/src/types.ts:212"
       ]
     },
     {
@@ -76802,7 +76887,7 @@
         "packages/workspace/personal-workflow/src/types.ts#WorkflowPolicy"
       ],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:199"
+        "packages/workspace/personal-workflow/src/types.ts:201"
       ]
     },
     {
@@ -97022,6 +97107,257 @@
       "sources": []
     },
     {
+      "digest": "94a9d4234c917e06d439f8ca9a24f4f3c00789b8ff0490d53e1af1ed8f5a0f31",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "approval",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "createdAt",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "definition",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "goalId",
+                "type": 3,
+                "optional": true
+              },
+              {
+                "name": "revision",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 17,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              5
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "operationId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "botId",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "phases",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "planningMode",
+                "type": 10,
+                "optional": true
+              },
+              {
+                "name": "projectId",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "tasks",
+                "type": 13,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              5
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 9
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              11,
+              12
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
+            "kind": "array",
+            "element": 14
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "cwd",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              18,
+              19
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "user"
+          }
+        ]
+      },
+      "names": [
+        "packages/workspace/personal-workflow/src/types.ts#PlanRevision"
+      ],
+      "sources": [
+        "packages/workspace/personal-workflow/src/types.ts:49"
+      ]
+    },
+    {
       "digest": "94c56aeb1564ad735eb773d88636b40761d063efa1610f1308004d32923f5378",
       "schema": {
         "root": 0,
@@ -97183,237 +97519,6 @@
       ],
       "sources": [
         "packages/core/agent/src/types.ts:39"
-      ]
-    },
-    {
-      "digest": "97d398f279a1ac0ca1275b2d36f33c9e7de287e410fb263169b9e3297ab562a6",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "approval",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "definition",
-                "type": 6,
-                "optional": false
-              },
-              {
-                "name": "goalId",
-                "type": 3,
-                "optional": true
-              },
-              {
-                "name": "revision",
-                "type": 4,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "source",
-                "type": 14,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              2,
-              5
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "operationId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 4,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "botId",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "phases",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "tasks",
-                "type": 10,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              3,
-              5
-            ]
-          },
-          {
-            "kind": "array",
-            "element": 9
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "id",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 11
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "cwd",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 12,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 3,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 3
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "union",
-            "types": [
-              15,
-              16
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          },
-          {
-            "kind": "literal",
-            "value": "user"
-          }
-        ]
-      },
-      "names": [
-        "packages/workspace/personal-workflow/src/types.ts#PlanRevision"
-      ],
-      "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:47"
       ]
     },
     {
@@ -114253,6 +114358,20 @@
       "sources": []
     },
     {
+      "digest": "c04be6cb6b84492e7ff12f9cdca11d5c259696b7fb4aa02faec5a9100c606d2c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "c09477157b2ca1461d8513a4404387e642c45647281c2cba07623d7768449e33",
       "schema": {
         "root": 0,
@@ -114319,6 +114438,20 @@
           {
             "kind": "literal",
             "value": "organization/model-selection-operation"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "c0ac1227b3ff5140411aee7a7f172ed702e7e3716dc5f7cae64d4d67d8c08569",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "phases"
           }
         ]
       },
@@ -117499,7 +117632,7 @@
         "packages/workspace/personal-workflow/src/types.ts#WorkflowAssessment"
       ],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:143"
+        "packages/workspace/personal-workflow/src/types.ts:145"
       ]
     },
     {
@@ -117566,6 +117699,278 @@
       },
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "ccdba353ef75c47c310571fc2a0564da149fe84ce668e947596cc78815c74bc1",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "operationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "snapshot",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "approval",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "createdAt",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "definition",
+                "type": 7,
+                "optional": false
+              },
+              {
+                "name": "goalId",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "revision",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "sessionId",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "source",
+                "type": 18,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              4,
+              6
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "operationId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "botId",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "phases",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "planningMode",
+                "type": 11,
+                "optional": true
+              },
+              {
+                "name": "projectId",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "taskId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "tasks",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              6
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 10
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "title",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "phases"
+          },
+          {
+            "kind": "literal",
+            "value": "hierarchical"
+          },
+          {
+            "kind": "array",
+            "element": 15
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "acceptance",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "artifacts",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "cwd",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "dependsOn",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "goal",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "parentTaskId",
+                "type": 8,
+                "optional": false
+              },
+              {
+                "name": "phaseId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "required",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "scope",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              19,
+              20
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "model"
+          },
+          {
+            "kind": "literal",
+            "value": "user"
+          }
+        ]
+      },
+      "names": [
+        "packages/workspace/personal-workflow/src/types.ts#WorkflowSnapshot"
+      ],
+      "sources": [
+        "packages/workspace/personal-workflow/src/types.ts:90"
+      ]
     },
     {
       "digest": "cd186c309e2bef305705e1d324139240f5e681f4f6a957d6a25b0225f65560df",
@@ -118467,258 +118872,6 @@
       },
       "names": [],
       "sources": []
-    },
-    {
-      "digest": "d1a99b37e789eed7d3bb02e6d596ab8f6c162813b7308029fdda8b4606c52844",
-      "schema": {
-        "root": 0,
-        "nodes": [
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "operationId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "snapshot",
-                "type": 2,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 1,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "approval",
-                "type": 3,
-                "optional": false
-              },
-              {
-                "name": "createdAt",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "definition",
-                "type": 7,
-                "optional": false
-              },
-              {
-                "name": "goalId",
-                "type": 1,
-                "optional": true
-              },
-              {
-                "name": "revision",
-                "type": 5,
-                "optional": false
-              },
-              {
-                "name": "sessionId",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "source",
-                "type": 15,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              4,
-              6
-            ]
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "operationId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "time",
-                "type": 5,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "primitive",
-            "type": "number"
-          },
-          {
-            "kind": "primitive",
-            "type": "null"
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "botId",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "phases",
-                "type": 9,
-                "optional": false
-              },
-              {
-                "name": "projectId",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "taskId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "tasks",
-                "type": 11,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "union",
-            "types": [
-              1,
-              6
-            ]
-          },
-          {
-            "kind": "array",
-            "element": 10
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "id",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "title",
-                "type": 1,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 12
-          },
-          {
-            "kind": "object",
-            "properties": [
-              {
-                "name": "acceptance",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "artifacts",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "cwd",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "dependsOn",
-                "type": 13,
-                "optional": false
-              },
-              {
-                "name": "goal",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "id",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "parentTaskId",
-                "type": 8,
-                "optional": false
-              },
-              {
-                "name": "phaseId",
-                "type": 1,
-                "optional": false
-              },
-              {
-                "name": "required",
-                "type": 14,
-                "optional": false
-              },
-              {
-                "name": "scope",
-                "type": 1,
-                "optional": false
-              }
-            ],
-            "indices": []
-          },
-          {
-            "kind": "array",
-            "element": 1
-          },
-          {
-            "kind": "primitive",
-            "type": "boolean"
-          },
-          {
-            "kind": "union",
-            "types": [
-              16,
-              17
-            ]
-          },
-          {
-            "kind": "literal",
-            "value": "user"
-          },
-          {
-            "kind": "literal",
-            "value": "model"
-          }
-        ]
-      },
-      "names": [
-        "packages/workspace/personal-workflow/src/types.ts#WorkflowSnapshot"
-      ],
-      "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:88"
-      ]
     },
     {
       "digest": "d28765f87d6b6ab408e0b2f3e7e297791b004b806d8e302c49903ebae815feb2",
@@ -121401,7 +121554,7 @@
       },
       "names": [],
       "sources": [
-        "packages/skill/skill-dev-workflow/src/index.ts:24"
+        "packages/workspace/personal-workflow/src/types.ts:239"
       ]
     },
     {
@@ -127389,7 +127542,7 @@
         "packages/workspace/personal-workflow/src/types.ts#WorkflowAssessmentContext"
       ],
       "sources": [
-        "packages/workspace/personal-workflow/src/types.ts:220"
+        "packages/workspace/personal-workflow/src/types.ts:222"
       ]
     },
     {

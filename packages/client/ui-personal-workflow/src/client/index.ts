@@ -64,7 +64,10 @@ export function apply(ctx: Context): void {
   }, Workflow))
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left', id: 'personal-workflow-mode', locale: 'personalWorkflow',
-    inject: (): ModeActions => ({
+    inject: (sessionId): ModeActions => ({
+      personalPlanning: ctx.sessions.binding(sessionId)?.controls === undefined,
+      readPlanningPreferences: async () => valueOf(await ctx.remote.session.workflowPreferences()),
+      setPlanningPreferences: async request => valueOf(await ctx.remote.session.workflowSetPreferences(request)),
       readTesting: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
       readMode: async sessionId => ctx.sessions.binding(sessionId)?.controls?.readMode()
         ?? valueOf(await ctx.remote.session.workflowMode(sessionId)),

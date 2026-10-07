@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, TaskDetail, TaskStages, IconBranchOutlineRegular, IconRefreshOutlineRegular, IconEditOutlineRegular, IconDownloadOutlineRegular, IconCheckOutlineRegular, IconNewChatOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OperationId, PlanDefinition, PlanView, TaskDefinition, TaskId, PhaseId } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { WorkflowProps } from './contract.ts'
-import { overlappingArtifacts } from './view.ts'
+import { overlappingArtifacts, taskExecutions } from './view.ts'
 import { TaskMindMap } from './TaskMindMap.tsx'
 import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -28,6 +28,7 @@ export function Workflow(props: WorkflowProps) {
   const definition = draft ?? view?.snapshot.definition
   const task = definition?.tasks.find(item => item.id === taskId)
   const status = view?.tasks.find(item => item.taskId === taskId)
+  const executions = task && view ? taskExecutions(view.runs ?? [], task.id) : []
   const operationId = (fingerprint: string): OperationId => {
     if (receipt.current?.fingerprint !== fingerprint) receipt.current = { fingerprint, operationId: randomUUID() as OperationId }
     return receipt.current.operationId
@@ -63,7 +64,7 @@ export function Workflow(props: WorkflowProps) {
   const names = (ids: readonly TaskId[]): string => ids.map(id => definition?.tasks.find(item => item.id === id)?.goal ?? id).join(' · ') || t('none')
   const linkedSessions = task === undefined || view === undefined ? [] : [...new Set([
     ...(view.snapshot.sessionId === null ? [] : [view.snapshot.sessionId]),
-    ...(view.runs ?? []).filter(run => run.taskId === task.id).flatMap(run => run.sessions),
+    ...(view.runs ?? []).filter(run => run.taskId === task.id || run.sequence?.taskIds.includes(task.id)).flatMap(run => run.sessions),
   ])]
   const taskContent = task && definition && view && <>
     {status !== undefined && <div className={css.taskProgress}>
@@ -149,7 +150,7 @@ export function Workflow(props: WorkflowProps) {
                 </> },
                 { id: 'evidence', label: t('evidenceTitle'), content: <>
                   <section className={css.detailSection}><h4>{t('evidenceTitle')}</h4>
-                    {(view.runs ?? []).filter(run => run.taskId === task.id).map(run => <div className={css.evidence} key={run.id}>
+                    {executions.map(run => <div className={css.evidence} key={run.id}>
                       <p>{t('revision', { revision: run.planRevision })} · {t(run.status)}</p>
                       {run.evidence.map((evidence, index) => <div key={index}><p className={css.prose}>{evidence.summary}</p>
                         {evidence.files.map(file => <details className={css.evidenceFile} key={file.path}>
@@ -157,7 +158,7 @@ export function Workflow(props: WorkflowProps) {
                         </details>)}
                       </div>)}
                     </div>)}
-                    {!(view.runs ?? []).some(run => run.taskId === task.id && run.evidence.length) && <p className={css.hint}>{t('noEvidence')}</p>}
+                    {!executions.some(run => run.evidence.length) && <p className={css.hint}>{t('noEvidence')}</p>}
                     {overlappingArtifacts(definition.tasks, task).length > 0 && <p className={css.notice}>{t('overlap', { paths: overlappingArtifacts(definition.tasks, task).join(', ') })}</p>}
                   </section>
                 </> },

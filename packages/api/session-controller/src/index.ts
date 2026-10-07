@@ -7,7 +7,11 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { ReasoningEffortId, errorChain } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, errorChain, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { randomUUID } from 'node:crypto'
+import type {} from '@deepseek-ai/dsh-permission-presets'
+import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import type { PersonalWorkflow, SavePlanRequest, ApprovePlanRequest, ReadPlanRequest, SnapshotPlanRequest, PlanRevision, PlanView, WorkflowSnapshot } from '@deepseek-ai/dsh-personal-workflow'
 import { PersonalProjectRegistry } from '@deepseek-ai/dsh-personal-project'
 import type { BotId, BotModel, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
@@ -147,6 +151,7 @@ export class SessionController extends TypertRemoteService {
   private readonly revealPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
   private readonly promotions = new Set<Promise<void>>()
+  private readonly workflowRelays = new Map<SessionId, Promise<void>>()
 
   /**
    * @param ctx - Host context containing the Session capability assembly.
@@ -159,6 +164,20 @@ export class SessionController extends TypertRemoteService {
     installModelSelectionProjection(ctx)
     this.agents = new ApiSessionAgentController(ctx)
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
+    let relayActive = true
+    ctx.effect(() => async () => {
+      relayActive = false
+      await Promise.allSettled([...this.workflowRelays.values()])
+    }, 'session-controller.workflow-relays')
+    ctx.on('agent/status', ({ agent, status }) => {
+      if (!relayActive || status !== 'idle' || this.workflowRelays.has(agent.id)) return
+      const run = ctx.get('personalWorkflow')?.execution.forSession(agent.id)
+      if (run?.sessionId !== agent.id || run.reason !== 'phase-relay-ready' || run.status !== 'paused') return
+      const operation = this.relayWorkflow(agent, () => relayActive).catch((error: unknown) => {
+        ctx.logger.warn('personal-workflow automatic relay paused: %s', error instanceof Error ? error.message : String(error))
+      }).finally(() => { this.workflowRelays.delete(agent.id) })
+      this.workflowRelays.set(agent.id, operation)
+    })
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)
       if ('error' in result) throw result.error
@@ -443,12 +462,64 @@ export class SessionController extends TypertRemoteService {
   async workflowHandoff(request: import('@deepseek-ai/dsh-personal-workflow/types').HandoffTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun> {
     const source = await this.personalSession(request.sessionId)
     const handoff = await this.workflow().execution.prepareHandoff(source, request)
+    if (handoff.status === 'transferred') {
+      return this.workflow().execution.finishHandoff(await this.personalSession(handoff.targetSessionId), request.runId, handoff.id)
+    }
+    const resolved = await this.agents.resolveAgent(source.id)
+    if ('error' in resolved) throw resolved.error
+    const selection = this.agents.selectionFor(resolved.agent).current
     const { projectId, botId } = handoff.snapshot.definition
     await this.commands.create({ sessionId: handoff.targetSessionId, cwd: handoff.baseline.cwd,
+      selection: { ...selection, backend: resolved.agent.options.backend?.kind === 'codex' ? 'codex' : 'harness-api' },
       ...(projectId === null ? {} : { projectId }), ...(botId === null ? {} : { botId }),
       ...(source.header.agentPreset === undefined ? {} : { agentPreset: source.header.agentPreset }),
     })
-    return this.workflow().execution.finishHandoff(await this.personalSession(handoff.targetSessionId), request.runId, handoff.id)
+    const target = await this.personalSession(handoff.targetSessionId)
+    const presets = this.ctx.get('permissionPresets')
+    const preset = presets?.current(source)
+    if (presets !== undefined && preset !== undefined && preset !== 'custom') presets.set(target, preset)
+    using sourcePermissions = await this.ctx.sessionQuery.observeSession(source.id, { projectionMode: 'none' })
+    using targetPermissions = await this.ctx.sessionQuery.observeSession(target.id, { projectionMode: 'none' })
+    const sourceEvents = sourcePermissions.events, targetEvents = targetPermissions.events
+    const sandbox = sourceEvents.findLast(event => event.type === 'sandbox/mode')
+    const approval = sourceEvents.findLast(event => event.type === 'approval/policy')
+    if (sandbox !== undefined && sandbox.data.mode !== targetEvents.findLast(event => event.type === 'sandbox/mode')?.data.mode) {
+      setSandboxMode(target, sandbox.data.mode)
+    }
+    if (approval !== undefined && approval.data.policy !== targetEvents.findLast(event => event.type === 'approval/policy')?.data.policy) {
+      setApprovalPolicy(target, approval.data.policy)
+    }
+    if (!await this.ctx.sessions.flush(target)) throw new Error('handoff-permissions-not-durable')
+    return await this.workflow().execution.finishHandoff(target, request.runId, handoff.id)
+  }
+
+  private async relayWorkflow(source: Agent, active: () => boolean): Promise<void> {
+    await source.whenIdle()
+    if (!active()) return
+    const execution = this.workflow().execution
+    const run = execution.forSession(source.id)
+    if (run?.sessionId !== source.id || run.status !== 'paused' || run.reason !== 'phase-relay-ready'
+      || run.authorization.relayEveryPhases === undefined || run.sequence === undefined) return
+    const instructions: string[] = []
+    for (const sessionId of run.sessions) {
+      using observation = await this.ctx.sessionQuery.observeSession(sessionId, { projectionMode: 'none' })
+      for (const event of observation.events) if (event.type === 'user/message' && event.data.source.kind === 'user') {
+        for (const part of event.data.content) if (part.type === 'text') instructions.push(part.text)
+      }
+    }
+    const context = `Continue the authorized phase sequence in the same workspace. Preserve the original instructions and completed evidence. Execute only the current task; the application owns phase advancement.\n${JSON.stringify({ instructions, sequence: run.sequence, authorization: run.authorization })}`
+    if (Buffer.byteLength(context, 'utf8') > execution.limits.maxEvidenceBytes) throw new Error('relay-context-exceeds-configured-limit')
+    if (!active() || execution.forSession(source.id)?.reason !== 'phase-relay-ready') return
+    const transferred = await this.workflowHandoff({ sessionId: source.id, runId: run.id, ownerEpoch: run.ownerEpoch,
+      operationId: randomUUID() as import('@deepseek-ai/dsh-personal-workflow/types').OperationId, context })
+    if (!active()) return
+    await this.workflowResume({ sessionId: transferred.sessionId, runId: run.id, ownerEpoch: transferred.ownerEpoch,
+      operationId: randomUUID() as import('@deepseek-ai/dsh-personal-workflow/types').OperationId, reconciliation: '' })
+    const target = await this.agents.resolveAgent(transferred.sessionId)
+    if ('error' in target) throw target.error
+    if (!active()) return
+    target.agent.followup(createUserMessage({ source: { kind: 'personal-workflow-continue' }, content: [{ type: 'text', text: context }] }))
+    if (!await this.ctx.sessions.flush(target.agent.session)) throw new Error('relay-input-not-durable')
   }
 
   /** List current task plans without activating execution.

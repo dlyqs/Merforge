@@ -25,13 +25,15 @@ export const storedPlanSchema: z.ZodType<StoredPlan> = z.object({
   for (const run of plan.runs ?? []) {
     const revision = plan.revisions[run.planRevision - 1]
     const task = revision?.definition.tasks.find(task => task.id === run.taskId)
-    const key = `${run.planRevision}:${run.taskId}`
-    if (runIds.has(run.id) || taskAttempts.has(key) || run.planId !== plan.taskId || task === undefined) {
+    const ownedTasks = run.sequence?.taskIds ?? [run.taskId]
+    if (runIds.has(run.id) || ownedTasks.some(id => taskAttempts.has(`${run.planRevision}:${id}`)) || run.planId !== plan.taskId || task === undefined) {
       ctx.addIssue({ code: 'custom', message: 'invalid or duplicate task execution identity' })
     }
-    runIds.add(run.id); taskAttempts.add(key)
+    runIds.add(run.id); for (const id of ownedTasks) taskAttempts.add(`${run.planRevision}:${id}`)
     if (run.sessionId !== run.sessions.at(-1) || run.ownerEpoch !== run.sessions.length
-      || run.authorization.stopPhaseId !== task?.phaseId || run.turnsUsed > run.authorization.maxTurns
+      || (run.sequence === undefined && (run.authorization.stopPhaseId !== task?.phaseId
+        || run.authorization.startPhaseId !== undefined || run.authorization.relayEveryPhases !== undefined))
+      || run.turnsUsed > run.authorization.maxTurns
       || run.actions.length > run.authorization.maxActions) {
       ctx.addIssue({ code: 'custom', message: 'invalid execution owner or authorization accounting' })
     }
@@ -42,17 +44,44 @@ export const storedPlanSchema: z.ZodType<StoredPlan> = z.object({
     if (new Set(run.actions.map(action => action.callId)).size !== run.actions.length) {
       ctx.addIssue({ code: 'custom', message: 'duplicate admitted action' })
     }
+    if (run.sequence !== undefined) {
+      const sequence = run.sequence, phases = revision?.definition.phases ?? []
+      const start = phases.findIndex(phase => phase.id === run.authorization.startPhaseId)
+      const stop = phases.findIndex(phase => phase.id === run.authorization.stopPhaseId)
+      const ordered = phases.slice(start, stop + 1).flatMap(phase => revision?.definition.tasks
+        .filter(task => task.phaseId === phase.id && task.id !== plan.taskId).map(task => task.id) ?? [])
+      if (stop === phases.length - 1) ordered.push(plan.taskId)
+      const previouslyCompleted = new Set((plan.runs ?? []).filter(item => item.id !== run.id && item.planRevision === run.planRevision)
+        .flatMap(item => [...item.status === 'completed' ? [item.taskId] : [], ...(item.sequence?.completed.map(task => task.taskId) ?? [])]))
+      const remaining = ordered.filter(id => !previouslyCompleted.has(id))
+      if (revision?.definition.planningMode !== 'phases' || run.authorization.mode === 'manual' || start < 0 || stop < start
+        || (run.authorization.mode === 'auto' && stop !== phases.length - 1)
+        || JSON.stringify(sequence.taskIds) !== JSON.stringify(remaining)
+        || sequence.taskIds[sequence.completed.length] !== run.taskId
+        || sequence.completed.some((item, index) => item.taskId !== sequence.taskIds[index])) {
+        ctx.addIssue({ code: 'custom', message: 'invalid ordered phase execution range or progress' })
+      }
+      for (const [index, item] of sequence.completed.entries()) {
+        const completedTask = revision?.definition.tasks.find(task => task.id === item.taskId)
+        const start = sequence.completed[index - 1]?.actionsUsed ?? 0
+        if (item.actionsUsed < start || item.actionsUsed > run.actions.length || item.evidence.some(evidence => (run.backend === 'codex') !== (evidence.reportedBy === 'codex')
+          || evidence.acceptance.length !== completedTask?.acceptance.length || evidence.files.some(file => file.sha256 === null)
+          || evidence.callIds.some(id => !run.actions.slice(start, item.actionsUsed).some(action => action.callId === id && action.status === 'succeeded')))) {
+          ctx.addIssue({ code: 'custom', message: 'phase completion lacks verified evidence' })
+        }
+      }
+    }
     if (run.status === 'completed' && (!run.evidence.length || run.evidence.some(evidence =>
       (run.backend === 'codex') !== (evidence.reportedBy === 'codex')
       || evidence.acceptance.length !== task?.acceptance.length || evidence.files.some(file => file.sha256 === null)
-      || evidence.callIds.some(id => !run.actions.some(action => action.callId === id && action.status === 'succeeded'))))) {
+      || evidence.callIds.some(id => !run.actions.slice(run.sequence?.completed.at(-1)?.actionsUsed ?? 0).some(action => action.callId === id && action.status === 'succeeded'))))) {
       ctx.addIssue({ code: 'custom', message: 'completed execution lacks verified evidence' })
     }
     if (run.handoffs.filter(handoff => handoff.status === 'prepared').length > 1) {
       ctx.addIssue({ code: 'custom', message: 'multiple pending transfers' })
     }
     for (const handoff of run.handoffs) {
-      if (handoff.runId !== run.id || handoff.taskId !== run.taskId || handoff.planRevision !== run.planRevision
+      if (handoff.runId !== run.id || !ownedTasks.includes(handoff.taskId) || handoff.planRevision !== run.planRevision
         || handoff.snapshot.revision !== run.planRevision || handoff.snapshot.definition.taskId !== plan.taskId
         || run.sessions[handoff.ownerEpoch - 1] !== handoff.sourceSessionId
         || (handoff.status === 'transferred' && run.sessions[handoff.ownerEpoch] !== handoff.targetSessionId)

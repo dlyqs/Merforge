@@ -2478,7 +2478,7 @@ class FaceAnalyzer {
         arguments: node.typeArguments?.map(argument => this.convertType(argument)) ?? [],
         typeof: node.isTypeOf,
         ...(node.attributes === undefined ? {} : { attributes: importTypeAttributesText(node) }),
-        ...(symbol === undefined ? {} : { target: this.targetForReference(this.resolveSymbol(symbol), node) }),
+        ...(symbol === undefined || node.isTypeOf ? {} : { target: this.targetForReference(this.resolveSymbol(symbol), node) }),
       })
     }
     if (ts.isTypePredicateNode(node)) {

@@ -110,11 +110,11 @@ The catalog includes registered native drivers separately from API adapters. Cre
 
 ## Model Experience
 
-None, as invoked Agent commands own any model-visible effect.
+Automatic personal phase relay submits original user text, completed phase evidence and unchanged authorization as a logged continuation. Invoked Agents own model requests.
 
 #### KV Cache effect
 
-No direct effect; model requests remain owned by the Agent and LLM packages.
+Each automatic phase receiver starts a fresh model context containing its logged continuation and current task facts. Model requests remain owned by the Agent and LLM packages.
 
 ## Known Limitations and Deferred Work
 
@@ -161,3 +161,7 @@ Backend switching creates an empty successor through the ordinary Controller. Ac
 `ctx.sessions.createDraft(options)` creates an uncatalogued Client-memory Session face with local model, permission and planning choices. The optional `loadPermissions` reader initializes the permission projection from the Host catalog. Valid `/permission <preset>` choices update only that draft, then execute through the materialized Session command before its first submitted input; a rejected change prevents prompt admission. Only submitted nonempty prompts or commands invoke the caller's deferred attachment; navigation and typing create no Host records. The navigation owner disposes the draft when its account or selection retires.
 
 Native model catalog groups include the CLI `runtimeVersion` observed in the same detection as their models. Organization dispatch uses that version in its explicit local execution request. API model groups omit it.
+
+## Authorized personal phase relay
+
+`workflowClaim` accepts an explicit inclusive phase range and optional `relayEveryPhases` on ordered personal plans. The Controller observes a settled source idle with `phase-relay-ready`, retains the original user inputs and completed evidence, and uses the existing durable Handoff transaction to create a same-directory receiver. API model selection and native Codex model/effort are preserved. Before ownership transfer, the receiver durably inherits the source permission preset and current sandbox and approval settings, including custom settings. The Controller resumes the receiver under the original cumulative authorization and logs `personal-workflow-continue` before execution. Relay context is bounded by `maxEvidenceBytes`. Pending relay operations drain on Controller disposal; restart and failed transfers require explicit recovery. Ordinary manual Handoff still creates a paused receiver without a prompt.

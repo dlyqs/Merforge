@@ -7,6 +7,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkflowActions } from './contract.ts'
 import type { OperationId, PlanDefinition, PlanView, TaskId } from '@deepseek-ai/dsh-personal-workflow/types'
 import { TaskMindMap } from './TaskMindMap.tsx'
+import { taskExecutions } from './view.ts'
 import { taskWorkspaceStyles as css } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** @param props - Keyed durable node, current plan reads and explicit save callback.
@@ -26,6 +27,7 @@ export function ConversationPlan(props: Pick<ChatNodeViewProps<'personal-plan'>,
     return () => { active = false }
   }, [props.node.data.taskId, props.node.data.snapshot.revision, reload])
   const definition = draft ?? view?.snapshot.definition, task = definition?.tasks.find(t => t.id === selected)
+  const executions = task && view ? taskExecutions(view.runs ?? [], task.id) : []
   const save = async () => {
     if (!draft || !view || busy) return
     setBusy(true); setError(''); operation.current ??= randomUUID() as OperationId
@@ -55,13 +57,13 @@ export function ConversationPlan(props: Pick<ChatNodeViewProps<'personal-plan'>,
     {task && view && <section>
       <h4>{props.t('evidenceTitle')}</h4>
       <p>{props.t('artifactsTitle')}: {task.artifacts.join(', ')}</p>
-      {(view.runs ?? []).filter(run => run.taskId === task.id).map(run => <div key={run.id}>
+      {executions.map(run => <div key={run.id}>
         <p>{props.t(run.status)}</p>
         {run.evidence.map((evidence, index) => <div key={index}><p>{evidence.summary}</p>
           <ul>{evidence.files.map(file => <li key={file.path}>{file.path}: {file.sha256}</li>)}</ul>
         </div>)}
       </div>)}
-      {!(view.runs ?? []).some(run => run.taskId === task.id && run.evidence.length) && <p>{props.t('noEvidence')}</p>}
+      {!executions.some(run => run.evidence.length) && <p>{props.t('noEvidence')}</p>}
     </section>}
     {error && <p role="alert">{props.t('error', { message: error })}</p>}
     <Button disabled={busy} onClick={() => { setDraft(undefined); operation.current = undefined; setError(''); setReload(n => n + 1) }}>{props.t('refresh')}</Button>

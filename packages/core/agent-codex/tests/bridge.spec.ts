@@ -8,9 +8,9 @@ import Commands from '@deepseek-ai/dsh-commands'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
 import FileUploads from '../../../client/file-upload/src/index.ts'
 import { MockAdapter } from '../../agent-loop/tests/mock-adapter.ts'
-import { createSessionTestRemote } from '../../../api/session-controller/tests/test-remote.ts'
+import { createSessionTestRemote, createSessionTestController } from '../../../api/session-controller/tests/test-remote.ts'
 import type { SessionRequestId } from '../../../api/session-controller/src/types.ts'
-import { proposal, ids, phase, operation } from '../../../workspace/personal-workflow/tests/fixture.ts'
+import { proposal, ids, phase, operation, phaseDefinition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import { boot, fixture, readStored, input, selection } from './harness.ts'
 
 it('drains an in-flight model discovery when the native provider unloads', async () => {
@@ -431,6 +431,35 @@ it('dispatches selected task materials through real workflow admission and recor
   const stored = await readStored(ctx, handle.agent.id)
   expect(stored.events.some(event => event.type === 'codex/request')).toBe(true)
   expect(stored.events.some(event => event.type === 'codex/request-result')).toBe(true)
+})
+
+it.each([undefined, 1])('advances native phases with relay batch %s while retaining native model and authorization', async (relayEveryPhases) => {
+  const { ctx, root, peer } = await fixture(true, true)
+  const definition = phaseDefinition(3)
+  await ctx.personalWorkflow.save({ definition, expectedRevision: 0, operationId: operation(1) })
+  await ctx.personalWorkflow.approve({ taskId: ids[0]!, expectedRevision: 1, operationId: operation(2) })
+  const controller = createSessionTestController(ctx, { defaultModelSelection: () => ({ provider: 'codex', model: 'native-test' }), cwd: root })
+  const { sessionId } = await controller.create({ selection: { backend: 'codex', provider: 'codex', model: 'native-test', reasoningEffort: 'medium' }, cwd: root })
+  const claimed = await controller.workflowClaim({ sessionId, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 1, operationId: operation(3),
+    authorization: { mode: 'auto', startPhaseId: definition.phases[0]!.id, stopPhaseId: definition.phases.at(-1)!.id,
+      maxActions: 10, maxTurns: 10, maxDurationMs: 100000, ...(relayEveryPhases === undefined ? {} : { relayEveryPhases }) } })
+  peer.onTurn = async (server, threadId, turnId) => {
+    expect(await server.request('item/tool/call', { threadId, turnId, callId: `complete-${turnId}`, tool: 'workflow_complete',
+      arguments: { summary: `Verified ${turnId}`, acceptance: ['Reported criterion met'], callIds: [] } })).toMatchObject({ success: true })
+  }
+  const source = ctx.agents.get(sessionId)!
+  source.followup(input('Execute this reviewed native phase sequence and retain these instructions'))
+  await source.whenIdle()
+  await vi.waitFor(() => { expect(ctx.personalWorkflow.execution.forSession(sessionId)).toMatchObject({ taskId: ids[0], status: 'completed' }) }, { timeout: 10000 })
+  const completed = ctx.personalWorkflow.execution.forSession(sessionId)!
+  await ctx.agents.get(completed.sessionId)!.whenIdle()
+  expect(completed).toMatchObject({ backend: 'codex', id: claimed.id, authorization: claimed.authorization, turnsUsed: 4, startedAt: claimed.startedAt })
+  expect(completed.sequence?.completed).toHaveLength(3)
+  expect(completed.sessions).toHaveLength(relayEveryPhases === undefined ? 1 : 3)
+  for (const id of completed.sessions) expect(ctx.agents.get(id)?.options.backend).toEqual(selection)
+  expect(peer.calls.filter(call => call.method === 'thread/start')).toHaveLength(relayEveryPhases === undefined ? 1 : 3)
+  expect(peer.calls.filter(call => call.method === 'turn/start')).toHaveLength(4)
+  expect(ctx.personalWorkflow.list()[0]?.tasks.every(task => task.status === 'completed')).toBe(true)
 })
 
 it('pauses and explicitly resumes native tasks without reading artifacts or requiring Git', async () => {

@@ -8,10 +8,14 @@ import type { OperationId, PhaseId, TaskId, TaskStatus, PlanRevision } from './t
 export type RunId = Branded<'PersonalWorkflowRunId'>
 /** Persisted transfer identity. */
 export type HandoffId = Branded<'PersonalWorkflowHandoffId'>
-/** Explicit authorization for one selected task and its one approved phase. */
+/** Explicit task or inclusive phase-range authorization; budgets span the entire execution. */
 export interface ExecutionAuthorization {
   readonly mode: 'manual' | 'auto' | 'auto_until'
   readonly stopPhaseId: PhaseId
+  /** Present only for an explicitly authorized ordered phase sequence. */
+  readonly startPhaseId?: PhaseId | undefined
+  /** Create a fresh conversation after this many completed phases; omitted disables automatic relay. */
+  readonly relayEveryPhases?: number | undefined
   readonly maxActions: number
   readonly maxTurns: number
   readonly maxDurationMs: number
@@ -64,6 +68,15 @@ export interface TaskHandoff {
 }
 /** One attempt with a single current owner and retained conversation history. */
 export interface TaskRun {
+  /** Fixed authorized order and independently verified completed tasks across phase progression. */
+  readonly sequence?: {
+    readonly taskIds: readonly TaskId[]
+    readonly completed: readonly {
+      readonly taskId: TaskId
+      readonly evidence: readonly ExecutionEvidence[]
+      readonly actionsUsed: number
+    }[]
+  } | undefined
   /** Absent on historical API runs; fixed at explicit task selection. */
   readonly backend?: 'codex' | undefined
   readonly id: RunId

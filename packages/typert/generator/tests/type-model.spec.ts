@@ -268,6 +268,21 @@ describe('WorkspaceAnalyzer', { timeout: 60_000 }, () => {
     expect(declarations.some(declaration => declaration.name === 'IgnoredDeclaration')).toBe(false)
   })
 
+  it('retains an imported runtime value query without treating the variable as a type declaration', () => {
+    const root = copyFixture('typert-imported-value-query-')
+    const modelsPath = join(root, 'packages/host/src/models.ts')
+    writeFileSync(modelsPath, `${readFileSync(modelsPath, 'utf8')}\n/** Recorded receipt fields. */\nexport const documentedReceipt = { revision: 1 }\n`)
+    const sourcePath = join(root, 'packages/host/src/index.ts')
+    writeFileSync(sourcePath, `${readFileSync(sourcePath, 'utf8')}\n/** Receipt value type. @typert schema */\nexport type ImportedReceipt = typeof import('./models.ts').documentedReceipt\n`)
+
+    const host = new WorkspaceAnalyzer({ root }).analyze().faces.find(face => face.face === 'host')!
+    const query = host.graph.nodes.find(node => node.kind === 'import-type' && node.qualifier === 'documentedReceipt')!
+    expect(query).toMatchObject({ kind: 'import-type', module: './models.ts', qualifier: 'documentedReceipt', typeof: true })
+    expect(query).not.toHaveProperty('target')
+    expect(host.graph.declarations.some(declaration => declaration.name === 'documentedReceipt')).toBe(false)
+    expect(new TypeGraphRenderer(host.graph).renderType(query.id)).toBe("typeof import('./models.ts').documentedReceipt")
+  })
+
   it('covers every modeled discriminant with source-authored fixture syntax', () => {
     const model = new WorkspaceAnalyzer({ root: fixtureRoot }).analyze()
     const nodes = model.faces.flatMap(face => face.graph.nodes)

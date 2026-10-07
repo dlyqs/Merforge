@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import Agents from '@deepseek-ai/dsh-agent'
@@ -14,14 +14,82 @@ import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Llm, { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import Typert from '@deepseek-ai/dsh-typert-registry'
 import Gateway from '@deepseek-ai/dsh-api-gateway'
 import * as PersonalRuntime from '@deepseek-ai/dsh-personal-project/runtime'
 import * as Method from '../../../packages/skill/skill-dev-workflow/src/index.ts'
 import { createWorkflowHarness } from '../../../packages/workspace/personal-workflow/tests/harness.ts'
-import { ids, phase, operation, proposal } from '../../../packages/workspace/personal-workflow/tests/fixture.ts'
+import { ids, phase, operation, proposal, phaseDefinition } from '../../../packages/workspace/personal-workflow/tests/fixture.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../packages/core/agent-loop/tests/mock-adapter.ts'
 import { createSessionTestController } from '../../../packages/api/session-controller/tests/test-remote.ts'
+
+it('executes approved phases across automatically created conversations with one authorization and durable evidence', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'desktop-phase-relay-'))
+  const fixture = { name: 'phase-tools', inject: ['tools'], apply(ctx: Context) {
+    ctx.effect(() => ctx.tools.register(defineTool({ name: 'phase_output', description: 'Write and read the phase artifact',
+      parameters: { index: { type: 'integer', required: true } },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      async execute({ index }) {
+        await mkdir(join(root, 'out'), { recursive: true })
+        const path = join(root, 'out', ids[index]!)
+        await writeFile(path, `verified phase ${index}`)
+        return readFile(path, 'utf8')
+      },
+    })))
+  } }
+  const { ctx, service } = await createWorkflowHarness(root, [
+    ['systemPrompt', SystemPrompt], ['agents', Agents], ['tools', Tools], ['skills', Skills], ['llm', Llm],
+    ['method', Method], ['personalRuntime', PersonalRuntime], ['phaseTools', fixture],
+  ])
+  try {
+    const definition = phaseDefinition(3)
+    await service.save({ definition, expectedRevision: 0, operationId: operation(1) })
+    await service.approve({ taskId: ids[0]!, expectedRevision: 1, operationId: operation(2) })
+    const model = new MockAdapter([1, 2, 3, 0].flatMap(index => [
+      toolCallResponse(`phase-${index}`, 'phase_output', { index }),
+      toolCallResponse(`complete-${index}`, 'workflow_complete', { summary: `Phase ${index} checked`, acceptance: ['Verified actual output'], callIds: [`phase-${index}`] }),
+    ]))
+    ctx.llm.registerAdapter(['phase-worker'], model)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(Typert)
+    const controller = createSessionTestController(ctx, { defaultModelSelection: () => ({ provider: 'phase-worker', model: 'mock' }), cwd: root })
+    await ctx.plugin(Gateway, {})
+    const { sessionId } = await controller.create({ cwd: root })
+    const source = ctx.agents.get(sessionId)!
+    setSandboxMode(source.session, 'workspace-write')
+    setApprovalPolicy(source.session, 'never')
+    await ctx.typertGateway.invoke({ namespace: 'session', method: 'workflowClaim', args: { request: { sessionId, planId: ids[0]!, taskId: ids[1]!, expectedRevision: 1, operationId: operation(3),
+      authorization: { mode: 'auto', startPhaseId: definition.phases[0]!.id, stopPhaseId: definition.phases.at(-1)!.id,
+        relayEveryPhases: 1, maxActions: 10, maxTurns: 10, maxDurationMs: 100000 } } } })
+    const run = controller.workflowRun(sessionId)!
+    source.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Execute the authorized phases. Keep the exact LF output requirement across every conversation.' }] }))
+    await source.whenIdle()
+    await vi.waitFor(() => { expect(service.execution.forSession(sessionId)?.taskId).toBe(ids[0]); expect(service.execution.forSession(sessionId)?.status).toBe('completed') }, { timeout: 10000 })
+    const completed = service.execution.forSession(sessionId)!
+    await ctx.agents.get(completed.sessionId)!.whenIdle()
+    expect(completed).toMatchObject({ id: run.id, authorization: run.authorization, ownerEpoch: 3, turnsUsed: 4, startedAt: run.startedAt })
+    expect(completed.sessions).toHaveLength(3)
+    for (const id of completed.sessions) {
+      using observation = await ctx.sessionQuery.observeSession(id, { projectionMode: 'none' })
+      const events = observation.events
+      expect(events.findLast(event => event.type === 'sandbox/mode')?.data.mode).toBe('workspace-write')
+      expect(events.findLast(event => event.type === 'approval/policy')?.data.policy).toBe('never')
+    }
+    expect(completed.handoffs.map(item => item.status)).toEqual(['transferred', 'transferred'])
+    expect(completed.sequence?.completed.map(item => item.taskId)).toEqual([ids[1], ids[2], ids[3]])
+    expect(model.requests).toHaveLength(8)
+    expect(JSON.stringify(model.requests[2]?.messages)).toContain('exact LF output requirement')
+    expect(JSON.stringify(model.requests[4]?.messages)).toContain('Phase 1 checked')
+    for (const index of [1, 2, 3, 0]) expect(await readFile(join(root, 'out', ids[index]!), 'utf8')).toBe(`verified phase ${index}`)
+    expect(service.list()[0]?.tasks.every(task => task.status === 'completed')).toBe(true)
+    expect(service.execution.denial(source.session)).toBe('execution-owner-revoked')
+    await ctx.fiber.dispose()
+    const reopened = await createWorkflowHarness(root)
+    try { expect(reopened.service.execution.forSession(sessionId)).toEqual(completed) } finally { await reopened.ctx.fiber.dispose() }
+  } finally { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) }
+}, 30000)
 
 it('delivers CSV through reviewed fork/join tasks while handing one branch to a third conversation', async () => {
   const root = await mkdtemp(join(tmpdir(), 'desktop-workflow-'))
