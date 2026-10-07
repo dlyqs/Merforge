@@ -54,6 +54,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Projects
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -72,6 +76,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Bots
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -90,6 +98,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Recent
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
       </nav>
       <div
@@ -167,6 +179,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Projects
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -185,6 +201,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Bots
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -203,6 +223,10 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           <span>
             Recent
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
       </nav>
       <div
@@ -293,6 +317,10 @@ exports[`sidebar shell snapshots > renders the collapsed rail while keeping its 
           <span>
             Projects
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -311,6 +339,10 @@ exports[`sidebar shell snapshots > renders the collapsed rail while keeping its 
           <span>
             Bots
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -329,6 +361,10 @@ exports[`sidebar shell snapshots > renders the collapsed rail while keeping its 
           <span>
             Recent
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
       </nav>
       <div
@@ -406,6 +442,10 @@ exports[`sidebar shell snapshots > renders the expanded column (mode selector, c
           <span>
             Projects
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -424,6 +464,10 @@ exports[`sidebar shell snapshots > renders the expanded column (mode selector, c
           <span>
             Bots
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -442,6 +486,10 @@ exports[`sidebar shell snapshots > renders the expanded column (mode selector, c
           <span>
             Recent
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
       </nav>
       <div
@@ -532,6 +580,10 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           <span>
             项目
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -550,6 +602,10 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           <span>
             Bots
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
         <button
           class="navButton"
@@ -568,6 +624,10 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           <span>
             最近
           </span>
+          <div
+            data-slot="sidebar.navigation.badge"
+            style="display: contents;"
+          />
         </button>
       </nav>
       <div

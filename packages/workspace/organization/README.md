@@ -176,3 +176,5 @@ Authorized task views include `status`: `pending` before dispatch, `running` aft
 Shared delivery artifacts optionally retain the source file’s `modifiedAt` timestamp in milliseconds captured during upload. Older records may omit it. Uploaded bytes and hashes remain immutable; source paths are never shared.
 
 Authenticated accounts read their own portrait with `profile()` and replace it with `setProfile()`. The stored portrait is a bounded PNG data URL, separate from credentials and account enablement. Existing hierarchy visibility rules govern which member portraits are returned to other participants.
+
+Schema v24 adds recipient-specific `inbox_notification_reads`. The `read-inbox` participant command acknowledges an exact request and observed revision under current task visibility without accepting a task or delivery. Employee assignment responses notify the issuer; delivery decisions notify the employee. The issuer’s own delivery decision does not renew their submission notification. Read receipts retain audit revisions and survive restart; stale observations are rejected. Schema v23 databases migrate without changing existing submissions.

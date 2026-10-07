@@ -200,6 +200,7 @@ it('materializes one issuer review conversation from an authorized submission wi
   const request = conversationRequestSchema.parse({ kind: 'open-review', operationId: randomUUID(),
     organizationId: h.query.organizationId, projectId: h.query.projectId, conversationId: submissionId,
     review: { planId: h.query.planId, assignmentId, submissionId } })
+  if (request.kind !== 'open-review') throw new Error('review request required')
   const perform = () => organizationConversation(h.owner, local.host, request, () => {}, new AbortController().signal)
   const fetch = vi.spyOn(globalThis, 'fetch')
   const one = await perform(), two = await perform()
@@ -210,10 +211,63 @@ it('materializes one issuer review conversation from an authorized submission wi
   expect(two.result.history.filter(event => event.type === 'assistant/message'
     && event.data.message.source.provider === 'organization-delivery')).toHaveLength(1)
   expect(fetch.mock.calls.some(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).includes('/chat/completions'))).toBe(false)
+  const invalidConversationId = randomUUID()
+  await expect(organizationConversation(h.owner, local.host, conversationRequestSchema.parse({ ...request,
+    operationId: randomUUID(), conversationId: invalidConversationId }), () => {}, new AbortController().signal))
+    .rejects.toThrow('organization-conversation-unavailable')
   const catalog = await organizationConversation(h.owner, local.host, conversationRequestSchema.parse({
     kind: 'catalog', operationId: randomUUID(), organizationId: h.query.organizationId,
     projectId: h.query.projectId, conversationId: randomUUID() }), () => {}, new AbortController().signal)
-  expect(catalog.result.catalog?.conversations.find(item => item.conversationId === submissionId)?.title).toContain(summary)
+  expect(catalog.result.catalog?.conversations.find(item => item.conversationId === submissionId)?.title).toBe('Visible task')
+  expect(catalog.result.catalog?.conversations.some(item => item.conversationId === invalidConversationId)).toBe(false)
   await expect(organizationConversation(worker, local.host, request, () => {}, new AbortController().signal)).rejects.toThrow('forbidden')
+  expect(one.result.history.filter(event => event.type === 'organization/delivery-context')).toHaveLength(1)
+  const submitAgain = async (text: string) => (await worker.perform({ kind: 'delivery-command', request: { ...query, runId: null,
+    planRevision: 1, kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [], summary: text, target: '', confirmed: true } })).receipt!.delivery!.submissionId!
+  const secondId = await submitAgain('More evidence')
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items.some(item => item.request.id === secondId)).toBe(true) })
+  const secondRequest = conversationRequestSchema.parse({ ...request, operationId: randomUUID(),
+    review: { ...request.review, submissionId: secondId } })
+  const continued = await organizationConversation(h.owner, local.host, secondRequest, () => {}, new AbortController().signal)
+  expect(continued.result.sessionId).toBe(one.result.sessionId)
+  expect(continued.result.history.filter(event => event.type === 'organization/delivery-context')).toHaveLength(2)
+  const repeated = await organizationConversation(h.owner, local.host, secondRequest, () => {}, new AbortController().signal)
+  expect(repeated.result.history.filter(event => event.type === 'organization/delivery-context')).toHaveLength(2)
+  const renamed = await organizationConversation(h.owner, local.host, conversationRequestSchema.parse({ kind: 'rename',
+    organizationId: h.query.organizationId, projectId: h.query.projectId, conversationId: submissionId,
+    operationId: randomUUID(), title: 'Task approval: Visible task' }), () => {}, new AbortController().signal)
+  expect(renamed.result.review?.taskId).toBe(h.command.taskId)
+  await h.owner.perform({ kind: 'delivery-command', request: { ...query, runId: null, planRevision: 1,
+    kind: 'reject-delivery', operationId: randomUUID(), submissionId: secondId, artifacts: [], confirmed: true,
+    reason: 'More detail', requirements: 'Provide a revised report' } })
+  const reapproved = await h.owner.perform({ kind: 'assignment-command', request: { ...h.command,
+    operationId: randomUUID(), planRevision: 2 } })
+  const reworkId = reapproved.receipt!.assignmentId!
+  const reworkQuery = { ...query, assignmentId: reworkId }
+  const reworkPreparation = await worker.perform({ kind: 'assignment-preparation', request: reworkQuery })
+  if (reworkPreparation.assignment?.result.kind !== 'preparation') throw new Error('missing preparation')
+  await worker.perform({ kind: 'assignment-participant', request: { ...reworkQuery, kind: 'answer-assignment',
+    operationId: randomUUID(), requestId: reworkPreparation.assignment.result.value.request.id,
+    expectedVersion: reworkPreparation.assignment.result.value.assignment.version, answer: 'accepted' } })
+  const reworkSubmission = await worker.perform({ kind: 'delivery-command', request: { ...reworkQuery, runId: null,
+    planRevision: 2, kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [], summary: 'Revised report', target: '', confirmed: true } })
+  const reworkSubmissionId = reworkSubmission.receipt!.delivery!.submissionId!
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items.some(item => item.request.id === reworkSubmissionId)).toBe(true) })
+  const reworkRequest = conversationRequestSchema.parse({ ...request, operationId: randomUUID(),
+    review: { ...request.review, assignmentId: reworkId, submissionId: reworkSubmissionId } })
+  const reworked = await organizationConversation(h.owner, local.host, reworkRequest, () => {}, new AbortController().signal)
+  expect(reworked.result.sessionId).toBe(one.result.sessionId)
+  expect(reworked.result.title).toBe('Task approval: Visible task')
+  expect(reworked.result.history.filter(event => event.type === 'organization/delivery-context')).toHaveLength(3)
+  await organizationConversation(h.owner, local.host, conversationRequestSchema.parse({ kind: 'delete', organizationId: h.remote.query.organizationId, projectId: h.remote.query.projectId,
+    conversationId: request.conversationId, operationId: randomUUID() }), () => {}, new AbortController().signal)
+  const thirdId = (await worker.perform({ kind: 'delivery-command', request: { ...reworkQuery, runId: null,
+    planRevision: 2, kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [],
+    summary: 'After deleting the old conversation', target: '', confirmed: true } })).receipt!.delivery!.submissionId!
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items.some(item => item.request.id === thirdId)).toBe(true) })
+  const newRequest = conversationRequestSchema.parse({ ...request, operationId: randomUUID(), conversationId: thirdId,
+    review: { ...request.review, assignmentId: reworkId, submissionId: thirdId } })
+  const recreated = await organizationConversation(h.owner, local.host, newRequest, () => {}, new AbortController().signal)
+  expect(recreated.result.sessionId).not.toBe(one.result.sessionId)
   await local.service.verifyBindings()
 }, 20000)

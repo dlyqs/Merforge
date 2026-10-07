@@ -199,3 +199,5 @@ The generated Client inspect catalog is the exhaustive contract for each key: ca
 ## Personal management factory
 
 `ui-personal` registers the root-scoped `personal.manager` Factory for main-interface Project/Bot navigation and editing. The personal settings section declares only `settings.personal.testing` for planning defaults and user-only testing controls; it does not mount the records Factory.
+
+The sidebar primary navigation declares `sidebar.navigation.badge` with the owner section (`tasks`, `projects`, `bots`, `recent`). Organization notification indicators contribute through this child slot and retain their business state in the organization authority.

@@ -200,3 +200,5 @@ None.
 `ConversationFrame` renders the common main-conversation root. `conversationFrameStyles` and `conversationComposerStyles` supply the existing header, transcript, composer seat and input card styling to personal and organization consumers. All these components contain no account authority, Session storage or transport operations.
 
 `TaskMap` requests native screen fullscreen for its map element and follows `fullscreenchange` for button and system exits. Callers supply the localized `fullscreenFailed` label for rejected requests. The footer contains only the map interaction hint.
+
+`AccountNavigationGroup`, `AccountConversationRow` and `TaskMapNode` accept an optional localized `unreadLabel`. A present label renders an accessible red dot; conversation rows also emphasize unread titles. The caller owns read acknowledgement and label localization.

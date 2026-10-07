@@ -18,6 +18,8 @@ export interface TaskMapNode {
   assignmentLabel?: string
   /** Localized action hint independent of execution status. */
   attentionLabel?: string
+  /** Localized unread indicator on this exact task node. */
+  unreadLabel?: string | undefined
 }
 
 /** Localized canvas controls and task-card text. */
@@ -214,6 +216,7 @@ export function TaskMap({ tasks, rootId, selected, onSelect, labels, children, i
                 data-assigned={!!node.task.assignmentLabel}
                 style={{ '--node-x': `${node.x}px`, '--node-y': `${node.y}px` } as CSSProperties}>
                 <button type="button" className={css.nodeButton} aria-pressed={selected === node.task.id} aria-label={node.task.goal} title={[node.task.goal, node.task.attentionLabel].filter(Boolean).join(' · ')} onClick={() => { onSelect(node.task.id) }}>
+                  {node.task.unreadLabel && <span className={css.unreadDot} role="img" aria-label={node.task.unreadLabel} />}
                   <span className={css.nodeStage}>{node.task.id === rootId ? labels.rootTask : node.task.phaseTitle}</span>
                   <strong className={css.goal}>{node.task.goal}</strong>
                   <span className={css.nodeFooter}>

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import Agents from '@deepseek-ai/dsh-agent'
+import SessionTitle from '../../../session/session-title/src/index.ts'
 import Tools, { defineTool } from '@deepseek-ai/dsh-tools'
 import Skills from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -607,3 +608,52 @@ it('waits for employee acceptance and an explicit prompt before using the ordina
     attached.lifetime.abort(); await attached.done
   } finally { await h.close() }
 }, 30000)
+
+it('retains the approval title and appends later submissions to the attached ordinary Session', async () => {
+  const h = await setup([textResponse('Reviewed')])
+  try {
+    await h.ctx.plugin(SessionTitle, { fallbackMaxWords: 5, fallbackMaxBytes: 120, maxTitleBytes: 512 })
+    const assignment = assignmentSchema.parse({ id: randomUUID(), organizationId: h.request.organizationId,
+      projectId: h.request.projectId, planId: randomUUID(), taskId: randomUUID(), planRevision: 1,
+      approvedBy: randomUUID(), assigneeId: randomUUID(), state: 'accepted', reason: null,
+      createdAt: 0, createdRevision: 1, version: 2 })
+    const phaseId = randomUUID()
+    h.setPlan(planningPlanViewSchema.parse({ version: { planId: assignment.planId, organizationId: assignment.organizationId,
+      projectId: assignment.projectId, revision: 1, createdBy: assignment.approvedBy, createdAt: 0,
+      definition: { taskId: assignment.taskId, phases: [{ id: phaseId, title: 'Report' }], tasks: [{ id: assignment.taskId,
+        phaseId, parentTaskId: null, goal: 'Review report', scope: 'Report only', acceptance: ['Reviewed'], artifacts: [], dependsOn: [],
+        required: true, suggestedMembershipId: null }] } }, canEdit: true, sharedContext: '', structuralEdit: false,
+    invalidatesQualifications: true, requiresOriginalApproval: true }))
+    const delivery = conversationAuthoritySchema.shape.delivery.unwrap().parse({ assignment, artifacts: [], submission: {
+      id: h.request.conversationId, kind: 'accept-delivery', organizationId: assignment.organizationId, projectId: assignment.projectId,
+      planId: assignment.planId, planRevision: 1, assignmentId: assignment.id, runId: null,
+      employeeId: assignment.assigneeId, handlerId: assignment.approvedBy, state: 'submitted', artifactIds: [],
+      summary: 'First report', target: '', createdRevision: 3, acceptance: null, reviewState: 'pending' } })
+    h.authority.delivery = delivery
+    const review = conversationRequestSchema.parse({ ...h.request, kind: 'open-review',
+      review: { planId: assignment.planId, assignmentId: assignment.id, submissionId: delivery.submission.id } })
+    if (review.kind !== 'open-review') throw new Error('missing review')
+    await h.ctx.organizationConversation.perform(review, h.bridge, h.signal)
+    const title = 'Task approval: Review report'
+    await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...h.request, kind: 'rename',
+      operationId: randomUUID(), title }), h.bridge, h.signal)
+    const lifetime = new AbortController(), ready = Promise.withResolvers<ConversationResult>()
+    const done = h.ctx.organizationConversation.attach(conversationRequestSchema.parse({ ...h.request,
+      operationId: randomUUID() }), h.bridge, lifetime.signal, (report) => { ready.resolve(report) })
+    void done.catch((error: unknown) => { ready.reject(error) })
+    const attached = { report: await ready.promise, lifetime, done }, id = attached.report.sharedSessionId!
+    expect(attached.report.title).toBe(title)
+    expect(attached.report.review?.taskId).toBe(assignment.taskId)
+    expect(h.ctx.sessionTitle.get(h.ctx.agents.get(id)!.session)?.title).toBe(title)
+    delivery.submission = { ...delivery.submission, id: brandString(randomUUID()), summary: 'Revised report', createdRevision: 4 }
+    const next = await h.ctx.organizationConversation.perform(conversationRequestSchema.parse({ ...review,
+      operationId: randomUUID(), review: { ...review.review, submissionId: delivery.submission.id } }), h.bridge, h.signal)
+    expect(next.sharedSessionId).toBe(id)
+    expect(next.history.filter(event => event.type === 'organization/delivery-context')).toHaveLength(2)
+    expect(next.history.filter(event => event.type === 'assistant/message').map(event => event.data.message.content)).toEqual([
+      [{ type: 'text', text: 'Review report\n\nFirst report' }], [{ type: 'text', text: 'Review report\n\nRevised report' }],
+    ])
+    expect(h.model.requests).toHaveLength(0)
+    attached.lifetime.abort(); await attached.done
+  } finally { await h.close() }
+}, 20000)

@@ -77,12 +77,12 @@ export function SidebarRoot({
       </Tooltip>
       <nav className={css.panelList} aria-label={t('panels.label')}>
         {tasks !== undefined && <button type="button" className={css.navButton} aria-current={showingTasks ? 'page' : undefined}
-          onClick={() => { selectPanel(tasks.id); expandSidebar() }}><IconBranchOutlineRegular size={21} /><span>{t('nav.tasks')}</span></button>}
+          onClick={() => { selectPanel(tasks.id); expandSidebar() }}><IconBranchOutlineRegular size={21} /><span>{t('nav.tasks')}</span>{renderSlot('sidebar.navigation.badge', { section: 'tasks' })}</button>}
         {([
           ['projects', IconFolderCloseRegular], ['bots', IconAgentPresetOutlineRegular], ['recent', IconClockOutlineRegular],
         ] as const).map(([id, Icon]) => <button key={id} type="button" className={css.navButton}
           aria-current={activePanel === null && section === id ? 'page' : undefined}
-          onClick={() => { setSection(id); setNavigationRevision(++navigationSequence.current); selectPanel(null); expandSidebar() }}><Icon size={21} /><span>{t(`nav.${id}`)}</span></button>)}
+          onClick={() => { setSection(id); setNavigationRevision(++navigationSequence.current); selectPanel(null); expandSidebar() }}><Icon size={21} /><span>{t(`nav.${id}`)}</span>{renderSlot('sidebar.navigation.badge', { section: id })}</button>)}
         {panels.filter(panel => panel.id !== 'tasks').map(panel => <Tooltip key={panel.id} label={panel.label} side="right">
           <button type="button" className={css.navButton} aria-label={panel.label} aria-current={activePanel === panel.id ? 'page' : undefined}
             onClick={() => { selectPanel(panel.id) }}>

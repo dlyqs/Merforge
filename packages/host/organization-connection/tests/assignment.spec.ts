@@ -7,6 +7,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto'
 import { bootOrganization } from '../../../../apps/desktop-host/src/organization-boot.ts'
 import { OrganizationConnection } from '../src/index.ts'
 import * as transport from '@deepseek-ai/dsh-organization-api/transport'
+import { inboxPageSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { backupOrganization, restoreOrganization } from '@deepseek-ai/dsh-organization/maintenance'
 import { request as httpsRequest } from 'node:https'
 import { DatabaseSync } from 'node:sqlite'
@@ -480,3 +481,33 @@ it('refuses retired target actions in native parsing and removes their HTTPS rou
     expect(response.status).toBe(404)
   }
 })
+
+it('retains notifications during refresh and collects every inbox page before publishing', async () => {
+  const h = await setup()
+  await acceptAssignment(h)
+  await h.worker.perform({ kind: 'delivery-command', request: { ...h.selector, planRevision: 1, runId: null,
+    kind: 'submit-delivery', operationId: randomUUID(), artifactIds: [], summary: 'Please review', target: '', confirmed: true } })
+  await vi.waitFor(() => { expect(h.owner.snapshot().inbox?.items).toHaveLength(2) })
+  const original = transport.organizationRequest
+  const admitted = Promise.withResolvers<undefined>(), release = Promise.withResolvers<undefined>()
+  let pages = 0
+  vi.spyOn(transport, 'organizationRequest').mockImplementation(async (...args) => {
+    const response = await original(...args)
+    if (args[2] !== '/organization/v1/assignment/inbox') return response
+    const page = inboxPageSchema.parse(response.body)
+    pages++
+    if (page.items.length === 2) {
+      admitted.resolve(undefined); await release.promise
+      return { ...response, body: { ...page, items: page.items.slice(0, 1) } }
+    }
+    return response
+  })
+  const refreshing = h.owner.perform({ kind: 'reconnect' })
+  await admitted.promise
+  expect(h.owner.snapshot().phase).toBe('loading')
+  expect(h.owner.snapshot().inbox?.items).toHaveLength(2)
+  release.resolve(undefined); await refreshing
+  expect(pages).toBe(2)
+  expect(h.owner.snapshot().inbox?.items).toHaveLength(2)
+  expect(h.owner.snapshot().inbox?.unread).toBe(2)
+}, 20000)

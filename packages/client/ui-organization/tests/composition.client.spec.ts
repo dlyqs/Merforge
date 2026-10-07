@@ -349,19 +349,20 @@ it('synchronizes paginated assignments for the current member without selecting 
   mock.remote.session.create.mockResolvedValue(ok({ sessionId: 'sync-personal' as SessionId }))
   try {
     const app = await start()
-    await vi.waitFor(() => { expect(conversation).toHaveBeenCalledTimes(3) })
+    await vi.waitFor(() => { expect(conversation.mock.calls.filter(([request]) => request.kind !== 'catalog')).toHaveLength(3) })
     expect(connection.mock.calls.filter(([action]) => action.kind === 'assignment-inbox').map(([action]) =>
       action.kind === 'assignment-inbox' ? inboxQuerySchema.parse(action.request).offset : undefined)).toEqual([0, 2, 4])
-    expect(conversation.mock.calls.map(([request]) => request.conversationId))
+    const opened = conversation.mock.calls.filter(([request]) => request.kind !== 'catalog')
+    expect(opened.map(([request]) => request.conversationId))
       .toEqual([items[0]!.assignment.id, items[3]!.assignment.id, review.request.id])
-    expect(conversation.mock.calls.slice(0, 2).every(([request]) => request.kind === 'open' && request.assignment)).toBe(true)
-    expect(conversation.mock.calls[2]?.[0]).toMatchObject({ kind: 'open-review', review: {
+    expect(opened.slice(0, 2).every(([request]) => request.kind === 'open' && request.assignment)).toBe(true)
+    expect(opened[2]?.[0]).toMatchObject({ kind: 'open-review', review: {
       planId, assignmentId: approval.assignment.id, submissionId: review.request.id } })
     expect(execution).not.toHaveBeenCalled()
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).not.toBe(report.sessionId)
     publish?.({ ...snapshot, connection: { ...snapshot.connection, revision: 2 } })
     await Promise.resolve(); await Promise.resolve()
-    expect(conversation).toHaveBeenCalledTimes(3)
+    expect(conversation.mock.calls.filter(([request]) => request.kind !== 'catalog')).toHaveLength(3)
     await app.ctx.fiber.dispose()
   } finally {
     if (previous === undefined) delete globalObject.dshDesktop

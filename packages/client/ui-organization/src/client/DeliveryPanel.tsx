@@ -5,6 +5,7 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
 import type { OrganizationAssignment, OrganizationRun } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProps } from './contract.ts'
+import { saveSharedArtifact } from './download-artifact.ts'
 import { AcceptanceReview } from './AcceptanceReview.tsx'
 import { fileSize } from './delivery-view.ts'
 import { workgraphError } from './workgraph-view.ts'
@@ -99,16 +100,11 @@ export function DeliveryPanel(props: OrganizationProps & {
   const download = async (artifactId: Artifact['id']) => {
     try {
       const result = await props.connection({ kind: 'delivery-download', request: { ...selector, artifactId } }); current()
-      if (!result.artifact) throw new Error('unavailable')
-      const { artifact, bytes } = result.artifact
-      const raw = atob(bytes), data = Uint8Array.from(raw, c => c.charCodeAt(0))
-      const digest = await crypto.subtle.digest('SHA-256', data); current()
-      if (result.generation !== generation.current) throw new Error('superseded')
-      if (data.length !== artifact.size || Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('') !== artifact.sha256) throw new Error('invalid-input')
-      if (artifact.kind === 'test-report') setPreview({ generation: result.generation, text: new TextDecoder().decode(data) })
-      const url = URL.createObjectURL(new Blob([data], { type: 'application/octet-stream' }))
-      const link = document.createElement('a'); link.href = url; link.download = artifact.path.slice(artifact.path.lastIndexOf('/') + 1)
-      link.click(); URL.revokeObjectURL(url)
+      const preview = await saveSharedArtifact(result, (responseGeneration) => {
+        current()
+        if (responseGeneration !== generation.current) throw new Error('superseded')
+      })
+      if (preview) setPreview(preview)
     } catch (error) { if (alive.current) setNotice(t(workgraphError(error))) }
   }
   const stopped = !run || ['paused', 'succeeded', 'failed', 'cancelled'].includes(run.state) && props.submissionReady !== false

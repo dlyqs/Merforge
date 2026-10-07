@@ -5,9 +5,10 @@ import type { OrganizationTask, OrganizationTaskView, OrganizationTaskId, Organi
 import type { OrganizationProps } from './contract.ts'
 
 /** @param props - Readable task nodes and the selected-node details. @returns Shared pan-and-zoom task view. */
-export function TaskCanvas({ tasks, pending = [], selected, onSelect, t, children, introduction }: {
-  tasks: readonly (OrganizationTask & Partial<Pick<OrganizationTaskView, 'status'>> & { phaseTitle?: string; assignedToMe?: boolean | undefined; hasTreeRequests?: boolean | undefined })[]
+export function TaskCanvas({ tasks, pending = [], unread = [], selected, onSelect, t, children, introduction }: {
+  tasks: readonly (OrganizationTask & Partial<Pick<OrganizationTaskView, 'status' | 'planId'>> & { phaseTitle?: string; assignedToMe?: boolean | undefined; hasTreeRequests?: boolean | undefined })[]
   pending?: readonly OrganizationInboxItem[]
+  unread?: readonly OrganizationInboxItem[] | undefined
   selected: OrganizationTaskId | null
   onSelect: (id: OrganizationTaskId) => void
   t: OrganizationProps['t']
@@ -18,6 +19,7 @@ export function TaskCanvas({ tasks, pending = [], selected, onSelect, t, childre
     onSelect={(id) => { const task = tasks.find(task => task.id === id); if (task) onSelect(task.id) }}
     tasks={tasks.map(task => ({ ...task,
       parentTaskId: tasks.some(parent => parent.id === task.parentTaskId) ? task.parentTaskId : null,
+      unreadLabel: unread.some(item => item.assignment.planId === task.planId && item.assignment.taskId === task.id) ? t('unreadTaskNotification') : undefined,
       phaseTitle: task.phaseTitle ?? '', status: task.status ?? 'pending',
       assignmentLabel: task.assignedToMe ? t('assignedToMe') : '',
       statusLabel: t(`task-status-${task.status ?? 'pending'}`),

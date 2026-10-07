@@ -69,6 +69,7 @@ export default class OrganizationConversation extends Service {
           for (const event of source.snapshotEvents()) {
             if (event.type === 'organization/conversation-owner') replacement.append(event.type, event.data)
             if (event.type === 'organization/assignment-context') replacement.append(event.type, event.data)
+            if (event.type === 'organization/delivery-context') replacement.append(event.type, event.data)
             if (event.type === 'organization/task-selection') replacement.append(event.type, event.data)
           }
           if (!await host.sessions.flush(replacement)) throw new Error('organization-conversation: log-not-durable')
@@ -157,6 +158,9 @@ export default class OrganizationConversation extends Service {
       const currentBinding = state.get().bindings.find(row => row.sessionId === reserved.sessionId)
       if (!currentBinding || currentBinding.deleted) throw new Error('organization-conversation: deleted')
       const current = await this.report(currentBinding, authorize)
+      if (current.title) await this.commonHost().controller.rename({
+        sessionId: current.sharedSessionId ?? commonId, title: current.title,
+      })
       ready({ ...current, attachmentId: request.operationId })
     })
   }
@@ -255,6 +259,14 @@ export default class OrganizationConversation extends Service {
       && b.owner.organizationId === owner.organizationId && b.owner.projectId === owner.projectId
       && b.owner.conversationId === owner.conversationId)
     if (binding && ownerKey(binding.owner) !== ownerKey(owner)) throw new Error('organization-conversation: owner-mismatch')
+    if (request.kind === 'open-review') {
+      const delivery = first.delivery
+      if (!delivery) throw new Error('organization-conversation: submission-required')
+      const review = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(owner))?.review
+      if (String(request.conversationId) !== String(delivery.submission.id)
+        && (!binding || binding.deleted || review?.planId !== delivery.assignment.planId || review.taskId !== delivery.assignment.taskId))
+        throw new Error('organization-conversation: review-task-mismatch')
+    }
     if (!binding) {
       if (!['open', 'open-review', 'catalog', 'bot-save'].includes(request.kind)) throw new Error('organization-conversation: open-required')
       binding = { owner, sessionId: SessionId(`organization-conversation:${randomUUID()}`), createdAt: Date.now(), ready: false }
@@ -306,7 +318,8 @@ export default class OrganizationConversation extends Service {
     if (request.kind === 'rename' && !control) {
       if (!request.title) throw new Error('organization-conversation: title-required')
       await navigation.set({ ...navigation.get(), metadata: [
-        ...navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)), { owner, title: request.title }] })
+        ...navigation.get().metadata.filter(row => ownerKey(row.owner) !== ownerKey(owner)),
+        { ...navigation.get().metadata.find(row => ownerKey(row.owner) === ownerKey(owner)), owner, title: request.title }] })
       await state.set({ ...state.get(), controls: controls() })
       const activeId = binding.activeSessionId ?? binding.sharedSessionId
       if (activeId && this.commonHost().sessions.get(activeId))
@@ -586,33 +599,57 @@ export default class OrganizationConversation extends Service {
     const plan = (await bridge(target)).plan
     const task = plan?.version.definition.tasks.find(item => item.id === assignment.taskId)
     if (!task) throw new Error('organization-conversation: task-required')
-    const text = [task.goal, submission.summary, submission.target,
-      ...artifacts.map(item => `${item.path} · ${item.description}`)].filter(Boolean).join('\n\n')
+    const text = [task.goal, submission.summary, submission.target].filter(Boolean).join('\n\n')
     const navigation = this.navigation
     if (!navigation) throw new Error('organization-conversation: unavailable')
-    if (!navigation.get().metadata.some(item => ownerKey(item.owner) === ownerKey(binding.owner)))
-      await navigation.set({ ...navigation.get(), metadata: [...navigation.get().metadata,
-        { owner: binding.owner, title: `${task.goal} · ${submission.summary}`.slice(0, 120) }] })
-    if ((await this.events(binding)).some(event => event.type === 'assistant/message'
-      && event.data.message.source.provider === 'organization-delivery')) return
+    const metadata = navigation.get().metadata.find(item => ownerKey(item.owner) === ownerKey(binding.owner))
+    const previous = (await this.events(binding)).findLast(event => event.type === 'organization/delivery-context')
+    const previousTask = metadata?.review ?? (previous?.type === 'organization/delivery-context'
+      ? { planId: previous.data.assignment.planId, taskId: previous.data.assignment.taskId } : undefined)
+    if (String(request.conversationId) !== String(submission.id)
+      && (previousTask?.planId !== assignment.planId || previousTask.taskId !== assignment.taskId))
+      throw new Error('organization-conversation: review-task-mismatch')
+    await navigation.set({ ...navigation.get(), metadata: [
+      ...navigation.get().metadata.filter(item => ownerKey(item.owner) !== ownerKey(binding.owner)),
+      { owner: binding.owner, title: metadata?.title ?? task.goal.slice(0, 120),
+        review: { planId: assignment.planId, taskId: assignment.taskId, assignmentId: assignment.id, submissionId: submission.id } },
+    ] })
+    const events = await this.events(binding)
+    if (events.some(event => event.type === 'organization/delivery-context' && event.data.submission.id === submission.id)) return
     const digest = createHash('sha256').update(JSON.stringify(target)).digest('hex')
-    const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
-    try {
-      const events = (await handle.read()).events
-      await handle.append([{ type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(),
+    const turn = events.filter(event => event.type === 'turn/start').length + 1
+    const data = { owner: binding.owner, assignment, submission, artifacts, goal: task.goal }
+    const added: SessionEvent[] = [
+      { type: 'organization/task-selection', seq: SessionSeq(events.length), time: Date.now(),
         data: { owner: binding.owner, target, operationId: request.operationId, digest } },
-      { type: 'turn/start', seq: SessionSeq(events.length + 1), time: Date.now(), data: { turn: 1 } },
-      { type: 'step/start', seq: SessionSeq(events.length + 2), time: Date.now(), data: { turn: 1, step: 1 } },
+      { type: 'turn/start', seq: SessionSeq(events.length + 1), time: Date.now(), data: { turn } },
+      { type: 'step/start', seq: SessionSeq(events.length + 2), time: Date.now(), data: { turn, step: 1 } },
       { type: 'system/message', seq: SessionSeq(events.length + 3), time: Date.now(), surfaceOp: 'append',
-        data: { turn: 1, step: 1, message: createSystemMessage('') } },
+        data: { turn, step: 1, message: createSystemMessage('') } },
       { type: 'assistant/message', seq: SessionSeq(events.length + 4), time: Date.now(), surfaceOp: 'append',
-        data: { turn: 1, step: 1, stream: [], message: createAssistantMessage({ content: [{ type: 'text', text }],
+        data: { turn, step: 1, stream: [], message: createAssistantMessage({ content: [{ type: 'text', text }],
           source: { provider: 'organization-delivery', model: 'Agent' } }) } },
-      { type: 'step/end', seq: SessionSeq(events.length + 5), time: Date.now(), data: { turn: 1, step: 1 } },
-      { type: 'turn/end', seq: SessionSeq(events.length + 6), time: Date.now(), data: { turn: 1, reason: { kind: 'completed' } } }])
-      await handle.flush()
-    } finally { await handle.close() }
-
+      { type: 'organization/delivery-context', seq: SessionSeq(events.length + 5), time: Date.now(), data },
+      { type: 'step/end', seq: SessionSeq(events.length + 6), time: Date.now(), data: { turn, step: 1 } },
+      { type: 'turn/end', seq: SessionSeq(events.length + 7), time: Date.now(), data: { turn, reason: { kind: 'completed' } } },
+    ]
+    if (binding.sharedSessionId) {
+      const resolved = await this.commonHost().controller.resolveAgent(binding.activeSessionId ?? binding.sharedSessionId)
+      if ('error' in resolved) throw resolved.error
+      if (resolved.agent.status === 'running') throw new Error('organization-conversation: review-session-busy')
+      for (const event of added) {
+        switch (event.type) {
+          case 'system/message': resolved.agent.session.append(event.type, event.data, { surfaceOp: 'append' }); break
+          case 'assistant/message': resolved.agent.session.append(event.type, event.data, { surfaceOp: 'append' }); break
+          default: resolved.agent.session.append(event.type, event.data)
+        }
+      }
+      await this.commonHost().sessions.flush(resolved.agent.session)
+    } else {
+      const handle = await this.isolated.sessionPersistence.open(binding.sessionId, 'write')
+      try { await handle.append(added); await handle.flush() }
+      finally { await handle.close() }
+    }
   }
   private async seedAssignment(binding: Binding, bridge: ConversationBridge): Promise<void> {
     if (!binding.owner.assignment) return
@@ -731,11 +768,13 @@ export default class OrganizationConversation extends Service {
       return event
     })
     const selection = events.findLast(event => event.type === 'model/selection')
-    const title = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(binding.owner))?.title
+    const metadata = this.navigation?.get().metadata.find(row => ownerKey(row.owner) === ownerKey(binding.owner))
+    const title = metadata?.title
     const result: ConversationResult = { history,
       ...(binding.sharedSessionId ? { running: this.commonHost().agents.get(binding.activeSessionId ?? binding.sharedSessionId)?.status === 'running' } : {}),
       ...(binding.sharedSessionId ? { sharedSessionId: binding.activeSessionId ?? binding.sharedSessionId } : {}),
       ...(title ? { title } : {}),
+      ...(metadata?.review ? { review: metadata.review } : {}),
       ...(!binding.sharedSessionId && selection?.type === 'model/selection' ? { selection: { endpoint: selection.data.provider,
         model: selection.data.model } } : {}), sessionId: binding.sessionId, owner: binding.owner, settings: this.settings(binding.owner),
       entries, goals: this.goals(events), truncated: false,
@@ -799,7 +838,8 @@ export default class OrganizationConversation extends Service {
           } catch (_error: unknown) { await bridge(); continue }
         }
         const input = rowEvents.find(e => e.type === 'organization/planning-input' && e.data.request.kind === 'send')
-        const storedTitle = this.navigation.get().metadata.find(meta => ownerKey(meta.owner) === ownerKey(row.owner))?.title
+        const rowMetadata = this.navigation.get().metadata.find(meta => ownerKey(meta.owner) === ownerKey(row.owner))
+        const storedTitle = rowMetadata?.title
         const sessionTitle = rowEvents.findLast(event => event.type === 'session/title')
         const firstMessage = rowEvents.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
         const ordinaryTitle = !row.sharedSessionId ? undefined : sessionTitle?.type === 'session/title' ? sessionTitle.data.title
@@ -810,7 +850,8 @@ export default class OrganizationConversation extends Service {
         if (!title && String(row.owner.conversationId) === String(row.owner.projectId ?? row.owner.organizationId)) continue
         const botId = this.navigation.get().selections.find(link => ownerKey(link.owner) === ownerKey(row.owner))?.botId
         conversations.push({ conversationId: row.owner.conversationId, title, createdAt: row.createdAt,
-          ...(botId ? { botId } : {}), ...(row.owner.assignment ? { assignment: row.owner.assignment } : {}) })
+          ...(botId ? { botId } : {}), ...(rowMetadata?.review ? { review: rowMetadata.review } : {}),
+          ...(row.owner.assignment ? { assignment: row.owner.assignment } : {}) })
       }
       result.catalog = { conversations, bots: this.navigation.get().bots.filter(row => sameProject(row.owner)).map(row => row.bot) }
     }

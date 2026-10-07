@@ -21,6 +21,12 @@ export interface OrganizationInjected {
   /** Select an exact project task in the task destination. */
   openTask?: (project: import('@deepseek-ai/dsh-organization/types').OrganizationProjectView,
     task: import('@deepseek-ai/dsh-organization').OrganizationTaskView) => void
+  /** Open the assigned node in the main task destination with its immutable assignment. */
+  openConversationTask?: (selection: Pick<NonNullable<Parameters<import('./task-store.ts').OrganizationTaskSelectionProps['actions']['selectTask']>[0]>, 'organizationId' | 'projectId' | 'planId' | 'taskId' | 'assignmentId'>) => void
+  /** Persist explicit reads of the exact observed recipient inbox facts. */
+  readNotifications?: (items: readonly import('@deepseek-ai/dsh-organization').OrganizationInboxItem[]) => Promise<void>
+  /** Mark the selected task node's current notifications read after an explicit gesture. */
+  readTaskNotifications?: (target: Pick<import('@deepseek-ai/dsh-organization').OrganizationTaskView, 'planId' | 'id'>) => Promise<void>
   /** Await navigation catalogs while preserving attached conversations. */
   beginConversationNavigation?: () => void
   /** Show the real new-conversation entry for an empty navigation group. */

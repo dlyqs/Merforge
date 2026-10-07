@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { setupExecution } from './execution-harness.ts'
 import { operationId, openHarness, password } from './harness.ts'
-import { openOrganizationDatabase } from '../src/database.ts'
+import { ORGANIZATION_SCHEMA_VERSION, openOrganizationDatabase } from '../src/database.ts'
 import { readArtifact } from '../src/delivery.ts'
 import { backupOrganization } from '../src/maintenance.ts'
 
@@ -114,14 +114,14 @@ it('validates Git baselines and byte hashes, and migrates the delivery tables fr
   await expect(h.publish({ operationId: operationId(), artifactKind: 'git-change', bytes: invalid.toString('base64'), size: invalid.length,
     sha256: createHash('sha256').update(invalid).digest('hex') })).rejects.toMatchObject({ code: 'invalid-input' })
   const empty = await setupExecution(cleanup); await empty.close()
-  empty.db.exec('DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=8')
+  empty.db.exec('DROP TABLE inbox_notification_reads; DROP TABLE account_profiles; DROP TABLE organization_hierarchy; DROP TABLE planning_goals; DROP TABLE planning_reapprovals; DROP TABLE planning_events; DROP TABLE planning_permits; DROP TABLE planning_grants; DROP TABLE integration_confirmations; DROP TABLE integration_events; DROP TABLE organization_integrations; DROP TABLE organization_acceptances; DROP TABLE delivery_events; DROP TABLE organization_submissions; DROP TABLE organization_artifacts; DROP TABLE tree_requests; DROP TABLE plan_contexts; PRAGMA user_version=8')
   empty.db.exec('CREATE TABLE organization_submissions (sentinel TEXT)')
   expect(() => openOrganizationDatabase(empty.path, 100)).toThrow()
   expect(empty.db.prepare('PRAGMA user_version').get()?.user_version).toBe(8)
   expect(empty.db.prepare("SELECT name FROM sqlite_master WHERE name='organization_artifacts'").get()).toBeUndefined()
   empty.db.exec('DROP TABLE organization_submissions')
   const upgraded = openOrganizationDatabase(empty.path, 100)
-  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
+  expect(upgraded.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
   upgraded.close()
 }, 15000)
 
@@ -167,11 +167,69 @@ it.each(['accept-delivery', 'reject-delivery'] as const)('persists text-only res
     expect(page.submissions).toEqual([expect.objectContaining({ summary: command.summary, target: '', artifactIds: [], reviewState: kind === 'accept-delivery' ? 'accepted' : 'rejected' })])
   })
   await h.close()
-  h.db.exec('PRAGMA user_version=21')
+  h.db.exec('DROP TABLE inbox_notification_reads; DROP TABLE account_profiles; PRAGMA user_version=21')
   const cold = await openHarness(h.root); cleanup.push(cold.close)
-  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(22)
+  expect(h.db.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
   const owner = await cold.service.login({ username: 'owner', password })
   await cold.service.readDelivery(owner.token, h.selector, (page) => {
     expect(page.submissions[0]).toMatchObject({ summary: command.summary, artifactIds: [] })
   })
 }, 15000)
+
+it('persists recipient reads and makes newer approval decisions unread without accepting them', async () => {
+  const h = await fixture()
+  const submitted = await h.service.deliveryCommand(h.other.token, { ...h.base, runId: null, kind: 'submit-delivery',
+    operationId: operationId(), artifactIds: [], summary: 'Please review', target: '', confirmed: true })
+  const submissionId = submitted.delivery!.submissionId!
+  let item: import('../src/assignment-types.ts').OrganizationInboxItem | undefined
+  await h.service.readInbox(h.owner.token, { organizationId: h.query.organizationId }, (page) => {
+    item = page.items.find(row => row.request.id === submissionId)
+  })
+  expect(item?.readAt).toBeNull()
+  const read = { ...h.selector, kind: 'read-inbox', operationId: operationId(), requestId: submissionId, expectedRevision: submitted.revision }
+  await expect(h.service.participantCommand(h.other.token, read)).rejects.toMatchObject({ code: 'forbidden' })
+  const receipt = await h.service.participantCommand(h.owner.token, read)
+  expect(await h.service.participantCommand(h.owner.token, read)).toEqual(receipt)
+  await h.service.readInbox(h.owner.token, { organizationId: h.query.organizationId }, (page) => {
+    expect(page.items.find(row => row.request.id === submissionId)?.readAt).not.toBeNull()
+  })
+  await h.service.readDelivery(h.owner.token, h.selector, (page) => { expect(page.submissions[0]?.reviewState).toBe('pending') })
+  await h.close()
+  const cold = await openHarness(h.root); cleanup.push(cold.close)
+  const owner = await cold.service.login({ username: 'owner', password })
+  expect(await cold.service.receipt(owner.token, read.operationId)).toEqual(receipt)
+  await cold.service.readInbox(owner.token, { organizationId: h.query.organizationId }, (page) => {
+    expect(page.items.find(row => row.request.id === submissionId)?.readAt).not.toBeNull()
+  })
+  const rejected = await cold.service.deliveryCommand(owner.token, { ...h.base, runId: null, kind: 'reject-delivery',
+    operationId: operationId(), submissionId, artifacts: [], confirmed: true, reason: 'Add evidence', requirements: 'Include report' })
+  await cold.service.participantCommand(owner.token, { ...read, operationId: operationId() })
+  const employee = await cold.service.login({ username: 'alice', password })
+  await cold.service.readInbox(employee.token, { organizationId: h.query.organizationId }, (page) => {
+    expect(page.items.find(row => row.request.id === submissionId)?.readAt).toBeNull()
+  })
+  await cold.service.participantCommand(employee.token, { ...read, operationId: operationId(), expectedRevision: rejected.revision })
+  await cold.service.readInbox(employee.token, { organizationId: h.query.organizationId }, (page) => {
+    expect(page.items.find(row => row.request.id === submissionId)?.readAt).not.toBeNull()
+  })
+  await expect(cold.service.participantCommand(employee.token, { ...read, operationId: operationId() }))
+    .rejects.toMatchObject({ code: 'version-conflict' })
+  await cold.close()
+  h.db.prepare('UPDATE inbox_notification_reads SET requestId=? WHERE eventRevision=?').run(operationId(), receipt.revision)
+  expect(() => openOrganizationDatabase(h.path, 100)).toThrow()
+
+}, 20000)
+
+it('upgrades schema 23 to recipient read receipts without altering submissions', async () => {
+  const h = await fixture()
+  const submitted = await h.service.deliveryCommand(h.other.token, { ...h.base, runId: null, kind: 'submit-delivery',
+    operationId: operationId(), artifactIds: [], summary: 'Before migration', target: '', confirmed: true })
+  await h.close()
+  h.db.exec('DROP TABLE inbox_notification_reads; PRAGMA user_version=23')
+  const migrated = openOrganizationDatabase(h.path, 100)
+  try {
+    expect(migrated.prepare('PRAGMA user_version').get()?.user_version).toBe(ORGANIZATION_SCHEMA_VERSION)
+    expect(migrated.prepare('SELECT id FROM organization_submissions WHERE id=?').get(submitted.delivery!.submissionId!)?.id)
+      .toBe(submitted.delivery!.submissionId)
+  } finally { migrated.close() }
+})

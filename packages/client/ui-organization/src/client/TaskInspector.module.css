@@ -83,3 +83,7 @@
 .pane > dl > dd { white-space: pre-wrap; overflow-wrap: anywhere; }
 .pane > dl > dd + dt { margin-top: 20px; }
 .pane > dl ul { display: grid; gap: 8px; margin: 0; padding-inline-start: 20px; white-space: normal; }
+
+.artifactLinks { display: grid; gap: 8px; padding-inline-start: 20px; }
+.artifactLinks a { color: var(--dsw-alias-state-business-primary); text-decoration: underline; overflow-wrap: anywhere; }
+.artifactLinks small { display: block; color: var(--dsw-alias-label-secondary); }

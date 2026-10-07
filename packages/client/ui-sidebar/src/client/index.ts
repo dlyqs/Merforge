@@ -72,6 +72,7 @@ export function apply(ctx: ClientContext): void {
     name: 'sidebar',
     locale: NS,
     children: {
+      'sidebar.navigation.badge': { kind: 'single', scope: 'root' },
       'sidebar.account': { kind: 'single', scope: 'root' },
       'sidebar.brand.mark': { kind: 'single', scope: 'root' },
       'sidebar.brand.name': { kind: 'single', scope: 'root' },

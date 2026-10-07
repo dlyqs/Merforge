@@ -7,6 +7,7 @@ import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/type
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { OrganizationProps } from './contract.ts'
 import type { ConversationSelectionProps } from './conversation-store.ts'
+import { unreadTaskNotifications, conversationHasNotification } from './notification-view.ts'
 import { readNavigationProjects } from './projects.ts'
 import { workgraphError } from './workgraph-view.ts'
 
@@ -84,7 +85,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   const readable = c.mode === 'organization' && ['ready', 'loading'].includes(c.phase)
   const items = readable ? (catalogs?.items ?? []).filter(item => !c.removedProjects?.includes(item.project.id)) : []
   const open = async (project: OrganizationProjectView | undefined, conversationId: ConversationRequest['conversationId'],
-    botId?: Bot['id'], assignment?: ConversationRequest['assignment']) => {
+    botId?: Bot['id'], assignment?: ConversationRequest['assignment'], explicit = true) => {
     if (!ready || !c.principal || !c.organizationId || busy || !props.conversation) return
     const principal = c.principal
     const navigationRequest = navigationBegun.current
@@ -105,6 +106,11 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         || navigationRequest !== navigationBegun.current) return
       if (!props.selectConversation) props.actions.select(chosen)
       setNewTarget(undefined); props.openConversation?.()
+      if (explicit) {
+        const row = (project ? catalogs?.items.find(item => item.project.id === project.id)?.catalog : accountCatalog?.catalog)
+          ?.conversations.find(row => row.conversationId === conversationId)
+        if (row) await props.readNotifications?.(unreadTaskNotifications(c).filter(item => conversationHasNotification(item, row)))
+      }
     } catch (error) {
       if (alive.current && c.generation === identity.current.generation && navigationRequest === navigationBegun.current)
         setNotice(props.t(workgraphError(error)))
@@ -122,8 +128,10 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
   const recent: { project: OrganizationProjectView | undefined; conversation: Catalog['catalog']['conversations'][number] }[] = [
     ...conversations, ...ungrouped.map(conversation => ({ project: undefined, conversation })),
   ].sort((a, b) => b.conversation.createdAt - a.conversation.createdAt)
+  const unread = unreadTaskNotifications(c)
   const row = (project: OrganizationProjectView | undefined, conversation: Catalog['catalog']['conversations'][number]) =>
     <AccountConversationRow key={`${project?.id ?? 'account'}:${conversation.conversationId}`} title={conversation.title || props.t('newConversation')}
+      unreadLabel={unread.some(item => conversationHasNotification(item, conversation)) ? props.t('unreadTaskNotification') : undefined}
       tag={props.section === 'recent' ? project?.name : undefined} disabled={busy || !ready}
       selected={selected?.conversationId === conversation.conversationId}
       onOpen={() => { void open(project, conversation.conversationId, conversation.botId, conversation.assignment) }}
@@ -161,7 +169,7 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
         : firstBot && { project: firstBot.project,
           conversation: firstBot.catalog.conversations.find(item => item.botId === firstBot.bot.id) }
     if (target?.conversation) void open(target.project, target.conversation.conversationId,
-      target.conversation.botId, target.conversation.assignment)
+      target.conversation.botId, target.conversation.assignment, false)
     else props.showConversationStart?.(target?.project, props.section === 'bots' ? firstBot?.bot.id : undefined)
     const groupId = props.section === 'bots' ? firstBot?.bot.id : target?.project?.id
     if (groupId) setExpanded(new Set([groupId]))
@@ -181,7 +189,8 @@ export function OrganizationBrowser(props: OrganizationProps & ConversationSelec
     </div></div>}
     {notice && <p role="alert">{notice}</p>}
     {props.section === 'projects' && ordered(items.map(item => ({ ...item, name: item.project.name }))).map(({ project, catalog }) =>
-      <AccountNavigationGroup key={project.id} kind="project" name={project.name} open={expanded.has(project.id)} wide={props.wide}
+      <AccountNavigationGroup key={project.id} kind="project" name={project.name}
+        unreadLabel={unread.some(item => item.assignment.projectId === project.id) ? props.t('unreadTaskNotification') : undefined} open={expanded.has(project.id)} wide={props.wide}
         onToggle={() => { toggle(project.id) }} actions={<>
           <Menu open={menu === project.id} portal align="end" onClose={() => { setMenu(null) }}
             anchor={<button type="button" className={css.rowAction} aria-label={`${props.t('more')} ${project.name}`} aria-haspopup="menu" aria-expanded={menu === project.id} onClick={() => { setMenu(menu === project.id ? null : project.id) }}><IconEllipsisOutlineRegular /></button>}

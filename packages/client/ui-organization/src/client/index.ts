@@ -12,7 +12,10 @@ import type { ConversationRequest } from '@deepseek-ai/dsh-organization-conversa
 import { createOrganizationTaskStore } from './task-store.ts'
 import { OrganizationTaskList, OrganizationTasks } from './Tasks.tsx'
 import { createConversationStore } from './conversation-store.ts'
-import { organizationPlanDefinition } from './conversation-node.ts'
+import { organizationPlanDefinition, organizationDeliveryDefinition } from './conversation-node.ts'
+import { NotificationBadge } from './NotificationBadge.tsx'
+import { unreadTaskNotifications, taskNotificationRevision } from './notification-view.ts'
+import { OrganizationDeliveryNode } from './OrganizationDeliveryNode.tsx'
 import { OrganizationPlanNode } from './OrganizationPlanNode.tsx'
 import { AccountSession } from './account-session.ts'
 import type { ISessions, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -80,6 +83,26 @@ export function apply(ctx: Context): void {
     if (!c.principal || !c.organizationId || c.mode !== 'organization') throw new Error('unavailable')
     return `organization-delivery-file:${c.principal.serverId}:${c.principal.accountId}:${c.organizationId}:${artifactId}`
   }
+  const readNotifications: NonNullable<OrganizationInjected['readNotifications']> = async (items) => {
+    const c = state.getSnapshot().connection
+    if (!desktop || c.phase !== 'ready' || c.mode !== 'organization' || !c.principal) return
+    for (const item of items) {
+      const current = state.getSnapshot().connection
+      if (current.identityGeneration !== c.identityGeneration || current.organizationId !== c.organizationId)
+        throw new Error('organization-conversation: superseded')
+      if (item.readAt !== null || item.assignment.organizationId !== c.organizationId) continue
+      await desktop.connection({ kind: 'assignment-participant', request: {
+        kind: 'read-inbox', organizationId: item.assignment.organizationId, projectId: item.assignment.projectId,
+        planId: item.assignment.planId, assignmentId: item.assignment.id, requestId: item.request.id,
+        expectedRevision: taskNotificationRevision(item, c.organizations.find(org => org.id === c.organizationId)?.membershipId),
+        operationId: randomUUID(),
+      } })
+    }
+  }
+  const readTaskNotifications: NonNullable<OrganizationInjected['readTaskNotifications']> = async (target) => {
+    await readNotifications(unreadTaskNotifications(state.getSnapshot().connection).filter(item =>
+      item.assignment.planId === target.planId && item.assignment.taskId === target.id))
+  }
   const bind = (): OrganizationInjected => ({
     rememberDeliveryFile: (artifactId, file) => {
       const bridge = (globalThis as typeof globalThis & { __DSH_HOST_PATHS__?: { pathFor(file: File): string } }).__DSH_HOST_PATHS__
@@ -121,6 +144,7 @@ export function apply(ctx: Context): void {
       if (!result.ok) throw new Error(result.error.message)
       return true
     },
+    readNotifications, readTaskNotifications,
     conversation: request => desktop ? desktop.conversation(request) : unavailable(),
     openProjectTasks: (project) => {
       const c = state.getSnapshot().connection
@@ -138,6 +162,14 @@ export function apply(ctx: Context): void {
       taskActions?.selectTask({ ...c.principal, organizationId: project.organizationId,
         projectId: project.id, planId: task.planId, taskId: task.id })
       ctx.layout.selectPanel('tasks' as MainPanelId)
+      void readTaskNotifications({ planId: task.planId, id: task.id }).catch((error: unknown) => { console.warn('organization notification read failed', error) })
+    },
+    openConversationTask: (selection) => {
+      const c = state.getSnapshot().connection
+      if (c.phase !== 'ready' || c.mode !== 'organization' || c.organizationId !== selection.organizationId || !c.principal) return
+      taskActions?.selectTask({ ...c.principal, ...selection })
+      ctx.layout.selectPanel('tasks' as MainPanelId)
+      void readTaskNotifications({ planId: selection.planId, id: selection.taskId }).catch((error: unknown) => { console.warn('organization notification read failed', error) })
     },
     beginConversationNavigation: () => {
       navigationLoading = true; openSequence++
@@ -334,7 +366,12 @@ export function apply(ctx: Context): void {
         }
         conversationActions?.refresh()
       } }) }, ConversationManager))
+  ctx.slots.inject('sidebar.navigation.badge', () => ctx.slots.register({ name: 'sidebar.navigation.badge',
+    locale: 'organization', inject: bind }, NotificationBadge))
   ctx.effect(() => ctx.uiConversation.events.register(organizationPlanDefinition), 'organization.plan-node')
+  ctx.effect(() => ctx.uiConversation.events.register(organizationDeliveryDefinition), 'organization.delivery-node')
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'organization-delivery',
+    locale: 'organization', inject: bind }, OrganizationDeliveryNode))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'organization-plan',
     locale: 'organization', inject: bind }, OrganizationPlanNode))
   const bindConversation = (actions: BoundActions<typeof conversationStore>): OrganizationInjected => {
@@ -483,15 +520,16 @@ export function apply(ctx: Context): void {
     return () => { closed = true; unsubscribe(); return tail }
   }, 'organization.project-cleanup')
   ctx.effect(() => {
-    let closed = false, syncing = false, dirty = false, lastKey = ''
+    let closed = false, syncing = false, dirty = false, retryWhenIdle = false, lastKey = ''
     const isClosed = () => closed
     const sync = async () => {
       if (syncing) { dirty = true; return }
       const c = state.getSnapshot().connection
       if (!desktop || c.phase !== 'ready' || c.mode !== 'organization' || !c.principal || !c.organizationId) return
-      syncing = true
+      syncing = true; retryWhenIdle = false
       try {
         let offset = 0, cursor: string | undefined
+        const reviewCatalogs = new Map<string, NonNullable<import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationResult['catalog']>['conversations']>()
         const member = c.organizations.find(org => org.id === c.organizationId)?.membershipId
         while (!closed) {
           const current = state.getSnapshot().connection
@@ -507,14 +545,38 @@ export function apply(ctx: Context): void {
               && item.request.reviewState === 'pending' ? item.request : undefined
             if (!review && (a.assigneeId !== member || !['pending', 'accepted'].includes(a.state))) continue
             if (isClosed() || state.getSnapshot().connection.generation !== c.generation) break
-            await desktop.conversation({ operationId: randomUUID() as ConversationRequest['operationId'],
+            let reviewConversationId = String(review?.id ?? a.id)
+            if (review) {
+              let catalog = reviewCatalogs.get(a.projectId)
+              if (!catalog) {
+                const response = await desktop.conversation({ kind: 'catalog', operationId: randomUUID() as ConversationRequest['operationId'],
+                  organizationId: a.organizationId, projectId: a.projectId, conversationId: String(a.projectId) as ConversationRequest['conversationId'] })
+                catalog = response.result.catalog?.conversations ?? []; reviewCatalogs.set(a.projectId, catalog)
+              }
+              const existing = catalog.find(row => row.review?.planId === a.planId && row.review.taskId === a.taskId)
+              reviewConversationId = String(existing?.conversationId ?? review.id)
+            }
+            const report = await desktop.conversation({ operationId: randomUUID() as ConversationRequest['operationId'],
               organizationId: a.organizationId, projectId: a.projectId,
-              ...(review ? { kind: 'open-review', conversationId: String(review.id) as ConversationRequest['conversationId'],
+              ...(review ? { kind: 'open-review', conversationId: reviewConversationId as ConversationRequest['conversationId'],
                 review: { planId: a.planId, assignmentId: a.id, submissionId: review.id } }
                 : { kind: 'open', conversationId: String(a.id) as ConversationRequest['conversationId'],
-                  assignment: { planId: a.planId, assignmentId: a.id } }) }).catch((_error: unknown) => {
+                  assignment: { planId: a.planId, assignmentId: a.id } }) }).catch((error: unknown) => {
+              if (error instanceof Error && error.message.includes('review-session-busy')) retryWhenIdle = true
               /* Deleted or revoked Sessions do not stop the remaining assignments. */
             })
+            if (review && report) {
+              const catalog = reviewCatalogs.get(a.projectId) ?? []
+              if (report.result.review && !catalog.some(row => row.conversationId === report.result.owner.conversationId))
+                catalog.push({ conversationId: report.result.owner.conversationId, title: report.result.title ?? '',
+                  createdAt: Date.now(), review: report.result.review })
+              const goal = report.result.execution?.title
+              if (goal) {
+                const title = ctx.locale.bind('organization')('taskReviewTitle', { goal }).slice(0, 120)
+                if (title !== report.result.title) await desktop.conversation({ kind: 'rename', operationId: randomUUID() as ConversationRequest['operationId'],
+                  organizationId: a.organizationId, projectId: a.projectId, conversationId: report.result.owner.conversationId, title })
+              }
+            }
           }
           offset += value.items.length; cursor = value.cursor
           if (!value.items.length || offset >= value.total) break
@@ -529,8 +591,10 @@ export function apply(ctx: Context): void {
       if (key === lastKey) return
       lastKey = key; void sync()
     }
-    const stop = state.subscribe(observe); observe()
-    return () => { closed = true; stop() }
+    const stop = state.subscribe(observe)
+    const stopActivity = taskExecutionRevision.subscribe(() => { if (retryWhenIdle) void sync() })
+    observe()
+    return () => { closed = true; stop(); stopActivity() }
   }, 'organization.assignment-sessions')
   const t = ctx.locale.bind('organization')
   ctx.slots.inject('settings.section', () => ctx.slots.register({ name: 'settings.section',

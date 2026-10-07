@@ -21,7 +21,7 @@ import { taskAssignmentsQuerySchema } from './assignment-protocol.ts'
 import { assignmentSchema, assignmentRequestSchema, approvalReviewSchema } from './assignment-schema.ts'
 import { assignmentCommandSchema, assignmentReadSchema, participantCommandSchema, inboxQuerySchema } from './assignment-schema.ts'
 import { reviewAssignment, changeAssignment, selectedAssignment, authorizeAssignmentRead, invalidateAssignments } from './assignment.ts'
-import { authorizeParticipant, changeParticipant, visibleInbox } from './assignment-participant.ts'
+import { authorizeParticipant, authorizeInboxRead, changeParticipant, visibleInbox } from './assignment-participant.ts'
 import type { OrganizationInboxPage } from './assignment-types.ts'
 import type { OrganizationAssignment } from './assignment-types.ts'
 import { openOrganizationDatabase, transaction } from './database.ts'
@@ -160,6 +160,8 @@ export class OrganizationService extends Service {
         if (receipt.deviceId && !db.prepare('SELECT 1 FROM organization_devices WHERE id=? AND accountId=? AND organizationId=?').get(receipt.deviceId, current.accountId, current.organizationId ?? null)) throw new OrganizationError('forbidden')
         if (receipt.assignmentId && receipt.projectId && receipt.planId) {
           if (['approve-assignment', 'revoke-assignment'].includes(String(event?.kind))) authorizeWorkgraph(db, current, receipt.projectId, receipt.planId, true)
+          else if (event?.kind === 'read-inbox') authorizeAssignmentRead(db, current, selectedAssignment(db, { organizationId: receipt.organizationId,
+            projectId: receipt.projectId, planId: receipt.planId, assignmentId: receipt.assignmentId }))
           else authorizeParticipant(db, current, selectedAssignment(db, { organizationId: receipt.organizationId,
             projectId: receipt.projectId, planId: receipt.planId, assignmentId: receipt.assignmentId }))
         }
@@ -767,6 +769,7 @@ export class OrganizationService extends Service {
       const result = transaction(db, () => {
         const current = this.principal(db, token, request.organizationId)
         if (request.kind === 'answer-execution-question' || request.kind === 'approve-execution-tool') authorizeExecutionAnswer(db, current, request)
+        else if (request.kind === 'read-inbox') authorizeInboxRead(db, current, request)
         else authorizeParticipant(db, current, selectedAssignment(db, request))
         const scope = `account:${current.accountId}`
         const previous = this.previous(db, scope, request.operationId, fingerprint)

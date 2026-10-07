@@ -48,3 +48,5 @@
 .settingsArea { width: 100%; display: flex; justify-content: center; }
 .secondary { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--dsw-specific-sidebar-fill); }
 .regionArea { display: flex; flex: 1; min-height: 0; min-width: 0; padding: 12px 10px; }
+
+.navButton { position: relative; }

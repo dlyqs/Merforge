@@ -1,5 +1,6 @@
 /** Organization entry and settings dictionaries. */
 export const zh = {
+  unreadTaskNotification: '未读任务通知', taskReviewTitle: '任务审批：{goal}',
   deliveryBytes: '字节', deliverySubmittedAt: '提交于 {time}', deliveryModifiedUnknown: '修改时间未知', deliveryModifiedAt: '最近修改：{time}', deliveryDateLocale: 'zh-CN',
   deliveryAddFiles: '添加附件', deliveryContentHint: '填写工作成果、commit 记录、网址链接或交付说明，可选添加附件。',
   'taskConversation-unstarted': '尚未在任务对话中执行', 'taskConversation-running': '任务对话正在执行',
@@ -406,6 +407,7 @@ export const zh = {
 export type OrganizationKey = keyof typeof zh
 /** Complete English organization dictionary. */
 export const en: Record<OrganizationKey, string> = {
+  unreadTaskNotification: 'Unread task notification', taskReviewTitle: 'Task approval: {goal}',
   avatarTooLarge: 'Images must be 50 MB or smaller. Compress this image and try again.',
   avatarUnsupported: 'Choose a PNG, JPG, JPEG, JFIF, WebP, GIF, BMP, AVIF or ICO image.',
   avatarDecodeFailed: 'This image could not be decoded. Try exporting it as PNG or JPG.',

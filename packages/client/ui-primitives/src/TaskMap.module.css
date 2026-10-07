@@ -63,3 +63,5 @@
 .node[data-status='blocked'] .status { color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent); }
 .node[data-root='true'][data-status] .status { color: inherit; background: color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 15%, transparent); }
 .node[data-root='true'] .status::before { background: currentColor; }
+
+.unreadDot { position: absolute; top: 10px; right: 10px; width: 7px; height: 7px; border-radius: 50%; corner-shape: round; background: var(--dsw-alias-state-error-primary); }

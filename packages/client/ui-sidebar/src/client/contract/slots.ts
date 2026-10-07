@@ -7,6 +7,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Account avatar and account dialog at the primary rail top. */
     'sidebar.account': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
+    /** Recipient unread indicator on a primary navigation destination. */
+    'sidebar.navigation.badge': { kind: 'single'; scope: 'root'; owner: { section: 'tasks' | 'projects' | 'bots' | 'recent' } }
     /** Non-interactive notification inside the workspace navigation button. */
     'shell.navigation.badge': { kind: 'single'; scope: 'root'; owner: Record<never, never> }
     /**
@@ -134,6 +136,7 @@ export type SidebarRootInjected = {
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
+    | 'sidebar.navigation.badge'
     | 'sidebar.account'
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'

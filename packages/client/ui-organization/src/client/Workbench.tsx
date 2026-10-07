@@ -113,6 +113,9 @@ export function Workbench(props: OrganizationProps & {
   useEffect(() => { setSelected(props.initialTaskId); setDetailsOpen(true); setAccess(null) }, [props.initialTaskId])
   const showTask = (id: OrganizationTaskId) => {
     setSelected(id); setDetailsOpen(true); setAccess(null)
+    const selectedTask = page?.value.items.find(item => item.id === id)
+    if (selectedTask) void props.readTaskNotifications?.({ planId: selectedTask.planId, id })
+      .catch((error: unknown) => { if (alive.current) setNotice(t(workgraphError(error))) })
     if (draft) setDraft({ ...draft, taskId: id })
   }
   const edit = async (item: OrganizationTaskView) => {
@@ -199,7 +202,8 @@ export function Workbench(props: OrganizationProps & {
       <Button disabled={!writable || currentPage.offset + currentPage.items.length >= currentPage.total} onClick={() => { void run(() => load(currentPage.offset + currentPage.items.length)) }}>{t('next')}</Button></div>}
     {(page?.value.items.length || draft) && <div className={taskWorkspaceStyles.body} hidden={!currentPage && !draft}><div
       className={taskWorkspaceStyles.workspace}>
-      <TaskCanvas t={t} tasks={canvasTasks} pending={pending} selected={draft?.taskId ?? selected ?? null} onSelect={showTask}
+      <TaskCanvas t={t} tasks={canvasTasks} pending={pending} unread={c.inbox?.items.filter(item => item.readAt === null)}
+        selected={draft?.taskId ?? selected ?? null} onSelect={showTask}
         introduction={page?.value.items[0] && <TaskSharing key={`${c.principal?.accountId}:${page.value.items[0].planId}`} {...props}
           projectId={props.project.id} planId={props.planId ?? page.value.items[0].planId}
           overallGoal={page.value.items.find(item => item.parentTaskId === null)?.goal} />}>

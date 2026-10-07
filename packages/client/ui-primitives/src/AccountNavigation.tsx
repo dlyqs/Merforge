@@ -6,12 +6,15 @@ import { IconAgentPresetOutlineRegular, IconFolderCloseRegular, IconFolderOpenRe
 import css from './AccountNavigation.module.css'
 
 /** @param props - Group identity, disclosure state and account-owned controls. @returns Shared project or Bot row. */
-export function AccountNavigationGroup({ kind, name, label = name, open, wide = true, onToggle, actions, children, ...events }: {
+export function AccountNavigationGroup({
+  kind, name, label = name, open, wide = true, onToggle, actions, children, unreadLabel, ...events
+}: {
   kind: 'project' | 'bot'
   name: string
   label?: string
   open: boolean
   wide?: boolean
+  unreadLabel?: string | undefined
   onToggle: () => void
   actions?: ReactNode
   children?: ReactNode
@@ -24,6 +27,7 @@ export function AccountNavigationGroup({ kind, name, label = name, open, wide = 
           <IconTriangleRightFillRegular className={css.chevron} />
         </span>
         {wide && <span className={css.groupTitle}>{name}</span>}
+        {unreadLabel && <span className={css.unreadDot} role="img" aria-label={unreadLabel} />}
       </button>
       {wide && actions && <div className={css.rowActions}>{actions}</div>}
     </div>
@@ -32,8 +36,9 @@ export function AccountNavigationGroup({ kind, name, label = name, open, wide = 
 }
 
 /** @param props - Conversation title, status and account-owned open action. @returns Shared conversation row. */
-export function AccountConversationRow({ title, label = title, tag, status, actions, onOpen, selected, disabled, ...events }: {
+export function AccountConversationRow({ title, label = title, tag, status, actions, onOpen, selected, disabled, unreadLabel, ...events }: {
   title: string
+  unreadLabel?: string | undefined
   label?: string
   tag?: string | undefined
   status?: ReactNode
@@ -42,9 +47,9 @@ export function AccountConversationRow({ title, label = title, tag, status, acti
   selected?: boolean
   disabled?: boolean
 } & Pick<HTMLAttributes<HTMLDivElement>, 'draggable' | 'onDragStart'>) {
-  return <div className={css.sessionRow} {...events}>
+  return <div className={css.sessionRow} data-unread={!!unreadLabel} {...events}>
     <button type="button" className={css.sessionButton} aria-label={label} aria-current={selected ? 'page' : undefined} disabled={disabled} onClick={onOpen}>
-      <span className={css.statusSlot}>{status}</span><span className={css.sessionTitle}>{title}</span>
+      <span className={css.statusSlot}>{unreadLabel ? <span className={css.unreadDot} role="img" aria-label={unreadLabel} /> : status}</span><span className={css.sessionTitle}>{title}</span>
       {tag && <span className={css.tag}>{tag}</span>}
     </button>
     {actions && <div className={css.sessionActions}>{actions}</div>}

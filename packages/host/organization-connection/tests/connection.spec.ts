@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { bootOrganization } from '../../../../apps/desktop-host/src/organization-boot.ts'
 import { OrganizationConnection } from '../src/index.ts'
+import { ORGANIZATION_SCHEMA_VERSION } from '@deepseek-ai/dsh-organization'
 import { backupOrganization, restoreOrganization } from '@deepseek-ai/dsh-organization/maintenance'
 import * as transport from '@deepseek-ai/dsh-organization-api/transport'
 import { organizationRequest } from '@deepseek-ai/dsh-organization-api/transport'
@@ -318,7 +319,7 @@ it.each(['pending', 'accepted'])('preserves WorkGraph history and permanently re
   await h.owner.close()
   await h.app.close()
   const backup = backupOrganization(h.directory, join(h.root, 'workgraph-backup'), 5000)
-  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: 23 })
+  expect(JSON.parse(await readFile(join(backup, 'manifest.json'), 'utf8'))).toMatchObject({ schema: ORGANIZATION_SCHEMA_VERSION })
   restoreOrganization(backup, h.directory, 5000)
   const restored = await bootOrganization(h.config)
   cleanup.push(restored.close)

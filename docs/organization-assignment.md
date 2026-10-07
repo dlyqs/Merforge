@@ -37,3 +37,5 @@ HTTPS 固定接口包括 `/assignment/review`、`/assignment/command`、`/assign
 v20 升级到 v21 时，产物和提交的 runId 允许 NULL。已有字节、提交、审批、回执和执行 JSON 保留；旧 active 设备、准备授权和 held 租约通过 simplify-task-workflow 审计事件退役。旧表和旧执行 JSON 中的设备字段仅用于历史校验，当前命令不接受这些字段，也不重新登记或领取。
 
 升级在单个启动事务内执行。SQLite 重建被引用的表前关闭外键执行，提交前通过所有关系校验及 foreign_key_check，完成后重新开启；失败回滚表、状态和 schema stamp。停服备份和恢复继续验证真实产物字节与审批关系，不制造新的执行或审批事实。
+
+SQLite v24 的 `inbox_notification_reads` 按接收成员、请求和已读事件保存观察版本。`read-inbox` 要求当前节点可见且请求版本一致，仅确认已读，不接受任务或成果。分配回复通知原下发人；成果审批决定通知员工。项目展开与自动导航不确认已读；明确打开对应对话或节点详情才发送确认，刷新和重启保留结果。

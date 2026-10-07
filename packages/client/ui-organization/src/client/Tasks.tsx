@@ -5,6 +5,7 @@ import type { OrganizationTaskView } from '@deepseek-ai/dsh-organization'
 import type { OrganizationProjectView } from '@deepseek-ai/dsh-organization/types'
 import type { OrganizationProps } from './contract.ts'
 import type { OrganizationTaskSelectionProps } from './task-store.ts'
+import { unreadTaskNotifications } from './notification-view.ts'
 import { readNavigationProjects } from './projects.ts'
 import { taskRows, workgraphError } from './workgraph-view.ts'
 import { Workbench } from './Workbench.tsx'
@@ -46,16 +47,21 @@ export function OrganizationTaskList(props: TaskProps) {
   return <section className={css.taskBrowser}>
     <div className={css.toolbar}><Button variant="ghost" size="sm" icon={<IconRefreshOutlineRegular />} disabled={c.phase !== 'ready'} onClick={() => { setReload(n => n + 1) }}>{props.t('refreshAccess')}</Button></div>
     {notice && <p role="alert">{notice}</p>}
-    {current.map(({ project, tasks }) => <section key={project.id}><h4>{project.name}</h4>
-      <nav className={css.planList}>{taskRows(tasks).filter(row => row.depth === 0).map(({ task, depth }) => <button key={task.id} className={css.planItem} style={{ marginInlineStart: depth * 8, width: `calc(100% - ${depth * 8}px)` }} type="button" aria-label={task.goal} aria-pressed={selected?.taskId === task.id} onClick={() => {
-        if (!c.principal) return
-        props.actions.selectTask({ ...c.principal, organizationId: project.organizationId, projectId: project.id,
-          planId: task.planId, taskId: task.id })
-        props.openTasks()
-      }}><IconBranchOutlineRegular /><span><strong>{task.goal}</strong><small>{task.phaseTitle} · {props.t('taskVersion', { revision: task.revision })}</small>
-          {(task.hasTreeRequests || page?.pending.some(item => item.assignment.planId === task.planId)) && <small className={css.pendingAction}>{props.t('taskActionNeeded')}</small>}
-        </span></button>,
-      )}</nav></section>)}
+    {current.map(({ project, tasks }) => <section key={project.id}><h4>{project.name}
+      {unreadTaskNotifications(c).some(item => item.assignment.projectId === project.id)
+      && <span className={css.unreadDot} role="img" aria-label={props.t('unreadTaskNotification')} />}</h4>
+    <nav className={css.planList}>{taskRows(tasks).filter(row => row.depth === 0).map(({ task, depth }) => <button key={task.id} className={css.planItem} style={{ marginInlineStart: depth * 8, width: `calc(100% - ${depth * 8}px)` }} type="button" aria-label={task.goal} aria-pressed={selected?.taskId === task.id} onClick={() => {
+      if (!c.principal) return
+      props.actions.selectTask({ ...c.principal, organizationId: project.organizationId, projectId: project.id,
+        planId: task.planId, taskId: task.id })
+      props.openTasks()
+      void props.readTaskNotifications?.({ planId: task.planId, id: task.id })
+        .catch((error: unknown) => { setNotice(props.t(workgraphError(error))) })
+    }}><IconBranchOutlineRegular />{unreadTaskNotifications(c).some(item => item.assignment.planId === task.planId)
+        && <span className={css.unreadDot} role="img" aria-label={props.t('unreadTaskNotification')} />}<span><strong>{task.goal}</strong><small>{task.phaseTitle} · {props.t('taskVersion', { revision: task.revision })}</small>
+        {(task.hasTreeRequests || page?.pending.some(item => item.assignment.planId === task.planId)) && <small className={css.pendingAction}>{props.t('taskActionNeeded')}</small>}
+      </span></button>,
+    )}</nav></section>)}
     {c.phase === 'ready' && page?.generation !== c.generation && !notice && <p role="status">{props.t('loading')}</p>}
   </section>
 }

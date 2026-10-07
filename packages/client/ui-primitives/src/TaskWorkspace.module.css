@@ -279,3 +279,5 @@
   padding-top: 24px;
   border-top: 0.5px solid var(--dsw-alias-border-l3);
 }
+
+.unreadDot { display: inline-block; flex: none; margin-inline: 8px; width: 7px; height: 7px; border-radius: 50%; corner-shape: round; background: var(--dsw-alias-state-error-primary); }

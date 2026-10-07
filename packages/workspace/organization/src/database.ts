@@ -10,7 +10,7 @@ import { deliveryDdl, validateDeliveryDatabase } from './delivery.ts'
 import { executionHumanDdl, executionDdl, validateExecutionDatabase } from './execution-database.ts'
 import { migrateAssignmentExecution } from './assignment-migration.ts'
 import { deviceDdl, validateDeviceDatabase } from './device-database.ts'
-import { assignmentDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
+import { assignmentDdl, inboxReadDdl, delegationDdl, migrateAssignmentV4, validateAssignmentDatabase } from './assignment-database.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, openSync, closeSync } from 'node:fs'
 import { dirname, isAbsolute } from 'node:path'
@@ -21,7 +21,7 @@ import { OrganizationError } from './error.ts'
 import { accountSchema, attemptSchema, eventSchema, invitationSchema, membershipSchema, metadataSchema, profileSchema, organizationSchema, receiptRowSchema, receiptSchema, sessionSchema } from './schema.ts'
 
 /** Organization physical schema; changes never alter the personal Session format. */
-export const ORGANIZATION_SCHEMA_VERSION = 23
+export const ORGANIZATION_SCHEMA_VERSION = 24
 const applicationId = 0x4d464f52
 const ddl = `
 CREATE TABLE metadata (singleton INTEGER PRIMARY KEY CHECK(singleton=1), serverId TEXT NOT NULL,
@@ -107,7 +107,7 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         db.exec(ddl + resourceDdl + workgraphDdl + assignmentDdl + delegationDdl
           + deviceDdl + executionDdl + executionHumanDdl + deliveryDdl + acceptanceDdl + integrationDdl
           + planningDdl + planningDraftDdl + hierarchyDdl + projectLifecycleDdl + projectContentDdl
-          + workgraphDeletionDdl + workgraphSharingDdl + profileDdl)
+          + workgraphDeletionDdl + workgraphSharingDdl + profileDdl + inboxReadDdl)
         db.prepare('INSERT INTO metadata VALUES (1,?,NULL,NULL,NULL)').run(randomUUID())
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}; PRAGMA application_id=${applicationId}`)
       } else if ((stamp === 1 || stamp === 2 || stamp === 3 || stamp === 4 ||
@@ -138,10 +138,13 @@ export function openOrganizationDatabase(path: string, busyTimeoutMs: number): D
         if (!db.prepare('PRAGMA table_info(organization_projects)').all().some(row => row.name === 'background')) db.exec(projectContentDdl)
         if (stamp < 20) db.exec(workgraphSharingDdl)
         migrateAssignmentExecution(db)
-        db.exec(profileDdl)
+        db.exec(profileDdl + inboxReadDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if ((stamp === 21 || stamp === 22) && app === applicationId) {
-        db.exec(profileDdl)
+        db.exec(profileDdl + inboxReadDdl.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '))
+        db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
+      } else if (stamp === 23 && app === applicationId) {
+        db.exec(inboxReadDdl)
         db.exec(`PRAGMA user_version=${ORGANIZATION_SCHEMA_VERSION}`)
       } else if (stamp !== ORGANIZATION_SCHEMA_VERSION || app !== applicationId) {
         throw new OrganizationError('incompatible-store')
@@ -255,6 +258,7 @@ function validateDatabase(db: DatabaseSync, resources = true, workgraph = true, 
           WHERE a.id=? AND a.organizationId=? AND a.projectId=? AND a.planId=? AND a.planRevision=?
           AND ((e.kind='approve-assignment' AND a.createdRevision=e.revision AND a.approvedBy=m.id)
             OR (e.kind='revoke-assignment' AND a.version=e.revision AND a.state='revoked')
+            OR (e.kind='read-inbox' AND EXISTS (SELECT 1 FROM inbox_notification_reads n WHERE n.assignmentId=a.id AND n.membershipId=m.id AND n.eventRevision=e.revision))
             OR (e.kind IN ('answer-execution-question','approve-execution-tool') AND EXISTS (SELECT 1 FROM execution_human_requests h WHERE h.assignmentId=a.id AND json_extract(h.data,'$.handlerId')=m.id AND json_extract(h.data,'$.answeredRevision')=e.revision))
             OR (e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation') AND a.assigneeId=m.id
               AND EXISTS (SELECT 1 FROM assignment_actions x WHERE x.revision=e.revision AND x.assignmentId=a.id)))`)

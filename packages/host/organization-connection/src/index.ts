@@ -226,8 +226,15 @@ export class OrganizationConnection {
     clearTimeout(this.retry)
     this.generation++
     this.denialRefreshed = denialRefreshed
-    this.publish({ generation: this.generation, projects: undefined, inbox: undefined,
-      members: [], hierarchy: undefined, removedProjects: undefined, removedPlans: undefined, error: undefined, ...next })
+    const sameInbox = next.phase === 'loading' && this.state.mode === 'organization'
+      && ['ready', 'loading'].includes(this.state.phase)
+      && (next.mode === undefined || next.mode === this.state.mode)
+      && (next.organizationId === undefined || next.organizationId === this.state.organizationId)
+      && (next.principal === undefined || next.principal.serverId === this.state.principal?.serverId
+        && next.principal.accountId === this.state.principal.accountId)
+    this.publish({ generation: this.generation, projects: undefined, inbox: sameInbox ? this.state.inbox : undefined,
+      members: [], hierarchy: undefined, removedProjects: sameInbox ? this.state.removedProjects : undefined,
+      removedPlans: sameInbox ? this.state.removedPlans : undefined, error: undefined, ...next })
     return this.generation
   }
   private async request(route: string, body?: unknown, generation = this.generation): Promise<unknown> {
@@ -850,6 +857,13 @@ export class OrganizationConnection {
       if (!deleted.items.length || deletedOffset >= deleted.total) break
     }
     const inbox = inboxPageSchema.parse(await this.request('/assignment/inbox', { organizationId: id }, generation))
+    while (inbox.items.length < inbox.total) {
+      const page = inboxPageSchema.parse(await this.request('/assignment/inbox', {
+        organizationId: id, offset: inbox.items.length, cursor: inbox.cursor,
+      }, generation))
+      if (!page.items.length) break
+      inbox.items.push(...page.items)
+    }
     const members = selected.role === 'admin' ? membersSchema.parse(await this.request(`/organizations/${id}/members`, undefined, generation)) : []
     const hierarchy = hierarchySchema.parse(await this.request(`/organizations/${id}/hierarchy`, undefined, generation))
     if (generation !== this.generation) return

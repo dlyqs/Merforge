@@ -40,7 +40,7 @@ export function ConversationPlan(props: OrganizationProps & {
   useEffect(() => {
     const lifetime = { active: true }
     setTaskFacts(undefined)
-    if (proposal?.status === 'shared') void (async () => {
+    if (!props.assignmentId && proposal?.status === 'shared') void (async () => {
       const items: OrganizationTaskView[] = []
       let offset = 0, cursor: string | undefined
       while (true) {
@@ -53,16 +53,19 @@ export function ConversationPlan(props: OrganizationProps & {
       setTaskFacts({ generation: props.generation, planId: proposal.planId, revision: proposal.revision, tasks: items })
     })().catch(() => { if (lifetime.active) setNotice(t('conversationDetailsRestricted')) })
     return () => { lifetime.active = false }
-  }, [proposal?.planId, proposal?.revision, proposal?.status, props.generation])
+  }, [proposal?.planId, proposal?.revision, proposal?.status, props.generation, props.assignmentId])
   const [facts, setFacts] = useState<{ history: ConnectionResult['assignment']; executions?: ConnectionResult['executions']; delivery?: ConnectionResult['delivery'] }>()
-  const task = proposal?.definition?.tasks.find(item => item.id === selected) ?? proposal?.definition?.tasks[0]
+  const task = props.assignmentTaskId
+    ? proposal?.definition?.tasks.find(item => item.id === props.assignmentTaskId)
+    : proposal?.definition?.tasks.find(item => item.id === selected) ?? proposal?.definition?.tasks[0]
   useEffect(() => {
     let active = true
     setCandidates(undefined); setNotice('')
+    if (props.assignmentId) return
     void props.connection({ kind: 'planning-candidates', request: { organizationId: props.query.organizationId,
       projectId: props.query.projectId, search, offset } }).then((r) => { if (active) setCandidates(r.candidates) }, () => { if (active) setNotice(t('conversationMemberUnavailable')) })
     return () => { active = false }
-  }, [search, offset, props.generation])
+  }, [search, offset, props.generation, props.assignmentId])
   useEffect(() => {
     const lifetime = { active: true }
     reviewEpoch.current++
@@ -108,7 +111,7 @@ export function ConversationPlan(props: OrganizationProps & {
       {run && <p>{t(`run-${run.state}`)}</p>}
       <p>{submission?.reviewState === 'pending' ? t('waitingDispatcher') : assignment?.state === 'pending' ? t('waitingEmployee') : t('waitingExecution')}</p>
       <p>{t('conversationLatestSubmission')}: {submission?.summary ?? t('conversationNoSubmission')}</p>
-      <details className={css.advanced}><summary>{t('suggestedMember')}</summary>
+      {!props.assignmentId && <details className={css.advanced}><summary>{t('suggestedMember')}</summary>
         <label className={css.field}>{t('conversationFindMember')}<Input value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0) }} /></label>
         {candidates && candidates.total > 1 && search && <p>{t('conversationAmbiguous')}</p>}
         <label className={css.field}>{t('suggestedMember')}<select disabled={props.busy || !candidates || !['shared', 'private'].includes(proposal.status)} value={task.suggestedMembershipId ?? ''} onChange={(e) => {
@@ -130,9 +133,25 @@ export function ConversationPlan(props: OrganizationProps & {
             if (r.assignment?.result.kind === 'review') setNotice(t(r.assignment.result.value.canAssign ? 'approvalAccessReady' : 'approvalAccessMissing'))
           }, () => { if (alive.current && epoch === reviewEpoch.current) setNotice(t('conversationDetailsRestricted')) })
         }}>{t('reviewApprovalAccess')}</Button>}
-      </details>
+      </details>}
     </section>
   </>
+  if (props.assignmentId) {
+    const assignmentId = props.assignmentId, projectId = props.query.projectId
+    return <section className={css.card}>
+      <TaskSharing {...props} projectId={props.query.projectId} planId={proposal.planId}
+        overallGoal={tasks.find(item => item.parentTaskId === null)?.goal} />
+      {task && <>
+        <div className={css.actions}><Button onClick={() => { props.openConversationTask?.({
+          organizationId: props.query.organizationId, projectId, planId: proposal.planId, taskId: task.id, assignmentId,
+        }) }}>{t('tasks')}</Button></div>
+        {detailsOpen && <ConversationTask key={task.id} {...props} projectId={props.query.projectId}
+          planId={proposal.planId} taskId={task.id} assignmentId={props.assignmentId}
+          overview={overview} onClose={() => { setDetailsOpen(false) }} />}
+      </>}
+      {notice && <p role="status">{notice}</p>}
+    </section>
+  }
   return <section className={css.card}>
     <h3>{t(status[proposal.status])}</h3><p>{t('taskVersion', { revision: proposal.revision })}</p>
     <p>{t('conversationImpact')}</p>

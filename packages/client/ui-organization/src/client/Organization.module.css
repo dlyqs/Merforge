@@ -157,3 +157,5 @@
 @media (max-width: 480px) { .sharedContextHeading { flex-wrap: wrap; } }
 .memberAvatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 .avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+
+.notificationBadge { position: absolute; top: 8px; right: 12px; width: 7px; height: 7px; border-radius: 50%; corner-shape: round; background: var(--dsw-alias-state-error-primary); }

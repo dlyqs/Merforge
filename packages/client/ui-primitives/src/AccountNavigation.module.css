@@ -337,3 +337,6 @@
   border-radius: 10px;
   padding: 0 12px;
 }
+
+.unreadDot { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; corner-shape: round; background: var(--dsw-alias-state-error-primary); }
+.sessionRow[data-unread='true'] .sessionTitle { font-weight: 600; color: var(--dsw-alias-label-primary); }

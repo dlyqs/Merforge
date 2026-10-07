@@ -49,6 +49,13 @@ export function changeParticipant(
     answerExecutionHuman(db, principal, command, revision)
     return { assignment }
   }
+  if (command.kind === 'read-inbox') {
+    const item = authorizeInboxRead(db, principal, command)
+    db.prepare(`INSERT INTO inbox_notification_reads (membershipId,requestId,assignmentId,observedRevision,readAt,eventRevision)
+      VALUES (?,?,?,?,?,?)`)
+      .run(principal.membershipId ?? null, item.request.id, assignment.id, command.expectedRevision, Date.now(), revision)
+    return { assignment }
+  }
   authorizeParticipant(db, principal, assignment)
   const now = Date.now()
   if (command.kind === 'read-notification') {
@@ -66,8 +73,8 @@ export function changeParticipant(
     if (assignment.state !== 'pending' || request.state !== 'pending' || request.expiresAt !== null && request.expiresAt <= now) throw new OrganizationError('version-conflict')
     db.prepare('UPDATE assignment_requests SET state=?,answeredRevision=? WHERE id=?').run(command.answer, revision, request.id)
     db.prepare('UPDATE task_assignments SET state=?,version=? WHERE id=?').run(command.answer, revision, assignment.id)
-    // The existing notification is the durable request-state invalidation; no duplicate body is retained.
-    db.prepare('UPDATE assignment_notifications SET readAt=NULL WHERE requestId=?').run(request.id)
+    // The existing notification is the durable request-state invalidation; the employee has already viewed and answered it.
+    db.prepare('UPDATE assignment_notifications SET readAt=? WHERE requestId=?').run(now, request.id)
     return { assignment: { ...assignment, state: command.answer, version: revision } }
   }
 }
@@ -82,8 +89,8 @@ export function changeParticipant(
 export function visibleInbox(db: DatabaseSync, principal: Principal,
   query: { state: 'pending' | 'processed' | 'all'; search: string }): OrganizationInboxItem[] {
   const items: OrganizationInboxItem[] = []
-  for (const row of db.prepare('SELECT * FROM task_assignments WHERE organizationId=? AND assigneeId=? ORDER BY createdRevision DESC')
-    .all(principal.organizationId ?? null, principal.membershipId ?? null)) {
+  for (const row of db.prepare('SELECT * FROM task_assignments WHERE organizationId=? AND (assigneeId=? OR approvedBy=?) ORDER BY createdRevision DESC')
+    .all(principal.organizationId ?? null, principal.membershipId ?? null, principal.membershipId ?? null)) {
     const assignment = assignmentSchema.parse(row)
     try {
       const tasks = visibleTasks(db, principal, { ...assignment, revision: assignment.planRevision, search: query.search, offset: 0 })
@@ -93,11 +100,13 @@ export function visibleInbox(db: DatabaseSync, principal: Principal,
       throw error
     }
     const request = assignmentRequestSchema.parse(db.prepare('SELECT * FROM assignment_requests WHERE assignmentId=?').get(assignment.id))
+    if (assignment.assigneeId !== principal.membershipId && request.answeredRevision === null) continue
     if (request.state === 'pending' && request.expiresAt !== null && request.expiresAt <= Date.now()) request.state = 'expired'
     if (query.state === 'pending' && request.state !== 'pending'
       || query.state === 'processed' && request.state === 'pending') continue
     const notification = assignmentNotificationSchema.parse(db.prepare('SELECT * FROM assignment_notifications WHERE requestId=?').get(request.id))
-    items.push({ assignment, request, notificationId: notification.id, readAt: notification.readAt })
+    items.push({ assignment, request, notificationId: notification.id,
+      readAt: assignment.assigneeId === principal.membershipId ? notification.readAt : null })
   }
   for (const row of db.prepare("SELECT data FROM execution_human_requests WHERE json_extract(data,'$.handlerId')=?").all(principal.membershipId ?? null)) {
     const request = executionHumanSchema.parse(JSON.parse(String(row.data)))
@@ -136,7 +145,34 @@ export function visibleInbox(db: DatabaseSync, principal: Principal,
     }
     items.push({ assignment, request, notificationId: null, readAt: null })
   }
-  return items
+  return items.map((item) => {
+    const read = db.prepare('SELECT observedRevision,readAt FROM inbox_notification_reads WHERE membershipId=? AND requestId=? ORDER BY eventRevision DESC LIMIT 1')
+      .get(principal.membershipId ?? null, item.request.id)
+    return read?.observedRevision === notificationRevision(item, principal.membershipId) ? { ...item, readAt: Number(read.readAt) } : item
+  })
+}
+function notificationRevision(item: OrganizationInboxItem, memberId: Principal['membershipId']): number {
+  switch (item.request.kind) {
+    case 'accept-assignment': return item.assignment.version
+    case 'accept-delivery': return item.request.handlerId === memberId ? item.request.createdRevision
+      : item.request.acceptance?.createdRevision ?? item.request.createdRevision
+    default: return item.request.answeredRevision ?? item.request.createdRevision
+  }
+}
+/**
+ * Authorize an exact inbox observation for its current recipient.
+ * @param db - Authority transaction.
+ * @param principal - Current member.
+ * @param command - Request identity and observed revision.
+ * @returns The readable inbox fact; changed observations are refused.
+ */
+export function authorizeInboxRead(db: DatabaseSync, principal: Principal,
+  command: Extract<z.output<typeof participantCommandSchema>, { kind: 'read-inbox' }>): OrganizationInboxItem {
+  const item = visibleInbox(db, principal, { state: 'all', search: '' }).find(item => item.assignment.id === command.assignmentId
+    && item.request.id === command.requestId)
+  if (!item) throw new OrganizationError('forbidden')
+  if (notificationRevision(item, principal.membershipId) !== command.expectedRevision) throw new OrganizationError('version-conflict')
+  return item
 }
 
 /**

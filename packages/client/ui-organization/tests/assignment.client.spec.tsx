@@ -3,7 +3,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash, webcrypto } from 'node:crypto'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { preparationSchema, taskAssignmentsPageSchema } from '@deepseek-ai/dsh-organization/assignment'
 import { workgraphPageSchema } from '@deepseek-ai/dsh-organization/workgraph'
@@ -14,6 +14,13 @@ import { DeliveryPanel } from '../src/client/DeliveryPanel.tsx'
 import { Workbench } from '../src/client/Workbench.tsx'
 import { ExecutionPanel } from '../src/client/ExecutionPanel.tsx'
 import { executionViewSchema, executionCommandSchema, executionRunSchema } from '@deepseek-ai/dsh-organization/execution'
+import { OrganizationBrowser } from '../src/client/OrganizationBrowser.tsx'
+import { OrganizationDeliveryNode } from '../src/client/OrganizationDeliveryNode.tsx'
+import { NotificationBadge } from '../src/client/NotificationBadge.tsx'
+import { createConversationStore } from '../src/client/conversation-store.ts'
+import { OrganizationPlanNode } from '../src/client/OrganizationPlanNode.tsx'
+import type {} from '../src/client/conversation-node.ts'
+import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { ConversationTask } from '../src/client/ConversationTask.tsx'
 import { AssignmentBatch } from '../src/client/AssignmentBatch.tsx'
 import { assignmentBatchRequestSchema } from '../../../host/organization-connection/src/assignment-batch.ts'
@@ -248,6 +255,13 @@ function fixture(approved: boolean, admin = false) {
     useTaskExecutionRevision: selector => selector(0),
     useOrganization: selector => selector(state) }
   return { props, task, projectId, connection, prep, generation: () => state.connection.generation,
+    snapshot: () => state,
+    notify: (items: import('@deepseek-ai/dsh-organization').OrganizationInboxItem[],
+      principal: NonNullable<OrganizationDesktopSnapshot['connection']['principal']>) => {
+      state = { ...state, connection: { ...state.connection, principal, inbox: { items, total: items.length,
+        unread: items.filter(item => item.readAt === null).length,
+        offset: 0, revision: 1, cursor: brandString('notifications') } } }
+    },
     refresh: () => { state = { ...state, connection: { ...state.connection, generation: state.connection.generation + 1 } } },
     offline: () => { state = { ...state, connection: { ...state.connection, generation: 2, phase: 'offline' } } } }
 }
@@ -271,7 +285,7 @@ it('accepts without delegating or claiming and hides old details when offline', 
   const h = fixture(true)
   const view = render(<AssignmentPanel {...h.props} task={h.task} projectId={h.projectId} current />)
   fireEvent.click(await screen.findByRole('button', { name: zh.acceptAssignment }))
-  await waitFor(() => expect(h.prep.assignment.state).toBe('accepted'))
+  await waitFor(() =>{  expect(h.prep.assignment.state).toBe('accepted') })
   expect(screen.queryByText(zh.taskExecutionReady)).toBeNull()
   expect(h.connection.mock.calls.some(([action]) => action.kind === 'assignment-delegate' || action.kind === 'lease-claim')).toBe(false)
   expect(screen.getByText(zh.preparationOnly)).toBeTruthy()
@@ -388,7 +402,7 @@ it('uses the same explicit acceptance and execution controls inside a conversati
   expect(screen.getByRole('tab', { name: zh.taskDeliveryTab })).toBeTruthy()
   expect(h.connection.mock.calls.every(([a]) => !['assignment-participant', 'execution-command', 'lease-claim', 'assignment-delegate'].includes(a.kind))).toBe(true)
   fireEvent.click(accept)
-  await waitFor(() => expect(h.prep.assignment.state).toBe('accepted'))
+  await waitFor(() =>{  expect(h.prep.assignment.state).toBe('accepted') })
   expect(screen.queryByText(zh.taskExecutionReady)).toBeNull()
   expect(h.connection.mock.calls.filter(([a]) => a.kind === 'assignment-participant')).toHaveLength(1)
   expect(h.props.execution).not.toHaveBeenCalled()
@@ -674,8 +688,168 @@ it.each(['pending', 'accepted'] as const)('hides execution for another assignee 
   })
   render(<ConversationTask {...h.props} projectId={h.projectId} planId={h.task.planId} taskId={h.task.id} onClose={() => {}} />)
   fireEvent.click(await screen.findByRole('tab', { name: zh.taskPreparationTab }))
-  await waitFor(() => expect(screen.getAllByText(zh[`assignment-${state}`]).length).toBeGreaterThan(0))
+  await waitFor(() =>{  expect(screen.getAllByText(zh[`assignment-${state}`]).length).toBeGreaterThan(0) })
   expect(screen.queryByRole('tab', { name: zh.taskExecutionTab })).toBeNull()
   expect(screen.getByRole('tab', { name: zh.taskDeliveryTab })).toBeTruthy()
   expect(h.props.execution).not.toHaveBeenCalled()
+})
+
+it('keeps the assigned node details mounted during Chat updates and opens that exact task destination', async () => {
+  const h = fixture(true), base = h.connection.getMockImplementation()!
+  const rootId = brandString<import('@deepseek-ai/dsh-organization').OrganizationTaskId>(randomUUID())
+  const task = { ...h.task, parentTaskId: rootId }
+  const root = { ...h.task, id: rootId, goal: 'Whole project goal' }
+  const result = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+    owner: { serverId: randomUUID(), accountId: randomUUID(), organizationId: h.prep.assignment.organizationId,
+      projectId: h.projectId, conversationId: randomUUID() }, assignment: h.prep.assignment,
+    settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [], truncated: false, state: 'ready',
+    goals: [{ id: h.prep.assignment.id, classification: 'complex', proposal: { status: 'shared', planId: task.planId,
+      revision: 1, definition: { taskId: rootId, phases: [{ id: task.phaseId, title: 'Preparation' }], tasks: [root, task].map(({ planId: _planId, revision: _revision, phaseTitle: _phaseTitle, status: _status,
+        assignable: _assignable, hasUndisclosedPrerequisite: _hidden, ...definition }) => definition) } } }] })
+  h.connection.mockImplementation(async (action) => {
+    if (action.kind === 'workgraph-tasks') return { workgraph: { generation: 1,
+      result: { kind: 'tasks', value: { items: [root, task], total: 2, offset: 0, revision: 1, cursor: brandString('cursor') } } } }
+    if (action.kind === 'workgraph-sharing') return { generation: 1, sharing: { sharedContext: 'Shared background', version: 1,
+      canEdit: false, canRequest: false, fullTreeVisible: true, requests: [] } }
+    return base(action)
+  })
+  const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async () => ({ generation: 1, result }))
+  const openConversationTask = vi.fn()
+  const node: ChatNodeViewProps<'organization-plan'>['node'] = { key: 'assignment', id: h.prep.assignment.id,
+    kind: 'organization-plan', target: 'chat', anchorSeq: 1, location: { kind: 'unresolved' }, visibility: 'visible',
+    data: { ...result.owner, goalId: result.goals[0]!.id, revision: 1,
+      assignment: { planId: task.planId, assignmentId: h.prep.assignment.id } } }
+  const props = { ...h.props, conversation, openConversationTask, node }
+  const view = render(<OrganizationPlanNode {...props} />)
+  await screen.findByText('Shared background')
+  const heading = await screen.findByRole('heading', { name: task.goal })
+  expect(screen.queryByRole('region', { name: zh.mindMap })).toBeNull()
+  expect(screen.queryByText(zh.stagesAndDependencies)).toBeNull()
+  expect(screen.queryByText(zh.suggestedMember)).toBeNull()
+  expect(screen.getByText(task.scope)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: zh.tasks }))
+  expect(openConversationTask).toHaveBeenCalledExactlyOnceWith({ organizationId: result.owner.organizationId,
+    projectId: h.projectId, planId: task.planId, taskId: task.id, assignmentId: h.prep.assignment.id })
+  fireEvent.click(screen.getByRole('tab', { name: zh.taskPreparationTab }))
+  await screen.findByRole('button', { name: zh.acceptAssignment })
+  const reads = conversation.mock.calls.length
+  view.rerender(<OrganizationPlanNode {...props} node={{ ...node, data: { ...node.data } }} />)
+  expect(conversation).toHaveBeenCalledTimes(reads)
+  expect(screen.getByRole('heading', { name: task.goal })).toBe(heading)
+  expect(screen.getByRole('tab', { name: zh.taskPreparationTab }).getAttribute('aria-selected')).toBe('true')
+  let resolveRead!: (value: { generation: number; result: typeof result }) => void
+  conversation.mockImplementationOnce(() => new Promise((resolve) => { resolveRead = resolve }))
+  view.rerender(<OrganizationPlanNode {...props} node={{ ...node, data: { ...node.data, revision: 2 } }} />)
+  expect(conversation).toHaveBeenCalledTimes(reads + 1)
+  expect(screen.getByRole('heading', { name: task.goal })).toBe(heading)
+  await act(async () => { resolveRead({ generation: 1, result }) })
+  expect(screen.getByRole('heading', { name: task.goal })).toBe(heading)
+  expect(screen.getByRole('tab', { name: zh.taskPreparationTab }).getAttribute('aria-selected')).toBe('true')
+  h.offline(); view.rerender(<OrganizationPlanNode {...props} />)
+  expect(screen.queryByRole('heading', { name: task.goal })).toBeNull()
+})
+
+it('keeps project and conversation unread hints until the exact conversation is explicitly opened', async () => {
+  const h = fixture(true), store = createConversationStore().create(), readNotifications = vi.fn(async () => {})
+  const principal = { serverId: brandString<import('@deepseek-ai/dsh-organization/types').ServerId>(randomUUID()),
+    accountId: brandString<import('@deepseek-ai/dsh-organization/types').AccountId>(randomUUID()) }
+  const first = { assignment: h.prep.assignment, request: h.prep.request, readAt: null, notificationId: null }
+  const second = { ...first, assignment: { ...h.prep.assignment, id: brandString<import('@deepseek-ai/dsh-organization').OrganizationAssignmentId>(randomUUID()) } }
+  h.notify([first, second], principal)
+  const project = { id: h.projectId, organizationId: h.prep.assignment.organizationId, name: 'Unread project',
+    version: 1, createdBy: principal.accountId, background: '', summary: '', goal: '' }
+  const result = conversationResultSchema.parse({ sessionId: `organization-conversation:${randomUUID()}`,
+    owner: { ...principal, organizationId: project.organizationId, projectId: project.id, conversationId: randomUUID() },
+    settings: { enabled: true, granularity: 'balanced', revision: 0 }, entries: [], goals: [], truncated: false, state: 'ready',
+    catalog: { bots: [], conversations: [first, second].map((item, index) => ({ conversationId: item.assignment.id,
+      title: `Assigned task ${index}`, createdAt: index, assignment: { planId: item.assignment.planId, assignmentId: item.assignment.id } })) } })
+  const connection = vi.fn<OrganizationProps['connection']>(async () => ({ generation: 1,
+    projects: { items: [project], total: 1, offset: 0, revision: 1, cursor: brandString('catalog') } }))
+  const conversation = vi.fn<NonNullable<OrganizationProps['conversation']>>(async () => ({ generation: 1, result }))
+  const props = { ...h.props, connection, conversation, readNotifications, section: 'projects' as const,
+    wide: true, expandSidebar: vi.fn(), actions: store.actions,
+    useStore: <T,>(selector: (state: ReturnType<typeof store.getSnapshot>) => T) => selector(store.getSnapshot()) }
+  const view = render(<OrganizationBrowser {...props} />)
+  const group = await screen.findByRole('button', { name: project.name })
+  await waitFor(() => { expect(screen.getAllByRole('img', { name: zh.unreadTaskNotification })).toHaveLength(1) })
+  fireEvent.click(group)
+  await screen.findByRole('button', { name: 'Assigned task 0' })
+  expect(screen.getAllByRole('img', { name: zh.unreadTaskNotification })).toHaveLength(3)
+  expect(readNotifications).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Assigned task 0' }))
+  await waitFor(() => { expect(readNotifications).toHaveBeenCalledExactlyOnceWith([first]) })
+  h.notify([{ ...first, readAt: 10 }, second], principal)
+  view.rerender(<OrganizationBrowser {...props} />)
+  expect(screen.getAllByRole('img', { name: zh.unreadTaskNotification })).toHaveLength(2)
+  readNotifications.mockClear()
+  view.rerender(<OrganizationBrowser {...props} navigationRevision={1} />)
+  await waitFor(() => { expect(conversation.mock.calls.filter(([request]) => request.kind === 'open')).toHaveLength(2) })
+  expect(readNotifications).not.toHaveBeenCalled()
+})
+
+it('retains unread badges for both primary task destinations until all recipient facts are read', () => {
+  const h = fixture(true), principal = { serverId: brandString<import('@deepseek-ai/dsh-organization/types').ServerId>(randomUUID()),
+    accountId: brandString<import('@deepseek-ai/dsh-organization/types').AccountId>(randomUUID()) }
+  const item = { assignment: h.prep.assignment, request: h.prep.request, notificationId: null, readAt: null }
+  h.notify([item], principal)
+  const view = render(<><NotificationBadge {...h.props} section="projects" /><NotificationBadge {...h.props} section="tasks" /></>)
+  expect(screen.getAllByRole('img', { name: zh.unreadTaskNotification })).toHaveLength(2)
+  h.notify([{ ...item, readAt: 1 }], principal)
+  view.rerender(<><NotificationBadge {...h.props} section="projects" /><NotificationBadge {...h.props} section="tasks" /></>)
+  expect(screen.queryByRole('img', { name: zh.unreadTaskNotification })).toBeNull()
+})
+
+it('shows one downloadable evidence filename and jumps to the submitted task node', async () => {
+  const h = fixture(true), principal = { serverId: brandString<import('@deepseek-ai/dsh-organization/types').ServerId>(randomUUID()),
+    accountId: brandString<import('@deepseek-ai/dsh-organization/types').AccountId>(randomUUID()) }
+  h.notify([], principal)
+  const a = h.prep.assignment, artifactId = randomUUID(), bytes = new TextEncoder().encode('Shared result')
+  const filename = 'positioning-and-messaging.md', sha256 = createHash('sha256').update(bytes).digest('hex')
+  const page = deliveryPageSchema.parse({ artifacts: [{ organizationId: a.organizationId, projectId: a.projectId,
+    planId: a.planId, assignmentId: a.id, planRevision: 1, runId: null, id: artifactId, employeeId: a.assigneeId,
+    path: filename, description: filename, kind: 'file', mediaType: 'text/markdown', size: bytes.length, sha256, createdRevision: 3 }],
+  submissions: [{ organizationId: a.organizationId, projectId: a.projectId, planId: a.planId, assignmentId: a.id,
+    planRevision: 1, runId: null, id: randomUUID(), employeeId: a.assigneeId, handlerId: a.approvedBy,
+    kind: 'accept-delivery', state: 'submitted', artifactIds: [artifactId], summary: 'Please review', target: '',
+    createdRevision: 4, reviewState: 'pending', acceptance: null }], total: 1, offset: 0,
+  limits: { artifactMaxFiles: 10, artifactMaxFileBytes: 1000, artifactMaxTotalBytes: 1000 } })
+  const data: import('@deepseek-ai/dsh-session/types').SessionEventMap['organization/delivery-context'] = {
+    owner: { ...principal, organizationId: a.organizationId, projectId: a.projectId,
+      conversationId: brandString<import('@deepseek-ai/dsh-organization-conversation/protocol').ConversationRequest['conversationId']>(randomUUID()) },
+    assignment: a, submission: page.submissions[0]!, artifacts: page.artifacts, goal: h.task.goal }
+  const node: ChatNodeViewProps<'organization-delivery'>['node'] = { key: 'delivery', id: data.submission.id, kind: 'organization-delivery',
+    target: 'chat', anchorSeq: 4, location: { kind: 'unresolved' }, visibility: 'visible', data }
+  const openConversationTask = vi.fn()
+  h.connection.mockResolvedValue({ generation: 1, artifact: { artifact: page.artifacts[0]!, bytes: Buffer.from(bytes).toString('base64') } })
+  const createURL = vi.fn(() => 'blob:shared-evidence'), revokeURL = vi.fn()
+  vi.stubGlobal('crypto', webcrypto)
+  const priorCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+  const priorRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+  URL.createObjectURL = createURL; URL.revokeObjectURL = revokeURL
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  try {
+    render(<OrganizationDeliveryNode {...h.props} node={node} openConversationTask={openConversationTask} />)
+    expect(screen.getAllByText(filename)).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: zh.tasks }))
+    expect(openConversationTask).toHaveBeenCalledExactlyOnceWith({ organizationId: a.organizationId, projectId: a.projectId,
+      planId: a.planId, taskId: a.taskId, assignmentId: a.id })
+    fireEvent.click(screen.getByRole('link', { name: filename }))
+    await waitFor(() => { expect(click).toHaveBeenCalledOnce() })
+    expect(h.connection).toHaveBeenCalledExactlyOnceWith({ kind: 'delivery-download', request: { organizationId: a.organizationId,
+      projectId: a.projectId, planId: a.planId, assignmentId: a.id, artifactId: page.artifacts[0]!.id } })
+    expect(revokeURL).toHaveBeenCalledWith('blob:shared-evidence')
+    h.connection.mockResolvedValue({ generation: 1, artifact: { artifact: page.artifacts[0]!,
+      bytes: Buffer.from(new TextEncoder().encode('Tampered data')).toString('base64') } })
+    fireEvent.click(screen.getByRole('link', { name: filename }))
+    await screen.findByRole('status')
+    expect(click).toHaveBeenCalledOnce()
+    h.connection.mockResolvedValue({ generation: 2, artifact: { artifact: page.artifacts[0]!, bytes: Buffer.from(bytes).toString('base64') } })
+    fireEvent.click(screen.getByRole('link', { name: filename }))
+    await screen.findByRole('status')
+    expect(click).toHaveBeenCalledOnce()
+  } finally { click.mockRestore(); if (priorCreate) Object.defineProperty(URL, 'createObjectURL', priorCreate)
+  else Reflect.deleteProperty(URL, 'createObjectURL')
+  if (priorRevoke) Object.defineProperty(URL, 'revokeObjectURL', priorRevoke)
+  else Reflect.deleteProperty(URL, 'revokeObjectURL')
+  vi.unstubAllGlobals() }
 })

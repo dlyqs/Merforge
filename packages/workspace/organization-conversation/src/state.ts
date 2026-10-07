@@ -4,7 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
 import { planningCommandSchema } from '@deepseek-ai/dsh-organization/planning'
 import { conversationOwnerSchema, conversationResultSchema, conversationSettingsSchema,
-  conversationBotSchema, conversationBotIdSchema, conversationInputSchema } from './protocol.ts'
+  conversationBotSchema, conversationBotIdSchema, conversationReviewSchema, conversationInputSchema } from './protocol.ts'
 /** Durable ownership and deliberate deletion of an account-private Session. */
 interface ConversationBinding {
   owner: z.output<typeof conversationOwnerSchema>
@@ -38,7 +38,8 @@ export const conversationDomain = defineDomain({ name: 'organization_conversatio
 /** Independent account-private Bot definitions and conversation associations, retained across restarts. */
 export const navigationStateSchema = z.object({
   bots: z.array(z.object({ owner: conversationOwnerSchema, bot: conversationBotSchema }).strict()),
-  metadata: z.array(z.object({ owner: conversationOwnerSchema, title: z.string().max(120) }).strict()).default([]),
+  metadata: z.array(z.object({ owner: conversationOwnerSchema, title: z.string().max(120),
+    review: conversationReviewSchema.optional() }).strict()).default([]),
   selections: z.array(z.object({ owner: conversationOwnerSchema, botId: conversationBotIdSchema }).strict()),
   operations: z.array(z.object({ owner: conversationOwnerSchema, operationId: planningCommandSchema.options[0].shape.operationId,
     digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict()),

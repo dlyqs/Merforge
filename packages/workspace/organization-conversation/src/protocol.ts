@@ -33,11 +33,18 @@ const commonModelSelectionSchema = z.object({ backend: z.enum(['harness-api', 'c
 export const conversationBotSchema = z.object({ id: conversationBotIdSchema, name: z.string().trim().min(1).max(120),
   instructions: z.string().max(8192), selection: z.union([commonModelSelectionSchema, planningOpenSchema.shape.selection]),
   version: z.number().int().nonnegative() }).strict()
+/** Exact task associated with an issuer's reusable approval conversation. */
+export const conversationReviewSchema = assignmentReadSchema.pick({ planId: true, assignmentId: true })
+  .extend({ taskId: planningPlanReadSchema.shape.taskId, submissionId: submissionViewSchema.shape.id }).strict()
+/** Authorized shared submission facts for task navigation and attachment downloads. */
+export const conversationDeliverySchema = z.object({ owner: conversationOwnerSchema, assignment: assignmentSchema,
+  submission: submissionViewSchema, artifacts: z.array(artifactSchema), goal: z.string() }).strict()
 /** Project-authorized navigation metadata, without private transcripts. */
 export const conversationCatalogSchema = z.object({ bots: z.array(conversationBotSchema),
   conversations: z.array(z.object({ conversationId: planningReadSchema.shape.conversationId,
     title: z.string().max(120), createdAt: z.number().int().nonnegative(),
-    botId: conversationBotIdSchema.optional(), assignment: conversationAssignmentSchema.optional() }).strict()) }).strict()
+    botId: conversationBotIdSchema.optional(), assignment: conversationAssignmentSchema.optional(),
+    review: conversationReviewSchema.optional() }).strict()) }).strict()
 const base = accountConversationReadSchema.extend({ operationId: planningOpenSchema.shape.operationId,
   assignment: conversationAssignmentSchema.optional(), botId: conversationBotIdSchema.optional() })
 /** Durable goal identity, distinct from the associated WorkGraph task identity. */
@@ -64,8 +71,8 @@ export const conversationRequestSchema = z.discriminatedUnion('kind', [
     route: z.enum(['new_goal', 'clarification', 'modify', 'query']), goalId: conversationGoalSchema.optional(),
     target: planningPlanReadSchema.pick({ planId: true, taskId: true }).optional() }).strict(),
 ]).superRefine((request, ctx) => {
-  if (request.kind === 'open-review' && (request.assignment || request.botId || String(request.conversationId) !== String(request.review.submissionId)))
-    ctx.addIssue({ code: 'custom', message: 'Review conversation identity must equal its submission and cannot select an assignment or Bot' })
+  if (request.kind === 'open-review' && (request.assignment || request.botId))
+    ctx.addIssue({ code: 'custom', message: 'Review conversations cannot select an assignment or Bot' })
   if (request.kind === 'project-remove' && (request.assignment || request.botId))
     ctx.addIssue({ code: 'custom', message: 'Project removal cannot select a task or Bot' })
   if (!request.projectId && (request.assignment || request.botId || ['bot-save', 'select-task', 'select-model', 'suggest'].includes(request.kind)))
@@ -111,6 +118,7 @@ export const conversationResultSchema = z.object({
   history: z.array(historyEventSchema).default([]),
   running: z.boolean().optional(),
   title: z.string().max(120).optional(),
+  review: conversationReviewSchema.optional(),
   selection: planningOpenSchema.shape.selection.optional(),
   execution: z.object({ target: planningPlanReadSchema.pick({ planId: true, taskId: true }), title: z.string() }).strict().optional(),
   entries: z.array(z.object({ role: z.enum(['user', 'assistant', 'tool']), text: z.string() }).strict()), truncated: z.boolean(),
@@ -175,6 +183,16 @@ declare module '@deepseek-ai/dsh-session/types' {
     'organization/assignment-context': { owner: z.output<typeof conversationOwnerSchema>
       assignment: z.output<typeof assignmentSchema>
       plan: z.output<typeof planningPlanViewSchema> }
+    /**
+     * Authorized shared submission in the issuer's private approval conversation.
+     * @mode shared
+     * @param owner - Account-private conversation identity.
+     * @param assignment - Immutable assignment and task selector.
+     * @param submission - Shared submission and review facts.
+     * @param artifacts - Authorized downloadable evidence.
+     * @param goal - Assigned task node title.
+     */
+    'organization/delivery-context': z.output<typeof conversationDeliverySchema>
     /** Explicit execution setting; selecting it does not accept or start work. */
     'organization/task-selection': { digest: string
       operationId: ConversationRequest['operationId']

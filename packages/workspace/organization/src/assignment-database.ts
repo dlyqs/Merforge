@@ -1,10 +1,19 @@
 /** Approval, answer and delegation records and startup validation of their persisted relations. */
 import type { DatabaseSync } from 'node:sqlite'
+import { submissionSchema, acceptanceSchema } from './delivery-schema.ts'
+import { executionHumanSchema } from './execution-human-schema.ts'
 import { OrganizationError } from './error.ts'
 import { assignmentSchema, assignmentRequestSchema, assignmentNotificationSchema } from './assignment-schema.ts'
 import { parseDelegation } from './assignment-participant.ts'
 import { assignmentInvalidation } from './assignment.ts'
 import { readWorkgraphVersion } from './workgraph.ts'
+
+/** Recipient read receipts retain the exact notification revision across restarts. */
+export const inboxReadDdl = `CREATE TABLE inbox_notification_reads (
+  membershipId TEXT NOT NULL REFERENCES memberships(id), requestId TEXT NOT NULL,
+  assignmentId TEXT NOT NULL REFERENCES task_assignments(id), observedRevision INTEGER NOT NULL REFERENCES organization_events(revision),
+  readAt INTEGER NOT NULL CHECK(readAt>=0), eventRevision INTEGER NOT NULL REFERENCES organization_events(revision),
+  PRIMARY KEY(membershipId,requestId,eventRevision)) STRICT;`
 
 /** Approval, request and notification tables, including explicit answer and read metadata. */
 export const assignmentDdl = `
@@ -76,6 +85,34 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
     } else if (request.answeredRevision !== null) fail()
   }
   for (const row of db.prepare('SELECT * FROM assignment_notifications').all()) assignmentNotificationSchema.parse(row)
+  for (const row of db.prepare('SELECT * FROM inbox_notification_reads').all()) {
+    const a = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(String(row.assignmentId)))
+    const event = db.prepare('SELECT * FROM organization_events WHERE revision=?').get(row.eventRevision ?? null)
+    const member = db.prepare('SELECT accountId,organizationId FROM memberships WHERE id=?').get(String(row.membershipId))
+    if (event?.kind !== 'read-inbox' || event.actorId !== member?.accountId || member?.organizationId !== a.organizationId
+      || event.organizationId !== a.organizationId || Number(row.observedRevision) >= Number(row.eventRevision)
+      || !db.prepare('SELECT 1 FROM assignment_actions WHERE revision=? AND assignmentId=?').get(row.eventRevision ?? null, a.id)) fail()
+    const request = db.prepare('SELECT * FROM assignment_requests WHERE id=? AND assignmentId=?').get(String(row.requestId), a.id)
+    const submission = db.prepare('SELECT data FROM organization_submissions WHERE id=? AND assignmentId=?').get(String(row.requestId), a.id)
+    const human = db.prepare('SELECT data FROM execution_human_requests WHERE id=? AND assignmentId=?').get(String(row.requestId), a.id)
+    if (request) {
+      if (row.membershipId !== a.assigneeId && (row.membershipId !== a.approvedBy || request.answeredRevision === null
+        || Number(request.answeredRevision) >= Number(row.eventRevision))) fail()
+      if (Number(row.observedRevision) < a.createdRevision || Number(row.observedRevision) > a.version) fail()
+    } else if (submission) {
+      const data = submissionSchema.parse(JSON.parse(String(submission.data)))
+      if (row.membershipId !== data.handlerId && row.membershipId !== data.employeeId) fail()
+      const acceptance = db.prepare('SELECT data FROM organization_acceptances WHERE submissionId=?').get(String(row.requestId))
+      const decision = acceptance ? acceptanceSchema.parse(JSON.parse(String(acceptance.data))) : undefined
+      if (row.membershipId === data.handlerId ? row.observedRevision !== data.createdRevision
+        : !decision || row.observedRevision !== decision.createdRevision) fail()
+    } else if (human) {
+      const data = executionHumanSchema.parse(JSON.parse(String(human.data)))
+      if (row.membershipId !== data.handlerId || row.observedRevision !== data.createdRevision
+        && row.observedRevision !== data.answeredRevision) fail()
+    } else fail()
+  }
+
   for (const row of db.prepare('SELECT * FROM assignment_delegations').all()) {
     const d = parseDelegation(row)
     const a = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(d.assignmentId))
@@ -97,16 +134,17 @@ export function validateAssignmentDatabase(db: DatabaseSync): void {
     const a = assignmentSchema.parse(db.prepare('SELECT * FROM task_assignments WHERE id=?').get(String(action.assignmentId)))
     const member = db.prepare('SELECT accountId FROM memberships WHERE id=?').get(a.assigneeId)
     const human = db.prepare("SELECT m.accountId FROM execution_human_requests h JOIN memberships m ON m.id=json_extract(h.data,'$.handlerId') WHERE json_extract(h.data,'$.answeredRevision')=? AND h.assignmentId=?").get(action.revision ?? null, a.id)
-    const actor = ['answer-execution-question', 'approve-execution-tool'].includes(String(action.kind)) ? human?.accountId : member?.accountId
+    const inboxActor = db.prepare('SELECT m.accountId FROM inbox_notification_reads r JOIN memberships m ON m.id=r.membershipId WHERE r.eventRevision=? AND r.assignmentId=?').get(action.revision ?? null, a.id)
+    const actor = action.kind === 'read-inbox' ? inboxActor?.accountId : ['answer-execution-question', 'approve-execution-tool'].includes(String(action.kind)) ? human?.accountId : member?.accountId
     if (action.actorId !== actor || action.organizationId !== a.organizationId
-      || !['answer-assignment','read-notification','delegate','revoke-delegation','answer-execution-question','approve-execution-tool'].includes(String(action.kind))) fail()
+      || !['answer-assignment','read-notification','read-inbox','delegate','revoke-delegation','answer-execution-question','approve-execution-tool'].includes(String(action.kind))) fail()
     if (['delegate','revoke-delegation'].includes(String(action.kind))) {
       const d = parseDelegation(db.prepare('SELECT * FROM assignment_delegations WHERE id=?').get(String(action.delegationId)))
       if (d.assignmentId !== a.id || action.kind === 'delegate' && d.createdRevision !== action.revision) fail()
     } else if (action.delegationId !== null) fail()
   }
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN assignment_actions x ON x.revision=e.revision
-    WHERE e.kind IN ('answer-assignment','read-notification','delegate','revoke-delegation','answer-execution-question','approve-execution-tool') AND x.revision IS NULL LIMIT 1`).get()) fail()
+    WHERE e.kind IN ('answer-assignment','read-notification','read-inbox','delegate','revoke-delegation','answer-execution-question','approve-execution-tool') AND x.revision IS NULL LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN task_assignments a ON a.createdRevision=e.revision
     WHERE e.kind='approve-assignment' AND a.id IS NULL LIMIT 1`).get()) fail()
   if (db.prepare(`SELECT 1 FROM organization_events e LEFT JOIN task_assignments a ON a.version=e.revision AND a.state='revoked'
