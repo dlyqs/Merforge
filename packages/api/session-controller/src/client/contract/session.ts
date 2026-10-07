@@ -160,6 +160,8 @@ export type SessionTaskChoiceId = Branded<'SessionTaskChoiceId'>
 
 /** Account-owned operations consumed by the same Session controls as the personal transport. */
 export interface SessionControls {
+  /** Preference ownership; personal defaults remain independent of the conversation mode. */
+  readonly planningScope: 'personal' | 'account'
   /** Current account-authorized model directory. */
   readonly catalog: {
     readonly store: ObservableSnapshot<{ value: ModelCatalog | null; status: 'idle' | 'loading' | 'ready' | 'error'; error: string | null }>
@@ -177,6 +179,10 @@ export interface SessionControls {
    * @param operationId - Idempotent user gesture.
    * @returns Committed preference. */
   setMode(enabled: boolean, expectedRevision: number, operationId: OperationId): Promise<{ enabled: boolean; revision: number }>
+  /** @returns Planning preferences belonging to this conversation's account or personal profile. */
+  readPlanningPreferences(): Promise<{ enabled: boolean; granularity: 'balanced' | 'fine'; revision: number }>
+  /** @param request - Preference selection and last observed revision. @returns Committed planning preferences. */
+  setPlanningPreferences(request: { enabled: boolean; granularity: 'balanced' | 'fine'; expectedRevision: number }): Promise<{ enabled: boolean; granularity: 'balanced' | 'fine'; revision: number }>
   /** @returns Authorized task candidates in this account partition. */
   listTasks(): Promise<readonly {
     id: SessionTaskChoiceId

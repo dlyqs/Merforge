@@ -143,6 +143,14 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(app.ctx.slots.entries('conversation.composer.bar')[0]?.children).toHaveProperty('conversation.input.left')
     expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(report.sharedSessionId!)
     expect(app.ctx.sessions.list.getSnapshot().byId[report.sharedSessionId!]).toBeDefined()
+    expect(binding.controls?.planningScope).toBe('account')
+    expect(await binding.controls!.readPlanningPreferences()).toEqual(report.settings)
+    nativeConversation.mockImplementationOnce(async () => ({ generation: 1, result: { ...report,
+      settings: { enabled: true, granularity: 'fine', revision: 1 } } }))
+    await binding.controls!.setPlanningPreferences({ enabled: true, granularity: 'fine', expectedRevision: 0 })
+    expect(nativeConversation).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'settings',
+      expectedRevision: 0, settings: { enabled: true, granularity: 'fine' } }))
+    expect(await binding.controls!.readMode()).toEqual({ enabled: true, granularity: 'fine', revision: 1 })
     const nativeCalls = nativeConversation.mock.calls.length
     mock.remote.session.prompt.mockResolvedValue(ok({ accepted: true }))
     const content = [{ type: 'text' as const, text: 'Image question' }, { type: 'image' as const, mediaType: 'image/png' as const, data: 'image-bytes' }]

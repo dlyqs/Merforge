@@ -56,6 +56,7 @@ export class AccountSession implements AccountSessionTarget {
     }
     const current = () => this.result
     this.controls = {
+      planningScope: 'account',
       get assigned() { return !!current().assignment },
       get taskTitle() { return current().execution?.title },
       get taskId() { const id = current().execution?.target.taskId; return id ? brandString<SessionTaskChoiceId>(id) : undefined },
@@ -92,6 +93,11 @@ export class AccountSession implements AccountSessionTarget {
       setMode: async (enabled, expectedRevision, operationId) => {
         await this.perform({ ...query, kind: 'settings', operationId: brandString<ConversationRequest['operationId']>(operationId),
           expectedRevision, settings: { enabled, granularity: this.result.settings.granularity } }); return this.result.settings
+      },
+      readPlanningPreferences: () => { this.assertCurrent(); return Promise.resolve(this.result.settings) },
+      setPlanningPreferences: async ({ enabled, granularity, expectedRevision }) => {
+        await this.perform({ ...query, kind: 'settings', operationId: randomUUID() as ConversationRequest['operationId'],
+          expectedRevision, settings: { enabled, granularity } }); return this.result.settings
       },
       openExecution: () => { this.assertCurrent(); execute(this.result) }, manage,
     }

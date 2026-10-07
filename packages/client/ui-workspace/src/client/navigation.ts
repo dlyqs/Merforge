@@ -136,7 +136,7 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
-  private readonly draftHost: Pick<ClientRemote['session'], 'modelCatalog' | 'personalList' | 'selectModel' | 'workflowMode' | 'workflowSetMode'>
+  private readonly draftHost: Pick<ClientRemote['session'], 'modelCatalog' | 'personalList' | 'selectModel' | 'workflowMode' | 'workflowSetMode' | 'workflowPreferences' | 'workflowSetPreferences'>
     & { permissionCatalog: ClientRemote['permissionPresets']['catalog'] }
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
@@ -169,6 +169,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       selectModel: (...args) => ctx.remote.session.selectModel(...args),
       workflowMode: (...args) => ctx.remote.session.workflowMode(...args),
       workflowSetMode: (...args) => ctx.remote.session.workflowSetMode(...args),
+      workflowPreferences: (...args) => ctx.remote.session.workflowPreferences(...args),
+      workflowSetPreferences: (...args) => ctx.remote.session.workflowSetPreferences(...args),
       permissionCatalog: (...args) => ctx.remote.permissionPresets.catalog(...args),
     }
     ctx.effect(() => {
@@ -275,6 +277,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       return result.value
     }
     const draft = this.sessions.createDraft({
+      planningScope: 'personal',
+      planningPreferences: {
+        readPlanningPreferences: async () => unwrap(await this.draftHost.workflowPreferences()),
+        setPlanningPreferences: async request => unwrap(await this.draftHost.workflowSetPreferences(request)),
+      },
       eventSource: this.sessions.createEventSource(), title: this.ctx.locale.bind('workspace')('actions.newSession'),
       loadModels: async () => {
         const catalog = unwrap(await this.draftHost.modelCatalog())
@@ -301,6 +308,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
             return result
           },
           readMode: async () => unwrap(await this.draftHost.workflowMode(reference.sessionId)),
+          readPlanningPreferences: async () => unwrap(await this.draftHost.workflowPreferences()),
+          setPlanningPreferences: async request => unwrap(await this.draftHost.workflowSetPreferences(request)),
           setMode: async (enabled, expectedRevision, operationId) => unwrap(await this.draftHost.workflowSetMode({
             sessionId: reference.sessionId, enabled, expectedRevision, operationId,
           })),

@@ -151,15 +151,19 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @param props.listClassName - extra class on the dropdown card itself; the
  * only style hook that reaches a portaled list, which renders under
  * document.body outside the owner's DOM subtree.
+ * @param props.role - `dialog` preserves native form-control keys and Tab traversal; the default `menu` walks selectable rows.
+ * @param props.label - localized accessible name, required for a dialog panel.
+ * @param props.panelFooter - dialog controls pinned below the scrolling content.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items = [], children, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', getAnchorRect, footer, className, listClassName }: {
+export function Menu({ open, anchor, items = [], children, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', getAnchorRect, footer, panelFooter, role = 'menu', label, className, listClassName }: {
   open: boolean
   autoFocus?: boolean
   anchor: ReactNode
   items?: readonly MenuEntry[]
   children?: ReactNode
   footer?: readonly MenuEntry[]
+  panelFooter?: ReactNode
   selectedId?: string | undefined
   selectedIds?: readonly string[] | undefined
   onSelect?: (id: string) => void
@@ -174,7 +178,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   getAnchorRect?: () => DOMRect | null
   className?: string | undefined
   listClassName?: string | undefined
-}) {
+} & ({ role?: 'menu'; label?: string } | { role: 'dialog'; label: string })) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   /** Index the arrow walk last focused, the resume point when focus left the rows. */
@@ -243,6 +247,9 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       const listEl = listRef.current
       const lw = listEl?.offsetWidth ?? 0
       const lh = listEl?.offsetHeight ?? 0
+      const maxHeight = role === 'dialog' && side === 'top'
+        ? Math.max(0, r.top - 4 - overlayTopMargin(MARGIN)) : undefined
+      const height = maxHeight === undefined ? lh : Math.min(lh, maxHeight)
 
       let x: number
       let y: number
@@ -251,16 +258,17 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         y = r.top
       } else if (align === 'start') {
         x = r.left
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
+        y = side === 'bottom' ? r.bottom + 4 : r.top - height - 4
       } else {
         x = r.right - lw
-        y = side === 'bottom' ? r.bottom + 4 : r.top - lh - 4
+        y = side === 'bottom' ? r.bottom + 4 : r.top - height - 4
       }
 
       if (lw > 0) x = Math.min(Math.max(x, MARGIN), vw - lw - MARGIN)
-      if (lh > 0) y = Math.min(Math.max(y, overlayTopMargin(MARGIN)), vh - lh - MARGIN)
+      if (height > 0) y = Math.min(Math.max(y, overlayTopMargin(MARGIN)), vh - height - MARGIN)
 
-      setFixedPos(current => current?.left === x && current.top === y ? current : { left: x, top: y })
+      setFixedPos(current => current?.left === x && current.top === y && current.maxHeight === maxHeight
+        ? current : { left: x, top: y, maxHeight })
     }
     // First run measures the hidden pre-render (same commit as `open`), so
     // end/top alignment and clamping use real dimensions before anything
@@ -279,7 +287,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
-  }, [open, portal, align, side, getAnchorRect])
+  }, [open, portal, align, side, getAnchorRect, role])
 
   // Opening remembers where the keyboard was, so closing can hand it back to
   // that control — an anchor wrapping several (a split button) cannot be asked
@@ -326,6 +334,13 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         // and lost it again (a row that unmounted under it).
         onClose()
         if (anchored || autoFocus) refocusAnchor()
+      }
+      if (role === 'dialog') {
+        if (e.key === 'Tab' && anchored && !insideList && !e.shiftKey) {
+          const first = listRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')
+          if (first) { e.preventDefault(); first.focus() }
+        }
+        return
       }
       // Tab settles like Enter and Shift+Tab leaves like Escape, so a menu's
       // keys mean what they mean in the composer. Only a keyboard already on
@@ -396,7 +411,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       document.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('blur', onWindowBlur)
     }
-  }, [open, onClose, autoFocus])
+  }, [open, onClose, autoFocus, role])
 
   // A close from selection/Escape/outside click outruns a pending grace close;
   // left armed it would shut a list reopened inside the grace window. Its own
@@ -489,7 +504,8 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       ref={listRef}
       className={clsx(css.list, listClassName, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
-      role="menu"
+      role={role}
+      aria-label={label}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick
       // (open/toggle) after onSelect. The same bubble is where every row's
@@ -499,7 +515,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       onClick={(e) => {
         e.stopPropagation()
         const row = e.target instanceof Element ? e.target.closest('button[role="menuitem"]') : null
-        if (row !== null && row.getAttribute('aria-haspopup') !== 'menu') refocusAfterSelection()
+        if (role === 'dialog' || (row !== null && row.getAttribute('aria-haspopup') !== 'menu')) refocusAfterSelection()
       }}
       onMouseOver={collapseSubmenuFrom}
       onFocus={collapseSubmenuFrom}
@@ -513,6 +529,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
           {footer.map(renderEntry)}
         </div>
       )}
+      {panelFooter !== undefined && <div className={css.footer}>{panelFooter}</div>}
     </div>
   )
 

@@ -10,6 +10,10 @@ import type { ModelCatalog, ModelSelection, SessionRequestId } from '../../types
 type Materialized = { reference: SessionReference; controls?: SessionControls; dispose(): void; commit(): void }
 /** Draft dependencies capture one account and navigation lifetime. */
 export interface ConversationDraftOptions {
+  /** Preference ownership; account drafts use their conversation settings by default. */
+  planningScope?: SessionControls['planningScope']
+  /** Profile preferences can be saved before this draft creates a conversation. */
+  planningPreferences?: Pick<SessionControls, 'readPlanningPreferences' | 'setPlanningPreferences'>
   eventSource: ExternalSessionTarget['eventSource']
   title: string
   /** @returns Current read-only model directory. */
@@ -42,6 +46,7 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
   const catalog = createSnapshotStore<ReturnType<SessionControls['catalog']['store']['getSnapshot']>>({ value: null, status: 'idle', error: null })
   let taskId: SessionControls['taskId'], taskTitle: string | undefined
   let model: ModelSelection | undefined, enabled = true, modeRevision = 0, modeChanged = false
+  let granularity: 'balanced' | 'fine' = 'balanced', planningChanged = false
   let active = true, materialized: Materialized | undefined, opening: Promise<Materialized> | undefined
   let permission: string | undefined
   const permissions = options.loadPermissions?.().then((value) => {
@@ -88,6 +93,10 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
         if (!result.value.matched) throw new Error('conversation-draft: permission-command-required')
       }
       if (taskId) { await controls.listTasks(); await controls.selectTask(taskId) }
+      if (planningChanged) {
+        const current = await controls.readPlanningPreferences()
+        await controls.setPlanningPreferences({ enabled, granularity, expectedRevision: current.revision })
+      }
       if (modeChanged) {
         const current = await controls.readMode()
         await controls.setMode(enabled, current.revision, brandString<Parameters<SessionControls['setMode']>[2]>(randomUUID()))
@@ -155,6 +164,7 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
     loadOlder: () => Promise.resolve(), loadThrough: () => Promise.resolve(),
   }
   const controls: SessionControls = {
+    planningScope: options.planningScope ?? 'account',
     catalog: { store: catalog, load, refresh: () => { void load().catch((_error: unknown) => { /* The catalog publishes failure. */ }) } },
     selectModel: (selection) => {
       assertActive(); model = selection; projection('modelSelection').set({ lastUsed: null, next: selection })
@@ -165,6 +175,15 @@ export function createConversationDraft(options: ConversationDraftOptions): Exte
       assertActive()
       if (expected !== modeRevision) throw new Error('version-conflict')
       enabled = next; modeChanged = true; return Promise.resolve({ enabled, revision: ++modeRevision })
+    },
+    readPlanningPreferences: () => options.planningPreferences?.readPlanningPreferences()
+      ?? Promise.resolve({ enabled, granularity, revision: modeRevision }),
+    setPlanningPreferences: (request) => {
+      assertActive()
+      if (options.planningPreferences) return options.planningPreferences.setPlanningPreferences(request)
+      if (request.expectedRevision !== modeRevision) throw new Error('version-conflict')
+      enabled = request.enabled; granularity = request.granularity; planningChanged = true
+      return Promise.resolve({ enabled, granularity, revision: ++modeRevision })
     },
     listTasks: () => options.listTasks(),
     selectTask: async (id) => {

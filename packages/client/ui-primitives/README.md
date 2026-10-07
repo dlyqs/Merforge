@@ -106,7 +106,7 @@ The atoms cannot read the application locale, so every piece of user-facing copy
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-Menu.listClassName styles the menu card independently of the anchor wrapper, including in portal mode.
+Menu.listClassName styles the menu card independently of the anchor wrapper, including in portal mode. `role="dialog"` and the required localized `label` turn custom children into a nonmodal form panel: Tab from the trigger enters the controls, native Tab/Shift+Tab and input arrow keys remain available, and Escape closes back to the trigger. `panelFooter` pins form actions below the scrolling content. A portaled top dialog limits its height to the available space above the anchor, preserving the frame clearance and composer visibility. Default menus retain their row-selection keyboard behavior.
 
 <details>
 <summary>Implementation internals — click to expand</summary>

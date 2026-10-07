@@ -65,9 +65,11 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left', id: 'personal-workflow-mode', locale: 'personalWorkflow',
     inject: (sessionId): ModeActions => ({
-      personalPlanning: ctx.sessions.binding(sessionId)?.controls === undefined,
-      readPlanningPreferences: async () => valueOf(await ctx.remote.session.workflowPreferences()),
-      setPlanningPreferences: async request => valueOf(await ctx.remote.session.workflowSetPreferences(request)),
+      personalPlanning: ctx.sessions.binding(sessionId)?.controls?.planningScope !== 'account',
+      readPlanningPreferences: async () => ctx.sessions.binding(sessionId)?.controls?.readPlanningPreferences()
+        ?? valueOf(await ctx.remote.session.workflowPreferences()),
+      setPlanningPreferences: async request => ctx.sessions.binding(sessionId)?.controls?.setPlanningPreferences(request)
+        ?? valueOf(await ctx.remote.session.workflowSetPreferences(request)),
       readTesting: async () => valueOf(await ctx.remote.session.workflowTestingPreferences()),
       readMode: async sessionId => ctx.sessions.binding(sessionId)?.controls?.readMode()
         ?? valueOf(await ctx.remote.session.workflowMode(sessionId)),
@@ -82,6 +84,7 @@ export function apply(ctx: Context): void {
       account: ctx.sessions.binding(sessionId)?.controls,
       candidates: async sessionId => valueOf(await ctx.remote.session.workflowCandidates(sessionId)),
       readRun: async sessionId => valueOf(await ctx.remote.session.workflowRun(sessionId)),
+      readPlan: async request => valueOf(await ctx.remote.session.workflowRead(request)),
       limits: async () => valueOf(await ctx.remote.session.workflowLimits()),
       claim: async request => valueOf(await ctx.remote.session.workflowClaim(request)),
       stop: async (request, cancel) => valueOf(await ctx.remote.session.workflowStop(request, cancel)),

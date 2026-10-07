@@ -1,5 +1,5 @@
 /** Pure layout inputs derived from one Host projection. */
-import type { PlanView, TaskDefinition, TaskId, TaskRun } from '@deepseek-ai/dsh-personal-workflow/types'
+import type { PlanDefinition, PlanPhase, PlanView, TaskDefinition, TaskId, TaskRun } from '@deepseek-ai/dsh-personal-workflow/types'
 import type { BotId, ProjectId } from '@deepseek-ai/dsh-personal-project/types'
 
 /** Select plans by fixed affiliation, without copying or changing identity.
@@ -38,4 +38,42 @@ export function taskExecutions(runs: readonly TaskRun[], taskId: TaskId): Pick<T
     return [{ id: run.id, planRevision: run.planRevision, status: completed ? 'completed' as const : 'paused' as const,
       evidence: completed?.evidence ?? [], sessions: run.sessions }]
   })
+}
+
+/** Count phase tasks separately from root delivery verification.
+ * @param definition - Exact sequential plan revision.
+ * @param completed - Task identities with accepted completion.
+ * @returns Completed count and last consecutively completed phase.
+ */
+export function phaseProgress(definition: PlanDefinition, completed: readonly TaskId[]): {
+  done: number
+  total: number
+  through: PlanPhase | undefined
+} {
+  const accepted = new Set(completed)
+  const phases = definition.phases.map(phase => ({ phase,
+    task: definition.tasks.find(task => task.parentTaskId === definition.taskId && task.phaseId === phase.id) }))
+  let through: typeof definition.phases[number] | undefined
+  for (const { phase, task } of phases) {
+    if (!task || !accepted.has(task.id)) break
+    through = phase
+  }
+  return { done: phases.filter(({ task }) => task !== undefined && accepted.has(task.id)).length, total: phases.length, through }
+}
+
+/** Read verified phases of a Run, including predecessors required at admission.
+ * @param definition - The Run's immutable plan revision.
+ * @param run - Current task and persisted sequence completions.
+ * @returns Accepted phase-task identities, excluding root verification.
+ */
+export function completedRunPhases(definition: PlanDefinition, run: Pick<TaskRun, 'taskId' | 'status' | 'sequence'>): TaskId[] {
+  const current = definition.tasks.find(task => task.id === run.taskId)
+  const position = current?.id === definition.taskId ? definition.phases.length
+    : definition.phases.findIndex(phase => phase.id === current?.phaseId)
+  const completed = new Set(run.sequence?.completed.map(item => item.taskId) ?? [])
+  for (const task of definition.tasks) {
+    if (task.parentTaskId !== definition.taskId) continue
+    if (definition.phases.findIndex(phase => phase.id === task.phaseId) < position || (task.id === run.taskId && run.status === 'completed')) completed.add(task.id)
+  }
+  return [...completed]
 }

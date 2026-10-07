@@ -1,7 +1,7 @@
 /** Tree and affiliation projections never create execution facts. */
 import { expect, it } from 'vitest'
-import { overlappingArtifacts, selectPlans } from '../src/client/view.ts'
-import { definition } from '../../../workspace/personal-workflow/tests/fixture.ts'
+import { completedRunPhases, overlappingArtifacts, phaseProgress, selectPlans } from '../src/client/view.ts'
+import { definition, ids, phaseDefinition } from '../../../workspace/personal-workflow/tests/fixture.ts'
 import { projectPlan } from '../../../workspace/personal-workflow/src/projection.ts'
 import type { ProjectId, BotId } from '@deepseek-ai/dsh-personal-project/types'
 
@@ -17,4 +17,18 @@ it('shows the same plan under Project and Bot without changing its review state'
   expect(selectPlans([view], projectId, null)[0]).toBe(selectPlans([view], null, botId)[0])
   expect(view.tasks.every(task => task.status === 'pending_review')).toBe(true)
   expect(selectPlans([view], null, null)).toEqual([view])
+})
+
+it('counts phase completions separately from root verification and reports only a consecutive milestone', () => {
+  const plan = phaseDefinition(6)
+  expect(phaseProgress(plan, [])).toMatchObject({ done: 0, total: 6, through: undefined })
+  expect(phaseProgress(plan, [ids[1]!, ids[3]!])).toMatchObject({ done: 2, through: plan.phases[0] })
+  expect(phaseProgress(plan, plan.tasks.map(task => task.id))).toMatchObject({ done: 6, total: 6, through: plan.phases[5] })
+})
+
+it('includes admitted predecessor phases and excludes unfinished current work', () => {
+  const plan = phaseDefinition(6)
+  expect(completedRunPhases(plan, { taskId: ids[3]!, status: 'paused' })).toEqual([ids[1], ids[2]])
+  expect(completedRunPhases(plan, { taskId: ids[3]!, status: 'completed' })).toEqual([ids[1], ids[2], ids[3]])
+  expect(phaseProgress(plan, completedRunPhases(plan, { taskId: plan.taskId, status: 'running' }))).toMatchObject({ done: 6, total: 6 })
 })

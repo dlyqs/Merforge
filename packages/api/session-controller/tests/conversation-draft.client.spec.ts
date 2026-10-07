@@ -112,3 +112,44 @@ it('leaves the first prompt unsubmitted when its permission change is refused', 
     expect(dispose).toHaveBeenCalledOnce()
   } finally { draft.dispose() }
 })
+
+it('retains account planning detail locally and applies it before the first submitted input', async () => {
+  const prompt = vi.fn<SessionFace['prompt']>(async () => ({ ok: true, value: { accepted: true } }))
+  const setPlanningPreferences = vi.fn<SessionControls['setPlanningPreferences']>(async request => ({ enabled: request.enabled,
+    granularity: request.granularity, revision: 5 }))
+  const dispose = vi.fn(), commit = vi.fn()
+  const draft = createConversationDraft({ eventSource: new MutableSessionEventSource(), title: 'Draft',
+    loadModels: () => Promise.resolve({ default: { provider: 'test', model: 'test' }, groups: [], failures: [], routableProviders: ['test'] }),
+    listTasks: () => Promise.resolve([]), openExecution: vi.fn(), materialize: async () => {
+      const sessionId = 'persisted' as SessionFace['sessionId']
+      const binding = { sessionId, session: { prompt } } as SessionReference['binding']
+      const reference: SessionReference = { sessionId, binding, ready: Promise.resolve(binding), release: dispose,
+        [Symbol.dispose]: dispose }
+      return { reference, dispose, commit, controls: { ...draft.controls, setPlanningPreferences,
+        readPlanningPreferences: async () => ({ enabled: true, granularity: 'balanced', revision: 4 }) } }
+    } })
+  await draft.controls.setPlanningPreferences({ enabled: true, granularity: 'fine', expectedRevision: 0 })
+  expect(await draft.controls.readPlanningPreferences()).toEqual({ enabled: true, granularity: 'fine', revision: 1 })
+  expect(setPlanningPreferences).not.toHaveBeenCalled()
+  await draft.session.prompt([{ type: 'text', text: 'Submitted' }], 'queue')
+  expect(setPlanningPreferences).toHaveBeenCalledExactlyOnceWith({ enabled: true, granularity: 'fine', expectedRevision: 4 })
+  expect(setPlanningPreferences.mock.invocationCallOrder[0]).toBeLessThan(prompt.mock.invocationCallOrder[0]!)
+  draft.dispose()
+})
+
+it('saves personal profile planning preferences without materializing the draft or changing its mode', async () => {
+  const materialize = vi.fn(async () => { throw new Error('should remain unsaved') })
+  const readPlanningPreferences = vi.fn<SessionControls['readPlanningPreferences']>(async () => ({ enabled: false,
+    granularity: 'fine', revision: 8 }))
+  const setPlanningPreferences = vi.fn<SessionControls['setPlanningPreferences']>(async () => ({ enabled: false, granularity: 'balanced', revision: 9 }))
+  const draft = createConversationDraft({ eventSource: new MutableSessionEventSource(), title: 'Draft', planningScope: 'personal',
+    planningPreferences: { readPlanningPreferences, setPlanningPreferences }, materialize,
+    loadModels: () => Promise.resolve({ default: { provider: 'test', model: 'test' }, groups: [], failures: [], routableProviders: ['test'] }),
+    listTasks: () => Promise.resolve([]), openExecution: vi.fn() })
+  expect(await draft.controls.readPlanningPreferences()).toEqual({ enabled: false, granularity: 'fine', revision: 8 })
+  await draft.controls.setPlanningPreferences({ enabled: false, granularity: 'balanced', expectedRevision: 8 })
+  expect(setPlanningPreferences).toHaveBeenCalledExactlyOnceWith({ enabled: false, granularity: 'balanced', expectedRevision: 8 })
+  expect(await draft.controls.readMode()).toEqual({ enabled: true, revision: 0 })
+  expect(materialize).not.toHaveBeenCalled()
+  draft.dispose()
+})

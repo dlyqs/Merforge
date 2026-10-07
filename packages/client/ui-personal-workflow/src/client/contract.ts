@@ -50,6 +50,8 @@ export interface ExecutionActions {
     'assigned' | 'openExecution' | 'taskTitle' | 'taskId' | 'listTasks' | 'selectTask'> | undefined
   candidates(sessionId: SessionId): Promise<PlanView[]>
   readRun(sessionId: SessionId): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun | null>
+  /** @param request - Bound plan identity and immutable revision. @returns Definition used by this execution attempt. */
+  readPlan(request: ReadPlanRequest): Promise<PlanRevision>
   limits(): Promise<{ maxActions: number; maxTurns: number; maxDurationMs: number }>
   claim(request: import('@deepseek-ai/dsh-personal-workflow/types').ClaimTaskRequest): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
   stop(request: import('@deepseek-ai/dsh-personal-workflow/types').ControlTaskRequest, cancel: boolean): Promise<import('@deepseek-ai/dsh-personal-workflow/types').TaskRun>
