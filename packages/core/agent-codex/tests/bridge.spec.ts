@@ -24,8 +24,9 @@ it('drains an in-flight model discovery when the native provider unloads', async
   expect(peer.children.every(child => child.exited)).toBe(true)
 })
 
-it('dispatches two queued sends to one native thread with durable intent before each wire write and cold resume', async () => {
+it('dispatches queued sends and cold resume despite startup account updates, with durable intent before each wire write', async () => {
   const { ctx, root, peer } = await fixture()
+  peer.notifyAccountOnRead = true
   const id = SessionId('native-two-turns')
   const handle = await ctx.agents.create({ sessionId: id, agentOptions: { backend: selection }, meta: { cwd: root } })
   peer.onSend = async () => {

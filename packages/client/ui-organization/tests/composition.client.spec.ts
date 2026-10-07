@@ -40,6 +40,9 @@ it('registers organization settings while retaining the personal management fact
 }, 60000)
 
 it('routes new and recent conversation navigation to the organization and replaces task readers until identity changes', async ({ mock, start }) => {
+  mock.remote.permissionPresets.catalog.mockResolvedValue(ok({ defaultPreset: 'workspace-write',
+    options: [{ value: 'workspace-write', name: 'workspace-write' }, { value: 'read-only', name: 'read-only' }],
+    defaultOptions: [{ value: 'workspace-write', name: 'workspace-write' }] }))
   const sessionId = 'organization-initial-personal' as SessionId
   mock.remote.session.create.mockResolvedValue(ok({ sessionId }))
   const globalObject = globalThis as typeof globalThis & { dshDesktop?: { organization?: OrganizationDesktopBridge } }
@@ -94,6 +97,9 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(app.ctx.slots.entries('main').filter(e => e.options.key === 'conversation')[0]?.component).toBe(ConversationPanel)
     expect(app.ctx.slots.entries('main.conversation.entry')[0]?.component).toBe(OrganizationConversationEntry)
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toMatch(/^conversation-draft:/)
+    const permissionDraftId = app.ctx.uiSession.adapter.current.getSnapshot().key as SessionId
+    await vi.waitFor(() => { expect(app.ctx.sessions.binding(permissionDraftId)!.session.projections.faceOf('permissions').getSnapshot())
+      .toEqual({ currentValue: 'workspace-write' }) })
     const sidebar = app.ctx.slots.entries('sidebar.personal').find(entry => entry.component === OrganizationSidebar)!
     const bind = sidebar.inject as (actions: BoundActions<ReturnType<typeof createConversationStore>>) => OrganizationInjected
     const actions = createConversationStore().create().actions
@@ -242,6 +248,10 @@ it('routes new and recent conversation navigation to the organization and replac
     const draftId = app.ctx.uiSession.adapter.current.getSnapshot().key as SessionId
     const draftBinding = app.ctx.sessions.binding(draftId)!
     expect(app.ctx.sessions.list.getSnapshot().ids).not.toContain(draftId)
+    await draftBinding.session.command('/permission read-only')
+    expect(draftBinding.session.projections.faceOf('permissions').getSnapshot()).toEqual({ currentValue: 'read-only' })
+    expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach' || request.kind === 'open')).toHaveLength(beforeDraft)
+    mock.remote.commands.execute.mockResolvedValue(ok({}))
     mock.remote.commands.list.mockResolvedValue(ok([]))
     mock.remote.skills.list.mockResolvedValue(ok({ skills: [] }))
     const input = app.ctx.conversation.input.for(draftBinding.ctx)
@@ -251,6 +261,9 @@ it('routes new and recent conversation navigation to the organization and replac
     await vi.waitFor(() => { expect(mock.remote.session.prompt.mock.calls.at(-1)?.[0]).toMatchObject({
       sessionId: report.sharedSessionId, content: [{ type: 'text', text: 'First submitted message' }],
     }) })
+    expect(mock.remote.commands.execute).toHaveBeenLastCalledWith(report.sharedSessionId, '/permission read-only', [])
+    expect(mock.remote.commands.execute.mock.invocationCallOrder.at(-1)!)
+      .toBeLessThan(mock.remote.session.prompt.mock.invocationCallOrder.at(-1)!)
     expect(nativeConversation.mock.calls.filter(([request]) => request.kind === 'attach')).toHaveLength(beforeDraft + 1)
     expect(app.ctx.uiSession.adapter.current.getSnapshot().key).toBe(report.sharedSessionId)
 
@@ -262,6 +275,12 @@ it('routes new and recent conversation navigation to the organization and replac
     expect(app.ctx.sessions.binding(report.sharedSessionId!)).toBeUndefined()
     expect(binding.eventSource.getSnapshot().entries).toEqual([])
     publish?.(snapshot)
+    await vi.waitFor(() => {
+      const key = app.ctx.uiSession.adapter.current.getSnapshot().key as SessionId
+      expect(key).toMatch(/^conversation-draft:/)
+      expect(app.ctx.sessions.binding(key)!.session.projections.faceOf('permissions').getSnapshot())
+        .toEqual({ currentValue: 'workspace-write' })
+    })
     await injected.selectConversation!(report.owner)
     const retained = app.ctx.sessions.retain(report.sharedSessionId!, { source: 'controllerOperation' })
     await retained.ready

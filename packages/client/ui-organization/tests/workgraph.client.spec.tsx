@@ -86,7 +86,7 @@ it('keeps the overview focused and removes the read-only context action', async 
   expect(screen.getByText('Authorized scope')).toBeTruthy()
   expect(screen.queryByRole('button', { name: zh.myContext })).toBeNull()
   expect(screen.queryByText(zh.taskIdentifiers)).toBeNull()
-  expect(screen.queryByText(zh.stagesAndDependencies)).toBeNull()
+  expect(screen.getByText(zh.stagesAndDependencies).closest('details')?.open).toBe(true)
   expect(h.context).not.toHaveBeenCalled()
 })
 it('opens project information in the main destination and removes the manual task workbench', async () => {
@@ -356,16 +356,16 @@ it('discards delayed shared background after the native identity generation reti
   expect(screen.queryByRole('button', { name: zh.editSharedContext })).toBeNull()
 })
 
-it('refreshes map and detail badges together after assignment and issuer acceptance', async () => {
+it('refreshes map, detail and stage badges together after assignment and issuer acceptance', async () => {
   const h = fixture()
   const view = render(<Workbench {...h.props} project={h.project} planId={h.version.planId}
     initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
-  await waitFor(() => { expect(screen.getAllByText(zh['task-status-pending'])).toHaveLength(2) })
+  await waitFor(() => { expect(screen.getAllByText(zh['task-status-pending'])).toHaveLength(4) })
   for (const [generation, status] of [[2, 'running'], [3, 'completed']] as const) {
     h.page.items = h.page.items.map(task => ({ ...task, status }))
     h.setState({ generation })
     view.rerender(<Workbench {...h.props} project={h.project} planId={h.version.planId}
       initialTaskId={h.page.items[0]!.id} onBack={vi.fn()} />)
-    await waitFor(() => { expect(screen.getAllByText(zh[`task-status-${status}`])).toHaveLength(2) })
+    await waitFor(() => { expect(screen.getAllByText(zh[`task-status-${status}`])).toHaveLength(4) })
   }
 })

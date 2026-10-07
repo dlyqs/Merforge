@@ -183,21 +183,29 @@ export class CodexRuntime {
   async catalog(refresh = false): Promise<{ account: CodexAccount; models: readonly CodexModel[] }> {
     this.assertReady()
     if (!refresh && this.cache !== undefined && this.cache.expiresAt > Date.now()) return this.cache
-    const revision = refresh ? this.invalidateCatalog() : this.catalogRevision
+    let revision = refresh ? this.invalidateCatalog() : this.catalogRevision
     try {
-      const account = parseAccount(await this.rpc('account/read', { refreshToken: false }))
+      let account = parseAccount(await this.rpc('account/read', { refreshToken: false }))
       const models: CodexModel[] = []
       const cursors = new Set<string>()
       let cursor: string | null = null
       for (let page = 0; page < this.spec.limits.maxModelPages; page++) {
+        if (revision !== this.catalogRevision) {
+          revision = this.catalogRevision
+          account = parseAccount(await this.rpc('account/read', { refreshToken: false }))
+          models.length = 0
+          cursors.clear()
+          cursor = null
+        }
         const response = parseModels(await this.rpc('model/list', { cursor, limit: this.spec.limits.modelPageSize, includeHidden: false }))
+        // Native startup can publish account/updated while discovery is in flight.
+        if (revision !== this.catalogRevision) continue
         for (const model of response.models) {
           if (models.some(existing => existing.id === model.id)) throw new CodexRuntimeError('protocol')
           models.push(model)
         }
         cursor = response.cursor
         if (cursor === null) {
-          if (revision !== this.catalogRevision) throw new CodexRuntimeError('protocol')
           const snapshot = Object.freeze({ account: Object.freeze(account), models: Object.freeze(models),
             expiresAt: Date.now() + this.spec.limits.modelCacheMs })
           this.cache = snapshot

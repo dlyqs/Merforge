@@ -46,7 +46,7 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
 
 /** Required UI services; the Desktop preload owns the native IPC capability. */
 export const inject = ['slots', 'locale', 'remote', 'remote.session', 'settingsNavigation', 'layout', 'uiWorkspace',
-  'sessions', 'uiSession', 'uiConversation', 'remote.workspaceFiles']
+  'sessions', 'uiSession', 'uiConversation', 'remote.workspaceFiles', 'remote.permissionPresets']
 /**
  * Register safe native snapshots with framework-created hooks and managed subscriptions.
  * @param ctx - Client plugin context.

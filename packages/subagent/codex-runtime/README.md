@@ -15,6 +15,8 @@ Call `openCodexRuntime`, `catalog`, `startThread` or `resumeThread`, `send`, the
 
 `catalog` caches only a complete account/model snapshot. Refresh and explicit invalidation retire in-flight revisions; auth/rate/config notifications and failed RPCs invalidate availability. Only account type and authentication requirement survive parsing; email, plan and tokens do not. Model pages are bounded and duplicate identities/cursors fail. Runtime/thread configuration is fixed for the connection; replacing it requires a new owner and catalog. Resume reads the exact persistent legacy thread before resuming and rejects cwd/model/ID drift, active turns and cropped/paginated history. The caller must additionally reconcile account generation, Session ownership, authorization and log baseline.
 
+An auth/rate/config notification during discovery discards the accumulated model pages and rereads the account before restarting pagination. All model-page requests, including discarded attempts, share `maxModelPages`; repeated invalidation fails when that budget is exhausted. Startup account notifications therefore cannot publish stale availability or cause unbounded discovery retries.
+
 The shared transport supports UTF-8 split frames, correlated bidirectional RPC, abort removal, strict optional parsing, bounded incoming/outgoing frames, EOF and asynchronous write failures. After close it refuses requests and suppresses late handler responses. The legacy one-shot consumer retains tolerant malformed-line handling and its existing safe diagnostics.
 
 ## Device authentication and execution admission

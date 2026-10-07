@@ -3,7 +3,7 @@ description: "Desktop organization settings and authorized project navigation."
 kind: "package-client"
 ---
 
-The task workspace places creator-only shared deletion or assigned-member installation-local removal above the canvas on the right. Both require confirmation. It omits the task heading, search, back action and project title. Sidebar conversation switches display a loading state while catalogs and the chosen Session attach; empty groups show an unsaved client-memory draft with the selected Project/Bot affiliation and the standard composer. Navigation, typing, model selection and planning controls do not create account records. The first submitted non-empty prompt attaches the ordinary Session, applies draft choices and sends the input; failed submission retains the draft for explicit retry.
+The task workspace places creator-only shared deletion or assigned-member installation-local removal above the canvas on the right. Both require confirmation. It omits the task heading, search, back action and project title. Sidebar conversation switches display a loading state while catalogs and the chosen Session attach; empty groups show an unsaved client-memory draft with the selected Project/Bot affiliation and the standard composer. Organization drafts read the Host permission catalog through the required `remote.permissionPresets` service and display its default in the common composer. Navigation, typing, model selection, permission selection and planning controls do not create account records. The first submitted non-empty prompt attaches the ordinary Session, applies draft choices and sends the input; failed submission retains the draft for explicit retry.
 
 # @deepseek-ai/dsh-client-ui-organization
 

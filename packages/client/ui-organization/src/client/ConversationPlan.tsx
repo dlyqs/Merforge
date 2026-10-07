@@ -1,6 +1,6 @@
 /** Current unapproved tree, minimal member candidates and read-only task lifecycle details. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Input, TaskDetail } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationRequest, ConversationResult } from '@deepseek-ai/dsh-organization-conversation/protocol'
 import type { OrganizationAssignmentId, OrganizationTaskId } from '@deepseek-ai/dsh-organization'
 import type { ConnectionResult } from '@deepseek-ai/dsh-organization-connection/types'
@@ -12,6 +12,7 @@ import css from './Organization.module.css'
 import { taskWorkspaceStyles } from '@deepseek-ai/dsh-client-ui-primitives'
 import { TaskSharing } from './TaskSharing.tsx'
 import type { OrganizationTaskView } from '@deepseek-ai/dsh-organization'
+import { taskStageView } from './task-status-view.ts'
 import { TaskCanvas } from './TaskCanvas.tsx'
 
 type Query = Pick<ConversationRequest, 'organizationId' | 'projectId' | 'conversationId'>
@@ -90,6 +91,7 @@ export function ConversationPlan(props: OrganizationProps & {
     const fact = authoritative.find(fact => fact.id === item.id && fact.revision === proposal.revision)
     return { ...item, ...(fact ? { status: fact.status } : {}) }
   })
+  const stages = taskStageView(proposal.definition?.phases ?? [], tasks, t)
   const assignment = facts?.history?.result.kind === 'tasks' ? facts.history.result.value.items[0] : undefined
   const submission = facts?.delivery?.submissions[0], run = facts?.executions?.items[0]
   const name = (id: string | null | undefined) => candidates?.items.find(m => m.membershipId === id)?.username ?? (id ? t('selectedMember') : t('chooseMember'))
@@ -151,6 +153,9 @@ export function ConversationPlan(props: OrganizationProps & {
             {overview}
           </TaskDetail>)}
       </TaskCanvas>
+      {proposal.definition && <TaskStages phases={stages.phases} tasks={stages.tasks} selected={task?.id ?? null}
+        labels={{ dependencies: t('stagesAndDependencies'), parallel: t('parallelTasks'), phase: t('phase'),
+          prerequisites: t('dependencies'), none: t('noDependencies'), hiddenPrerequisite: t('hiddenPrerequisite') }} onSelect={showTask} />}
     </div></div>
     {notice && <p role="status">{notice}</p>}
   </section>

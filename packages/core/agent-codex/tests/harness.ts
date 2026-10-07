@@ -57,6 +57,7 @@ function native() {
   let loseTerminal = false
   let toolOnly = false
   let loggedIn = true
+  let notifyAccountOnRead = false
   let modelsAvailable = true
   let holdCatalog = false
   let threadCount = 0
@@ -65,6 +66,7 @@ function native() {
   let onSend: (() => Promise<void>) | undefined
   const children: Array<{ handle: SubprocessHandle; peer: JsonRpcLineTransport; exited: boolean }> = []
   const spawn = (request: SubprocessSpawnSpec): SubprocessHandle => {
+    let accountUpdatePending = notifyAccountOnRead
     const input = new PassThrough(), output = new PassThrough(), stderr = new PassThrough()
     const done = Promise.withResolvers<SubprocessOutcome>()
     const peer = new JsonRpcLineTransport(output, input)
@@ -87,7 +89,12 @@ function native() {
       calls.push({ method, params })
       switch (method) {
         case 'initialize': return { userAgent: 'codex-cli 0.153.4', platformFamily: 'unix', platformOs: 'macos', codexHome: '/private/native' }
-        case 'account/read': return { account: loggedIn ? { type: 'chatgpt', email: 'private@example.test' } : null, requiresOpenaiAuth: true }
+        case 'account/read':
+          if (accountUpdatePending) {
+            accountUpdatePending = false
+            peer.notify('account/updated', {})
+          }
+          return { account: loggedIn ? { type: 'chatgpt', email: 'private@example.test' } : null, requiresOpenaiAuth: true }
         case 'model/list':
           if (holdCatalog) return new Promise<never>(() => {})
           if (!modelsAvailable) return { data: [], nextCursor: null }
@@ -134,6 +141,7 @@ function native() {
     return handle
   }
   return { calls, children, threads, spawn,
+    set notifyAccountOnRead(value: boolean) { notifyAccountOnRead = value },
     set hold(value: boolean) { hold = value }, set loseAcceptance(value: boolean) { loseAcceptance = value },
     set loseTerminal(value: boolean) { loseTerminal = value }, set toolOnly(value: boolean) { toolOnly = value },
     set loggedIn(value: boolean) { loggedIn = value },

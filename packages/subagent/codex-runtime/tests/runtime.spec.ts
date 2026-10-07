@@ -88,6 +88,47 @@ describe('persistent Codex runtime', () => {
     expect(h.calls.some(call => call.method === 'thread/start')).toBe(false)
   })
 
+  it.each(['account/updated', 'account/rateLimits/updated', 'config/updated'])('rereads account and discards model pages invalidated by %s during discovery', async (notification) => {
+    const h = harness(), runtime = await ready(h)
+    let reads = 0, pages = 0
+    h.handler = async (method) => {
+      if (method === 'account/read') {
+        reads += 1
+        return { account: reads === 1 ? { type: 'chatgpt' } : null, requiresOpenaiAuth: true }
+      }
+      if (method === 'model/list') {
+        pages += 1
+        if (pages === 2) h.peer.notify(notification, {})
+        return { data: pages === 1 ? [{ ...model, id: 'stale-model' }] : pages === 2 ? [] : [model],
+          nextCursor: pages === 1 ? 'second' : null }
+      }
+      throw new Error('unexpected request')
+    }
+    const snapshot = await runtime.catalog(true)
+    expect(snapshot.account).toEqual({ kind: 'none', requiresOpenaiAuth: true })
+    expect(snapshot.models.map(entry => entry.id)).toEqual([model.id])
+    expect(reads).toBe(2)
+    expect(await runtime.catalog()).toBe(snapshot)
+    expect(pages).toBe(3)
+  })
+
+  it('bounds discovery restarts when native notifications keep invalidating every model page', async () => {
+    const h = harness(), runtime = await ready(h)
+    h.handler = async (method) => {
+      if (method === 'account/read') return { account: null, requiresOpenaiAuth: true }
+      if (method === 'model/list') {
+        h.peer.notify('account/updated', {})
+        return { data: [model], nextCursor: null }
+      }
+      throw new Error('unexpected request')
+    }
+    await expect(runtime.catalog(true)).rejects.toThrow('protocol')
+    expect(h.calls.filter(call => call.method === 'model/list')).toHaveLength(h.spec.limits.maxModelPages)
+    h.handler = async method => method === 'account/read'
+      ? { account: null, requiresOpenaiAuth: true } : { data: [model], nextCursor: null }
+    expect((await runtime.catalog()).models.map(entry => entry.id)).toEqual([model.id])
+  })
+
   it('rejects controlled/organization modes before creating any native thread', async () => {
     const h = harness(); const runtime = await ready(h)
     for (const mode of ['controlled', 'organization'] as const) await expect(runtime.startThread({ ...selection, mode })).rejects.toThrow('unsupported execution mode')

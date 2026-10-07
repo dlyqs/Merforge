@@ -1,7 +1,8 @@
 /** Project task workspace; native generations invalidate every displayed remote fact. */
 import { useEffect, useRef, useState } from 'react'
+import { taskStageView } from './task-status-view.ts'
 import { TaskInspector } from './TaskInspector.tsx'
-import { Button, Modal, TaskDetail } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, TaskDetail, TaskStages } from '@deepseek-ai/dsh-client-ui-primitives'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { OrganizationPlanDefinition, OrganizationPlanId, OrganizationTaskId, OrganizationTaskPage, OrganizationTaskView } from '@deepseek-ai/dsh-organization'
@@ -73,6 +74,9 @@ export function Workbench(props: OrganizationProps & {
     ?.items.find(item => item.id === selected)
   const canvasTasks = draft ? draft.definition.tasks.map(item => ({ ...item,
     phaseTitle: draft.definition.phases.find(phase => phase.id === item.phaseId)?.title ?? '' })) : pageTasks
+  const phases = draft?.definition.phases ?? [...new Map(pageTasks.map(item =>
+    [item.phaseId, { id: item.phaseId, title: item.phaseTitle }])).values()]
+  const stages = taskStageView(phases, canvasTasks, t)
   const detailTask = draft ? draft.definition.tasks.find(item => item.id === draft.taskId) : task
   const writable = ready && !busy && !c.pendingOperation
   const draftCurrent = draft?.expectedRevision === 0 || draft?.generation === c.generation
@@ -235,6 +239,10 @@ export function Workbench(props: OrganizationProps & {
           </section>
         </TaskDetail>}
       </TaskCanvas>
+      <TaskStages phases={stages.phases} tasks={stages.tasks} selected={draft?.taskId ?? selected ?? null}
+        labels={{ dependencies: t('stagesAndDependencies'), parallel: t('parallelTasks'), phase: t('phase'),
+          prerequisites: t('dependencies'), none: t('noDependencies'), hiddenPrerequisite: t('hiddenPrerequisite') }}
+        onSelect={(id) => { const item = canvasTasks.find(item => item.id === id); if (item) showTask(item.id) }} />
     </div></div>}
   </section>
 }
